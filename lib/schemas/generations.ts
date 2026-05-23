@@ -93,12 +93,25 @@ const ASPECT_RATIO_DIMENSIONS: Record<string, [number, number]> = {
   '3:4': [3, 4],
 };
 
+const FLUX_MAX_DIM = 2048;
+const FLUX_MIN_DIM = 256;
+
 export function fluxDimensions(aspectRatio: string, megapixels: number): { width: number; height: number } {
   const [aw, ah] = ASPECT_RATIO_DIMENSIONS[aspectRatio] ?? [1, 1];
   const targetPixels = megapixels * 1_000_000;
   const ratio = aw / ah;
-  const heightF = Math.sqrt(targetPixels / ratio);
-  const widthF = heightF * ratio;
+  let heightF = Math.sqrt(targetPixels / ratio);
+  let widthF = heightF * ratio;
+  // FLUX 2 Pro tope a 2048 en cualquier eje. Si excede, reescalar manteniendo
+  // el aspect ratio (sacrificamos megapixels reales antes que dimensiones).
+  if (widthF > FLUX_MAX_DIM || heightF > FLUX_MAX_DIM) {
+    const scale = FLUX_MAX_DIM / Math.max(widthF, heightF);
+    widthF *= scale;
+    heightF *= scale;
+  }
   const round = (n: number) => Math.round(n / 32) * 32;
-  return { width: Math.max(256, round(widthF)), height: Math.max(256, round(heightF)) };
+  return {
+    width: Math.min(FLUX_MAX_DIM, Math.max(FLUX_MIN_DIM, round(widthF))),
+    height: Math.min(FLUX_MAX_DIM, Math.max(FLUX_MIN_DIM, round(heightF))),
+  };
 }
