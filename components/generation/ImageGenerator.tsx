@@ -22,6 +22,15 @@ export function ImageGenerator(props: {
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
 
+  // Costo de "Mejorar prompt" desde model_pricing (provider='internal').
+  // Fallback a 5 si la fila no existe aún (migration 009 sin aplicar).
+  const enhanceCost = useMemo(() => {
+    const row = props.pricing.find(
+      (p) => p.provider === 'internal' && p.model_id === 'prompt-enhance',
+    );
+    return row?.credits_cost ?? 5;
+  }, [props.pricing]);
+
   const [modelKey, setModelKey] = useState<ModelKey>('nano-pro');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -222,6 +231,7 @@ export function ImageGenerator(props: {
       canGenerate={canGenerate}
       onGenerate={handleGenerate}
       hideCta={effectiveConversational}
+      enhanceCost={enhanceCost}
     />
   );
 

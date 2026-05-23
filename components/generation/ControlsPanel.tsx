@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Camera,
+  Check,
   ChevronDown,
   Globe,
   Info,
@@ -10,11 +11,14 @@ import {
   MessageSquareText,
   Sparkles,
   Type,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Step as StepBase, SectionHeading } from './Step';
 import { ReferencesPanel, type ReferenceClient } from './ReferencesPanel';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { enhancePromptAction } from '@/server-actions/prompt-enhancer';
 import type { ModelKey, Selection, SessionItem } from './types';
 
 const ASPECTS: { id: string; w: number; h: number }[] = [
@@ -85,6 +89,7 @@ export type ControlsPanelProps = {
   canGenerate: boolean;
   onGenerate: () => void;
   hideCta?: boolean;
+  enhanceCost: number;
 };
 
 export function ControlsPanel(props: ControlsPanelProps) {
@@ -105,7 +110,19 @@ export function ControlsPanel(props: ControlsPanelProps) {
         </Step>
 
         <Step n={2} title="Describe tu imagen" subtitle="Cuanto más concreto, mejor">
-          <PromptArea value={props.prompt} onChange={props.setPrompt} />
+          <PromptArea
+            value={props.prompt}
+            onChange={props.setPrompt}
+            enhanceCost={props.enhanceCost}
+            balance={props.balance}
+            enhanceHint={
+              props.photoreal
+                ? 'photoreal'
+                : props.hasTextInImage
+                  ? 'text-in-image'
+                  : undefined
+            }
+          />
           <div className="mt-2">
             <NegativePromptInput
               value={props.negativePrompt}
@@ -257,39 +274,141 @@ function ModelPicker({
 function PromptArea({
   value,
   onChange,
+  enhanceCost,
+  balance,
+  enhanceHint,
 }: {
   value: string;
   onChange: (v: string) => void;
+  enhanceCost: number;
+  balance: number;
+  enhanceHint?: 'photoreal' | 'illustration' | 'text-in-image';
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [enhancing, startEnhance] = useTransition();
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [value]);
+
+  const canEnhance =
+    value.trim().length >= 3 && !enhancing && balance >= enhanceCost;
+  const tooShort = value.trim().length > 0 && value.trim().length < 3;
+  const noBalance = value.trim().length >= 3 && balance < enhanceCost;
+
+  function handleEnhance() {
+    if (!canEnhance) return;
+    startEnhance(async () => {
+      const res = await enhancePromptAction({
+        prompt: value,
+        hint: enhanceHint,
+      });
+      if (!res.ok) {
+        const msg =
+          res.error === 'insufficient_credits'
+            ? `Te faltan créditos (necesitas ${enhanceCost}).`
+            : res.error === 'safety'
+              ? 'Gemini rechazó la mejora por políticas de seguridad.'
+              : res.error === 'validation_error'
+                ? 'Escribe al menos 3 caracteres.'
+                : res.message || 'No se pudo mejorar el prompt.';
+        toast.error(msg);
+        return;
+      }
+      setSuggestion(res.enhanced);
+      toast.success(`Sugerencia lista · −${res.cost} cr`);
+    });
+  }
+
   return (
-    <div className="rounded-[14px] border border-border bg-muted/30 transition-colors focus-within:border-primary/40">
-      <textarea
-        ref={ref}
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, 8000))}
-        placeholder="Describe lo que quieres crear. Sé específico con luz, lente y atmósfera."
-        className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[14px] leading-[1.5] text-foreground outline-none"
-        style={{ minHeight: 96, maxHeight: 280 }}
-      />
-      <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">
-        <div className="font-mono text-[10.5px] text-muted-foreground/70">
-          {value.length} / 8 000
+    <div>
+      <div className="rounded-[14px] border border-border bg-muted/30 transition-colors focus-within:border-primary/40">
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value.slice(0, 8000));
+            // Si el usuario edita manualmente, la sugerencia queda obsoleta.
+            if (suggestion) setSuggestion(null);
+          }}
+          placeholder="Describe lo que quieres crear. Sé específico con luz, lente y atmósfera."
+          className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[14px] leading-[1.5] text-foreground outline-none"
+          style={{ minHeight: 96, maxHeight: 280 }}
+        />
+        <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">
+          <div className="font-mono text-[10.5px] text-muted-foreground/70">
+            {value.length} / 8 000
+          </div>
+          <button
+            type="button"
+            onClick={handleEnhance}
+            disabled={!canEnhance}
+            title={
+              tooShort
+                ? 'Escribe al menos 3 caracteres'
+                : noBalance
+                  ? `Necesitas ${enhanceCost} créditos`
+                  : `Mejorar prompt · −${enhanceCost} cr`
+            }
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition-colors',
+              canEnhance
+                ? 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                : 'cursor-not-allowed text-muted-foreground/40',
+            )}
+          >
+            {enhancing ? (
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3" aria-hidden />
+            )}
+            Mejorar
+            <span className="font-mono text-[10px] opacity-70">
+              −{enhanceCost} cr
+            </span>
+          </button>
         </div>
-        <button
-          type="button"
-          title="Mejorar prompt"
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Sparkles className="size-3" aria-hidden /> Mejorar
-        </button>
       </div>
+
+      {suggestion && (
+        <div className="mt-2 rounded-[12px] border border-primary/30 bg-primary/[0.04]">
+          <div className="flex items-center justify-between gap-2 border-b border-primary/15 px-3 py-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-primary">
+              <Sparkles className="size-3" aria-hidden />
+              Sugerencia
+            </div>
+            <div className="font-mono text-[10px] text-muted-foreground/70">
+              {suggestion.length} caracteres
+            </div>
+          </div>
+          <div className="px-3 py-2.5 text-[13px] leading-[1.5] text-foreground/90">
+            {suggestion}
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-primary/15 px-2 py-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(suggestion);
+                setSuggestion(null);
+              }}
+              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11.5px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Check className="size-3" aria-hidden /> Usar
+            </button>
+            <button
+              type="button"
+              onClick={() => setSuggestion(null)}
+              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-3" aria-hidden /> Descartar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
