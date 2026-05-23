@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Camera,
   Check,
-  ChevronDown,
   Globe,
   Info,
   Loader2,
@@ -15,7 +14,11 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Step as StepBase, SectionHeading } from './Step';
-import { ReferencesPanel, type ReferenceClient } from './ReferencesPanel';
+import {
+  ReferencesPanel,
+  type AvailableReference,
+  type ReferenceClient,
+} from './ReferencesPanel';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { enhancePromptAction } from '@/server-actions/prompt-enhancer';
@@ -63,8 +66,6 @@ export type ControlsPanelProps = {
   selection: Selection;
   prompt: string;
   setPrompt: (v: string) => void;
-  negativePrompt: string;
-  setNegativePrompt: (v: string) => void;
   aspectRatio: string;
   setAspectRatio: (v: string) => void;
   resolution: '1k' | '2k' | '4k';
@@ -81,6 +82,7 @@ export type ControlsPanelProps = {
   setMegapixels: (v: 1 | 2 | 4) => void;
   references: ReferenceClient[];
   setReferences: (next: ReferenceClient[]) => void;
+  availableReferences: AvailableReference[];
   activeResult: SessionItem | null;
   cost: number;
   balance: number;
@@ -92,9 +94,19 @@ export type ControlsPanelProps = {
   enhanceCost: number;
 };
 
+// Palabras que sugieren que el prompt pide datos del mundo real / actuales.
+// Si aparece alguna y grounding está apagado (y el modelo lo soporta), se
+// muestra un chip sugiriendo activarlo.
+const GROUNDING_TRIGGER_RE =
+  /\b(clima|tiempo|temperatura|forecast|pron[oó]stico|hoy|ahora|actual|reciente|en\s*vivo|mapa|ruta|tr[aá]fico|stock|bolsa|precio|cotizaci[oó]n|noticia|news|evento|partido|resultado|score|elecci[oó]n|estadio|concierto)\b/i;
+
 export function ControlsPanel(props: ControlsPanelProps) {
   const isNano = props.selection.provider === 'nano-banana';
   const isPro = props.selection.model === 'gemini-3-pro-image-preview';
+  const suggestGrounding =
+    isNano &&
+    !props.useGrounding &&
+    GROUNDING_TRIGGER_RE.test(props.prompt);
   const hint = !props.prompt.trim()
     ? 'Escribe un prompt para empezar.'
     : props.conversational && isPro
@@ -123,12 +135,21 @@ export function ControlsPanel(props: ControlsPanelProps) {
                   : undefined
             }
           />
-          <div className="mt-2">
-            <NegativePromptInput
-              value={props.negativePrompt}
-              onChange={props.setNegativePrompt}
-            />
-          </div>
+          {suggestGrounding && (
+            <button
+              type="button"
+              onClick={() => props.setUseGrounding(true)}
+              className="zyra-fade-in mt-2 flex w-full items-start gap-2 rounded-[10px] border border-primary/30 bg-primary/[0.04] px-3 py-2 text-left transition-colors hover:bg-primary/[0.08]"
+            >
+              <Globe className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+              <span className="flex-1 text-[11.5px] leading-[1.4] text-foreground">
+                Tu prompt parece pedir datos actuales. Activa búsqueda en Google para que el modelo use info real.
+              </span>
+              <span className="shrink-0 rounded-md bg-primary px-2 py-0.5 font-mono text-[10px] font-medium text-primary-foreground">
+                +20% cr
+              </span>
+            </button>
+          )}
         </Step>
 
         <Step
@@ -145,6 +166,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
             value={props.references}
             onChange={props.setReferences}
             maxRefs={isNano ? 11 : 8}
+            available={props.availableReferences}
           />
         </Step>
 
@@ -413,46 +435,6 @@ function PromptArea({
   );
 }
 
-function NegativePromptInput({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(value.length > 0);
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ChevronDown
-          className={cn('size-3 transition-transform', open ? 'rotate-0' : '-rotate-90')}
-          aria-hidden
-        />
-        Prompt negativo
-        {!open && value.length > 0 && (
-          <span className="font-mono text-[10.5px] text-muted-foreground/70">
-            · {value.length}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="mt-2 rounded-[10px] border border-border bg-muted/30">
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value.slice(0, 2000))}
-            placeholder="Qué quieres evitar. Ej: texto borroso, manos deformadas, marca de agua."
-            className="h-16 w-full resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] leading-[1.45] text-muted-foreground outline-none"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AspectPicker({
   value,
   onChange,
@@ -649,9 +631,9 @@ function NanoParams({
       )}
       <ToggleRow
         icon={Globe}
-        label="Grounding con Google Search"
-        hint="Permite incorporar datos en tiempo real."
-        costNote="+20% en créditos"
+        label="Buscar datos reales en Google"
+        hint="Útil para clima, mapas, eventos, precios. No aporta a escenas creativas."
+        costNote={useGrounding ? '+20% en créditos' : undefined}
         on={useGrounding}
         onChange={setUseGrounding}
       />

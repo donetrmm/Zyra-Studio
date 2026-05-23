@@ -15,11 +15,20 @@ import { PreviewArea } from './PreviewArea';
 import type { ReferenceClient } from './ReferencesPanel';
 import type { ModelKey, Selection, SessionItem } from './types';
 
+export type AvailableReference = {
+  id: string;
+  storagePath: string;
+  previewUrl: string | null;
+  filename: string;
+  source: string;
+};
+
 export function ImageGenerator(props: {
   userId: string;
   workspaceId: string;
   initialBalance: number;
   pricing: PricingRow[];
+  availableReferences: AvailableReference[];
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
 
@@ -34,7 +43,6 @@ export function ImageGenerator(props: {
 
   const [modelKey, setModelKey] = useState<ModelKey>('nano-pro');
   const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<string>('1:1');
   const [resolution, setResolution] = useState<'1k' | '2k' | '4k'>('2k');
   const [hasTextInImage, setHasTextInImage] = useState(false);
@@ -125,7 +133,6 @@ export function ImageGenerator(props: {
           | 'gemini-3.1-flash-image-preview',
         variant: selection.variant as '1k' | '2k' | '4k',
         prompt,
-        negativePrompt: negativePrompt.trim() || undefined,
         aspectRatio,
         references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
         hasTextInImage,
@@ -140,7 +147,6 @@ export function ImageGenerator(props: {
       model: 'flux-2-pro-preview' as const,
       variant: 'default' as const,
       prompt,
-      negativePrompt: negativePrompt.trim() || undefined,
       aspectRatio,
       megapixels,
       references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
@@ -149,7 +155,6 @@ export function ImageGenerator(props: {
   }, [
     selection,
     prompt,
-    negativePrompt,
     aspectRatio,
     references,
     hasTextInImage,
@@ -240,8 +245,6 @@ export function ImageGenerator(props: {
       selection={selection}
       prompt={prompt}
       setPrompt={setPrompt}
-      negativePrompt={negativePrompt}
-      setNegativePrompt={setNegativePrompt}
       aspectRatio={aspectRatio}
       setAspectRatio={setAspectRatio}
       resolution={resolution}
@@ -258,6 +261,7 @@ export function ImageGenerator(props: {
       setMegapixels={setMegapixels}
       references={references}
       setReferences={setReferences}
+      availableReferences={props.availableReferences}
       activeResult={activeResult}
       cost={cost}
       balance={balance}
