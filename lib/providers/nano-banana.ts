@@ -9,29 +9,30 @@ import {
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+// Gemini REST puede devolver thoughtSignature (camelCase) o thought_signature.
+const PartSchema = z.union([
+  z.object({
+    text: z.string(),
+    thoughtSignature: z.string().optional(),
+    thought_signature: z.string().optional(),
+  }),
+  z.object({
+    inlineData: z.object({ mimeType: z.string(), data: z.string() }),
+    thoughtSignature: z.string().optional(),
+    thought_signature: z.string().optional(),
+  }),
+  z.object({
+    inline_data: z.object({ mime_type: z.string(), data: z.string() }),
+    thoughtSignature: z.string().optional(),
+    thought_signature: z.string().optional(),
+  }),
+]);
+
 const ResponseSchema = z.object({
   candidates: z
     .array(
       z.object({
-        content: z.object({
-          parts: z.array(
-            z.union([
-              z.object({ text: z.string() }),
-              z.object({
-                inlineData: z.object({
-                  mimeType: z.string(),
-                  data: z.string(),
-                }),
-              }),
-              z.object({
-                inline_data: z.object({
-                  mime_type: z.string(),
-                  data: z.string(),
-                }),
-              }),
-            ]),
-          ),
-        }),
+        content: z.object({ parts: z.array(PartSchema) }),
         finishReason: z.string().optional(),
       }),
     )
@@ -61,8 +62,11 @@ function buildPrompt(params: NanoBananaParams): string {
 }
 
 type Part =
-  | { text: string }
-  | { inline_data: { mime_type: string; data: string } };
+  | { text: string; thoughtSignature?: string }
+  | {
+      inline_data: { mime_type: string; data: string };
+      thoughtSignature?: string;
+    };
 
 function buildBody(params: NanoBananaParams) {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
@@ -83,6 +87,8 @@ function buildBody(params: NanoBananaParams) {
   // para que Gemini la trate como SU output anterior (edición in-place).
   // Sin esto, agregarla como inline_data en el mismo turn la hace una ref de
   // inspiración y el modelo "pega" la cara sin integrarla.
+  // Gemini 3 requiere que las partes que vinieron del modelo se reenvíen con
+  // su thoughtSignature original; si falta, devuelve 400.
   const contents: Array<{
     role?: 'user' | 'model';
     parts: Part[];
@@ -92,17 +98,16 @@ function buildBody(params: NanoBananaParams) {
       role: 'user',
       parts: [{ text: params.previousTurn.prompt }],
     });
-    contents.push({
-      role: 'model',
-      parts: [
-        {
-          inline_data: {
-            mime_type: params.previousTurn.mimeType,
-            data: params.previousTurn.imageBuffer.toString('base64'),
-          },
-        },
-      ],
-    });
+    const modelPart: Part = {
+      inline_data: {
+        mime_type: params.previousTurn.mimeType,
+        data: params.previousTurn.imageBuffer.toString('base64'),
+      },
+    };
+    if (params.previousTurn.thoughtSignature) {
+      modelPart.thoughtSignature = params.previousTurn.thoughtSignature;
+    }
+    contents.push({ role: 'model', parts: [modelPart] });
     contents.push({ role: 'user', parts: newUserParts });
   } else {
     contents.push({ parts: newUserParts });
@@ -134,11 +139,15 @@ function buildBody(params: NanoBananaParams) {
 function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
   for (const part of parts) {
     if (typeof part !== 'object' || part === null) continue;
+    const sig =
+      (part as { thoughtSignature?: string }).thoughtSignature ??
+      (part as { thought_signature?: string }).thought_signature;
     if ('inlineData' in part) {
       const p = part as { inlineData: { mimeType: string; data: string } };
       return {
         buffer: Buffer.from(p.inlineData.data, 'base64'),
         mimeType: p.inlineData.mimeType,
+        thoughtSignature: sig,
       };
     }
     if ('inline_data' in part) {
@@ -146,6 +155,7 @@ function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
       return {
         buffer: Buffer.from(p.inline_data.data, 'base64'),
         mimeType: p.inline_data.mime_type,
+        thoughtSignature: sig,
       };
     }
   }

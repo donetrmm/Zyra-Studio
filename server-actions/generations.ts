@@ -221,6 +221,7 @@ export async function submitGenerationAction(
       prompt: string;
       imageBuffer: Buffer;
       mimeType: string;
+      thoughtSignature?: string;
     } | null = null;
     if (
       data.provider === 'nano-banana' &&
@@ -229,7 +230,7 @@ export async function submitGenerationAction(
     ) {
       const { data: parent } = await supabase
         .from('generations')
-        .select('output_url, workspace_id, status, prompt')
+        .select('output_url, workspace_id, status, prompt, provider_payload')
         .eq('id', data.parentGenerationId)
         .single();
       if (
@@ -239,15 +240,19 @@ export async function submitGenerationAction(
         parent.status === 'done'
       ) {
         const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url);
+        const payload = (parent.provider_payload ?? {}) as {
+          thought_signature?: string;
+        };
         previousTurn = {
           prompt: parent.prompt ?? '',
           imageBuffer: buffer,
           mimeType,
+          thoughtSignature: payload.thought_signature,
         };
       }
     }
 
-    let result: { buffer: Buffer; mimeType: string };
+    let result: { buffer: Buffer; mimeType: string; thoughtSignature?: string };
     if (data.provider === 'nano-banana') {
       result = await generateNanoBanana({
         model: data.model,
@@ -285,6 +290,10 @@ export async function submitGenerationAction(
     await confirmCredits(user.id, cost, generationId);
 
     const admin = createAdminClient();
+    const providerPayload: Record<string, unknown> = {};
+    if (result.thoughtSignature) {
+      providerPayload.thought_signature = result.thoughtSignature;
+    }
     const { error: updateErr } = await admin
       .from('generations')
       .update({
@@ -295,6 +304,8 @@ export async function submitGenerationAction(
         processing_ms: processingMs,
         completed_at: new Date().toISOString(),
         file_size_bytes: result.buffer.byteLength,
+        provider_payload:
+          Object.keys(providerPayload).length > 0 ? providerPayload : null,
       })
       .eq('id', generationId);
     if (updateErr) {

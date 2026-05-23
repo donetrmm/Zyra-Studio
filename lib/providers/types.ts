@@ -9,6 +9,10 @@ export type NanoBananaTurn = {
   prompt: string;
   imageBuffer: Buffer;
   mimeType: string;
+  // Firma del razonamiento del modelo, devuelta por Gemini en el part de
+  // inline_data. Obligatoria al reenviar el turn como role:'model' en chat
+  // multi-turn con gemini-3-pro-image-preview (si falta → 400).
+  thoughtSignature?: string;
 };
 
 export type NanoBananaParams = {
@@ -42,6 +46,7 @@ export type FluxParams = {
 export type GenerationResult = {
   buffer: Buffer;
   mimeType: string;
+  thoughtSignature?: string;
   meta?: Record<string, unknown>;
 };
 
