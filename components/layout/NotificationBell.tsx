@@ -130,7 +130,7 @@ export function NotificationBell({ userId, initial }: Props) {
               className="flex flex-col items-start gap-0.5"
             >
               <span className="text-sm font-medium">
-                {labelForType(n.type)}
+                {notificationLabel(n)}
               </span>
               <span className="text-xs text-muted-foreground">
                 {new Date(n.created_at).toLocaleString("es-MX", {
@@ -146,17 +146,37 @@ export function NotificationBell({ userId, initial }: Props) {
   );
 }
 
-function labelForType(type: string): string {
-  switch (type) {
-    case "purchase_approved":
-      return "Tu compra fue aprobada";
+function notificationLabel(n: Notification): string {
+  switch (n.type) {
+    case "purchase_approved": {
+      const credits = numFromPayload(n.payload, "credits");
+      return credits !== null
+        ? `Compra aprobada: +${fmt(credits)} créditos`
+        : "Tu compra fue aprobada";
+    }
     case "purchase_rejected":
       return "Tu compra fue rechazada";
     case "generation_done":
       return "Una generación terminó";
-    case "credit_grant":
-      return "Recibiste créditos";
+    case "credit_grant": {
+      const delta = numFromPayload(n.payload, "delta");
+      if (delta === null) return "Se ajustaron tus créditos";
+      if (delta >= 0) return `Recibiste ${fmt(delta)} créditos`;
+      return `Se debitaron ${fmt(Math.abs(delta))} créditos`;
+    }
     default:
-      return type;
+      return n.type;
   }
+}
+
+function numFromPayload(
+  payload: Record<string, unknown>,
+  key: string,
+): number | null {
+  const v = payload[key];
+  return typeof v === "number" ? v : null;
+}
+
+function fmt(n: number): string {
+  return new Intl.NumberFormat("es-MX").format(n);
 }
