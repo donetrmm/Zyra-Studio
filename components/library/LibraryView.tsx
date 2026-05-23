@@ -35,6 +35,7 @@ export type LibraryReference = {
   name: string | null;
   source: string;
   createdAt: string;
+  previewUrl: string | null;
 };
 
 type Filter = 'all' | 'image' | 'video' | 'audio';
@@ -120,10 +121,23 @@ export function LibraryView({
         ) : (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
             {references.map((r) => (
-              <Card key={r.id} className="aspect-square overflow-hidden p-0">
-                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                  {r.name ?? r.type}
-                </div>
+              <Card
+                key={r.id}
+                className="group relative aspect-square overflow-hidden bg-muted p-0"
+                title={r.name ?? r.type}
+              >
+                {r.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.previewUrl}
+                    alt={r.name ?? ''}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                    {r.name ?? r.type}
+                  </div>
+                )}
               </Card>
             ))}
           </div>

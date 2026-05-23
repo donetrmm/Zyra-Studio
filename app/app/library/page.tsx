@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
-import { publicThumbnailUrl } from '@/lib/supabase/storage';
+import { publicThumbnailUrl, signedReferenceUrl } from '@/lib/supabase/storage';
 import { LibraryView, type LibraryGeneration, type LibraryReference } from '@/components/library/LibraryView';
 
 export const metadata: Metadata = {
@@ -42,14 +42,29 @@ export default async function LibraryPage() {
     createdAt: g.created_at,
   }));
 
-  const references: LibraryReference[] = (referencesRes.data ?? []).map((r) => ({
-    id: r.id,
-    type: r.type,
-    storagePath: r.storage_url,
-    name: r.name,
-    source: r.source,
-    createdAt: r.created_at,
-  }));
+  // Firmamos las URLs en paralelo. Si falla (e.g. archivo borrado), dejamos
+  // previewUrl null y la card cae a placeholder.
+  const references: LibraryReference[] = await Promise.all(
+    (referencesRes.data ?? []).map(async (r) => {
+      let previewUrl: string | null = null;
+      if (r.type === 'image') {
+        try {
+          previewUrl = await signedReferenceUrl(r.storage_url);
+        } catch {
+          previewUrl = null;
+        }
+      }
+      return {
+        id: r.id,
+        type: r.type,
+        storagePath: r.storage_url,
+        name: r.name,
+        source: r.source,
+        createdAt: r.created_at,
+        previewUrl,
+      };
+    }),
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
