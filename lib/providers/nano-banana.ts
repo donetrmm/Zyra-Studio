@@ -53,10 +53,20 @@ const ErrorSchema = z.object({
   }),
 });
 
+const TEXT_IN_IMAGE_DIRECTIVE =
+  'Render any embedded text exactly as written, preserve spelling, kerning and legible typography; align text crisply within the composition.';
+
 function buildPrompt(params: NanoBananaParams): string {
-  let prompt = params.prompt;
+  let prompt = params.prompt.trim();
+  // Texto en imagen: directiva explícita al inicio. Gemini 3 renderiza texto
+  // bien pero solo si el prompt lo trata como elemento gráfico literal.
   if (params.hasTextInImage) {
-    prompt = prompt.trim();
+    prompt = `${TEXT_IN_IMAGE_DIRECTIVE} ${prompt}`;
+  }
+  // Negative prompt como sufijo "Avoid: ..." (Gemini no expone negative_prompt).
+  const negative = params.negativePrompt?.trim();
+  if (negative) {
+    prompt = `${prompt} Avoid: ${negative}.`;
   }
   return prompt;
 }

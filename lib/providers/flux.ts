@@ -43,21 +43,36 @@ const POLL_TIMEOUT_MS = 30_000;
 const REF_MENTION_RE =
   /\b(image|imagen|images|im[áa]genes|reference|referencia|ref|photo|foto|picture|retrato|portrait)\b/i;
 
-function buildPromptWithRefs(prompt: string, refCount: number): string {
-  if (refCount === 0) return prompt;
-  if (REF_MENTION_RE.test(prompt)) return prompt;
-  const trimmed = prompt.trim();
-  if (refCount === 1) {
-    return `Use image 1 as the main reference for subject, identity and composition. ${trimmed}`;
+const PHOTOREAL_DIRECTIVE =
+  'Photoreal cinematic photography, sharp focus, natural lighting, fine micro-details, professional camera, accurate skin tones.';
+
+function buildPrompt(params: FluxParams, refCount: number): string {
+  let prompt = params.prompt.trim();
+  // 1) Anclar refs si el usuario no las nombró.
+  if (refCount > 0 && !REF_MENTION_RE.test(prompt)) {
+    if (refCount === 1) {
+      prompt = `Use image 1 as the main reference for subject, identity and composition. ${prompt}`;
+    } else {
+      const ids = Array.from({ length: refCount }, (_, i) => `image ${i + 1}`).join(', ');
+      prompt = `Use ${ids} as references; combine them as instructed. ${prompt}`;
+    }
   }
-  const ids = Array.from({ length: refCount }, (_, i) => `image ${i + 1}`).join(', ');
-  return `Use ${ids} as references; combine them as instructed. ${trimmed}`;
+  // 2) Directiva fotorrealista al inicio si está activa.
+  if (params.photoreal) {
+    prompt = `${PHOTOREAL_DIRECTIVE} ${prompt}`;
+  }
+  // 3) Negative prompt como sufijo "Avoid: ..." (FLUX 2 no tiene campo nativo).
+  const negative = params.negativePrompt?.trim();
+  if (negative) {
+    prompt = `${prompt} Avoid: ${negative}.`;
+  }
+  return prompt;
 }
 
 async function submit(params: FluxParams, apiKey: string): Promise<string> {
   const refs = (params.references ?? []).slice(0, FLUX_MAX_REFS);
   const body: Record<string, unknown> = {
-    prompt: buildPromptWithRefs(params.prompt, refs.length),
+    prompt: buildPrompt(params, refs.length),
     width: params.width,
     height: params.height,
     safety_tolerance: params.safetyTolerance ?? 2,
