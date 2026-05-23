@@ -60,21 +60,52 @@ function buildPrompt(params: NanoBananaParams): string {
   return prompt;
 }
 
+type Part =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
 function buildBody(params: NanoBananaParams) {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
   const refs = (params.references ?? []).slice(0, maxRefs);
 
-  const parts: Array<
-    { text: string } | { inline_data: { mime_type: string; data: string } }
-  > = [{ text: buildPrompt(params) }];
-
+  // Construir las partes del último turno (prompt nuevo + refs externas)
+  const newUserParts: Part[] = [{ text: buildPrompt(params) }];
   for (const ref of refs) {
-    parts.push({
+    newUserParts.push({
       inline_data: {
         mime_type: ref.mimeType,
         data: ref.buffer.toString('base64'),
       },
     });
+  }
+
+  // Multi-turn cuando hay `previousTurn`: la imagen previa va con role:'model'
+  // para que Gemini la trate como SU output anterior (edición in-place).
+  // Sin esto, agregarla como inline_data en el mismo turn la hace una ref de
+  // inspiración y el modelo "pega" la cara sin integrarla.
+  const contents: Array<{
+    role?: 'user' | 'model';
+    parts: Part[];
+  }> = [];
+  if (params.previousTurn) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: params.previousTurn.prompt }],
+    });
+    contents.push({
+      role: 'model',
+      parts: [
+        {
+          inline_data: {
+            mime_type: params.previousTurn.mimeType,
+            data: params.previousTurn.imageBuffer.toString('base64'),
+          },
+        },
+      ],
+    });
+    contents.push({ role: 'user', parts: newUserParts });
+  } else {
+    contents.push({ parts: newUserParts });
   }
 
   type GenConfig = {
@@ -89,7 +120,7 @@ function buildBody(params: NanoBananaParams) {
   }
 
   const body: Record<string, unknown> = {
-    contents: [{ parts }],
+    contents,
     generationConfig,
   };
 

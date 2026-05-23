@@ -214,8 +214,14 @@ export async function submitGenerationAction(
   try {
     const references = await loadReferences(workspace.id, data.references);
 
-    // Cuando es conversational con parent, inyectar el output del parent como
-    // referencia visual (primera en la lista, para que tenga prioridad).
+    // Conversational: traer el output + prompt del parent para inyectarlos como
+    // turno previo del chat (NO como ref). Eso es lo que hace que Gemini edite
+    // la imagen anterior en lugar de "pegar la cara".
+    let previousTurn: {
+      prompt: string;
+      imageBuffer: Buffer;
+      mimeType: string;
+    } | null = null;
     if (
       data.provider === 'nano-banana' &&
       data.conversational &&
@@ -223,12 +229,21 @@ export async function submitGenerationAction(
     ) {
       const { data: parent } = await supabase
         .from('generations')
-        .select('output_url, workspace_id, status')
+        .select('output_url, workspace_id, status, prompt')
         .eq('id', data.parentGenerationId)
         .single();
-      if (parent && parent.workspace_id === workspace.id && parent.output_url && parent.status === 'done') {
+      if (
+        parent &&
+        parent.workspace_id === workspace.id &&
+        parent.output_url &&
+        parent.status === 'done'
+      ) {
         const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url);
-        references.unshift({ buffer, mimeType });
+        previousTurn = {
+          prompt: parent.prompt ?? '',
+          imageBuffer: buffer,
+          mimeType,
+        };
       }
     }
 
@@ -240,6 +255,7 @@ export async function submitGenerationAction(
         aspectRatio: data.aspectRatio,
         resolution: nanoVariantToResolution(data.variant),
         references,
+        previousTurn,
         useGrounding: data.useGrounding,
         conversational: data.conversational,
         hasTextInImage: data.hasTextInImage,

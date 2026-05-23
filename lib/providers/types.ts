@@ -5,6 +5,12 @@ export type ImageReference = {
   mimeType: string;
 };
 
+export type NanoBananaTurn = {
+  prompt: string;
+  imageBuffer: Buffer;
+  mimeType: string;
+};
+
 export type NanoBananaParams = {
   model: 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
   prompt: string;
@@ -14,6 +20,10 @@ export type NanoBananaParams = {
   useGrounding?: boolean;
   conversational?: boolean;
   hasTextInImage?: boolean;
+  // Si presente, el adapter construye contents en formato chat multi-turn:
+  // [user: prompt anterior, model: imagen anterior, user: nuevo prompt+refs].
+  // Esto es lo que mantiene composición real al editar (no "pegar cara").
+  previousTurn?: NanoBananaTurn | null;
 };
 
 export type FluxParams = {
@@ -24,6 +34,9 @@ export type FluxParams = {
   promptUpsampling?: boolean;
   seed?: number;
   safetyTolerance?: number;
+  // 0–1. Qué tanto debe FLUX adherirse a las refs (identidad / composición).
+  // Default alto: las refs deberían ANCLAR, no solo inspirar.
+  imagePromptStrength?: number;
 };
 
 export type GenerationResult = {
