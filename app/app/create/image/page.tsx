@@ -24,13 +24,11 @@ export default async function CreateImagePage() {
   const balance = balanceRes.data?.balance ?? 0;
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
-      <ImageGenerator
-        userId={user.id}
-        workspaceId={workspace.id}
-        initialBalance={balance}
-        pricing={pricing}
-      />
-    </div>
+    <ImageGenerator
+      userId={user.id}
+      workspaceId={workspace.id}
+      initialBalance={balance}
+      pricing={pricing}
+    />
   );
 }
