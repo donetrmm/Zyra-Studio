@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LiveCreditValue } from "@/components/layout/LiveCreditValue";
 import { requireWorkspace } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
 
@@ -66,7 +67,7 @@ export default async function DashboardPage() {
         <MetricCard
           icon={<Coins className="size-4 text-primary" aria-hidden />}
           label="Créditos disponibles"
-          value={fmt(balance)}
+          value={<LiveCreditValue userId={user.id} initialBalance={balance} />}
           hint={pending > 0 ? `${fmt(pending)} reservados` : "Listos para usar"}
         />
         <MetricCard
@@ -207,7 +208,7 @@ function MetricCard({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   hint: string;
 }) {
   return (
