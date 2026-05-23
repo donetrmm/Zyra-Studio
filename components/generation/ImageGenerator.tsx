@@ -29,6 +29,9 @@ export function ImageGenerator(props: {
   initialBalance: number;
   pricing: PricingRow[];
   availableReferences: AvailableReference[];
+  initialPrompt?: string;
+  initialAspect?: string;
+  initialModelKey?: ModelKey;
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
 
@@ -41,9 +44,13 @@ export function ImageGenerator(props: {
     return row?.credits_cost ?? 5;
   }, [props.pricing]);
 
-  const [modelKey, setModelKey] = useState<ModelKey>('nano-pro');
-  const [prompt, setPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState<string>('1:1');
+  const [modelKey, setModelKey] = useState<ModelKey>(
+    props.initialModelKey ?? 'nano-pro',
+  );
+  const [prompt, setPrompt] = useState(props.initialPrompt ?? '');
+  const [aspectRatio, setAspectRatio] = useState<string>(
+    props.initialAspect ?? '1:1',
+  );
   const [resolution, setResolution] = useState<'1k' | '2k' | '4k'>('2k');
   const [hasTextInImage, setHasTextInImage] = useState(false);
   const [conversational, setConversational] = useState(false);

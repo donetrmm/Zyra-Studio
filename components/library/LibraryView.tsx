@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Library,
   Loader2,
+  RotateCcw,
   Search,
   Sparkles,
   X,
@@ -59,6 +60,24 @@ const MODEL_LABEL: Record<string, string> = {
 
 function modelLabel(g: { provider: string; model: string }): string {
   return MODEL_LABEL[g.model] ?? `${g.provider}/${g.model}`;
+}
+
+// Mapeo modelo provider -> ModelKey usado por el create page.
+// Si no matchea (modelo legacy o eliminado), cae a 'auto' y deja que
+// el router decida.
+function generationToModelKey(g: { provider: string; model: string }): string {
+  if (g.provider === 'flux') return 'flux';
+  if (g.model === 'gemini-3.1-flash-image-preview') return 'nano-flash';
+  if (g.model === 'gemini-3-pro-image-preview') return 'nano-pro';
+  return 'auto';
+}
+
+function reuseHref(g: LibraryGeneration): string {
+  const params = new URLSearchParams();
+  if (g.prompt) params.set('prompt', g.prompt);
+  if (g.aspectRatio) params.set('aspect', g.aspectRatio);
+  params.set('model', generationToModelKey(g));
+  return `/app/create/image?${params.toString()}`;
 }
 
 function bucketOf(iso: string): string {
@@ -787,12 +806,21 @@ function DetailAside({
           )}
         </div>
 
+        {generation.prompt && (
+          <Link
+            href={reuseHref(generation)}
+            className="mb-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15"
+          >
+            <RotateCcw className="size-3.5" aria-hidden /> Reusar prompt
+          </Link>
+        )}
+
         <div className="mb-3.5 grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={handleDownload}
             disabled={!outputUrl || downloading}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {downloading ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden />

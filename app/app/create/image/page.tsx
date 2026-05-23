@@ -12,9 +12,40 @@ export const metadata: Metadata = {
   title: 'Generar imagen',
 };
 
-export default async function CreateImagePage() {
+type SearchParams = Promise<{
+  prompt?: string;
+  aspect?: string;
+  model?: string;
+}>;
+
+const VALID_ASPECTS = new Set([
+  '1:1',
+  '16:9',
+  '9:16',
+  '4:3',
+  '3:4',
+  '3:2',
+  '2:3',
+]);
+const VALID_MODELS = new Set(['auto', 'nano-pro', 'nano-flash', 'flux']);
+
+export default async function CreateImagePage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
+  const sp = await searchParams;
+  const initialPrompt = typeof sp.prompt === 'string' ? sp.prompt.slice(0, 8000) : '';
+  const initialAspect =
+    typeof sp.aspect === 'string' && VALID_ASPECTS.has(sp.aspect)
+      ? sp.aspect
+      : undefined;
+  const initialModelKey =
+    typeof sp.model === 'string' && VALID_MODELS.has(sp.model)
+      ? (sp.model as 'auto' | 'nano-pro' | 'nano-flash' | 'flux')
+      : undefined;
 
   const [balanceRes, pricing, referencesRes] = await Promise.all([
     supabase
@@ -54,13 +85,23 @@ export default async function CreateImagePage() {
     }),
   );
 
+  // key fuerza remount cuando cambian los query params (ej. el usuario hace
+  // "Reusar prompt" en library dos veces seguidas con prompts distintos).
+  // Trade-off: pierde session/refs en curso, pero es el comportamiento que
+  // espera el usuario al "empezar de nuevo con este prompt".
+  const remountKey = `${initialPrompt}|${initialAspect ?? ''}|${initialModelKey ?? ''}`;
+
   return (
     <ImageGenerator
+      key={remountKey}
       userId={user.id}
       workspaceId={workspace.id}
       initialBalance={balance}
       pricing={pricing}
       availableReferences={availableReferences}
+      initialPrompt={initialPrompt}
+      initialAspect={initialAspect}
+      initialModelKey={initialModelKey}
     />
   );
 }
