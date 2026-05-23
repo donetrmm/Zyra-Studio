@@ -66,25 +66,11 @@ Dashboard → Storage → New bucket. Crear los seis con la visibilidad indicada
 | `avatars` | público | Avatares de usuario. |
 | `brand-assets` | privado | Logos y assets de brand kits. |
 
-## 6. CORS para uploads directos
+## 6. CORS
 
-Solo en buckets que reciben uploads desde el browser: `references`, `voice-samples`, `avatars`, `brand-assets`.
+Supabase Storage actual maneja CORS automáticamente para uploads autenticados y signed URLs — no hay configuración per-bucket en el dashboard. Para uploads directos desde el browser en Fase 2 no hace falta hacer nada extra.
 
-Dashboard → Storage → bucket → Configuration → CORS:
-
-```json
-{
-  "allowed_origins": [
-    "http://localhost:3000",
-    "https://<tu-deploy>.vercel.app"
-  ],
-  "allowed_methods": ["GET", "POST", "PUT", "DELETE", "HEAD"],
-  "allowed_headers": ["*"],
-  "max_age_seconds": 3600
-}
-```
-
-> Sin CORS, los uploads directos desde el browser fallan con `CORS error` opacos en consola y no llegan a la API.
+> El spec original mencionaba pegar JSON de CORS por bucket; eso fue una versión anterior de Supabase, ya no aplica.
 
 ## 7. Aplicar migraciones
 
