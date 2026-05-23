@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
-import { createPurchaseAction, PACKS, type PackId } from '@/server-actions/billing';
+import { createPurchaseAction } from '@/server-actions/billing';
+import { PACKS, type PackId } from '@/lib/billing/packs';
 import { cn } from '@/lib/utils';
 
 export type PurchaseRow = {
