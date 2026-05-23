@@ -51,6 +51,10 @@ async function submit(params: FluxParams, apiKey: string): Promise<string> {
   } else if (refs.length > 1) {
     body.image_prompt = refs.map((r) => r.buffer.toString('base64'));
   }
+  // Cuando hay refs, ancla más fuerte. Default 0.85; el caller puede subir/bajar.
+  if (refs.length > 0) {
+    body.image_prompt_strength = params.imagePromptStrength ?? 0.85;
+  }
 
   const res = await fetch(ENDPOINT, {
     method: 'POST',
