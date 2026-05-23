@@ -269,28 +269,26 @@ function PromptArea({
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [value]);
   return (
-    <div className="relative rounded-[14px] border border-border bg-muted/30 transition-colors focus-within:border-primary/40">
+    <div className="rounded-[14px] border border-border bg-muted/30 transition-colors focus-within:border-primary/40">
       <textarea
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, 8000))}
-        placeholder="Describe la imagen que quieres crear. Sé específico — luz, lente, atmósfera, materiales."
-        className="w-full resize-none border-0 bg-transparent text-[15px] leading-[1.5] text-foreground outline-none"
-        style={{ minHeight: 96, maxHeight: 280, padding: '14px 14px 36px' }}
+        placeholder="Describe lo que quieres crear. Sé específico con luz, lente y atmósfera."
+        className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[14px] leading-[1.5] text-foreground outline-none"
+        style={{ minHeight: 96, maxHeight: 280 }}
       />
-      <div className="pointer-events-none absolute inset-x-3.5 bottom-2.5 flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">
         <div className="font-mono text-[10.5px] text-muted-foreground/70">
           {value.length} / 8 000
         </div>
-        <div className="pointer-events-auto flex gap-1.5">
-          <button
-            type="button"
-            title="Mejorar prompt"
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Sparkles className="size-3" aria-hidden /> Mejorar
-          </button>
-        </div>
+        <button
+          type="button"
+          title="Mejorar prompt"
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Sparkles className="size-3" aria-hidden /> Mejorar
+        </button>
       </div>
     </div>
   );
