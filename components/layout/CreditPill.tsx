@@ -5,6 +5,10 @@ import Link from "next/link";
 import { Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import {
+  useAnimatedNumber,
+  useFlashOnChange,
+} from "@/hooks/useAnimatedNumber";
 
 type Props = {
   userId: string;
@@ -13,6 +17,8 @@ type Props = {
 
 export function CreditPill({ userId, initialBalance }: Props) {
   const [balance, setBalance] = useState(initialBalance);
+  const animated = useAnimatedNumber(balance);
+  const flash = useFlashOnChange(balance);
 
   useEffect(() => {
     const supabase = createClient();
@@ -48,8 +54,6 @@ export function CreditPill({ userId, initialBalance }: Props) {
         .subscribe();
     })();
 
-    // Re-propaga el token cuando Supabase lo refresca, para que la subscripción
-    // siga válida sin caerse.
     const { data: authSub } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "TOKEN_REFRESHED" && session?.access_token) {
@@ -65,18 +69,36 @@ export function CreditPill({ userId, initialBalance }: Props) {
     };
   }, [userId]);
 
-  const formatted = new Intl.NumberFormat("es-MX").format(balance);
+  const formatted = new Intl.NumberFormat("es-MX").format(animated);
 
   return (
     <Link
       href="/app/billing"
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium transition-colors hover:border-primary/60 hover:text-primary",
+        "group inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium transition-all duration-300 hover:border-primary/60 hover:text-primary",
+        flash === "up" && "border-emerald-400/60 ring-1 ring-emerald-400/30",
+        flash === "down" && "border-rose-400/60 ring-1 ring-rose-400/30",
       )}
       aria-label={`${formatted} créditos disponibles`}
+      aria-live="polite"
     >
-      <Coins className="size-4 text-primary" aria-hidden />
-      <span className="tabular-nums">{formatted}</span>
+      <Coins
+        className={cn(
+          "size-4 text-primary transition-all duration-300",
+          flash === "up" && "scale-110 text-emerald-400",
+          flash === "down" && "scale-110 text-rose-400",
+        )}
+        aria-hidden
+      />
+      <span
+        className={cn(
+          "tabular-nums transition-colors duration-300",
+          flash === "up" && "text-emerald-400",
+          flash === "down" && "text-rose-400",
+        )}
+      >
+        {formatted}
+      </span>
       <span className="hidden text-muted-foreground sm:inline">créditos</span>
     </Link>
   );

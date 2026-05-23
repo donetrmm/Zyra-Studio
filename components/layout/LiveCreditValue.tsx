@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import {
+  useAnimatedNumber,
+  useFlashOnChange,
+} from "@/hooks/useAnimatedNumber";
 
 type Props = {
   userId: string;
@@ -9,11 +14,13 @@ type Props = {
   className?: string;
 };
 
-// Sólo el número en vivo. Misma subscripción que CreditPill — los dos
-// observadores reciben el mismo evento y quedan sincronizados.
+// Subscripción + número animado. Misma data que CreditPill (los dos
+// observadores reciben el mismo evento por separado).
 // Patrón setAuth obligatorio (ver feedback en memory / CreditPill.tsx).
 export function LiveCreditValue({ userId, initialBalance, className }: Props) {
   const [balance, setBalance] = useState(initialBalance);
+  const animated = useAnimatedNumber(balance);
+  const flash = useFlashOnChange(balance);
 
   useEffect(() => {
     const supabase = createClient();
@@ -61,8 +68,15 @@ export function LiveCreditValue({ userId, initialBalance, className }: Props) {
   }, [userId]);
 
   return (
-    <span className={className}>
-      {new Intl.NumberFormat("es-MX").format(balance)}
+    <span
+      className={cn(
+        "tabular-nums transition-colors duration-300",
+        flash === "up" && "text-emerald-400",
+        flash === "down" && "text-rose-400",
+        className,
+      )}
+    >
+      {new Intl.NumberFormat("es-MX").format(animated)}
     </span>
   );
 }
