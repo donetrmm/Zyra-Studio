@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -107,8 +107,19 @@ export function ReferencesPanel({
   );
 
   function removeRef(id: string) {
+    const target = value.find((r) => r.id === id);
+    if (target) URL.revokeObjectURL(target.previewUrl);
     onChange(value.filter((r) => r.id !== id));
   }
+
+  // Liberar todas las object URLs al desmontar.
+  useEffect(() => {
+    return () => {
+      for (const r of value) URL.revokeObjectURL(r.previewUrl);
+    };
+    // Eslint: queremos cleanup solo en unmount, no en cada cambio de value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="space-y-2">
