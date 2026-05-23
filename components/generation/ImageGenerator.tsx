@@ -251,11 +251,8 @@ export function ImageGenerator(props: {
   );
 
   return (
-    <div
-      className="-mx-4 -my-6 lg:-mx-8 lg:-my-8"
-      style={{ background: 'var(--zyra-bg-deep)' }}
-    >
-      {/* Desktop: 2 columnas flush, sin radios ni cards. */}
+    <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
+      {/* Desktop: 2 columnas flush bajo el topbar global. */}
       <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px,1fr]">
         <div className="min-h-0 overflow-hidden">{controls}</div>
         <div className="min-h-0 overflow-hidden">{main}</div>
@@ -267,10 +264,7 @@ export function ImageGenerator(props: {
           defaultValue="controls"
           className="flex h-[calc(100dvh-7.5rem)] flex-col"
         >
-          <TabsList
-            className="mx-3 mt-3 grid w-auto grid-cols-2"
-            style={{ background: 'var(--zyra-bg-1)' }}
-          >
+          <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">
             <TabsTrigger value="controls">Controles</TabsTrigger>
             <TabsTrigger value="preview">
               {effectiveConversational ? 'Hilo' : 'Vista previa'}

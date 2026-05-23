@@ -13,6 +13,7 @@ import {
   Sparkles,
   Square,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { SessionItem } from './types';
 
 const ROTATING_TIPS = [
@@ -48,14 +49,7 @@ export function PreviewArea({
   etaSeconds: number;
 }) {
   return (
-    <div
-      className="flex h-full min-h-0 flex-col"
-      style={{
-        background: 'var(--zyra-bg-deep)',
-        fontFamily: 'var(--zyra-font-sans)',
-        color: 'var(--zyra-text-1)',
-      }}
-    >
+    <div className="flex h-full min-h-0 flex-col bg-background">
       <PreviewToolbar ready={!pending && !!result} />
       <div className="relative min-h-0 flex-1">
         {pending ? (
@@ -83,33 +77,14 @@ export function PreviewArea({
 
 function PreviewToolbar({ ready }: { ready: boolean }) {
   return (
-    <div
-      className="flex h-11 shrink-0 items-center justify-between px-5"
-      style={{
-        background: 'var(--zyra-bg-1)',
-        borderBottom: '1px solid var(--zyra-hairline)',
-      }}
-    >
+    <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-5">
       <div className="flex items-center gap-2">
-        <div
-          className="text-[11px] uppercase tracking-[0.08em]"
-          style={{ color: 'var(--zyra-text-3)' }}
-        >
+        <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
           Vista previa
         </div>
         {ready && (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px]"
-            style={{
-              background: 'var(--zyra-ok-soft)',
-              border: '1px solid rgba(78, 205, 138, 0.2)',
-              color: 'var(--zyra-ok)',
-            }}
-          >
-            <span
-              className="size-[5px] rounded-full"
-              style={{ background: 'var(--zyra-ok)' }}
-            />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] text-emerald-400">
+            <span className="size-[5px] rounded-full bg-emerald-400" />
             Lista
           </span>
         )}
@@ -140,8 +115,7 @@ function ToolbarBtn({
     <button
       type="button"
       title={title}
-      className="grid size-7 place-items-center rounded-[7px] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
-      style={{ color: 'var(--zyra-text-2)' }}
+      className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40"
     >
       {children}
     </button>
@@ -155,42 +129,25 @@ function aspectToRatio(aspect: string): number {
 
 function EmptyState() {
   return (
-    <div className="zyra-fade-in grid h-full place-items-center p-8">
+    <div className="grid h-full place-items-center p-8">
       <div className="max-w-[420px] text-center">
-        <div
-          className="relative mx-auto mb-[22px] grid size-[88px] place-items-center rounded-[22px]"
-          style={{
-            background:
-              'radial-gradient(circle at 30% 30%, rgba(123, 97, 255, 0.22), transparent 60%), var(--zyra-bg-2)',
-            border: '1px solid var(--zyra-hairline)',
-          }}
-        >
+        <div className="relative mx-auto mb-[22px] grid size-[88px] place-items-center rounded-[22px] border border-border bg-card">
           <span
             className="pointer-events-none absolute -inset-px rounded-[22px]"
             style={{
               background:
-                'conic-gradient(from 0deg, rgba(123, 97, 255, 0.45), transparent 30%, transparent 70%, rgba(123, 97, 255, 0.45))',
+                'conic-gradient(from 0deg, color-mix(in oklch, var(--color-primary) 45%, transparent), transparent 30%, transparent 70%, color-mix(in oklch, var(--color-primary) 45%, transparent))',
               opacity: 0.45,
               animation: 'zyra-orbit 8s linear infinite',
             }}
             aria-hidden
           />
-          <Sparkles
-            className="relative size-7"
-            style={{ color: 'var(--zyra-accent-2)' }}
-            aria-hidden
-          />
+          <Sparkles className="relative size-7 text-primary" aria-hidden />
         </div>
-        <h2
-          className="m-0 text-[22px] font-medium"
-          style={{ color: 'var(--zyra-text-1)', letterSpacing: '-0.015em' }}
-        >
+        <h2 className="font-heading text-[22px] font-medium tracking-tight">
           Empieza describiendo tu imagen
         </h2>
-        <p
-          className="mt-2.5 text-[13.5px] leading-[1.55]"
-          style={{ color: 'var(--zyra-text-2)' }}
-        >
+        <p className="mt-2.5 text-[13.5px] leading-[1.55] text-muted-foreground">
           Cuanto más específico seas con la atmósfera, la luz y los materiales, mejor
           será el resultado. Puedes añadir hasta 11 referencias para guiar el estilo.
         </p>
@@ -198,12 +155,7 @@ function EmptyState() {
           {SAMPLE_PROMPTS.map((s) => (
             <span
               key={s}
-              className="rounded-full px-2.5 py-1.5 text-[11.5px]"
-              style={{
-                background: 'var(--zyra-bg-2)',
-                border: '1px solid var(--zyra-hairline)',
-                color: 'var(--zyra-text-2)',
-              }}
+              className="rounded-full border border-border bg-card px-2.5 py-1.5 text-[11.5px] text-muted-foreground"
             >
               {s}
             </span>
@@ -240,21 +192,16 @@ function GeneratingState({
   const pct = Math.min(95, (elapsed / Math.max(etaSeconds, 1)) * 100);
 
   return (
-    <div className="zyra-fade-in flex h-full flex-col items-center justify-center p-6">
+    <div className="flex h-full flex-col items-center justify-center p-6">
       <div
-        className="relative overflow-hidden rounded-[18px]"
-        style={{
-          width: 'min(72%, 520px)',
-          aspectRatio: String(ratio),
-          background: 'var(--zyra-bg-2)',
-          border: '1px solid var(--zyra-hairline)',
-        }}
+        className="relative overflow-hidden rounded-[18px] border border-border bg-card"
+        style={{ width: 'min(72%, 520px)', aspectRatio: String(ratio) }}
       >
         <div
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(105deg, transparent 30%, rgba(123, 97, 255, 0.12) 50%, transparent 70%)',
+              'linear-gradient(105deg, transparent 30%, color-mix(in oklch, var(--color-primary) 12%, transparent) 50%, transparent 70%)',
             backgroundSize: '400px 100%',
             animation: 'zyra-shimmer 1.6s linear infinite',
           }}
@@ -263,62 +210,36 @@ function GeneratingState({
         <div className="absolute inset-0 grid place-items-center">
           <div className="relative size-16">
             <div
-              className="absolute inset-0 rounded-full"
-              style={{ border: '1.5px solid rgba(123, 97, 255, 0.18)' }}
+              className="absolute inset-0 rounded-full border-[1.5px] border-primary/20"
               aria-hidden
             />
             <div
-              className="absolute inset-0 rounded-full"
+              className="absolute inset-0 rounded-full border-[1.5px] border-transparent"
               style={{
-                border: '1.5px solid transparent',
-                borderTopColor: 'var(--zyra-accent)',
+                borderTopColor: 'var(--color-primary)',
                 animation: 'zyra-orbit 1.2s linear infinite',
               }}
               aria-hidden
             />
-            <div
-              className="absolute inset-3.5 rounded-full"
-              style={{
-                background:
-                  'radial-gradient(circle, rgba(123, 97, 255, 0.4), transparent 70%)',
-                filter: 'blur(8px)',
-              }}
-              aria-hidden
-            />
             <Sparkles
-              className="absolute left-[22px] top-[22px] size-5"
-              style={{ color: 'var(--zyra-accent-2)' }}
+              className="absolute left-[22px] top-[22px] size-5 text-primary"
               aria-hidden
             />
           </div>
         </div>
-        <div
-          className="absolute inset-x-0 bottom-0 h-0.5"
-          style={{ background: 'rgba(255, 255, 255, 0.04)' }}
-        >
+        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-muted/40">
           <div
-            className="h-full transition-[width] duration-1000"
-            style={{
-              width: `${pct}%`,
-              background: 'var(--zyra-accent)',
-              boxShadow: '0 0 12px var(--zyra-accent-glow)',
-            }}
+            className="h-full bg-primary transition-[width] duration-1000"
+            style={{ width: `${pct}%` }}
           />
         </div>
       </div>
 
       <div className="mt-6 min-h-[60px] text-center">
-        <div
-          className="mb-2 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em]"
-          style={{ color: 'var(--zyra-accent-2)' }}
-        >
+        <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-primary">
           <span
-            className="size-1.5 rounded-full"
-            style={{
-              background: 'var(--zyra-accent)',
-              boxShadow: '0 0 8px var(--zyra-accent-glow)',
-              animation: 'zyra-pulse-glow 1.4s ease infinite',
-            }}
+            className="size-1.5 rounded-full bg-primary"
+            style={{ animation: 'zyra-pulse-glow 1.4s ease infinite' }}
           />
           Generando con {providerLabel}
         </div>
@@ -326,9 +247,8 @@ function GeneratingState({
           {ROTATING_TIPS.map((t, i) => (
             <div
               key={t}
-              className="absolute inset-x-0 text-sm transition-all duration-[400ms]"
+              className="absolute inset-x-0 text-sm text-foreground transition-all duration-[400ms]"
               style={{
-                color: 'var(--zyra-text-1)',
                 opacity: i === tipIdx ? 1 : 0,
                 transform: i === tipIdx ? 'translateY(0)' : 'translateY(6px)',
               }}
@@ -337,22 +257,14 @@ function GeneratingState({
             </div>
           ))}
         </div>
-        <div
-          className="mt-2.5 text-[11.5px]"
-          style={{ fontFamily: 'var(--zyra-font-mono)', color: 'var(--zyra-text-3)' }}
-        >
+        <div className="mt-2.5 font-mono text-[11.5px] text-muted-foreground/80">
           {String(elapsed).padStart(2, '0')}s · estimado ~{etaSeconds}s
         </div>
       </div>
 
       <button
         type="button"
-        className="mt-[22px] inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12px]"
-        style={{
-          background: 'transparent',
-          border: '1px solid var(--zyra-hairline-strong)',
-          color: 'var(--zyra-text-2)',
-        }}
+        className="mt-[22px] inline-flex items-center gap-1.5 rounded-lg border border-border bg-transparent px-3.5 py-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
       >
         <Square className="size-3 fill-current" aria-hidden /> Cancelar
       </button>
@@ -378,33 +290,26 @@ function ResultState({
   const ratio = aspectToRatio(aspectRatio);
   const promptText = result.prompt || promptEcho;
   return (
-    <div
-      className="zyra-fade-in flex h-full flex-col overflow-hidden"
-      style={{ padding: '20px 28px 18px' }}
-    >
+    <div className="flex h-full flex-col overflow-hidden p-5 pt-5">
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
         <div
-          className="relative overflow-hidden rounded-[14px]"
+          className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]"
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
             aspectRatio: String(ratio),
             height: ratio < 1 ? '100%' : 'auto',
             width: ratio >= 1 ? '100%' : 'auto',
-            border: '1px solid var(--zyra-hairline)',
-            boxShadow:
-              '0 30px 80px -30px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--zyra-hairline)',
-            background: 'var(--zyra-bg-2)',
           }}
         >
-          {result.outputUrl ? (
+          {result.outputUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={result.outputUrl}
               alt={promptText}
               className="block size-full object-contain"
             />
-          ) : null}
+          )}
           <div className="absolute right-3 top-3 flex gap-1.5">
             <FloatingIconBtn title="Pin">
               <Pin className="size-3.5" aria-hidden />
@@ -413,15 +318,7 @@ function ResultState({
               <MoreHorizontal className="size-3.5" aria-hidden />
             </FloatingIconBtn>
           </div>
-          <div
-            className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] backdrop-blur"
-            style={{
-              background: 'rgba(11, 15, 25, 0.7)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              color: 'var(--zyra-text-2)',
-              fontFamily: 'var(--zyra-font-mono)',
-            }}
-          >
+          <div className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/70 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur">
             {providerLabel} · {aspectRatio}
           </div>
         </div>
@@ -429,19 +326,8 @@ function ResultState({
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div
-            className="truncate text-[12.5px]"
-            style={{ color: 'var(--zyra-text-1)' }}
-          >
-            {promptText}
-          </div>
-          <div
-            className="mt-1 flex gap-3.5 text-[11px]"
-            style={{
-              fontFamily: 'var(--zyra-font-mono)',
-              color: 'var(--zyra-text-3)',
-            }}
-          >
+          <div className="truncate text-[12.5px] text-foreground">{promptText}</div>
+          <div className="mt-1 flex gap-3.5 font-mono text-[11px] text-muted-foreground/80">
             <span>−{result.credits} cr.</span>
             <span>{relativeTime(result.createdAt)}</span>
           </div>
@@ -462,21 +348,14 @@ function ResultState({
       </div>
 
       {session.length > 0 && (
-        <div
-          className="mt-3.5 pt-3.5"
-          style={{ borderTop: '1px solid var(--zyra-hairline)' }}
-        >
+        <div className="mt-3.5 border-t border-border pt-3.5">
           <div className="mb-2.5 flex items-center justify-between">
-            <div
-              className="text-[11px] uppercase tracking-[0.08em]"
-              style={{ color: 'var(--zyra-text-3)' }}
-            >
+            <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
               De esta sesión · {session.length}
             </div>
             <a
               href="/app/library"
-              className="inline-flex items-center gap-1 text-[11px]"
-              style={{ color: 'var(--zyra-text-2)' }}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             >
               Ver biblioteca <ChevronRight className="size-3" aria-hidden />
             </a>
@@ -487,14 +366,10 @@ function ResultState({
                 key={item.id}
                 type="button"
                 onClick={() => onSelect(item)}
-                className="relative size-16 shrink-0 overflow-hidden rounded-lg"
-                style={{
-                  border:
-                    item.id === result.id
-                      ? '1.5px solid var(--zyra-accent)'
-                      : '1.5px solid transparent',
-                  background: 'var(--zyra-bg-2)',
-                }}
+                className={cn(
+                  'relative size-16 shrink-0 overflow-hidden rounded-lg border bg-muted transition-colors',
+                  item.id === result.id ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30',
+                )}
               >
                 {item.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -504,10 +379,7 @@ function ResultState({
                     className="size-full object-cover"
                   />
                 ) : (
-                  <span
-                    className="grid h-full place-items-center text-[10px]"
-                    style={{ color: 'var(--zyra-text-3)' }}
-                  >
+                  <span className="grid h-full place-items-center text-[10px] text-muted-foreground/70">
                     …
                   </span>
                 )}
@@ -531,12 +403,7 @@ function FloatingIconBtn({
     <button
       type="button"
       title={title}
-      className="grid size-[30px] place-items-center rounded-lg backdrop-blur"
-      style={{
-        background: 'rgba(11, 15, 25, 0.7)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        color: '#fff',
-      }}
+      className="grid size-[30px] place-items-center rounded-lg border border-border/40 bg-background/70 text-foreground backdrop-blur"
     >
       {children}
     </button>
@@ -551,21 +418,16 @@ function GhostBtn({
   href?: string;
 }) {
   const className =
-    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium';
-  const style: React.CSSProperties = {
-    background: 'var(--zyra-bg-2)',
-    border: '1px solid var(--zyra-hairline)',
-    color: 'var(--zyra-text-1)',
-  };
+    'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30';
   if (href) {
     return (
-      <a href={href} className={className} style={style}>
+      <a href={href} className={className}>
         {children}
       </a>
     );
   }
   return (
-    <button type="button" className={className} style={style}>
+    <button type="button" className={className}>
       {children}
     </button>
   );
@@ -581,18 +443,12 @@ function PrimaryGhost({
   download?: boolean;
 }) {
   const className =
-    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium';
-  const style: React.CSSProperties = {
-    background: 'var(--zyra-accent-soft)',
-    border: '1px solid var(--zyra-accent-rim)',
-    color: 'var(--zyra-text-1)',
-  };
+    'inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15';
   if (href) {
     return (
       <a
         href={href}
         className={className}
-        style={style}
         target="_blank"
         rel="noreferrer"
         download={download}
@@ -602,7 +458,7 @@ function PrimaryGhost({
     );
   }
   return (
-    <button type="button" className={className} style={style}>
+    <button type="button" className={className}>
       {children}
     </button>
   );
@@ -610,41 +466,20 @@ function PrimaryGhost({
 
 export function SafetyErrorState({ refunded }: { refunded: number }) {
   return (
-    <div className="zyra-fade-in grid h-full place-items-center p-8">
+    <div className="grid h-full place-items-center p-8">
       <div className="max-w-[420px] text-center">
-        <div
-          className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl"
-          style={{
-            background: 'rgba(245, 181, 68, 0.10)',
-            border: '1px solid rgba(245, 181, 68, 0.25)',
-            color: 'var(--zyra-warn)',
-          }}
-        >
+        <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
           <Shield className="size-6" aria-hidden />
         </div>
-        <h3
-          className="m-0 text-[17px] font-medium"
-          style={{ color: 'var(--zyra-text-1)' }}
-        >
+        <h3 className="font-heading text-[17px] font-medium text-foreground">
           El contenido no pasó la revisión de seguridad
         </h3>
-        <p
-          className="mb-4 mt-2 text-[13px] leading-[1.55]"
-          style={{ color: 'var(--zyra-text-2)' }}
-        >
+        <p className="mb-4 mt-2 text-[13px] leading-[1.55] text-muted-foreground">
           El modelo rechazó este prompt. Intenta reformular evitando contenido
           sensible, personas reales o violencia explícita.
         </p>
-        <div
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px]"
-          style={{
-            background: 'var(--zyra-ok-soft)',
-            border: '1px solid rgba(78, 205, 138, 0.2)',
-            color: 'var(--zyra-ok)',
-          }}
-        >
-          <span style={{ fontFamily: 'var(--zyra-font-mono)' }}>+{refunded}</span>{' '}
-          créditos devueltos a tu balance
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-400">
+          <span className="font-mono">+{refunded}</span> créditos devueltos a tu balance
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import {
   createMediaReferenceAction,
   getUploadSignedUrlAction,
 } from '@/server-actions/media-references';
+import { cn } from '@/lib/utils';
 
 export type ReferenceClient = {
   id: string;
@@ -131,12 +132,11 @@ export function ReferencesPanel({
           void handleFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className="cursor-pointer rounded-xl transition-all"
-        style={{
-          padding: count === 0 ? '22px 14px' : '10px',
-          background: drag ? 'var(--zyra-accent-soft)' : 'var(--zyra-bg-2)',
-          border: `1px dashed ${drag ? 'var(--zyra-accent-rim)' : 'var(--zyra-hairline)'}`,
-        }}
+        className={cn(
+          'cursor-pointer rounded-xl border border-dashed bg-muted/40 transition-colors',
+          drag ? 'border-primary/50 bg-primary/5' : 'border-border',
+          count === 0 ? 'px-3.5 py-5' : 'p-2.5',
+        )}
       >
         <input
           ref={inputRef}
@@ -150,22 +150,16 @@ export function ReferencesPanel({
           }}
         />
         {count === 0 ? (
-          <div
-            className="flex flex-col items-center gap-1.5"
-            style={{ color: 'var(--zyra-text-3)' }}
-          >
+          <div className="flex flex-col items-center gap-1.5 text-muted-foreground/70">
             {uploading ? (
               <Loader2 className="size-[18px] animate-spin" aria-hidden />
             ) : (
               <Upload className="size-[18px]" aria-hidden />
             )}
-            <div className="text-[12.5px]" style={{ color: 'var(--zyra-text-2)' }}>
+            <div className="text-[12.5px] text-muted-foreground">
               {uploading ? 'Subiendo…' : 'Arrastra imágenes o haz click'}
             </div>
-            <div
-              className="text-[10.5px]"
-              style={{ fontFamily: 'var(--zyra-font-mono)' }}
-            >
+            <div className="font-mono text-[10.5px]">
               JPG · PNG · WEBP · GIF · BMP · TIFF · max 10 MB
             </div>
           </div>
@@ -177,8 +171,7 @@ export function ReferencesPanel({
             {value.map((r, i) => (
               <div
                 key={r.id}
-                className="relative aspect-square overflow-hidden rounded-lg"
-                style={{ border: '1px solid var(--zyra-hairline)' }}
+                className="relative aspect-square overflow-hidden rounded-lg border border-border"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -192,20 +185,12 @@ export function ReferencesPanel({
                     e.stopPropagation();
                     removeRef(r.id);
                   }}
-                  className="absolute right-0.5 top-0.5 grid size-[18px] place-items-center rounded-full backdrop-blur"
-                  style={{ background: 'rgba(0, 0, 0, 0.6)', color: '#fff' }}
+                  className="absolute right-0.5 top-0.5 grid size-[18px] place-items-center rounded-full bg-background/70 text-foreground backdrop-blur"
                   aria-label="Quitar referencia"
                 >
                   <X className="size-2.5" aria-hidden />
                 </button>
-                <div
-                  className="absolute bottom-0.5 left-1 rounded px-1.5 text-[9.5px]"
-                  style={{
-                    fontFamily: 'var(--zyra-font-mono)',
-                    color: 'rgba(255, 255, 255, 0.85)',
-                    background: 'rgba(0, 0, 0, 0.5)',
-                  }}
-                >
+                <div className="absolute bottom-0.5 left-1 rounded bg-background/70 px-1.5 font-mono text-[9.5px] text-foreground/85">
                   {i + 1}
                 </div>
               </div>
@@ -217,12 +202,7 @@ export function ReferencesPanel({
                   e.stopPropagation();
                   inputRef.current?.click();
                 }}
-                className="grid aspect-square place-items-center rounded-lg"
-                style={{
-                  border: '1px dashed var(--zyra-hairline-strong)',
-                  color: 'var(--zyra-text-3)',
-                  background: 'transparent',
-                }}
+                className="grid aspect-square place-items-center rounded-lg border border-dashed border-border text-muted-foreground/70 transition-colors hover:border-muted-foreground/40"
                 aria-label="Agregar referencia"
               >
                 {uploading ? (
@@ -236,14 +216,7 @@ export function ReferencesPanel({
         )}
       </div>
       {over && (
-        <div
-          className="mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11.5px]"
-          style={{
-            background: 'var(--zyra-warn-soft)',
-            border: '1px solid rgba(245, 181, 68, 0.25)',
-            color: 'var(--zyra-warn)',
-          }}
-        >
+        <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11.5px] text-amber-400">
           Acepta máximo {maxRefs} referencias. Quita {count - maxRefs}.
         </div>
       )}

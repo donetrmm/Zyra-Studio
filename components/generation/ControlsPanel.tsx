@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Step as StepBase, SectionHeading } from './Step';
 import { ReferencesPanel, type ReferenceClient } from './ReferencesPanel';
+import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import type { ModelKey, Selection, SessionItem } from './types';
 
 const ASPECTS: { id: string; w: number; h: number }[] = [
@@ -82,7 +84,7 @@ export type ControlsPanelProps = {
   pending: boolean;
   canGenerate: boolean;
   onGenerate: () => void;
-  hideCta?: boolean; // en modo chat el CTA vive en el composer
+  hideCta?: boolean;
 };
 
 export function ControlsPanel(props: ControlsPanelProps) {
@@ -95,19 +97,8 @@ export function ControlsPanel(props: ControlsPanelProps) {
       : null;
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col"
-      style={{
-        background: 'var(--zyra-bg-1)',
-        borderRight: '1px solid var(--zyra-hairline)',
-        fontFamily: 'var(--zyra-font-sans)',
-        color: 'var(--zyra-text-1)',
-      }}
-    >
-      <div
-        className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto"
-        style={{ padding: '18px 16px 8px' }}
-      >
+    <div className="flex h-full min-h-0 flex-col border-r border-border bg-card">
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
         <Step n={1} title="Elige el modelo" subtitle="Auto decide por ti">
           <ModelPicker value={props.modelKey} onChange={props.setModelKey} />
           <InfoCard text={MODEL_META[props.modelKey].desc} />
@@ -128,10 +119,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
           title="Añade referencias"
           subtitle="Opcional · guía el estilo"
           hint={
-            <span
-              className="text-[11px]"
-              style={{ fontFamily: 'var(--zyra-font-mono)', color: 'var(--zyra-text-3)' }}
-            >
+            <span className="font-mono text-[11px] text-muted-foreground/80">
               {props.references.length} / {isNano ? 11 : 8}
             </span>
           }
@@ -210,17 +198,9 @@ function Step({
 
 function InfoCard({ text }: { text: string }) {
   return (
-    <div
-      className="mt-2 flex gap-1.5 rounded-lg px-2.5 py-2 text-[11.5px] leading-[1.5]"
-      style={{
-        background: 'var(--zyra-bg-2)',
-        border: '1px solid var(--zyra-hairline)',
-        color: 'var(--zyra-text-2)',
-      }}
-    >
+    <div className="mt-2 flex gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-[11.5px] leading-[1.5] text-muted-foreground">
       <Info
-        className="mt-px size-3 shrink-0"
-        style={{ color: 'var(--zyra-text-3)' }}
+        className="mt-px size-3 shrink-0 text-muted-foreground/70"
         aria-hidden
       />
       <span>{text}</span>
@@ -245,38 +225,25 @@ function ModelPicker({
               key={id}
               type="button"
               onClick={() => onChange(id)}
-              className="rounded-[10px] text-left transition-all"
-              style={{
-                padding: '10px 11px 11px',
-                background: active ? 'var(--zyra-bg-3)' : 'var(--zyra-bg-2)',
-                border: `1px solid ${active ? 'var(--zyra-accent-rim)' : 'var(--zyra-hairline)'}`,
-                boxShadow: active
-                  ? '0 0 0 3px rgba(123, 97, 255, 0.10) inset'
-                  : 'none',
-              }}
+              className={cn(
+                'rounded-[10px] px-2.5 pb-2.5 pt-2 text-left transition-colors',
+                active
+                  ? 'border border-primary/40 bg-primary/5 shadow-[inset_0_0_0_1px_var(--color-primary)] shadow-primary/10'
+                  : 'border border-border bg-muted/30 hover:border-muted-foreground/30',
+              )}
             >
               <div className="mb-0.5 flex items-center gap-1.5">
                 <span
-                  className="size-[5px] rounded-full"
-                  style={{
-                    background: active ? 'var(--zyra-accent)' : 'var(--zyra-text-4)',
-                    boxShadow: active ? '0 0 8px var(--zyra-accent-glow)' : 'none',
-                  }}
+                  className={cn(
+                    'size-[5px] rounded-full',
+                    active ? 'bg-primary' : 'bg-muted-foreground/40',
+                  )}
                 />
-                <span
-                  className="text-[13px] font-medium"
-                  style={{ color: 'var(--zyra-text-1)' }}
-                >
+                <span className="text-[13px] font-medium text-foreground">
                   {meta.label}
                 </span>
               </div>
-              <div
-                className="text-[11px]"
-                style={{
-                  fontFamily: 'var(--zyra-font-mono)',
-                  color: 'var(--zyra-text-3)',
-                }}
-              >
+              <div className="font-mono text-[11px] text-muted-foreground/80">
                 {meta.sub}
               </div>
             </button>
@@ -302,45 +269,24 @@ function PromptArea({
     el.style.height = `${Math.min(el.scrollHeight, 280)}px`;
   }, [value]);
   return (
-    <div
-      className="relative rounded-[14px] transition-colors focus-within:!border-[var(--zyra-accent-rim)]"
-      style={{
-        background: 'var(--zyra-bg-2)',
-        border: '1px solid var(--zyra-hairline)',
-      }}
-    >
+    <div className="relative rounded-[14px] border border-border bg-muted/30 transition-colors focus-within:border-primary/40">
       <textarea
         ref={ref}
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, 8000))}
         placeholder="Describe la imagen que quieres crear. Sé específico — luz, lente, atmósfera, materiales."
-        className="w-full resize-none border-0 bg-transparent outline-none"
-        style={{
-          minHeight: 96,
-          maxHeight: 280,
-          padding: '14px 14px 36px',
-          color: 'var(--zyra-text-1)',
-          fontSize: 15,
-          lineHeight: 1.5,
-        }}
+        className="w-full resize-none border-0 bg-transparent text-[15px] leading-[1.5] text-foreground outline-none"
+        style={{ minHeight: 96, maxHeight: 280, padding: '14px 14px 36px' }}
       />
       <div className="pointer-events-none absolute inset-x-3.5 bottom-2.5 flex items-center justify-between">
-        <div
-          className="text-[10.5px]"
-          style={{ fontFamily: 'var(--zyra-font-mono)', color: 'var(--zyra-text-3)' }}
-        >
+        <div className="font-mono text-[10.5px] text-muted-foreground/70">
           {value.length} / 8 000
         </div>
         <div className="pointer-events-auto flex gap-1.5">
           <button
             type="button"
             title="Mejorar prompt"
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]"
-            style={{
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid var(--zyra-hairline)',
-              color: 'var(--zyra-text-2)',
-            }}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-background/40 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <Sparkles className="size-3" aria-hidden /> Mejorar
           </button>
@@ -363,44 +309,26 @@ function NegativePromptInput({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 py-1 text-[12px]"
-        style={{ color: 'var(--zyra-text-2)' }}
+        className="flex items-center gap-1.5 py-1 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronDown
-          className="size-3 transition-transform"
-          style={{ transform: open ? 'rotate(0)' : 'rotate(-90deg)' }}
+          className={cn('size-3 transition-transform', open ? 'rotate-0' : '-rotate-90')}
           aria-hidden
         />
         Prompt negativo
         {!open && value.length > 0 && (
-          <span
-            className="text-[10.5px]"
-            style={{ fontFamily: 'var(--zyra-font-mono)', color: 'var(--zyra-text-3)' }}
-          >
+          <span className="font-mono text-[10.5px] text-muted-foreground/70">
             · {value.length}
           </span>
         )}
       </button>
       {open && (
-        <div
-          className="zyra-fade-in mt-2 rounded-[10px]"
-          style={{
-            background: 'var(--zyra-bg-2)',
-            border: '1px solid var(--zyra-hairline)',
-          }}
-        >
+        <div className="mt-2 rounded-[10px] border border-border bg-muted/30">
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value.slice(0, 2000))}
             placeholder="Qué quieres evitar. Ej: texto borroso, manos deformadas, marca de agua."
-            className="w-full resize-none border-0 bg-transparent outline-none"
-            style={{
-              height: 64,
-              padding: '10px 12px',
-              color: 'var(--zyra-text-2)',
-              fontSize: 13,
-              lineHeight: 1.45,
-            }}
+            className="h-16 w-full resize-none border-0 bg-transparent px-3 py-2.5 text-[13px] leading-[1.45] text-muted-foreground outline-none"
           />
         </div>
       )}
@@ -426,29 +354,21 @@ function AspectPicker({
             key={a.id}
             type="button"
             onClick={() => onChange(a.id)}
-            className="inline-flex items-center gap-1.5 rounded-lg transition-colors"
-            style={{
-              padding: '6px 10px 6px 8px',
-              background: active ? 'var(--zyra-accent-soft)' : 'var(--zyra-bg-2)',
-              border: `1px solid ${active ? 'var(--zyra-accent-rim)' : 'var(--zyra-hairline)'}`,
-              color: active ? 'var(--zyra-text-1)' : 'var(--zyra-text-2)',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+              active
+                ? 'border border-primary/40 bg-primary/10 text-foreground'
+                : 'border border-border bg-muted/30 text-muted-foreground hover:border-muted-foreground/30',
+            )}
           >
             <span
-              className="inline-block rounded-sm"
-              style={{
-                width: w,
-                height: h,
-                border: `1.4px solid ${active ? 'var(--zyra-accent-2)' : 'var(--zyra-text-3)'}`,
-              }}
+              className={cn(
+                'inline-block rounded-sm',
+                active ? 'border border-primary' : 'border border-muted-foreground/60',
+              )}
+              style={{ width: w, height: h, borderWidth: 1.4 }}
             />
-            <span
-              style={{ fontFamily: 'var(--zyra-font-mono)', fontSize: 11.5 }}
-            >
-              {a.id}
-            </span>
+            <span className="font-mono text-[11.5px]">{a.id}</span>
           </button>
         );
       })}
@@ -468,13 +388,7 @@ function SegRow<T extends string>({
   warnOn?: T;
 }) {
   return (
-    <div
-      className="flex gap-0.5 rounded-[9px] p-[3px]"
-      style={{
-        background: 'var(--zyra-bg-2)',
-        border: '1px solid var(--zyra-hairline)',
-      }}
-    >
+    <div className="flex gap-0.5 rounded-[9px] border border-border bg-muted/30 p-[3px]">
       {options.map((o) => {
         const active = value === o.id;
         const warn = warnOn === o.id && active;
@@ -483,23 +397,17 @@ function SegRow<T extends string>({
             key={o.id}
             type="button"
             onClick={() => onChange(o.id)}
-            className="inline-flex flex-1 items-center justify-center gap-1 rounded-md transition-colors"
-            style={{
-              padding: '6px 10px',
-              background: active ? 'var(--zyra-bg-3)' : 'transparent',
-              border: active
-                ? '1px solid var(--zyra-hairline-strong)'
-                : '1px solid transparent',
-              color: active ? 'var(--zyra-text-1)' : 'var(--zyra-text-2)',
-              fontSize: 12,
-              fontWeight: 500,
-            }}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+              active
+                ? 'border border-border bg-background text-foreground'
+                : 'border border-transparent text-muted-foreground',
+            )}
           >
-            <span style={{ fontFamily: 'var(--zyra-font-mono)' }}>{o.label}</span>
+            <span className="font-mono">{o.label}</span>
             {warn && (
               <span
-                className="inline-block size-[6px] rounded-full"
-                style={{ background: 'var(--zyra-warn)' }}
+                className="inline-block size-1.5 rounded-full bg-amber-400"
                 aria-hidden
               />
             )}
@@ -529,91 +437,29 @@ function ToggleRow({
 }) {
   return (
     <div
-      className="flex items-start justify-between rounded-[10px]"
-      style={{
-        padding: '10px 12px',
-        background: 'var(--zyra-bg-2)',
-        border: '1px solid var(--zyra-hairline)',
-        opacity: disabled ? 0.45 : 1,
-      }}
+      className={cn(
+        'flex items-start justify-between gap-3 rounded-[10px] border border-border bg-muted/30 px-3 py-2.5',
+        disabled && 'opacity-50',
+      )}
     >
       <div className="flex items-start gap-2.5">
         {Icon && (
-          <span
-            className="mt-px"
-            style={{ color: on ? 'var(--zyra-accent-2)' : 'var(--zyra-text-3)' }}
-          >
+          <span className={cn('mt-px', on ? 'text-primary' : 'text-muted-foreground/70')}>
             <Icon className="size-3.5" aria-hidden />
           </span>
         )}
         <div>
-          <div
-            className="text-[12.5px] font-medium"
-            style={{ color: 'var(--zyra-text-1)' }}
-          >
-            {label}
-          </div>
+          <div className="text-[12.5px] font-medium text-foreground">{label}</div>
           {hint && (
-            <div className="mt-0.5 text-[11px]" style={{ color: 'var(--zyra-text-3)' }}>
-              {hint}
-            </div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground/80">{hint}</div>
           )}
           {costNote && (
-            <div
-              className="mt-1 text-[10.5px]"
-              style={{
-                fontFamily: 'var(--zyra-font-mono)',
-                color: 'var(--zyra-accent-2)',
-              }}
-            >
-              {costNote}
-            </div>
+            <div className="mt-1 font-mono text-[10.5px] text-primary">{costNote}</div>
           )}
         </div>
       </div>
-      <PillSwitch on={on} onChange={onChange} disabled={disabled} />
+      <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />
     </div>
-  );
-}
-
-function PillSwitch({
-  on,
-  onChange,
-  disabled,
-}: {
-  on: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      disabled={disabled}
-      onClick={() => !disabled && onChange(!on)}
-      className="relative shrink-0 transition-colors"
-      style={{
-        width: 30,
-        height: 18,
-        borderRadius: 999,
-        background: on ? 'var(--zyra-accent)' : 'rgba(255, 255, 255, 0.10)',
-        opacity: disabled ? 0.4 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-    >
-      <span
-        className="absolute top-0.5 transition-all"
-        style={{
-          left: on ? 14 : 2,
-          width: 14,
-          height: 14,
-          borderRadius: 999,
-          background: '#fff',
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-        }}
-      />
-    </button>
   );
 }
 
@@ -645,9 +491,7 @@ function NanoParams({
       <div>
         <SectionHeading
           hint={
-            resolution === '4k' ? (
-              <span style={{ color: 'var(--zyra-warn)' }}>~50s</span>
-            ) : null
+            resolution === '4k' ? <span className="text-amber-400">~50s</span> : null
           }
         >
           Resolución
@@ -755,29 +599,10 @@ function GenerateBar({
 }) {
   const insufficient = cost > balance;
   return (
-    <div
-      className="sticky bottom-0 backdrop-blur"
-      style={{
-        padding: '12px 16px 14px',
-        borderTop: '1px solid var(--zyra-hairline)',
-        background:
-          'linear-gradient(to top, rgba(14, 19, 34, 0.95) 60%, rgba(14, 19, 34, 0.6))',
-      }}
-    >
+    <div className="sticky bottom-0 border-t border-border bg-card/95 px-4 py-3.5 backdrop-blur">
       {hint && (
-        <div
-          className="mb-2.5 flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px]"
-          style={{
-            background: 'rgba(123, 97, 255, 0.07)',
-            border: '1px solid rgba(123, 97, 255, 0.18)',
-            color: 'var(--zyra-text-2)',
-          }}
-        >
-          <Info
-            className="mt-px size-3 shrink-0"
-            style={{ color: 'var(--zyra-accent-2)' }}
-            aria-hidden
-          />
+        <div className="mb-2.5 flex items-start gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
+          <Info className="mt-px size-3 shrink-0 text-primary/80" aria-hidden />
           <span>{hint}</span>
         </div>
       )}
@@ -785,20 +610,12 @@ function GenerateBar({
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className="relative flex w-full items-center justify-center gap-2 rounded-xl"
-        style={{
-          padding: '12px 14px',
-          background: disabled
-            ? 'rgba(255, 255, 255, 0.05)'
-            : 'linear-gradient(180deg, #8C75FF 0%, #6D52F0 100%)',
-          color: disabled ? 'var(--zyra-text-3)' : '#fff',
-          fontSize: 14,
-          fontWeight: 600,
-          boxShadow: disabled
-            ? 'none'
-            : '0 8px 28px -10px var(--zyra-accent-glow), 0 0 0 1px rgba(255, 255, 255, 0.08) inset',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-        }}
+        className={cn(
+          'relative flex w-full items-center justify-center gap-2 rounded-xl px-3.5 py-3 text-[14px] font-semibold transition-colors',
+          disabled
+            ? 'cursor-not-allowed bg-muted/40 text-muted-foreground/60'
+            : 'bg-primary text-primary-foreground shadow-[0_8px_28px_-10px_color-mix(in_oklch,var(--color-primary)_55%,transparent)] hover:bg-primary/90',
+        )}
       >
         {pending ? (
           <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -806,32 +623,16 @@ function GenerateBar({
           <Sparkles className="size-3.5" aria-hidden />
         )}
         {pending ? 'Generando…' : 'Generar'}
-        <span
-          className="ml-1 inline-flex items-center gap-1 border-l pl-2.5 text-[12px]"
-          style={{
-            borderColor: 'rgba(255, 255, 255, 0.18)',
-            fontFamily: 'var(--zyra-font-mono)',
-            opacity: 0.9,
-          }}
-        >
+        <span className="ml-1 inline-flex items-center gap-1 border-l border-primary-foreground/25 pl-2.5 font-mono text-[12px] opacity-90">
           −{cost} cr
         </span>
       </button>
-      <div
-        className="mt-2 flex items-center justify-between text-[11px]"
-        style={{
-          fontFamily: 'var(--zyra-font-mono)',
-          color: 'var(--zyra-text-3)',
-        }}
-      >
+      <div className="mt-2 flex items-center justify-between font-mono text-[11px] text-muted-foreground/80">
         <span>{modelLabel}</span>
         <span>~{etaSeconds}s</span>
       </div>
       {insufficient && !disabled && (
-        <div
-          className="mt-1.5 text-center text-[11px]"
-          style={{ color: 'var(--zyra-warn)' }}
-        >
+        <div className="mt-1.5 text-center text-[11px] text-amber-400">
           Te faltan {(cost - balance).toLocaleString('es-MX')} créditos.
         </div>
       )}
