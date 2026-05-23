@@ -1,0 +1,100 @@
+---
+description: Reglas críticas de seguridad — secrets, autenticación, signed URLs, RLS como defensa en profundidad.
+alwaysApply: true
+---
+
+# Seguridad
+
+Esta es una app de demo, pero las API keys y los créditos son reales. Bug aquí = key filtrada o usuario robado. Aplica siempre.
+
+## Secrets
+
+- **Ninguna API key en código** ni en commit. Solo en `.env.local` (gitignored) y en variables de entorno de Vercel.
+- Variables `NEXT_PUBLIC_*` son visibles en el browser. SOLO usar este prefijo para cosas que pueden ser públicas (Supabase URL, anon key, app URL).
+- **Service role key** (`SUPABASE_SERVICE_ROLE_KEY`) NUNCA `NEXT_PUBLIC_`. Solo en `lib/supabase/admin.ts`, que solo debe importarse desde server-side.
+- API keys de proveedores (`GEMINI_API_KEY`, `KLING_API_KEY`, `BFL_API_KEY`, `ELEVENLABS_API_KEY`) solo en adapters server-side.
+- Si encuentras una key hardcoded o `NEXT_PUBLIC_X_KEY` con un secreto, eso es un bug crítico — flagéalo antes de continuar.
+
+## Auth
+
+- Toda ruta de `/app/*` y `/admin/*` protegida por `middleware.ts`.
+- Verificación adicional en cada Server Component / server action: `supabase.auth.getUser()` retorna `null` → redirect a login o return 401.
+- `auth.uid()` en queries SQL es la fuente de verdad del usuario actual. No pasar `user_id` como parámetro y "confiar" en él.
+- `role` se lee de `profiles.role`, no del JWT directamente. El admin se eleva via trigger `handle_new_user` o UPDATE manual.
+
+## RLS como defensa en profundidad
+
+RLS no es la única defensa, pero es la última. Reglas:
+
+- Cada tabla con datos de usuario tiene RLS habilitado y políticas explícitas.
+- INSERT policy con `with check (... and user_id = auth.uid())` para evitar forjado de ownership.
+- Server actions también validan ownership además de RLS — si una falla, la otra protege.
+- Service role bypass RLS. Usarlo solo en worker, server actions admin, y cleanup. Nunca desde código que pueda tocar input no validado del usuario.
+
+## Signed URLs
+
+- Buckets `outputs`, `references`, `voice-samples`, `brand-assets` son **privados**. Acceso vía signed URLs con TTL 24h.
+- Re-firmar en cada render del Server Component (no cachear signed URLs en DB).
+- Upload directo desde cliente: `createSignedUploadUrl(path)` con path determinístico `{workspace_id}/{user_id}/{uuid}-{filename}`. El path lo construye el server, no el cliente.
+- Verificar mime-type del archivo subido en el server action `createMediaReference` (no confiar en la extensión).
+
+## CORS
+
+- Buckets que reciben uploads directos (`references`, `voice-samples`, `avatars`) tienen CORS configurado para: dominio Vercel + `http://localhost:3000`.
+- No agregar wildcards `*` en CORS bajo ninguna excusa.
+
+## QStash
+
+- Worker SIEMPRE verifica firma con `Receiver` antes de hacer cualquier cosa con el body. Esto evita que un atacante invoque el worker directamente.
+- Aceptar tanto `QSTASH_CURRENT_SIGNING_KEY` como `QSTASH_NEXT_SIGNING_KEY` (rotación de claves).
+- Si la firma falla → 401, no 200. Loguear sin exponer detalles.
+
+## Validación de input
+
+- **zod en cada server action**, sin excepciones.
+- Server actions nunca confían en valores que vienen del cliente para:
+  - Calcular costos (siempre recalcular).
+  - Determinar permisos (siempre re-verificar).
+  - Construir paths de Storage (siempre construir server-side desde IDs validados).
+- Validar `mime-type`, tamaño y dimensiones de uploads antes de aceptarlos.
+
+## Output sanitization
+
+- Outputs de proveedores se sirven re-encodeados desde Supabase. Nunca renderizar HTML o JSON crudo del proveedor en el cliente.
+- Prompts del usuario que se renderizan en UI: usar React (auto-escape). Nunca `dangerouslySetInnerHTML` con contenido de usuario.
+
+## Manejo de errores user-facing
+
+- Mensajes de error en español, accionables, sin filtrar detalles internos:
+  - ✅ "No pudimos procesar tu generación. Tus créditos fueron devueltos."
+  - ❌ "Error 500: ECONNREFUSED at https://api.bfl.ai/v1/...".
+- Detalles técnicos van a `console.error` server-side, no al cliente.
+- Stack traces nunca se muestran al usuario, ni siquiera en error boundaries.
+
+## Datos sensibles en logs
+
+- No loggear: prompts completos (pueden contener datos personales), respuestas raw de proveedores, headers de auth, API keys, JWTs.
+- Sí loggear: IDs de generación, proveedor, status, latencia, códigos de error.
+
+## Admin
+
+- `/admin/*` protegido a dos niveles: middleware + verificación server en cada page.
+- Acciones admin SIEMPRE registradas en `admin_audit_log`. Si añades una acción nueva sin audit log, es bug.
+- El primer admin se eleva via GUC `app.admin_emails` o UPDATE manual con service role. No hay UI para "promover a admin" (security by obscurity intencional para la demo).
+
+## Generación de contenido
+
+- Veo: `personGeneration: 'allow_adult'` por default. No exponer `allow_all` en UI sin warning explícito.
+- ElevenLabs voice cloning: la demo no implementa verificación de consentimiento. Para producción, requerir un checkbox + audio de consentimiento (no aplica al alcance actual, pero NO copy-paste este código a producción sin agregarlo).
+- Outputs tienen watermark SynthID (Veo, Nano Banana) — no removerlo ni intentar.
+
+## Anti-patterns
+
+- ❌ `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` o cualquier secret con prefijo `NEXT_PUBLIC_`.
+- ❌ `'use client'` que importe algo de `lib/supabase/admin.ts`.
+- ❌ Worker que procese body sin verificar firma primero.
+- ❌ Server action que use `user_id` enviado por el cliente sin verificar contra la sesión.
+- ❌ Servir output directo desde URL de provider al cliente.
+- ❌ `try { ... } catch (e) { console.log(e); }` con la key en `e.config.headers`.
+- ❌ Acción admin sin audit log.
+- ❌ RLS deshabilitado "temporalmente para debug" mergeado a main.

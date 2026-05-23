@@ -1,0 +1,184 @@
+---
+description: Reglas para pruebas unitarias e integración (Vitest + Supabase local).
+globs: ["**/*.test.ts", "**/*.test.tsx", "tests/**/*.ts", "vitest.config.*"]
+alwaysApply: false
+---
+
+# Pruebas
+
+## Stack
+
+- **Vitest** para todo (unit + integration). Razones: rápido, compatible con TS/ESM out-of-the-box, no requiere setup adicional para Next.
+- **@testing-library/react** + `@testing-library/jest-dom` para tests de componentes que valgan la pena.
+- **Supabase CLI con stack local** (`supabase start`) para tests de integración contra Postgres real.
+- **MSW** (Mock Service Worker) para mockear respuestas HTTP de proveedores en unit tests.
+
+No usar Jest, no usar Cypress, no agregar Playwright en esta fase.
+
+## Estructura
+
+- **Unit tests**: colocados junto al archivo (`estimator.ts` + `estimator.test.ts` en la misma carpeta).
+- **Integration tests**: en `tests/integration/{dominio}.test.ts`, agrupados por área (`credits.test.ts`, `rls.test.ts`, `worker.test.ts`).
+- **Setup compartido** en `tests/setup.ts` (carga env vars de `.env.test`, crea cliente Supabase de test, helpers de seeding).
+- `vitest.config.ts` con dos projects: `unit` (sin DB, rápido) e `integration` (requiere `supabase start` corriendo).
+
+## Qué SÍ probar (prioridad alta)
+
+### Funciones puras
+
+Test exhaustivo con tabla de casos:
+
+- `lib/credits/estimator.ts` — todos los proveedores, multiplicadores, edge cases (texto vacío, 0 referencias, 100 referencias).
+- `lib/router/model-selector.ts` — cada rama del switch para image/video/audio. Verificar que params edge devuelven defaults sensatos.
+- Helpers de chunking en `lib/providers/elevenlabs.ts` — strings cortos, largos, sin puntuación, con caracteres especiales.
+- Validación de paths de Storage (que no acepten `../`, paths absolutos, etc.).
+
+### RLS (integration, en DB local)
+
+- Para cada tabla, probar como tres usuarios distintos: owner, miembro del workspace, outsider, admin.
+- Verificar SELECT, INSERT, UPDATE, DELETE por separado (las policies son distintas para cada operación).
+- Caso crítico: usuario A no puede INSERT en `generations` con `user_id = B` aunque sean del mismo workspace (la regla con `with check user_id = auth.uid()`).
+- Caso crítico: usuario no puede insertar en `credit_transactions` ni siquiera para sí mismo (solo admin via función).
+
+### Funciones SQL de créditos (integration)
+
+- `reserve_credits`: con balance suficiente, insuficiente, sin fila de balance.
+- `confirm_credits` y `refund_credits`: verificar conservación (suma de deltas = balance).
+- `approve_purchase` y `reject_purchase`: idempotencia (segundo call con misma compra falla), notificación creada, audit log creado.
+- `admin_grant_credits`: rechaza balance negativo, exige razón no vacía, exige `is_admin()`.
+- Triggers `handle_new_user` y `handle_new_workspace`: ejecutar INSERT en `auth.users` / `workspaces` y verificar side effects.
+
+### Worker (integration)
+
+- `submit` → `poll` → `done` para cada provider (con MSW mockeando las APIs).
+- Idempotencia: enviar el mismo mensaje 3 veces, solo procesa una.
+- Cancelación: setear `cancel_requested=true`, siguiente tick refunda.
+- Timeout: setear `timeout_at = now() - 1`, siguiente tick falla y refunda.
+- `MAX_POLLS` excedido: provider mock que nunca completa, verificar refund.
+- Verificación de firma QStash: requests sin firma o firma inválida → 401.
+
+### Server actions críticas
+
+- `submitGeneration`: balance insuficiente → 402, validación zod, encolado correcto.
+- `approvePurchase` / `rejectPurchase`: admin guard, idempotencia.
+- `cancelGeneration`: ownership guard (otro usuario no puede cancelar).
+- `createPurchase`: el CHECK constraint `pack_catalog_match` rechaza forjados.
+
+## Qué NO probar (no vale la pena)
+
+- Componentes que solo renderizan markup sin lógica.
+- Layouts y wrappers triviales.
+- Types de TypeScript (el compilador ya los verifica).
+- shadcn/ui (ya está testeado upstream).
+- Integraciones reales con proveedores externos (caro, frágil, lento — usar MSW).
+- "Cobertura del 100%" — métricas de coverage son engañosas. Foco en paths críticos.
+
+## Patrones
+
+### Test de función pura
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { estimateCredits } from './estimator';
+
+describe('estimateCredits', () => {
+  it.each([
+    { input: { provider: 'nano-banana', variant: '2k' }, expected: 90 },
+    { input: { provider: 'flux', variant: 'default', megapixels: 2 }, expected: 50 },
+    { input: { provider: 'elevenlabs', variant: 'default', chars: 4200 }, expected: 200 * 5 },
+  ])('estimates $input.provider correctly', ({ input, expected }) => {
+    expect(estimateCredits(input)).toBe(expected);
+  });
+});
+```
+
+### Test de RLS (integration)
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createTestUser, createTestWorkspace, seed, cleanDb } from '@/tests/helpers';
+
+describe('generations RLS', () => {
+  beforeEach(cleanDb);
+
+  it('outsider cannot SELECT another workspace generations', async () => {
+    const ownerA = await createTestUser();
+    const ownerB = await createTestUser();
+    const wsA = await createTestWorkspace(ownerA);
+    await seed.generation({ workspace: wsA, user: ownerA });
+
+    const { data } = await ownerB.supabase.from('generations').select();
+    expect(data).toHaveLength(0);
+  });
+
+  it('member cannot INSERT generation with another user_id', async () => {
+    const owner = await createTestUser();
+    const member = await createTestUser();
+    const ws = await createTestWorkspace(owner);
+    await seed.addMember(ws, member);
+
+    const { error } = await member.supabase
+      .from('generations')
+      .insert({ workspace_id: ws.id, user_id: owner.id, /* ... */ });
+
+    expect(error).toBeTruthy();
+    expect(error?.code).toBe('42501'); // insufficient_privilege
+  });
+});
+```
+
+### Mock de proveedor con MSW
+
+```typescript
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+
+const server = setupServer(
+  http.post('https://api.bfl.ai/v1/flux-2-pro-preview', () =>
+    HttpResponse.json({ id: 'task-123', polling_url: 'https://api.bfl.ai/v1/get_result?id=task-123' })
+  ),
+  http.get('https://api.bfl.ai/v1/get_result', () =>
+    HttpResponse.json({ status: 'Ready', result: { sample: 'https://example.com/img.jpg' } })
+  ),
+);
+
+beforeAll(() => server.listen());
+afterAll(() => server.close());
+```
+
+## DB de tests
+
+- `supabase start` levanta el stack local; aplica todas las migraciones automáticamente.
+- `tests/helpers/clean.ts` ejecuta `truncate` en cada tabla entre tests (NO drop — preservar schema).
+- `tests/helpers/seed.ts` con helpers idempotentes para crear users, workspaces, generations.
+- Variables: `tests/setup.ts` carga `.env.test` con URL/keys del stack local.
+
+## Comandos
+
+```bash
+pnpm test              # unit tests (rápidos, default en watch)
+pnpm test:integration  # requiere supabase start corriendo
+pnpm test:all          # ambos, modo run
+```
+
+CI corre `pnpm test:all` con `supabase start` previo.
+
+## Anti-patterns
+
+- ❌ Tests que dependen del orden de ejecución (cada test debe pasar aislado).
+- ❌ Tests con `setTimeout` arbitrarios para "esperar a que algo pase" — usar polling explícito o promesas.
+- ❌ Mockear el cliente Supabase entero en lugar de usar la DB local. Pierdes la validación real de RLS y triggers.
+- ❌ Snapshot tests masivos que nadie revisa cuando rompen.
+- ❌ Tests que hacen llamadas reales a Gemini/Kling/BFL/ElevenLabs.
+- ❌ `expect(true).toBe(true)` como placeholder. Si no sabes qué assert, no escribas el test.
+- ❌ Compartir state entre tests via variables a nivel de archivo.
+- ❌ Tests de UI que verifican estructura DOM en lugar de comportamiento ("renderiza un div con className X" no aporta valor).
+
+## Cuándo agregar un test
+
+- Cualquier bug encontrado → primero test que lo reproduce, luego fix.
+- Cualquier función con ≥3 ramas / casos especiales.
+- Cualquier RLS policy nueva.
+- Cualquier función SQL nueva.
+- Cambios en estimador o router.
+- Antes de cerrar una fase del plan, los tests de esa fase deben pasar.

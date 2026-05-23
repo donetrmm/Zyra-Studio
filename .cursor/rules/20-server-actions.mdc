@@ -1,0 +1,94 @@
+---
+description: Patrones para Server Actions de Next.js, validación y manejo de errores.
+globs: ["server-actions/**/*.ts", "app/**/actions.ts"]
+alwaysApply: false
+---
+
+# Server Actions
+
+## Estructura
+
+- Una server action por archivo en `server-actions/{dominio}.ts` (no mezclar campañas con generaciones).
+- Cada función exportada empieza con `'use server'` a nivel de archivo o función.
+- Nombres descriptivos en imperativo: `submitGeneration`, `approvePurchase`, `cancelGeneration`. NO `handleClick`, `doStuff`.
+
+## Patrón estándar
+
+```typescript
+'use server';
+
+import { z } from 'zod';
+import { createClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
+
+const Schema = z.object({ /* ... */ });
+
+export async function submitGeneration(input: unknown) {
+  // 1. Validar input
+  const parsed = Schema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', issues: parsed.error.issues };
+  }
+
+  // 2. Sesión + ownership
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'unauthenticated' };
+
+  // 3. Lógica
+  // ...
+
+  // 4. Revalidación + return tipado
+  revalidatePath('/app');
+  return { ok: true, data: { /* ... */ } };
+}
+```
+
+## Validación
+
+- **Siempre con zod**, schema definido en el mismo archivo o en `lib/schemas/{dominio}.ts` si se comparte.
+- Re-validar en server aunque el cliente ya validó. El cliente puede mentir.
+- Para mutaciones críticas (créditos, compras, admin) calcular costos/permisos server-side desde cero — nunca confiar en valores enviados por el cliente.
+
+## Errores
+
+- Return `{ ok: false, error: '<code>' }`, no throws. Lanzar solo si es un bug del programador (estado imposible).
+- Códigos de error consistentes: `unauthenticated`, `forbidden`, `not_found`, `validation_error`, `insufficient_credits`, `provider_error`, `internal_error`.
+- Mensajes user-facing en español, en el componente que muestra el error. Server actions devuelven códigos, no strings localizados.
+
+## Acceso a Supabase
+
+- Usar `createClient()` de `lib/supabase/server.ts` (respeta cookies → respeta RLS).
+- Usar `createAdminClient()` de `lib/supabase/admin.ts` SOLO cuando:
+  - Estás invocando una función `security definer` que necesita bypass de RLS para inserts en tablas auditadas.
+  - Estás en el worker procesando jobs.
+  - Estás haciendo cleanup masivo.
+- Si usas admin client en una server action, comenta por qué.
+
+## Revalidación
+
+- `revalidatePath('/app/library')` después de mutaciones que afectan listas.
+- `revalidateTag('generation:' + id)` para invalidaciones granulares.
+- No revalidar de más — afecta performance.
+
+## Para mutaciones de generación
+
+Patrón obligatorio para `submitGeneration`:
+
+1. Validar input con zod.
+2. Calcular `credits_estimated` server-side (no confiar en cliente).
+3. Llamar `reserve_credits(user_id, amount, gen_id)` antes de insertar la fila de `generations`.
+   - Si retorna `false` → `{ ok: false, error: 'insufficient_credits' }`.
+4. Insertar `generations` con `status='queued'` + `timeout_at`.
+5. Encolar en QStash con `action: 'submit'`.
+6. Return `{ ok: true, data: { generationId } }`.
+
+Si el paso 5 falla, hay que refund + delete de la fila. Usar try/catch.
+
+## Anti-patterns
+
+- ❌ Server action que devuelve `Response` o usa `NextResponse` (eso es para route handlers).
+- ❌ Server action sin validación zod.
+- ❌ Llamar APIs externas (Gemini, Kling, etc.) directo desde una server action si la operación puede tardar >50s — eso va al worker.
+- ❌ Pasar el `user_id` como parámetro y confiar en él. Siempre leer de la sesión.
+- ❌ `console.log` con datos sensibles en producción (revisar antes de mergear).

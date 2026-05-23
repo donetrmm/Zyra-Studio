@@ -1,0 +1,92 @@
+---
+description: Patrones para adapters de proveedores de IA (Veo, Kling, Nano Banana, FLUX, ElevenLabs).
+globs: ["lib/providers/**/*.ts", "lib/router/**/*.ts"]
+alwaysApply: false
+---
+
+# Adapters de proveedores
+
+## Interfaz común
+
+Todos los adapters implementan (o adaptan) la misma forma:
+
+```typescript
+interface ProviderAdapter {
+  submit(params: GenerationParams): Promise<{ taskId: string; isSync?: boolean }>;
+  poll?(taskId: string): Promise<PollResult>;
+  download(result: unknown): Promise<Buffer>;
+  cancel?(taskId: string): Promise<void>;
+}
+
+type PollResult =
+  | { status: 'processing' }
+  | { status: 'done'; result: unknown }
+  | { status: 'failed'; error: string };
+```
+
+Si un proveedor va síncrono (Nano Banana, ElevenLabs TTS corto): `submit` devuelve `isSync: true` y el resultado en `result` directamente, no hay `poll`.
+
+## Reglas duras
+
+- **Nunca expongas la URL del proveedor al cliente.** El adapter descarga el output al buffer; el caller (worker) lo sube a Supabase Storage.
+- **Truncar referencias al máximo del modelo destino** dentro del adapter, no en el caller:
+  - Nano Banana Pro: 11 (5 chars + 6 objs)
+  - Nano Banana 2: 14 (4 chars + 10 objs)
+  - FLUX 2 Pro: 8
+  - Veo 3.1: 3
+- **Verificación de respuesta**: nunca asumir shape. Validar con zod en el límite de la API:
+  ```typescript
+  const ResponseSchema = z.object({ task_id: z.string() });
+  const parsed = ResponseSchema.safeParse(await res.json());
+  if (!parsed.success) throw new Error(`unexpected provider response: ${parsed.error.message}`);
+  ```
+
+## Errores y reintentos
+
+- 429 (rate limit): retry exponencial, max 2 reintentos. Si sigue, dejar que el worker re-encole y reintente luego.
+- 401/403: fallar inmediato, es bug de configuración. Loguear con detalle (sin la key).
+- 5xx: 1 retry, luego fallar.
+- 4xx con `safety` / `moderation`: error con `error_message` claro para el usuario ("El proveedor rechazó el contenido por políticas de seguridad").
+- Nunca tragar errores silenciosamente con un `catch {}` vacío.
+
+## ElevenLabs específico
+
+- TTS con `text.length > 4000`: chunking obligatorio. Dividir por frases con regex `[.!?]+\s`, chunks máx 3000 chars, concatenar buffers MP3 raw (funciona para MP3 CBR).
+- Voice cloning: validar que los samples sean audio (MIME) antes de mandarlos.
+- Streaming: capturar el stream completo a buffer antes de retornar; no exponer streams al caller.
+
+## Veo específico
+
+- Siempre setear `personGeneration: 'allow_adult'` (excepto si el usuario opta por `allow_all` y el spec lo permite).
+- Video extension solo soporta 720p; rechazar params inválidos antes de submit.
+- URLs de output autenticadas con `x-goog-api-key` al descargar.
+
+## Kling específico
+
+- `submit` necesita switch por operación: text2video / image2video / extend / lip-sync. Validar que `params.operation` esté en la lista.
+- URLs de output expiran a 24h — el worker descarga inmediato pero el adapter no es el responsable.
+- `cancel` puede no estar soportado en todos los planes — capturar y continuar silenciosamente, el caller refundirá igual.
+
+## FLUX específico
+
+- Siempre usar el `polling_url` devuelto en la respuesta del submit. NO hardcodear ni construirlo.
+- URLs de output expiran a 10 min — adapter descarga apenas el status es `Ready`, no delegues.
+- Manejar `safety_tolerance` con default 2 (más seguro).
+
+## Nano Banana específico
+
+- Soporta `chat()` para edición conversacional multi-turn. Si `params.conversational === true`, instanciar `chat` y mantener el historial dentro del adapter.
+- Texto de alta fidelidad: si `params.hasTextInImage`, asegurar que el texto esté entre comillas al inicio del prompt.
+- Grounding (`google_search`) agrega latencia ~2x — ok porque sigue cabiendo en 60s.
+
+## Router automático
+
+`lib/router/model-selector.ts` exporta `selectImageModel`, `selectVideoModel`, `selectAudioModel`. Lógica exacta en `docs/zyra-studio-spec.md` sección 7. Si vas a cambiar la lógica, actualiza el spec también.
+
+## Anti-patterns
+
+- ❌ Adapter que devuelva el URL del proveedor en `output_url`.
+- ❌ Adapter que registre en DB o llame a Storage (mezcla responsabilidades — eso es trabajo del worker).
+- ❌ Adapter que dependa de variables de entorno además de las API keys del proveedor. Toda configuración llega via params.
+- ❌ Adapter que loguee la API key, ni siquiera en error messages.
+- ❌ `JSON.parse(await res.text())` sin validación zod después.

@@ -1,0 +1,81 @@
+---
+description: Reglas críticas para manejo de créditos, compras y todo lo que toca dinero/economía interna.
+alwaysApply: true
+---
+
+# Créditos — reglas críticas
+
+Esta es la parte de la app donde un bug = pérdida real (créditos robados, balances inflados, compras forjadas). Por eso aplican siempre, sin excepciones.
+
+## Convenciones
+
+- 1 crédito ≈ $0.002 USD de costo interno (referencia para razonar precios, no para mostrar al usuario).
+- `delta` en `credit_transactions` es **positivo** para créditos agregados, **negativo** para removidos.
+- Suma de `delta` por usuario = `credit_balances.balance` (cuando `pending = 0`). Útil para auditorías.
+
+## Únicas formas válidas de mover créditos
+
+| Operación | Función | Quién la invoca |
+|---|---|---|
+| Reservar al encolar | `reserve_credits(user_id, amount, gen_id)` | server action `submitGeneration` |
+| Confirmar al éxito | `confirm_credits(user_id, amount, gen_id)` | worker tras completar |
+| Refund al fallo/cancel/timeout | `refund_credits(user_id, amount, gen_id)` | worker en error path |
+| Aprobar compra | `approve_purchase(purchase_id)` | server action `approvePurchase` (admin) |
+| Rechazar compra | `reject_purchase(purchase_id, reason)` | server action `rejectPurchase` (admin) |
+| Ajuste manual admin | `admin_grant_credits(user_id, delta, reason)` | server action `adminAdjustCredits` |
+| Bono de bienvenida | trigger `handle_new_user` | automático al signup |
+
+**Nunca** actualizar `credit_balances` o `credit_transactions` por otro camino. Si necesitas una operación nueva, agrega una función `security definer`, no un INSERT ad-hoc.
+
+## Estimación de costos
+
+- `lib/credits/estimator.ts` es la función canónica. Vive ahí porque se usa tanto en cliente (preview) como en server (validación).
+- **Re-calcular siempre server-side antes de `reserve_credits`.** El cliente puede mentir. Si el server calcula 800 y el cliente mandó 100, el server cobra 800.
+- Fórmula con `unit_size`: `ceil(units / unit_size) * credits_cost`. Aplicar también los multiplicadores (Nano Banana conversacional +50%, Grounding +20%, refs FLUX +15 c/u).
+
+## Compras simbólicas
+
+- CHECK constraint `pack_catalog_match` en `credit_purchases` previene forjado de packs (credits/price deben coincidir con el pack_id según catálogo).
+- La server action `createPurchase` SOLO acepta `pack_id`; los demás campos los rellena el server desde el catálogo.
+- Aprobación/rechazo SOLO vía funciones SQL atómicas. No actualizar la tabla manualmente.
+
+## Lotes (≥2 generaciones)
+
+Para storyboard, auto-variaciones, smart crop multi-formato y pipeline voz+video:
+
+1. Calcular costo total = suma de todas las generaciones del lote.
+2. Verificar balance ≥ costo total ANTES de empezar a encolar nada. Si insuficiente, mostrar dialog con opción de comprar pack o reducir alcance.
+3. Encolar todas en una transacción cuando sea posible. Si una `reserve_credits` falla a mitad de lote, refundir las anteriores y abortar.
+4. Cada generación del lote tiene su propio `reserve_credits` (no uno consolidado), porque el worker procesa una a la vez y refunda granularmente.
+
+## RLS y créditos
+
+- `credit_transactions` insert SOLO por admin (RLS). El resto pasa por las funciones `security definer` que bypass RLS.
+- `credit_balances` insert/update por admin o las funciones — usuarios solo lectura.
+- Si vas a leer el balance desde un Server Component, usa el cliente Supabase de cookies para que el RLS aplique automáticamente.
+
+## Validaciones obligatorias
+
+- `reserve_credits` retorna `false` si `balance < amount` o si el balance no existe. No throw.
+- `admin_grant_credits` rechaza ajuste que dejaría el balance negativo (`v_current + p_delta < 0`).
+- `approve_purchase` y `reject_purchase` rechazan si la compra ya no está en `'pending'` (idempotencia).
+
+## Auditoría
+
+Toda operación admin se registra en `admin_audit_log` con:
+- `admin_id` = quien hizo la acción
+- `action` = string descriptivo ('purchase_approve', 'credit_adjust', etc.)
+- `target_user_id` = sobre quién
+- `payload` = JSON con el delta y razón
+
+Esto NO es opcional. Si añades una operación admin nueva, agrega el insert al audit log dentro de la misma transacción.
+
+## Anti-patterns
+
+- ❌ `update credit_balances set balance = balance + X` desde una server action.
+- ❌ Insertar en `credit_transactions` con `reason='admin_grant'` sin pasar por `admin_grant_credits`.
+- ❌ Confiar en `credits_estimated` enviado por el cliente.
+- ❌ Refund "manual" sin restaurar `pending` también.
+- ❌ Aprobar/rechazar compra desde un UPDATE directo en lugar de las funciones.
+- ❌ Acción admin sin entrada correspondiente en `admin_audit_log`.
+- ❌ Mostrar al usuario "Tienes X créditos" sin re-leerlo del server (puede estar desactualizado tras compra o ajuste).

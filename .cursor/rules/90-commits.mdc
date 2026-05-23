@@ -1,0 +1,138 @@
+---
+description: Reglas para mensajes de commit, scope y workflow de git.
+alwaysApply: true
+---
+
+# Commits y git
+
+## Sin Co-Authored-By
+
+**Los commits NO llevan `Co-Authored-By: Claude <noreply@anthropic.com>`** ni ningún otro trailer de atribución a IA. El autor es la persona que ejecuta el commit, punto.
+
+Si vas a hacer un commit:
+- Usar `git commit -m "..."` o HEREDOC sin trailer de Co-Author.
+- Nunca agregar `Co-Authored-By:` a menos que el usuario lo pida explícitamente.
+- Si ves un commit pasado con esa línea, NO la propagues a futuros commits.
+
+## Formato del mensaje
+
+Estilo **Conventional Commits** breve:
+
+```
+<tipo>(<scope opcional>): <descripción corta en imperativo>
+
+[cuerpo opcional explicando el porqué, no el qué]
+```
+
+Tipos válidos:
+- `feat` — feature nueva
+- `fix` — corrección de bug
+- `refactor` — cambio sin alterar comportamiento
+- `perf` — mejora de performance
+- `db` — migraciones o cambios de schema
+- `chore` — config, deps, herramientas
+- `docs` — solo documentación
+- `test` — tests añadidos o modificados
+- `style` — formato/whitespace (raramente usar)
+
+Ejemplos buenos:
+- `feat(generation): agrega adapter de FLUX 2 Pro`
+- `fix(credits): refund llega correctamente al cancelar Veo en estado processing`
+- `db: agrega batch_id a generations para storyboard`
+- `refactor(worker): extrae nextDelay a helper compartido`
+
+Ejemplos malos:
+- `update stuff`
+- `fix bug`
+- `WIP`
+- `cambios varios` (commits atómicos, ver abajo)
+
+## Descripción
+
+- **En imperativo, presente:** "agrega", "corrige", "elimina" — NO "agregado", "agregando".
+- **En español** salvo nombres de funciones/símbolos/archivos.
+- **Máx 70 caracteres** en la primera línea.
+- Sin punto final.
+- El cuerpo (si lo hay) explica el **porqué**, no el qué (el diff ya muestra el qué).
+
+## Commits atómicos
+
+Un commit = un concern lógico. Si tu diff tiene varias cosas no relacionadas, partirlo:
+
+- ❌ `feat: agrega FLUX adapter, corrige typo en sidebar, actualiza README`
+- ✅ Tres commits separados.
+
+Excepción razonable: si un cambio requiere ajustes triviales en otro lugar (renombrar import por mover archivo), entran juntos.
+
+## Cuándo NO commitear
+
+- Solo crear commits cuando el usuario lo pida explícitamente. No "commit silencioso" después de cada cambio.
+- Si dudas si es buen momento, pregunta antes.
+- Nunca commitear `.env.local`, `.env.test`, credenciales, archivos generados (`dist/`, `.next/`, `node_modules/`).
+- Nunca commitear código que sabes que rompe — si vas a dejar algo a medias, dilo en el mensaje del commit (`WIP:` prefix) y en la conversación.
+
+## Stage selectivo
+
+- Preferir `git add <archivo>` específico sobre `git add -A` o `git add .`.
+- `git add .` puede arrastrar `.env`, scratchpads o archivos de prueba olvidados.
+- Revisar `git status` antes de cualquier `add`.
+
+## Operaciones destructivas
+
+Estas requieren confirmación explícita del usuario en cada uso, aunque la haya dado antes:
+
+- `git reset --hard`
+- `git push --force` (y peor `--force-with-lease` a main)
+- `git checkout .` / `git restore .` que descarte cambios no commiteados
+- `git clean -f`
+- `git branch -D`
+- `git rebase` que reescriba historia compartida
+
+Antes de ejecutar cualquiera: explicar qué va a pasar, qué se pierde, y esperar OK.
+
+## Hooks
+
+- Nunca usar `--no-verify` para saltarse pre-commit hooks (eslint, prettier, type-check).
+- Si un hook falla, investigar y arreglar la causa. No es opcional.
+- Tampoco `--no-gpg-sign` o `-c commit.gpgsign=false` salvo que el usuario lo pida.
+
+## Amend vs nuevo commit
+
+- Por default: nuevo commit, no `--amend`.
+- `--amend` solo si:
+  - El commit anterior NO ha sido pusheado, Y
+  - El usuario lo pide, O
+  - Es un fix trivial inmediato (typo en mensaje) en el commit del mismo flujo.
+- Si un pre-commit hook falló, el commit no se creó — el siguiente intento es un commit nuevo, no `--amend`.
+
+## Push
+
+- Solo pushear cuando el usuario lo pida.
+- Nunca pushear a `main` directamente sin haber confirmado que es el flujo esperado del repo.
+- Antes de pushear, `git status` y `git log <branch>..origin/<branch>` para entender qué se va a subir.
+
+## Branches
+
+- Si vas a crear una rama, nombre descriptivo en kebab-case: `feat/storyboard-mode`, `fix/credits-refund-race`.
+- Branches por fase del plan: `phase-1-foundation`, `phase-2-image`, etc.
+- No commits directos a `main` salvo en setup inicial.
+
+## Pull requests (cuando aplique)
+
+- Título igual al mensaje del primer commit del PR.
+- Body con:
+  - **Summary**: 1-3 bullets de qué cambia.
+  - **Test plan**: checklist de cómo verificar.
+- Sin trailer de Co-Authored-By tampoco.
+- Sin emojis en título.
+
+## Anti-patterns
+
+- ❌ `git commit -m "Co-Authored-By: Claude"` o similar.
+- ❌ `git commit -am "todo"` sin revisar qué se está agregando.
+- ❌ Commits descriptivos del diff: `agrega 50 líneas a estimator.ts` (eso ya lo dice el diff).
+- ❌ Commits que mezclan formato y lógica (review imposible — partir).
+- ❌ `git push --force` a una rama compartida sin avisar.
+- ❌ `git rebase -i` con flag `-i` (no se soporta en el flujo no-interactivo).
+- ❌ Crear branch nueva para cada commit pequeño (basta una rama por unidad de trabajo).
+- ❌ Commitear `console.log` de debug "que se quitan después".

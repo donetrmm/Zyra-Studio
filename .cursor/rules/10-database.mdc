@@ -1,0 +1,74 @@
+---
+description: Reglas para migraciones SQL, RLS, funciones y triggers de Postgres en Supabase.
+globs: ["supabase/**/*.sql", "supabase/**/*.ts"]
+alwaysApply: false
+---
+
+# Base de datos y RLS
+
+## Migraciones
+
+- Una migración por concern, ordenadas numéricamente (`001_initial_schema.sql`, `002_rls_policies.sql`, etc.).
+- **Migración ya aplicada en cualquier ambiente es inmutable.** Cualquier cambio = nueva migración.
+- Nombre descriptivo: `008_add_batch_id_to_generations.sql`, no `008_update.sql`.
+- Cada migración debe ser idempotente cuando sea posible: `create table if not exists`, `create or replace function`, `drop policy if exists` antes de recrear.
+
+## Esquema
+
+- Toda tabla con datos de usuario tiene `created_at timestamptz default now()`. Si es mutable, también `updated_at` + trigger `touch_updated_at`.
+- FKs siempre con `on delete` explícito (`cascade`, `set null`, o documentar por qué `no action`).
+- `references` es palabra reservada — usar `media_references`. Otras palabras a evitar: `user`, `order`, `group`, `role` como nombres de tabla.
+- UUIDs con `gen_random_uuid()`, no `uuid_generate_v4()`.
+- Columnas `text` con check constraint para enums; nunca crear tipos enum nativos (rotos para migrations).
+- UNIQUE sobre columnas que pueden ser NULL: usar `'default'` como valor sentinel, NUNCA NULL (Postgres trata NULLs como distintos en UNIQUE).
+
+## RLS
+
+- **`enable row level security`** en CADA tabla con datos de usuario. No hay excepciones.
+- Patrón estándar para tablas workspace-scoped:
+  ```sql
+  create policy "{tabla}_member_read"   for select using (is_workspace_member(workspace_id) or is_admin());
+  create policy "{tabla}_member_insert" for insert with check (is_workspace_member(workspace_id) and user_id = auth.uid());
+  create policy "{tabla}_owner_update"  for update using (user_id = auth.uid() or is_admin());
+  create policy "{tabla}_owner_delete"  for delete using (user_id = auth.uid() or is_admin());
+  ```
+- INSERT siempre con `with check` que valide `user_id = auth.uid()` para evitar que un miembro cree filas "a nombre de" otro usuario (importante: esto bloquea forjado de cargos a otro balance).
+- `for all` solo cuando todas las operaciones tienen exactamente la misma regla; en duda, splittear.
+- Nunca confiar solo en RLS — server actions también validan ownership.
+
+## Funciones SQL
+
+- Funciones que modifican datos sensibles (créditos, profiles, audit_log) son `security definer` y deben ser owned por `postgres` (BYPASSRLS).
+- Funciones helper de RLS (`is_admin`, `is_workspace_member`) son `security definer stable` — el `stable` permite cache de query.
+- Validar permisos al inicio de cada `security definer` function:
+  ```sql
+  if not is_admin() then raise exception 'only admins can ...'; end if;
+  ```
+- Usar `for update` cuando vas a leer-y-actualizar (locks anti race conditions):
+  ```sql
+  select balance into v from credit_balances where user_id = p_user_id for update;
+  ```
+- Nunca insertar en `credit_transactions` desde código de aplicación. Solo desde las funciones SQL designadas.
+
+## Triggers
+
+- Triggers `before update` para `updated_at`.
+- Trigger `after insert` para side effects (crear profile + balance al signup, owner-as-member al crear workspace).
+- Triggers `security definer` cuando necesiten escribir en tablas con RLS restrictiva.
+- Si un trigger falla, falla la transacción entera. Diseñar para no romper signup/creación si algo periférico (notificación) falla — usar `exception when others then` con cuidado.
+
+## Realtime
+
+Recordar agregar a la publication las tablas que el cliente va a observar:
+```sql
+alter publication supabase_realtime add table <tabla>;
+```
+RLS aplica también a eventos Realtime — cada cliente solo recibe filas que sus policies permitan leer.
+
+## Anti-patterns
+
+- ❌ `select * from pg_policies` para "descubrir" el estado real — siempre referirse a las migraciones.
+- ❌ Modificar una policy con `drop` + `create` sin agregar la migración correspondiente.
+- ❌ `service_role` desde el browser bajo cualquier excusa.
+- ❌ Funciones SQL que llamen a `current_user` o `session_user` — usar `auth.uid()`.
+- ❌ Triggers que se llamen entre sí sin guardas de recursión.

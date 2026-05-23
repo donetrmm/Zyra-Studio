@@ -1,0 +1,108 @@
+---
+description: Reglas de UI/UX, componentes shadcn, Tailwind y patrones de React Server Components.
+globs: ["components/**/*.tsx", "app/**/*.tsx", "app/**/*.ts"]
+alwaysApply: false
+---
+
+# UI y componentes
+
+## Identidad visual
+
+- **Dark mode por defecto.** El light mode es opcional, no prioritario.
+- Paleta: base `zinc-950`, acento `#7c3aed` (violeta eléctrico), bordes `zinc-800`.
+- Tipografía: Inter (UI) + Geist (display para títulos grandes).
+- Espaciado generoso, sombras suaves, transitions 150–250ms.
+- **Sin emojis** en strings de UI bajo ninguna circunstancia. Usar `lucide-react` para iconos.
+
+## Server vs Client Components
+
+- **Server Component por defecto.** Marcar `'use client'` solo si necesitas: state, effects, event handlers, browser APIs.
+- Si una página es server pero un widget interno necesita ser client, separa: `components/Foo.tsx` (server) que importa `components/FooInteractive.tsx` (client).
+- Fetch de datos en Server Components con el cliente Supabase de `lib/supabase/server.ts`. No hacer fetch desde el cliente para datos iniciales.
+
+## shadcn/ui
+
+- Antes de escribir un componente desde cero, busca el equivalente en shadcn (`Button`, `Dialog`, `DropdownMenu`, `Form`, `Toast` con sonner, `Tabs`, `Sheet`, `Table` con TanStack).
+- Si no existe, escribe el componente con Radix primitives + Tailwind, siguiendo el estilo de los componentes shadcn ya instalados.
+- Override de estilos shadcn vía `className` con `cn()` helper, NO modificar el archivo de shadcn directamente.
+
+## Tailwind
+
+- Usar la utility `cn` (combina `clsx` + `tailwind-merge`) para componer classes condicionales.
+- Tokens semánticos (`bg-background`, `text-foreground`, `border`) en lugar de colores absolutos cuando aplique.
+- Responsive: empezar mobile, escalar con `md:`, `lg:`. No "diseñar desktop y luego adaptar".
+
+## Forms
+
+- `react-hook-form` + `zodResolver` siempre. Schema definido en `lib/schemas/`.
+- Componente `Form` de shadcn para wiring de errores.
+- Submit handler llama a un server action; estado de loading con `useTransition`.
+
+## Realtime
+
+- Suscripciones Realtime en client components con `useEffect` (montar) + cleanup (desmontar).
+- Patrón estándar:
+  ```typescript
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`generations:${userId}`)
+      .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'generations', filter: `user_id=eq.${userId}` },
+          (payload) => { /* update store */ })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+  ```
+- Suscribirse a la tabla específica filtrada, no a toda la tabla.
+
+## Estados de carga y vacío
+
+- Loading: skeletons que reflejen la forma del contenido final. NO spinners genéricos.
+- Vacío: mensaje + CTA accionable ("Aún no tienes generaciones. Crea tu primera imagen.").
+- Error: mensaje en español + botón "Reintentar" o "Volver" cuando aplique.
+
+## Accesibilidad
+
+- Inputs con `<Label>` siempre. No labels visuales con texto pegado al input sin asociación.
+- Botones de icono con `aria-label`.
+- Modales con focus trap (Radix lo hace por default).
+- Contraste mínimo AA (4.5:1) — verificar especialmente en dark mode con `text-muted-foreground`.
+- Keyboard navigation: ningún flow crítico requiere mouse.
+
+## Imágenes y media
+
+- `<Image>` de Next con `remotePatterns` configurado para Supabase Storage.
+- Generaciones (videos, audio) servidas con `<video>` / `<audio>` directos a Supabase signed URLs.
+- Lazy loading por default. `priority` solo para hero/above-the-fold.
+
+## Cost preview en tiempo real
+
+Para los formularios de creación, el componente `CostPreview`:
+- Calcula con `estimateCredits()` (función pura en `lib/credits/estimator.ts`).
+- Debounce 200ms al cambiar params para no thrashear.
+- Si `cost > balance`: número en rojo + tooltip "Necesitas X créditos más".
+- `GenerateButton` deshabilitado en ese caso.
+
+## Toasts
+
+- Usar `sonner` (instalado vía shadcn).
+- Success: verde, 3s.
+- Error: rojo, 5s + acción si aplica ("Reintentar").
+- No usar para confirmaciones críticas (compras, deletes) — esas van en `Dialog`.
+
+## Layout
+
+- Layout autenticado en `app/app/layout.tsx`: sidebar fijo 240px + topbar + main scroll.
+- Mobile: sidebar → `MobileBottomNav` (Sheet en su lugar para items secundarios).
+- Pantallas de creación: 2 columnas desktop, tabs mobile ("Controles" / "Preview").
+
+## Anti-patterns
+
+- ❌ `useEffect` para hacer fetch inicial — eso es Server Component.
+- ❌ `'use client'` en un layout que envuelve todo (mata RSC).
+- ❌ State global con Zustand para datos que vienen del server — usar RSC + Realtime.
+- ❌ Botones grises sin texto que digan solo el icono y dependen de un tooltip para entenderse (a11y).
+- ❌ Modales sin manera de cerrar con Esc o click fuera.
+- ❌ Toasts para mostrar formularios o información extensa — usar `Dialog`.
+- ❌ Estilos inline (`style={{}}`) excepto cuando son verdaderamente dinámicos (color picker preview, etc.).

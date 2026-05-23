@@ -1,0 +1,50 @@
+---
+description: Contexto general del proyecto, stack y convenciones de código que aplican a todo el repo.
+alwaysApply: true
+---
+
+# Proyecto Zyra Studio
+
+**Stack:** Next.js 15 (App Router, RSC) + TypeScript strict + Supabase + Upstash QStash + Vercel Hobby + Tailwind + shadcn/ui + Zustand + react-hook-form + zod.
+
+**Fuente de verdad:** `docs/zyra-studio-spec.md`. Plan de ejecución por día: `specs/01-fundacion.md` … `specs/05-polish-demo.md`. Antes de implementar algo no trivial, lee la sección relevante del spec.
+
+## Convenciones de TypeScript
+
+- `strict: true`. Nada de `any` — usar `unknown` + narrowing, o tipo explícito.
+- Schemas de runtime con zod (`lib/schemas/`). Inferir tipos con `z.infer<typeof Schema>`, no duplicar.
+- Imports absolutos con `@/` siempre, no relativos largos.
+- No exports default excepto en páginas/layouts/route handlers de Next.
+
+## Convenciones de archivos
+
+- Componentes en `PascalCase.tsx`, helpers en `camelCase.ts`, rutas de Next en minúscula (`page.tsx`, `layout.tsx`).
+- Un componente público por archivo. Sub-componentes privados pueden vivir en el mismo archivo si son ≤30 líneas.
+- Server Components por default. Marcar `'use client'` solo si el componente usa state, effects, event handlers o APIs del browser.
+
+## Decisiones inmutables (no rediseñar sin confirmación)
+
+- Toda generación que pueda tardar >60s pasa por QStash con polling re-encolado. Nada de webhooks.
+- URLs de proveedores NUNCA llegan al cliente. Worker descarga → sube a Supabase Storage → cliente lee de ahí.
+- Créditos solo se mueven vía funciones SQL `security definer` (`reserve_credits`, `confirm_credits`, `refund_credits`, `approve_purchase`, `reject_purchase`, `admin_grant_credits`).
+- RLS habilitado en todas las tablas. Server actions validan + verifican ownership además, RLS es defensa en profundidad.
+- Service role solo en código server (lib/supabase/admin.ts no debe importarse desde componentes cliente).
+
+## Performance y límites
+
+- Vercel Hobby: 60s timeout por función, 100 GB bandwidth/mes, 4.5 MB max request body.
+- Supabase Free: 500 MB DB, 1 GB Storage, 5 GB egress/mes, 200 conexiones Realtime concurrentes.
+- QStash Free: 500 mensajes/día. Los polls re-encolados consumen cuota — respetar los intervalos por proveedor.
+- Servir media directo desde Supabase Storage (signed URLs), NO proxiar por Next.js (consume bandwidth Vercel).
+- Uploads >4.5 MB deben ir directo del browser a Supabase con signed upload URLs.
+
+## Estilo de código
+
+- No emojis en código fuente ni en strings de UI.
+- No comentarios que repiten el código. Solo comentarios cuando el WHY no es obvio (workaround, decisión de spec, invariante sutil).
+- No archivos README adicionales sin pedirlo. La documentación vive en `docs/` y `specs/`.
+- Errores con mensajes accionables para el usuario en español; logs técnicos en inglés.
+
+## Cuando algo no encaja con el spec
+
+Si el código existente o la implementación que estás haciendo contradice el spec, **flagéalo explícitamente al usuario** antes de "resolverlo". No tomes la decisión silenciosamente: o el código está mal, o el spec necesita actualizarse, pero el usuario debe saber.

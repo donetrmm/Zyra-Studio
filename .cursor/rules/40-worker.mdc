@@ -1,0 +1,96 @@
+---
+description: Reglas para el worker QStash y los endpoints en /api/jobs/.
+globs: ["app/api/jobs/**/*.ts", "lib/jobs/**/*.ts"]
+alwaysApply: false
+---
+
+# Worker y cola de jobs
+
+## Estructura
+
+- `app/api/jobs/process/route.ts` → worker que procesa una generación a la vez.
+- `app/api/jobs/cleanup/route.ts` → schedule diario.
+- `lib/jobs/queue.ts` → cliente QStash + helpers.
+- `lib/jobs/receiver.ts` → verificación de firma.
+- `lib/jobs/worker.ts` → lógica de despacho compartida (provider switch, status updates).
+
+## Configuración Next obligatoria
+
+```typescript
+export const maxDuration = 60;        // tope Vercel Hobby
+export const runtime = 'nodejs';       // necesario para sharp, SDKs pesados
+export const dynamic = 'force-dynamic'; // nunca cachear
+```
+
+`maxDuration` se declara solo aquí. No duplicar en `vercel.json`.
+
+## Flujo del worker (orden estricto)
+
+1. **Verificar firma QStash** con `Receiver`. Si falla → 401. No usar el body ni el header de otro modo antes.
+2. Parsear body con zod: `{ generationId: uuid, action: 'submit' | 'poll' }`.
+3. Cargar `generations` con service_role. Si no existe → 200 (ack, no error — la fila pudo haber sido limpiada).
+4. **Si `status` es terminal** (`done`, `failed`, `canceled`) → 200 (ack). Polls atrasados de QStash son normales.
+5. **Si `cancel_requested = true`** o **`now() > timeout_at`** → llamar `cancel` del adapter si aplica, marcar `status='canceled'` o `'failed'`, llamar `refund_credits`, 200.
+6. Switch en `action`:
+   - `submit`: llamar `adapter.submit(params)`. Si sync → completar en esta invocación. Si async → guardar `provider_task_id`, marcar `status='processing'`, re-encolar `action='poll'` con `nextDelay(provider, 0)`.
+   - `poll`: incrementar `poll_attempts`. Si `> MAX_POLLS` del proveedor → timeout + refund. Si no, `adapter.poll(taskId)`. Si `processing` → re-encolar con `nextDelay(provider, attempts)`. Si `done` → completar. Si `failed` → refund.
+7. Completar (paso compartido):
+   - `adapter.download(result)` → buffer.
+   - Subir a `outputs/{workspace_id}/{generation_id}.{ext}` en Supabase Storage.
+   - Generar thumbnail: imagen con `sharp` (resize 512px, jpeg q80); video con `ffmpeg -ss 0 -frames:v 1` (un solo frame, evita exceder 60s en 4K).
+   - Subir thumbnail a `thumbnails/`.
+   - `confirm_credits(user_id, amount, gen_id)`.
+   - UPDATE `generations` con `output_url, thumbnail_url, duration_seconds, file_size_bytes, credits_charged, processing_ms = now() - created_at, status='done', completed_at = now()`.
+   - Insertar notification opcional (`type='generation_done'`).
+
+## Idempotencia
+
+QStash puede entregar el mismo mensaje más de una vez. El worker debe ser idempotente:
+- Verificar status terminal antes de ejecutar lógica (paso 4 arriba).
+- No incrementar `poll_attempts` si ya pasó al siguiente status.
+- `UPDATE ... WHERE status = expected_previous_status` para guardar transiciones.
+
+## Re-encolado
+
+```typescript
+function nextDelay(provider: string, attempts: number): string {
+  if (provider === 'flux')  return attempts < 10 ? '2s'  : '5s';
+  if (provider === 'kling') return attempts < 6  ? '10s' : '20s';
+  if (provider === 'veo')   return attempts < 4  ? '15s' : '30s';
+  return '10s';
+}
+```
+
+`MAX_POLLS` por proveedor: FLUX 60, Kling 30, Veo 24. Si se excede → timeout + refund.
+
+## Cancelación
+
+- Server action setea `cancel_requested = true` (RLS valida ownership).
+- Worker detecta la bandera y procesa el cancel (paso 5).
+- Si el provider no soporta cancel remoto (Veo, FLUX): solo refund + status local. El job del provider seguirá corriendo pero su output se ignora.
+
+## Cleanup endpoint
+
+`/api/jobs/cleanup` ejecuta una vez al día via QStash schedule:
+1. DELETE `generations` con `status in ('failed', 'canceled')` y `created_at < now() - interval '7 days'`.
+2. DELETE `media_references` con `source='generation' and source_generation_id is null and created_at < now() - interval '24 hours'`.
+3. List bucket `outputs/`, comparar contra `generations.output_url` vivos, borrar huérfanos >24h.
+4. DELETE `notifications` con `read_at is not null and created_at < now() - interval '30 days'`.
+
+Cada paso loggea count antes/después para depurar.
+
+## Logging
+
+- Loguear: provider, generation_id, action, poll_attempts, latency.
+- No loguear: prompt completo (puede ser largo), API keys, raw payloads del provider con datos sensibles.
+- Errores con contexto: `{ generationId, provider, step: 'download', error }`.
+
+## Anti-patterns
+
+- ❌ Worker que llame al provider antes de verificar firma de QStash.
+- ❌ Worker que `await` operaciones sin timeout (puede colgar todo el invocation).
+- ❌ Worker que use el cliente Supabase de cookies (no hay user session — usar service role).
+- ❌ Re-encolar sin verificar que el status sigue siendo no-terminal.
+- ❌ Marcar `done` sin haber descargado y subido el output a Storage primero.
+- ❌ Olvidar el `confirm_credits` (los créditos quedarían pendientes para siempre).
+- ❌ Ignorar `cancel_requested` "porque ya casi termina" — siempre respetar.
