@@ -7,6 +7,7 @@ import type { PricingRow } from '@/lib/credits/types';
 import { estimateCredits } from '@/lib/credits/estimator';
 import { selectImageModel } from '@/lib/router/model-selector';
 import { submitGenerationAction } from '@/server-actions/generations';
+import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { ControlsPanel } from './ControlsPanel';
 import { ChatThread } from './ChatThread';
@@ -189,6 +190,40 @@ export function ImageGenerator(props: {
 
   const providerLabel = labelForSelection(selection);
 
+  // Cap de refs según el modelo activo (igual lógica que ReferencesPanel).
+  const maxRefs =
+    selection.provider === 'nano-banana'
+      ? selection.model === 'gemini-3.1-flash-image-preview'
+        ? 14
+        : 11
+      : 8;
+  const canAddReference = references.length < maxRefs;
+
+  const handleUseAsReference = useCallback(
+    async (item: SessionItem) => {
+      if (references.length >= maxRefs) {
+        toast.error(`Máximo ${maxRefs} referencias para este modelo`);
+        return;
+      }
+      const res = await addGenerationAsReferenceAction({ generationId: item.id });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como referencia');
+        return;
+      }
+      setReferences((prev) => [
+        ...prev,
+        {
+          id: res.data.id,
+          storagePath: res.data.storagePath,
+          previewUrl: res.data.previewUrl || item.thumbnailUrl || item.outputUrl || '',
+          filename: res.data.filename,
+        },
+      ]);
+      toast.success('Agregada como referencia');
+    },
+    [references.length, maxRefs],
+  );
+
   // Hilo conversacional: solo las generaciones encadenadas por parent.
   // Como hoy guardamos parent en el server pero no lo devolvemos al cliente
   // por ítem, usamos un proxy razonable: cuando conversational está ON, todo
@@ -257,6 +292,8 @@ export function ImageGenerator(props: {
       aspectRatio={aspectRatio}
       promptEcho={prompt}
       etaSeconds={etaSeconds}
+      onUseAsReference={handleUseAsReference}
+      canAddReference={canAddReference}
     />
   );
 

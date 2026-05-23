@@ -1,18 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import {
   ChevronRight,
   Download,
   Library,
-  MoreHorizontal,
-  Pin,
-  Search,
+  Loader2,
+  Maximize2,
   Shield,
-  Sliders,
   Sparkles,
-  Square,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { SessionItem } from './types';
 
@@ -38,6 +37,8 @@ export function PreviewArea({
   aspectRatio,
   promptEcho,
   etaSeconds,
+  onUseAsReference,
+  canAddReference,
 }: {
   pending: boolean;
   result: SessionItem | null;
@@ -47,6 +48,8 @@ export function PreviewArea({
   aspectRatio: string;
   promptEcho: string;
   etaSeconds: number;
+  onUseAsReference: (item: SessionItem) => Promise<void>;
+  canAddReference: boolean;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -66,6 +69,8 @@ export function PreviewArea({
             session={session}
             onSelect={onSelect}
             promptEcho={promptEcho}
+            onUseAsReference={onUseAsReference}
+            canAddReference={canAddReference}
           />
         ) : (
           <EmptyState />
@@ -89,36 +94,7 @@ function PreviewToolbar({ ready }: { ready: boolean }) {
           </span>
         )}
       </div>
-      <div className="flex gap-1">
-        <ToolbarBtn title="Comparar">
-          <Sliders className="size-3.5" aria-hidden />
-        </ToolbarBtn>
-        <ToolbarBtn title="Buscar en sesión">
-          <Search className="size-3.5" aria-hidden />
-        </ToolbarBtn>
-        <ToolbarBtn title="Más">
-          <MoreHorizontal className="size-3.5" aria-hidden />
-        </ToolbarBtn>
-      </div>
     </div>
-  );
-}
-
-function ToolbarBtn({
-  children,
-  title,
-}: {
-  children: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40"
-    >
-      {children}
-    </button>
   );
 }
 
@@ -261,13 +237,6 @@ function GeneratingState({
           {String(elapsed).padStart(2, '0')}s · estimado ~{etaSeconds}s
         </div>
       </div>
-
-      <button
-        type="button"
-        className="mt-[22px] inline-flex items-center gap-1.5 rounded-lg border border-border bg-transparent px-3.5 py-2 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <Square className="size-3 fill-current" aria-hidden /> Cancelar
-      </button>
     </div>
   );
 }
@@ -279,6 +248,8 @@ function ResultState({
   session,
   onSelect,
   promptEcho,
+  onUseAsReference,
+  canAddReference,
 }: {
   result: SessionItem;
   aspectRatio: string;
@@ -286,9 +257,62 @@ function ResultState({
   session: SessionItem[];
   onSelect: (item: SessionItem) => void;
   promptEcho: string;
+  onUseAsReference: (item: SessionItem) => Promise<void>;
+  canAddReference: boolean;
 }) {
   const ratio = aspectToRatio(aspectRatio);
   const promptText = result.prompt || promptEcho;
+  const [downloading, setDownloading] = useState(false);
+  const [adding, startAdd] = useTransition();
+  const [lightbox, setLightbox] = useState(false);
+
+  // ESC cierra el lightbox.
+  useEffect(() => {
+    if (!lightbox) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLightbox(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
+
+  async function handleDownload() {
+    if (!result.outputUrl) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(result.outputUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      // Inferir extensión del content-type para no terminar con .undefined.
+      const ext = blob.type.includes('png')
+        ? 'png'
+        : blob.type.includes('webp')
+          ? 'webp'
+          : 'jpg';
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `zyra-${result.id.slice(0, 8)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      toast.error(
+        `No se pudo descargar la imagen${e instanceof Error ? `: ${e.message}` : ''}`,
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleUseAsReference() {
+    if (!canAddReference || adding) return;
+    startAdd(async () => {
+      await onUseAsReference(result);
+    });
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden p-5 pt-5">
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
@@ -307,22 +331,29 @@ function ResultState({
             <img
               src={result.outputUrl}
               alt={promptText}
-              className="block size-full object-contain"
+              onDoubleClick={() => setLightbox(true)}
+              className="block size-full cursor-zoom-in object-contain"
             />
           )}
-          <div className="absolute right-3 top-3 flex gap-1.5">
-            <FloatingIconBtn title="Pin">
-              <Pin className="size-3.5" aria-hidden />
-            </FloatingIconBtn>
-            <FloatingIconBtn title="Más">
-              <MoreHorizontal className="size-3.5" aria-hidden />
-            </FloatingIconBtn>
-          </div>
+          {result.outputUrl && (
+            <button
+              type="button"
+              onClick={() => setLightbox(true)}
+              title="Ver en grande"
+              className="absolute right-3 top-3 grid size-[30px] place-items-center rounded-lg border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors hover:bg-background/90"
+            >
+              <Maximize2 className="size-3.5" aria-hidden />
+            </button>
+          )}
           <div className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/70 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur">
             {providerLabel} · {aspectRatio}
           </div>
         </div>
       </div>
+
+      {lightbox && result.outputUrl && (
+        <Lightbox src={result.outputUrl} alt={promptText} onClose={() => setLightbox(false)} />
+      )}
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -333,15 +364,40 @@ function ResultState({
           </div>
         </div>
         <div className="flex gap-1.5">
-          <GhostBtn>
-            <Sparkles className="size-3.5" aria-hidden /> Usar como ref.
+          <GhostBtn
+            onClick={() => setLightbox(true)}
+            disabled={!result.outputUrl}
+            title="Abrir en grande (doble-click sobre la imagen)"
+          >
+            <Maximize2 className="size-3.5" aria-hidden /> Ver en grande
+          </GhostBtn>
+          <GhostBtn
+            onClick={handleUseAsReference}
+            disabled={!canAddReference || adding}
+            title={
+              !canAddReference
+                ? 'Alcanzaste el máximo de referencias'
+                : 'Usar como referencia'
+            }
+          >
+            {adding ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}{' '}
+            Usar como ref.
           </GhostBtn>
           <GhostBtn href="/app/library">
             <Library className="size-3.5" aria-hidden /> Biblioteca
           </GhostBtn>
           {result.outputUrl && (
-            <PrimaryGhost href={result.outputUrl} download>
-              <Download className="size-3.5" aria-hidden /> Descargar
+            <PrimaryGhost onClick={handleDownload} disabled={downloading}>
+              {downloading ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Download className="size-3.5" aria-hidden />
+              )}{' '}
+              Descargar
             </PrimaryGhost>
           )}
         </div>
@@ -392,42 +448,42 @@ function ResultState({
   );
 }
 
-function FloatingIconBtn({
-  children,
-  title,
-}: {
-  children: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      className="grid size-[30px] place-items-center rounded-lg border border-border/40 bg-background/70 text-foreground backdrop-blur"
-    >
-      {children}
-    </button>
-  );
-}
-
 function GhostBtn({
   children,
   href,
+  onClick,
+  disabled,
+  title,
 }: {
   children: React.ReactNode;
   href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
 }) {
-  const className =
-    'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30';
+  const base =
+    'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors';
+  const className = cn(
+    base,
+    disabled
+      ? 'cursor-not-allowed opacity-50'
+      : 'hover:border-muted-foreground/30',
+  );
   if (href) {
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} title={title}>
         {children}
       </a>
     );
   }
   return (
-    <button type="button" className={className}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+    >
       {children}
     </button>
   );
@@ -435,30 +491,24 @@ function GhostBtn({
 
 function PrimaryGhost({
   children,
-  href,
-  download,
+  onClick,
+  disabled,
 }: {
   children: React.ReactNode;
-  href?: string;
-  download?: boolean;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
-  const className =
-    'inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15';
-  if (href) {
-    return (
-      <a
-        href={href}
-        className={className}
-        target="_blank"
-        rel="noreferrer"
-        download={download}
-      >
-        {children}
-      </a>
-    );
-  }
+  const className = cn(
+    'inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors',
+    disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-primary/15',
+  );
   return (
-    <button type="button" className={className}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
     </button>
   );
@@ -482,6 +532,43 @@ export function SafetyErrorState({ refunded }: { refunded: number }) {
           <span className="font-mono">+{refunded}</span> créditos devueltos a tu balance
         </div>
       </div>
+    </div>
+  );
+}
+
+function Lightbox({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Imagen ampliada"
+      onClick={onClose}
+      className="fixed inset-0 z-50 grid place-items-center bg-background/90 p-4 backdrop-blur-sm sm:p-8"
+      style={{ animation: 'zyra-fade-in 120ms ease-out' }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
+      />
+      <button
+        type="button"
+        onClick={onClose}
+        title="Cerrar (ESC)"
+        className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors hover:bg-background/90"
+      >
+        <X className="size-4" aria-hidden />
+      </button>
     </div>
   );
 }
