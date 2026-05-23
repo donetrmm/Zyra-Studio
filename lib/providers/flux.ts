@@ -61,11 +61,6 @@ function buildPrompt(params: FluxParams, refCount: number): string {
   if (params.photoreal) {
     prompt = `${PHOTOREAL_DIRECTIVE} ${prompt}`;
   }
-  // 3) Negative prompt como sufijo "Avoid: ..." (FLUX 2 no tiene campo nativo).
-  const negative = params.negativePrompt?.trim();
-  if (negative) {
-    prompt = `${prompt} Avoid: ${negative}.`;
-  }
   return prompt;
 }
 

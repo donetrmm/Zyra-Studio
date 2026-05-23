@@ -181,7 +181,6 @@ export async function submitGenerationAction(
       provider: data.provider,
       model_id: data.model,
       prompt: data.prompt,
-      negative_prompt: data.negativePrompt ?? null,
       params: insertParams,
       reference_ids: data.references.map((r) => r.id),
       parent_generation_id: parentGenerationId,
@@ -264,7 +263,6 @@ export async function submitGenerationAction(
         useGrounding: data.useGrounding,
         conversational: data.conversational,
         hasTextInImage: data.hasTextInImage,
-        negativePrompt: data.negativePrompt,
       });
     } else {
       const { width, height } = fluxDimensions(data.aspectRatio, data.megapixels);
@@ -274,7 +272,6 @@ export async function submitGenerationAction(
         height,
         references,
         photoreal: data.photoreal,
-        negativePrompt: data.negativePrompt,
       });
     }
 

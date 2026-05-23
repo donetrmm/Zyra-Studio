@@ -24,9 +24,6 @@ export type NanoBananaParams = {
   useGrounding?: boolean;
   conversational?: boolean;
   hasTextInImage?: boolean;
-  // Texto a evitar; el adapter lo concatena al prompt como "Avoid: ..."
-  // (Gemini no expone negative_prompt nativo).
-  negativePrompt?: string;
   // Si presente, el adapter construye contents en formato chat multi-turn:
   // [user: prompt anterior, model: imagen anterior, user: nuevo prompt+refs].
   // Esto es lo que mantiene composición real al editar (no "pegar cara").
@@ -44,9 +41,6 @@ export type FluxParams = {
   // Prepende directiva de fotografía cinemática al prompt. FLUX 2 no expone
   // un toggle nativo de "photoreal"; lo guiamos por texto.
   photoreal?: boolean;
-  // Texto a evitar; el adapter lo concatena como "Avoid: ..." (FLUX 2 no
-  // tiene campo negative_prompt en el schema).
-  negativePrompt?: string;
 };
 
 export type GenerationResult = {

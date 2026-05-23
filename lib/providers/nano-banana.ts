@@ -63,11 +63,6 @@ function buildPrompt(params: NanoBananaParams): string {
   if (params.hasTextInImage) {
     prompt = `${TEXT_IN_IMAGE_DIRECTIVE} ${prompt}`;
   }
-  // Negative prompt como sufijo "Avoid: ..." (Gemini no expone negative_prompt).
-  const negative = params.negativePrompt?.trim();
-  if (negative) {
-    prompt = `${prompt} Avoid: ${negative}.`;
-  }
   return prompt;
 }
 
