@@ -72,15 +72,22 @@ function buildBody(params: NanoBananaParams) {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
   const refs = (params.references ?? []).slice(0, maxRefs);
 
-  // Construir las partes del último turno (prompt nuevo + refs externas)
+  // Construir las partes del último turno (prompt nuevo + refs externas).
+  // En modo conversational (con previousTurn) NO se incluyen refs externas:
+  // si las dejamos, Gemini las trata como "edita esta ref con el nuevo prompt"
+  // y descarta la imagen del turn anterior (síntoma: pides un cambio sobre la
+  // moto y reaparece solo la persona original). Las refs solo viajan en la
+  // primera generación; las iteraciones siguientes editan sobre el output.
   const newUserParts: Part[] = [{ text: buildPrompt(params) }];
-  for (const ref of refs) {
-    newUserParts.push({
-      inline_data: {
-        mime_type: ref.mimeType,
-        data: ref.buffer.toString('base64'),
-      },
-    });
+  if (!params.previousTurn) {
+    for (const ref of refs) {
+      newUserParts.push({
+        inline_data: {
+          mime_type: ref.mimeType,
+          data: ref.buffer.toString('base64'),
+        },
+      });
+    }
   }
 
   // Multi-turn cuando hay `previousTurn`: la imagen previa va con role:'model'
