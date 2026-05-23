@@ -1,10 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
 
 /* Zyra design tokens — scoped a la pantalla de creación. No pisan el tema
-   global de shadcn; los componentes los consumen con bg-[var(...)] o style. */
+   global de shadcn; los componentes los consumen con bg-[var(...)] o style.
+   Las fuentes Geist / Geist Mono ya las carga next/font en app/layout.tsx
+   como --font-heading y --font-mono; aquí solo aliasamos. */
 :root {
   --zyra-bg-deep: #0B0F19;
   --zyra-bg-1: #0E1322;
@@ -32,8 +33,8 @@
   --zyra-ok: #4ECD8A;
   --zyra-ok-soft: rgba(78, 205, 138, 0.12);
 
-  --zyra-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --zyra-font-mono: "Geist Mono", ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+  --zyra-font-sans: var(--font-heading), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --zyra-font-mono: var(--font-mono), ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
 }
 
 @custom-variant dark (&:is(.dark *));
