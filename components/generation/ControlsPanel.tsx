@@ -73,8 +73,8 @@ export function ControlsPanel(props: ControlsPanelProps) {
         </Badge>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="space-y-6">
+      <div className="scroll-thin flex-1 overflow-y-auto px-5 py-4">
+        <div className="space-y-6 pb-2">
           {!props.hidePromptAndCta && (
             <PromptBlock
               value={props.prompt}

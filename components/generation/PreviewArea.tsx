@@ -147,7 +147,7 @@ function SessionStrip({
       <p className="text-xs uppercase tracking-wider text-muted-foreground">
         Esta sesión ({session.length})
       </p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="scroll-thin flex gap-2 overflow-x-auto pb-1">
         {session.map((item) => (
           <button
             key={item.id}

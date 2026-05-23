@@ -93,7 +93,7 @@ export function ChatThread({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 py-6"
+        className="scroll-thin flex-1 overflow-y-auto px-5 py-6"
       >
         {isEmpty ? (
           <EmptyChat />
