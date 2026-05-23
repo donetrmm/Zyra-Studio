@@ -44,12 +44,12 @@ async function submit(params: FluxParams, apiKey: string): Promise<string> {
   };
   if (params.promptUpsampling !== undefined) body.prompt_upsampling = params.promptUpsampling;
   if (params.seed !== undefined) body.seed = params.seed;
+  // BFL espera base64 raw (sin prefix data:...;base64,). El data URL lo ignora
+  // o lo rechaza silenciosamente, lo que termina generando como text-to-image.
   if (refs.length === 1) {
-    body.image_prompt = `data:${refs[0].mimeType};base64,${refs[0].buffer.toString('base64')}`;
+    body.image_prompt = refs[0].buffer.toString('base64');
   } else if (refs.length > 1) {
-    body.image_prompt = refs.map(
-      (r) => `data:${r.mimeType};base64,${r.buffer.toString('base64')}`,
-    );
+    body.image_prompt = refs.map((r) => r.buffer.toString('base64'));
   }
 
   const res = await fetch(ENDPOINT, {
