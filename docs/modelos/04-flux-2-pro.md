@@ -29,10 +29,13 @@
 | `prompt` | string | Descripción (hasta 32K tokens) |
 | `width` | int | Ancho en píxeles |
 | `height` | int | Alto en píxeles |
-| `image_prompt` | string/array | Imagen(es) de referencia base64 o URL |
-| `prompt_upsampling` | bool | Mejora automática del prompt |
+| `input_image` … `input_image_8` | string | Hasta 8 refs en campos numerados. Cada uno acepta base64 raw (sin prefijo `data:...;base64,`) o URL pública |
 | `seed` | int | Reproducibilidad |
-| `safety_tolerance` | int | 0–6 |
+| `safety_tolerance` | int | 0–5 (0 = más estricto, default 2) |
+| `output_format` | enum | `jpeg` \| `png` \| `webp` (default `jpeg`) |
+| `webhook_url`, `webhook_secret` | string | Notificación opcional |
+
+> **Importante:** el campo `image_prompt` / `image_prompts` / `image_prompt_strength` que aparece en FLUX 1.1 Pro Ultra **no aplica** a este endpoint. Si se envía, la API lo ignora silenciosamente y la generación cae a text-to-image. Lo mismo con `prompt_upsampling`: no está en el schema actual de `flux-2-pro-preview`.
 
 ## Ejemplo Python (text-to-image)
 

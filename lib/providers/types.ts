@@ -38,9 +38,6 @@ export type FluxParams = {
   promptUpsampling?: boolean;
   seed?: number;
   safetyTolerance?: number;
-  // 0–1. Qué tanto debe FLUX adherirse a las refs (identidad / composición).
-  // Default alto: las refs deberían ANCLAR, no solo inspirar.
-  imagePromptStrength?: number;
 };
 
 export type GenerationResult = {

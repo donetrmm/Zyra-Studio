@@ -34,27 +34,44 @@ const PollResponseSchema = z.object({
 const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 30_000;
 
+// FLUX 2 Pro se comporta como editor: si el prompt no menciona "image 1" / "imagen"
+// / "referencia" / "ref", trata las refs como contexto opcional y se va a
+// text-to-image. Anteponemos una directiva en inglés (el modelo es multilingüe pero
+// responde mejor a instrucciones operativas en EN) solo cuando detectamos que el
+// usuario no lo nombró ya. Mantener corto: el prompt original sigue siendo el
+// "cuerpo" de la instrucción.
+const REF_MENTION_RE =
+  /\b(image|imagen|images|im[áa]genes|reference|referencia|ref|photo|foto|picture|retrato|portrait)\b/i;
+
+function buildPromptWithRefs(prompt: string, refCount: number): string {
+  if (refCount === 0) return prompt;
+  if (REF_MENTION_RE.test(prompt)) return prompt;
+  const trimmed = prompt.trim();
+  if (refCount === 1) {
+    return `Use image 1 as the main reference for subject, identity and composition. ${trimmed}`;
+  }
+  const ids = Array.from({ length: refCount }, (_, i) => `image ${i + 1}`).join(', ');
+  return `Use ${ids} as references; combine them as instructed. ${trimmed}`;
+}
+
 async function submit(params: FluxParams, apiKey: string): Promise<string> {
   const refs = (params.references ?? []).slice(0, FLUX_MAX_REFS);
   const body: Record<string, unknown> = {
-    prompt: params.prompt,
+    prompt: buildPromptWithRefs(params.prompt, refs.length),
     width: params.width,
     height: params.height,
     safety_tolerance: params.safetyTolerance ?? 2,
   };
   if (params.promptUpsampling !== undefined) body.prompt_upsampling = params.promptUpsampling;
   if (params.seed !== undefined) body.seed = params.seed;
-  // BFL espera base64 raw (sin prefix data:...;base64,). El data URL lo ignora
-  // o lo rechaza silenciosamente, lo que termina generando como text-to-image.
-  if (refs.length === 1) {
-    body.image_prompt = refs[0].buffer.toString('base64');
-  } else if (refs.length > 1) {
-    body.image_prompt = refs.map((r) => r.buffer.toString('base64'));
-  }
-  // Cuando hay refs, ancla más fuerte. Default 0.85; el caller puede subir/bajar.
-  if (refs.length > 0) {
-    body.image_prompt_strength = params.imagePromptStrength ?? 0.85;
-  }
+  // FLUX 2 Pro Preview usa campos numerados input_image, input_image_2..input_image_8
+  // (uno por ref). El nombre image_prompt[] era de FLUX 1.1; en FLUX 2 la API lo
+  // ignora en silencio y la generación cae a text-to-image. Acepta base64 raw
+  // (sin prefijo data:...;base64,) o URL pública.
+  refs.forEach((ref, i) => {
+    const key = i === 0 ? 'input_image' : `input_image_${i + 1}`;
+    body[key] = ref.buffer.toString('base64');
+  });
 
   const res = await fetch(ENDPOINT, {
     method: 'POST',
