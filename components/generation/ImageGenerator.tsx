@@ -139,6 +139,10 @@ export function ImageGenerator(props: {
         hasTextInImage,
         conversational,
         useGrounding,
+        // En modo conversacional, anclamos la generación previa para que el
+        // server la inyecte como referencia y mantenga la composición.
+        parentGenerationId:
+          conversational && activeResult ? activeResult.id : undefined,
       };
     }
     return {
@@ -163,6 +167,7 @@ export function ImageGenerator(props: {
     useGrounding,
     megapixels,
     photoreal,
+    activeResult,
   ]);
 
   function handleGenerate() {
@@ -228,6 +233,7 @@ export function ImageGenerator(props: {
           setMegapixels={setMegapixels}
           photoreal={photoreal}
           setPhotoreal={setPhotoreal}
+          activeResult={activeResult}
         />
 
         <ReferencesPanel value={references} onChange={setReferences} maxRefs={selection.provider === 'flux' ? 8 : 11} />
@@ -412,6 +418,7 @@ function ParamsPanel(props: {
   setMegapixels: (v: 1 | 2 | 4) => void;
   photoreal: boolean;
   setPhotoreal: (v: boolean) => void;
+  activeResult: SessionItem | null;
 }) {
   const aspects = props.provider === 'flux' ? FLUX_ASPECTS : NANO_ASPECTS;
   return (
@@ -478,7 +485,13 @@ function ParamsPanel(props: {
             label="Edición conversacional"
             checked={props.conversational}
             onCheckedChange={props.setConversational}
-            hint="+50% créditos. Mantiene composición entre iteraciones."
+            hint={
+              props.conversational
+                ? props.activeResult
+                  ? '+50% créditos. Iterando sobre la última generación.'
+                  : '+50% créditos. Genera una imagen primero para tener una base.'
+                : '+50% créditos. Mantiene composición entre iteraciones.'
+            }
           />
           <ToggleRow
             label="Grounding (Google Search)"

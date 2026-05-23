@@ -72,6 +72,17 @@ export async function downloadReferenceBuffer(path: string): Promise<{
   return { buffer: Buffer.from(arrayBuf), mimeType: data.type || 'image/jpeg' };
 }
 
+export async function downloadOutputBuffer(path: string): Promise<{
+  buffer: Buffer;
+  mimeType: string;
+}> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage.from(OUTPUTS_BUCKET).download(path);
+  if (error || !data) throw new Error(`download output failed: ${error?.message ?? 'unknown'}`);
+  const arrayBuf = await data.arrayBuffer();
+  return { buffer: Buffer.from(arrayBuf), mimeType: data.type || 'image/jpeg' };
+}
+
 export async function createReferenceUploadUrl(
   workspaceId: string,
   userId: string,

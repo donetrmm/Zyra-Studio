@@ -35,6 +35,9 @@ export const NanoBananaInputSchema = z.object({
   hasTextInImage: z.boolean().default(false),
   conversational: z.boolean().default(false),
   useGrounding: z.boolean().default(false),
+  // Cuando conversational=true, el cliente envía la generación anterior aquí
+  // para que el server la inyecte como referencia y mantenga composición.
+  parentGenerationId: z.string().uuid().optional(),
 });
 
 export const FluxInputSchema = z.object({

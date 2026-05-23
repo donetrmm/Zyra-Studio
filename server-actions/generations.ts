@@ -7,6 +7,7 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
+  downloadOutputBuffer,
   downloadReferenceBuffer,
   uploadOutput,
   uploadThumbnail,
@@ -164,6 +165,13 @@ export async function submitGenerationAction(
         }),
   };
 
+  // Conversational: si hay un parent del cual continuar, lo guardamos para
+  // poder reconstruir el "hilo" en la biblioteca.
+  const parentGenerationId =
+    data.provider === 'nano-banana' && data.conversational
+      ? (data.parentGenerationId ?? null)
+      : null;
+
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
     .insert({
@@ -176,6 +184,7 @@ export async function submitGenerationAction(
       negative_prompt: data.negativePrompt ?? null,
       params: insertParams,
       reference_ids: data.references.map((r) => r.id),
+      parent_generation_id: parentGenerationId,
       status: 'processing',
       credits_estimated: cost,
       timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -204,6 +213,24 @@ export async function submitGenerationAction(
   const startedAt = Date.now();
   try {
     const references = await loadReferences(workspace.id, data.references);
+
+    // Cuando es conversational con parent, inyectar el output del parent como
+    // referencia visual (primera en la lista, para que tenga prioridad).
+    if (
+      data.provider === 'nano-banana' &&
+      data.conversational &&
+      data.parentGenerationId
+    ) {
+      const { data: parent } = await supabase
+        .from('generations')
+        .select('output_url, workspace_id, status')
+        .eq('id', data.parentGenerationId)
+        .single();
+      if (parent && parent.workspace_id === workspace.id && parent.output_url && parent.status === 'done') {
+        const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url);
+        references.unshift({ buffer, mimeType });
+      }
+    }
 
     let result: { buffer: Buffer; mimeType: string };
     if (data.provider === 'nano-banana') {
