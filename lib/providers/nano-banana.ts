@@ -70,37 +70,53 @@ type Part =
 
 function buildBody(params: NanoBananaParams) {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
-  const refs = (params.references ?? []).slice(0, maxRefs);
 
-  // Construir las partes del último turno (prompt nuevo + refs externas).
-  // En modo conversational (con previousTurn) NO se incluyen refs externas:
-  // si las dejamos, Gemini las trata como "edita esta ref con el nuevo prompt"
-  // y descarta la imagen del turn anterior (síntoma: pides un cambio sobre la
-  // moto y reaparece solo la persona original). Las refs solo viajan en la
-  // primera generación; las iteraciones siguientes editan sobre el output.
-  const newUserParts: Part[] = [{ text: buildPrompt(params) }];
-  if (!params.previousTurn) {
-    for (const ref of refs) {
-      newUserParts.push({
-        inline_data: {
-          mime_type: ref.mimeType,
-          data: ref.buffer.toString('base64'),
-        },
-      });
-    }
+  // Chat multi-turn solo es válido si tenemos la firma del razonamiento del
+  // turn anterior. Sin ella, Gemini 3 rechaza el request:
+  //   "Image part is missing a thought_signature in content position 2…"
+  // Cuando falta (parent viejo, response sin sig, etc.), degradamos a single-turn
+  // con la imagen previa adjunta como ref normal del user turn actual. Pierde
+  // coherencia narrativa pero evita el 400 y mantiene la iteración funcional.
+  const wantsChat = !!params.previousTurn?.thoughtSignature;
+
+  // En chat real las refs externas se ignoran (Gemini las trataría como
+  // "edita esta ref con el nuevo prompt" y descartaría la imagen del turn
+  // anterior). En el fallback sí van — la previa cuenta como una ref más.
+  const refSlots = wantsChat
+    ? 0
+    : params.previousTurn
+      ? Math.max(0, maxRefs - 1)
+      : maxRefs;
+  const refs = (params.references ?? []).slice(0, refSlots);
+
+  const promptText =
+    params.previousTurn && !wantsChat
+      ? `Edit the previous image (attached) based on: ${buildPrompt(params)}`
+      : buildPrompt(params);
+
+  const newUserParts: Part[] = [{ text: promptText }];
+  for (const ref of refs) {
+    newUserParts.push({
+      inline_data: {
+        mime_type: ref.mimeType,
+        data: ref.buffer.toString('base64'),
+      },
+    });
+  }
+  if (params.previousTurn && !wantsChat) {
+    newUserParts.push({
+      inline_data: {
+        mime_type: params.previousTurn.mimeType,
+        data: params.previousTurn.imageBuffer.toString('base64'),
+      },
+    });
   }
 
-  // Multi-turn cuando hay `previousTurn`: la imagen previa va con role:'model'
-  // para que Gemini la trate como SU output anterior (edición in-place).
-  // Sin esto, agregarla como inline_data en el mismo turn la hace una ref de
-  // inspiración y el modelo "pega" la cara sin integrarla.
-  // Gemini 3 requiere que las partes que vinieron del modelo se reenvíen con
-  // su thoughtSignature original; si falta, devuelve 400.
   const contents: Array<{
     role?: 'user' | 'model';
     parts: Part[];
   }> = [];
-  if (params.previousTurn) {
+  if (wantsChat && params.previousTurn) {
     contents.push({
       role: 'user',
       parts: [{ text: params.previousTurn.prompt }],
@@ -110,10 +126,8 @@ function buildBody(params: NanoBananaParams) {
         mime_type: params.previousTurn.mimeType,
         data: params.previousTurn.imageBuffer.toString('base64'),
       },
+      thoughtSignature: params.previousTurn.thoughtSignature,
     };
-    if (params.previousTurn.thoughtSignature) {
-      modelPart.thoughtSignature = params.previousTurn.thoughtSignature;
-    }
     contents.push({ role: 'model', parts: [modelPart] });
     contents.push({ role: 'user', parts: newUserParts });
   } else {
@@ -144,6 +158,13 @@ function buildBody(params: NanoBananaParams) {
 }
 
 function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
+  // Gemini 3 puede devolver el thoughtSignature en el image part o en un
+  // text/thought part adyacente (los docs dicen "MAY contain", final part).
+  // Recorremos todo y nos quedamos con el primer sig en image part; si no
+  // hay, usamos cualquier sig presente como fallback. Si replay falla por
+  // "exact part" rule, el adapter cae al modo single-turn (ver buildBody).
+  let image: { buffer: Buffer; mimeType: string; sig?: string } | null = null;
+  let fallbackSig: string | undefined;
   for (const part of parts) {
     if (typeof part !== 'object' || part === null) continue;
     const sig =
@@ -151,22 +172,32 @@ function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
       (part as { thought_signature?: string }).thought_signature;
     if ('inlineData' in part) {
       const p = part as { inlineData: { mimeType: string; data: string } };
-      return {
-        buffer: Buffer.from(p.inlineData.data, 'base64'),
-        mimeType: p.inlineData.mimeType,
-        thoughtSignature: sig,
-      };
-    }
-    if ('inline_data' in part) {
+      if (!image) {
+        image = {
+          buffer: Buffer.from(p.inlineData.data, 'base64'),
+          mimeType: p.inlineData.mimeType,
+          sig,
+        };
+      }
+    } else if ('inline_data' in part) {
       const p = part as { inline_data: { mime_type: string; data: string } };
-      return {
-        buffer: Buffer.from(p.inline_data.data, 'base64'),
-        mimeType: p.inline_data.mime_type,
-        thoughtSignature: sig,
-      };
+      if (!image) {
+        image = {
+          buffer: Buffer.from(p.inline_data.data, 'base64'),
+          mimeType: p.inline_data.mime_type,
+          sig,
+        };
+      }
+    } else if (sig && !fallbackSig) {
+      fallbackSig = sig;
     }
   }
-  return null;
+  if (!image) return null;
+  return {
+    buffer: image.buffer,
+    mimeType: image.mimeType,
+    thoughtSignature: image.sig ?? fallbackSig,
+  };
 }
 
 async function callOnce(
