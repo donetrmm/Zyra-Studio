@@ -253,7 +253,7 @@ export function ImageGenerator(props: {
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
       {/* Desktop: 2 columnas flush bajo el topbar global. */}
-      <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px,1fr]">
+      <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px_1fr]">
         <div className="min-h-0 overflow-hidden">{controls}</div>
         <div className="min-h-0 overflow-hidden">{main}</div>
       </div>
