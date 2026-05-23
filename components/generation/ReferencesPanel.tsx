@@ -1,10 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { Loader2, Plus, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-import { Label } from '@/components/ui/label';
 import {
   createMediaReferenceAction,
   getUploadSignedUrlAction,
@@ -32,6 +30,8 @@ export function ReferencesPanel({
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const count = value.length;
+  const over = count > maxRefs;
 
   const uploadFile = useCallback(
     async (file: File): Promise<ReferenceClient | null> => {
@@ -86,7 +86,7 @@ export function ReferencesPanel({
   const handleFiles = useCallback(
     async (files: FileList | null) => {
       if (!files || files.length === 0) return;
-      const slots = maxRefs - value.length;
+      const slots = maxRefs - count;
       if (slots <= 0) {
         toast.error(`Máximo ${maxRefs} referencias`);
         return;
@@ -99,11 +99,9 @@ export function ReferencesPanel({
         if (ref) results.push(ref);
       }
       setUploading(false);
-      if (results.length > 0) {
-        onChange([...value, ...results]);
-      }
+      if (results.length > 0) onChange([...value, ...results]);
     },
-    [value, maxRefs, uploadFile, onChange],
+    [value, count, maxRefs, uploadFile, onChange],
   );
 
   function removeRef(id: string) {
@@ -112,27 +110,16 @@ export function ReferencesPanel({
     onChange(value.filter((r) => r.id !== id));
   }
 
-  // Liberar todas las object URLs al desmontar.
   useEffect(() => {
     return () => {
       for (const r of value) URL.revokeObjectURL(r.previewUrl);
     };
-    // Eslint: queremos cleanup solo en unmount, no en cada cambio de value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-          Referencias ({value.length}/{maxRefs})
-        </Label>
-      </div>
+    <div>
       <div
-        className={cn(
-          'flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-5 text-center text-xs transition-colors',
-          drag ? 'border-primary bg-primary/5' : 'border-border',
-        )}
         onDragOver={(e) => {
           e.preventDefault();
           setDrag(true);
@@ -142,6 +129,13 @@ export function ReferencesPanel({
           e.preventDefault();
           setDrag(false);
           void handleFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className="cursor-pointer rounded-xl transition-all"
+        style={{
+          padding: count === 0 ? '22px 14px' : '10px',
+          background: drag ? 'var(--zyra-accent-soft)' : 'var(--zyra-bg-2)',
+          border: `1px dashed ${drag ? 'var(--zyra-accent-rim)' : 'var(--zyra-hairline)'}`,
         }}
       >
         <input
@@ -155,46 +149,103 @@ export function ReferencesPanel({
             if (inputRef.current) inputRef.current.value = '';
           }}
         />
-        {uploading ? (
-          <>
-            <Loader2 className="size-5 animate-spin" aria-hidden />
-            <span>Subiendo…</span>
-          </>
+        {count === 0 ? (
+          <div
+            className="flex flex-col items-center gap-1.5"
+            style={{ color: 'var(--zyra-text-3)' }}
+          >
+            {uploading ? (
+              <Loader2 className="size-[18px] animate-spin" aria-hidden />
+            ) : (
+              <Upload className="size-[18px]" aria-hidden />
+            )}
+            <div className="text-[12.5px]" style={{ color: 'var(--zyra-text-2)' }}>
+              {uploading ? 'Subiendo…' : 'Arrastra imágenes o haz click'}
+            </div>
+            <div
+              className="text-[10.5px]"
+              style={{ fontFamily: 'var(--zyra-font-mono)' }}
+            >
+              JPG · PNG · WEBP · GIF · BMP · TIFF · max 10 MB
+            </div>
+          </div>
         ) : (
-          <>
-            <ImagePlus className="size-5 text-muted-foreground" aria-hidden />
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="text-foreground underline-offset-2 hover:underline"
-              disabled={value.length >= maxRefs}
-            >
-              Arrastra imágenes o haz click
-            </button>
-            <span className="text-muted-foreground">Máx 10 MB · jpg, png, webp</span>
-          </>
-        )}
-      </div>
-      {value.length > 0 && (
-        <ul className="grid grid-cols-4 gap-2">
-          {value.map((r) => (
-            <li
-              key={r.id}
-              className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={r.previewUrl} alt={r.filename} className="size-full object-cover" />
+          <div
+            className="grid gap-1.5"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))' }}
+          >
+            {value.map((r, i) => (
+              <div
+                key={r.id}
+                className="relative aspect-square overflow-hidden rounded-lg"
+                style={{ border: '1px solid var(--zyra-hairline)' }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={r.previewUrl}
+                  alt={r.filename}
+                  className="size-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeRef(r.id);
+                  }}
+                  className="absolute right-0.5 top-0.5 grid size-[18px] place-items-center rounded-full backdrop-blur"
+                  style={{ background: 'rgba(0, 0, 0, 0.6)', color: '#fff' }}
+                  aria-label="Quitar referencia"
+                >
+                  <X className="size-2.5" aria-hidden />
+                </button>
+                <div
+                  className="absolute bottom-0.5 left-1 rounded px-1.5 text-[9.5px]"
+                  style={{
+                    fontFamily: 'var(--zyra-font-mono)',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    background: 'rgba(0, 0, 0, 0.5)',
+                  }}
+                >
+                  {i + 1}
+                </div>
+              </div>
+            ))}
+            {count < maxRefs && (
               <button
                 type="button"
-                onClick={() => removeRef(r.id)}
-                className="absolute right-1 top-1 rounded-full bg-background/80 p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                aria-label="Quitar referencia"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.click();
+                }}
+                className="grid aspect-square place-items-center rounded-lg"
+                style={{
+                  border: '1px dashed var(--zyra-hairline-strong)',
+                  color: 'var(--zyra-text-3)',
+                  background: 'transparent',
+                }}
+                aria-label="Agregar referencia"
               >
-                <X className="size-3" aria-hidden />
+                {uploading ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Plus className="size-3.5" aria-hidden />
+                )}
               </button>
-            </li>
-          ))}
-        </ul>
+            )}
+          </div>
+        )}
+      </div>
+      {over && (
+        <div
+          className="mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11.5px]"
+          style={{
+            background: 'var(--zyra-warn-soft)',
+            border: '1px solid rgba(245, 181, 68, 0.25)',
+            color: 'var(--zyra-warn)',
+          }}
+        >
+          Acepta máximo {maxRefs} referencias. Quita {count - maxRefs}.
+        </div>
       )}
     </div>
   );

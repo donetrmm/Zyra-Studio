@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card } from '@/components/ui/card';
 import type { PricingRow } from '@/lib/credits/types';
 import { estimateCredits } from '@/lib/credits/estimator';
 import { selectImageModel } from '@/lib/router/model-selector';
@@ -99,6 +98,13 @@ export function ImageGenerator(props: {
   const cost = breakdown?.total ?? 0;
   const canGenerate =
     prompt.trim().length > 0 && cost > 0 && cost <= balance && !pending;
+
+  const etaSeconds = useMemo(() => {
+    if (selection.provider === 'flux') return megapixels === 4 ? 28 : 14;
+    if (selection.model === 'gemini-3.1-flash-image-preview') return 6;
+    if (resolution === '4k') return 50;
+    return 18;
+  }, [selection, megapixels, resolution]);
 
   const buildInput = useCallback(() => {
     if (selection.provider === 'nano-banana') {
@@ -211,10 +217,11 @@ export function ImageGenerator(props: {
       activeResult={activeResult}
       cost={cost}
       balance={balance}
+      etaSeconds={etaSeconds}
       pending={pending}
       canGenerate={canGenerate}
       onGenerate={handleGenerate}
-      hidePromptAndCta={effectiveConversational}
+      hideCta={effectiveConversational}
     />
   );
 
@@ -224,12 +231,11 @@ export function ImageGenerator(props: {
       prompt={prompt}
       setPrompt={setPrompt}
       pending={pending}
-      cost={cost}
-      balance={balance}
       canGenerate={canGenerate}
       onGenerate={handleGenerate}
       onExit={() => setConversational(false)}
       providerLabel={providerLabel}
+      aspectRatio={aspectRatio}
     />
   ) : (
     <PreviewArea
@@ -238,37 +244,47 @@ export function ImageGenerator(props: {
       providerLabel={providerLabel}
       session={session}
       onSelect={setActiveResult}
+      aspectRatio={aspectRatio}
+      promptEcho={prompt}
+      etaSeconds={etaSeconds}
     />
   );
 
   return (
-    <>
-      {/* Desktop: 2 columnas con altura controlada (topbar 4rem + py-8 2+2). */}
-      <div className="hidden lg:grid lg:h-[calc(100dvh-8rem)] lg:grid-cols-[400px,1fr]">
-        <Card className="overflow-hidden rounded-r-none border-r-0 p-0">
-          {controls}
-        </Card>
-        <Card className="overflow-hidden rounded-l-none p-0">{main}</Card>
+    <div
+      className="-mx-4 -my-6 lg:-mx-8 lg:-my-8"
+      style={{ background: 'var(--zyra-bg-deep)' }}
+    >
+      {/* Desktop: 2 columnas flush, sin radios ni cards. */}
+      <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px,1fr]">
+        <div className="min-h-0 overflow-hidden">{controls}</div>
+        <div className="min-h-0 overflow-hidden">{main}</div>
       </div>
 
-      {/* Mobile / tablet: tabs (descontamos topbar 4rem + py-6 1.5+1.5 + bottom nav ~3.5rem). */}
+      {/* Mobile / tablet: tabs. */}
       <div className="lg:hidden">
-        <Tabs defaultValue="controls" className="flex h-[calc(100dvh-10.5rem)] flex-col">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs
+          defaultValue="controls"
+          className="flex h-[calc(100dvh-7.5rem)] flex-col"
+        >
+          <TabsList
+            className="mx-3 mt-3 grid w-auto grid-cols-2"
+            style={{ background: 'var(--zyra-bg-1)' }}
+          >
             <TabsTrigger value="controls">Controles</TabsTrigger>
             <TabsTrigger value="preview">
-              {effectiveConversational ? 'Hilo' : 'Preview'}
+              {effectiveConversational ? 'Hilo' : 'Vista previa'}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="controls" className="mt-3 flex-1 overflow-hidden">
-            <Card className="h-full overflow-hidden p-0">{controls}</Card>
+            <div className="h-full">{controls}</div>
           </TabsContent>
           <TabsContent value="preview" className="mt-3 flex-1 overflow-hidden">
-            <Card className="h-full overflow-hidden p-0">{main}</Card>
+            <div className="h-full">{main}</div>
           </TabsContent>
         </Tabs>
       </div>
-    </>
+    </div>
   );
 }
 

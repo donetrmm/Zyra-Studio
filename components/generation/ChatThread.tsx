@@ -2,238 +2,213 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  Coins,
   Download,
   Loader2,
   MessageSquareText,
+  MoreHorizontal,
+  Plus,
+  Send,
   Sparkles,
-  X,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
 import type { SessionItem } from './types';
+
+const QUICK_EDITS = [
+  'Más luz cálida',
+  'Sin fondo',
+  'Estilo film grain',
+  'Acerca al sujeto',
+  'Otra variación',
+];
 
 export function ChatThread({
   thread,
   prompt,
   setPrompt,
   pending,
-  cost,
-  balance,
   canGenerate,
   onGenerate,
   onExit,
   providerLabel,
+  aspectRatio,
 }: {
-  thread: SessionItem[]; // ordenado más reciente primero
+  thread: SessionItem[]; // más reciente primero
   prompt: string;
   setPrompt: (v: string) => void;
   pending: boolean;
-  cost: number;
-  balance: number;
   canGenerate: boolean;
   onGenerate: () => void;
   onExit: () => void;
   providerLabel: string;
+  aspectRatio: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const ordered = [...thread].reverse();
+  const ratio = aspectToRatio(aspectRatio);
 
-  // Auto-scroll al fondo cuando llega una nueva imagen o cuando empieza a generar
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [thread.length, pending]);
 
-  // Auto-resize del textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [prompt]);
 
-  // Orden cronológico para mostrar (más antiguo arriba)
-  const ordered = [...thread].reverse();
-  const isEmpty = ordered.length === 0 && !pending;
+  function send() {
+    if (!canGenerate) return;
+    onGenerate();
+  }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canGenerate) {
-      e.preventDefault();
-      onGenerate();
-    }
+  function handleQuick(text: string) {
+    setPrompt(text);
+    queueMicrotask(send);
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-full bg-primary/15 text-primary">
-            <MessageSquareText className="size-3.5" aria-hidden />
-          </span>
-          <div>
-            <h2 className="font-heading text-sm font-semibold">
-              Edición conversacional
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {ordered.length === 0
-                ? 'Inicia el hilo generando una imagen'
-                : `${ordered.length} ${ordered.length === 1 ? 'iteración' : 'iteraciones'} · ${providerLabel}`}
-            </p>
-          </div>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onExit}>
-          <X className="size-4" aria-hidden /> Salir del hilo
-        </Button>
-      </header>
+    <div
+      className="flex h-full min-h-0 flex-col"
+      style={{
+        background: 'var(--zyra-bg-deep)',
+        fontFamily: 'var(--zyra-font-sans)',
+        color: 'var(--zyra-text-1)',
+      }}
+    >
+      <ChatHeader providerLabel={providerLabel} count={ordered.length} onExit={onExit} />
 
-      <div
-        ref={scrollRef}
-        className="scroll-thin flex-1 overflow-y-auto px-5 py-6"
-      >
-        {isEmpty ? (
+      <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 overflow-y-auto px-5 pb-2 pt-[18px]">
+        {ordered.length === 0 ? (
           <EmptyChat />
         ) : (
-          <ol className="mx-auto flex max-w-2xl flex-col gap-6">
+          <>
             {ordered.map((item, i) => (
-              <ChatTurn key={item.id} item={item} index={i} />
+              <ConvMessage
+                key={item.id}
+                item={item}
+                isLast={i === ordered.length - 1}
+                ratio={ratio}
+              />
             ))}
-            {pending && <PendingTurn />}
-          </ol>
+            {pending && <PendingBubble />}
+          </>
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto max-w-2xl px-5 py-3">
-          <div className="rounded-lg border border-border bg-muted/30 p-2.5">
-            <Textarea
-              ref={textareaRef}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                ordered.length === 0
-                  ? 'Describe la imagen inicial del hilo…'
-                  : 'Pide un cambio: "quítale el casco", "fondo nocturno"…'
-              }
-              rows={2}
-              maxLength={8000}
-              className="resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
-            />
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Coins className="size-3" aria-hidden />
-                <span
-                  className={cn(
-                    'font-medium tabular-nums',
-                    cost > balance ? 'text-amber-400' : 'text-foreground',
-                  )}
-                >
-                  {fmt(cost)}
-                </span>
-                <span className="hidden sm:inline">·</span>
-                <span className="hidden truncate sm:inline">{providerLabel}</span>
-              </div>
-              <Button
-                size="sm"
-                disabled={!canGenerate}
-                onClick={onGenerate}
-              >
-                {pending ? (
-                  <>
-                    <Loader2 className="size-3.5 animate-spin" aria-hidden /> Generando
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="size-3.5" aria-hidden /> Enviar
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-          <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-            Cmd/Ctrl + Enter para enviar
-          </p>
-        </div>
-      </footer>
+      <ChatComposer
+        value={prompt}
+        onChange={setPrompt}
+        onSend={send}
+        onQuick={handleQuick}
+        pending={pending}
+        canGenerate={canGenerate}
+        textareaRef={textareaRef}
+      />
     </div>
   );
 }
 
-function ChatTurn({ item, index }: { item: SessionItem; index: number }) {
+function ChatHeader({
+  providerLabel,
+  count,
+  onExit,
+}: {
+  providerLabel: string;
+  count: number;
+  onExit: () => void;
+}) {
   return (
-    <li className="flex flex-col gap-3">
-      <div className="ml-auto max-w-[85%]">
-        <div className="rounded-2xl rounded-tr-sm bg-primary/15 px-4 py-2.5 text-sm">
-          {item.prompt}
+    <div
+      className="flex items-center justify-between px-5 py-3.5"
+      style={{ borderBottom: '1px solid var(--zyra-hairline)' }}
+    >
+      <div className="flex items-center gap-2.5">
+        <div
+          className="grid size-7 place-items-center rounded-[9px]"
+          style={{
+            background: 'var(--zyra-accent-soft)',
+            border: '1px solid var(--zyra-accent-rim)',
+            color: 'var(--zyra-accent-2)',
+          }}
+        >
+          <MessageSquareText className="size-3.5" aria-hidden />
         </div>
-        <div className="mt-1 flex justify-end text-[10px] text-muted-foreground">
-          Iteración {index + 1}
-        </div>
-      </div>
-      <div className="mr-auto max-w-[85%]">
-        <Card className="overflow-hidden p-0">
-          {item.outputUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.outputUrl}
-              alt={item.prompt}
-              className="block max-h-[60vh] w-full object-contain"
-            />
-          ) : (
-            <Skeleton className="aspect-square w-full" />
-          )}
-          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1 tabular-nums">
-              <Coins className="size-2.5" aria-hidden /> {item.credits}
-            </span>
-            {item.outputUrl && (
-              <a
-                href={item.outputUrl}
-                download
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-              >
-                <Download className="size-3" aria-hidden /> Descargar
-              </a>
-            )}
+        <div>
+          <div className="text-[13px] font-medium" style={{ color: 'var(--zyra-text-1)' }}>
+            Edición conversacional
           </div>
-        </Card>
+          <div className="text-[11px]" style={{ color: 'var(--zyra-text-3)' }}>
+            {count === 0
+              ? 'Inicia el hilo generando una imagen'
+              : `${count} ${count === 1 ? 'iteración' : 'iteraciones'} · ${providerLabel}`}
+          </div>
+        </div>
       </div>
-    </li>
+      <div className="flex gap-1.5">
+        <HeaderIconBtn title="Nueva conversación" onClick={onExit}>
+          <Plus className="size-3.5" aria-hidden />
+        </HeaderIconBtn>
+        <HeaderIconBtn title="Más">
+          <MoreHorizontal className="size-3.5" aria-hidden />
+        </HeaderIconBtn>
+      </div>
+    </div>
   );
 }
 
-function PendingTurn() {
+function HeaderIconBtn({
+  children,
+  title,
+  onClick,
+}: {
+  children: React.ReactNode;
+  title: string;
+  onClick?: () => void;
+}) {
   return (
-    <li className="mr-auto max-w-[85%]">
-      <Card className="flex items-center gap-3 p-4">
-        <Loader2 className="size-5 animate-spin text-primary" aria-hidden />
-        <div className="space-y-0.5">
-          <p className="text-sm font-medium">Aplicando cambio…</p>
-          <p className="text-xs text-muted-foreground">
-            Nano Banana respeta tu última imagen y aplica solo el ajuste.
-          </p>
-        </div>
-      </Card>
-    </li>
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className="grid size-[30px] place-items-center rounded-lg"
+      style={{
+        background: 'var(--zyra-bg-2)',
+        border: '1px solid var(--zyra-hairline)',
+        color: 'var(--zyra-text-2)',
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
 function EmptyChat() {
   return (
     <div className="mx-auto flex h-full max-w-md flex-col items-center justify-center gap-3 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full border border-dashed border-border bg-muted/30">
-        <MessageSquareText className="size-5 text-muted-foreground" aria-hidden />
+      <span
+        className="grid size-12 place-items-center rounded-full"
+        style={{
+          border: '1px dashed var(--zyra-hairline-strong)',
+          background: 'var(--zyra-bg-2)',
+          color: 'var(--zyra-text-3)',
+        }}
+      >
+        <MessageSquareText className="size-5" aria-hidden />
       </span>
       <div>
-        <p className="font-heading text-sm font-medium">Sin imágenes aún</p>
-        <p className="text-xs text-muted-foreground">
+        <p
+          className="text-[14px] font-medium"
+          style={{ color: 'var(--zyra-text-1)' }}
+        >
+          Sin imágenes aún
+        </p>
+        <p
+          className="mt-1 text-[12.5px]"
+          style={{ color: 'var(--zyra-text-2)', lineHeight: 1.5 }}
+        >
           Escribe el prompt inicial abajo y la primera imagen abrirá el hilo. Después
           puedes pedir cambios en frases cortas.
         </p>
@@ -242,6 +217,288 @@ function EmptyChat() {
   );
 }
 
-function fmt(n: number): string {
-  return new Intl.NumberFormat('es-MX').format(n);
+function ConvMessage({
+  item,
+  isLast,
+  ratio,
+}: {
+  item: SessionItem;
+  isLast: boolean;
+  ratio: number;
+}) {
+  const t = relativeShort(item.createdAt);
+  return (
+    <>
+      <div className="zyra-fade-up mb-3.5 flex justify-end">
+        <div
+          className="max-w-[76%] rounded-[14px] rounded-tr-[4px] px-3.5 py-2.5 text-[13.5px] leading-[1.5]"
+          style={{
+            background: 'var(--zyra-accent-soft)',
+            border: '1px solid var(--zyra-accent-rim)',
+            color: 'var(--zyra-text-1)',
+          }}
+        >
+          {item.prompt}
+          <div
+            className="mt-1 text-right text-[10px]"
+            style={{ fontFamily: 'var(--zyra-font-mono)', color: 'var(--zyra-text-3)' }}
+          >
+            {t}
+          </div>
+        </div>
+      </div>
+
+      <div className="zyra-fade-up mb-[18px] flex gap-2.5">
+        <div
+          className="grid size-6 shrink-0 place-items-center rounded-lg"
+          style={{
+            background:
+              'radial-gradient(circle at 30% 30%, rgba(123, 97, 255, 0.4), transparent 60%), var(--zyra-bg-3)',
+            border: '1px solid var(--zyra-hairline)',
+            color: 'var(--zyra-accent-2)',
+          }}
+        >
+          <Sparkles className="size-3" aria-hidden />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex items-baseline gap-2">
+            <span
+              className="text-[12px] font-medium"
+              style={{ color: 'var(--zyra-text-1)' }}
+            >
+              Zyra
+            </span>
+            <span
+              className="text-[10px]"
+              style={{
+                fontFamily: 'var(--zyra-font-mono)',
+                color: 'var(--zyra-text-3)',
+              }}
+            >
+              {t} · −{item.credits} cr.
+            </span>
+          </div>
+          {item.outputUrl && (
+            <div
+              className="relative mb-2 overflow-hidden rounded-xl"
+              style={{
+                width: 220,
+                aspectRatio: String(ratio),
+                border: '1px solid var(--zyra-hairline)',
+                background: 'var(--zyra-bg-2)',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.outputUrl}
+                alt={item.prompt}
+                className="size-full object-cover"
+              />
+              {isLast && (
+                <div className="absolute right-1.5 top-1.5 flex gap-1">
+                  <BubbleChip>
+                    <a
+                      href={item.outputUrl}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="grid size-full place-items-center"
+                    >
+                      <Download className="size-3" aria-hidden />
+                    </a>
+                  </BubbleChip>
+                  <BubbleChip>
+                    <MoreHorizontal className="size-3" aria-hidden />
+                  </BubbleChip>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BubbleChip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="grid size-[22px] place-items-center rounded-md backdrop-blur"
+      style={{
+        background: 'rgba(11, 15, 25, 0.75)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        color: '#fff',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function PendingBubble() {
+  return (
+    <div className="zyra-fade-up mb-[18px] flex gap-2.5">
+      <div
+        className="grid size-6 shrink-0 place-items-center rounded-lg"
+        style={{
+          background:
+            'radial-gradient(circle at 30% 30%, rgba(123, 97, 255, 0.4), transparent 60%), var(--zyra-bg-3)',
+          border: '1px solid var(--zyra-hairline)',
+          color: 'var(--zyra-accent-2)',
+        }}
+      >
+        <Loader2 className="size-3 animate-spin" aria-hidden />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1.5 flex items-baseline gap-2">
+          <span
+            className="text-[12px] font-medium"
+            style={{ color: 'var(--zyra-text-1)' }}
+          >
+            Zyra
+          </span>
+          <span
+            className="text-[10px]"
+            style={{
+              fontFamily: 'var(--zyra-font-mono)',
+              color: 'var(--zyra-text-3)',
+            }}
+          >
+            Aplicando cambio…
+          </span>
+        </div>
+        <div
+          className="rounded-xl px-3 py-2 text-[12.5px]"
+          style={{
+            background: 'var(--zyra-bg-2)',
+            border: '1px solid var(--zyra-hairline)',
+            color: 'var(--zyra-text-2)',
+          }}
+        >
+          Refinando luz, color y composición sobre la última imagen…
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatComposer({
+  value,
+  onChange,
+  onSend,
+  onQuick,
+  pending,
+  canGenerate,
+  textareaRef,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  onQuick: (text: string) => void;
+  pending: boolean;
+  canGenerate: boolean;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+}) {
+  return (
+    <div
+      style={{
+        padding: '10px 16px 14px',
+        borderTop: '1px solid var(--zyra-hairline)',
+        background:
+          'linear-gradient(to top, var(--zyra-bg-deep), rgba(11, 15, 25, 0.5))',
+      }}
+    >
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {QUICK_EDITS.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() => onQuick(q)}
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px]"
+            style={{
+              background: 'var(--zyra-bg-2)',
+              border: '1px solid var(--zyra-hairline)',
+              color: 'var(--zyra-text-2)',
+            }}
+          >
+            <Sparkles className="size-2.5" aria-hidden /> {q}
+          </button>
+        ))}
+      </div>
+      <div
+        className="flex items-end gap-2 rounded-xl"
+        style={{
+          padding: '8px 8px 8px 12px',
+          background: 'var(--zyra-bg-2)',
+          border: '1px solid var(--zyra-hairline)',
+        }}
+      >
+        <button
+          type="button"
+          title="Adjuntar referencia"
+          className="grid size-7 shrink-0 place-items-center rounded-lg"
+          style={{ color: 'var(--zyra-text-2)' }}
+        >
+          <Plus className="size-3.5" aria-hidden />
+        </button>
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (canGenerate) onSend();
+            }
+          }}
+          placeholder="Describe el cambio que quieres…"
+          rows={1}
+          className="min-w-0 flex-1 resize-none border-0 bg-transparent py-1 outline-none"
+          style={{
+            color: 'var(--zyra-text-1)',
+            fontSize: 13.5,
+            lineHeight: 1.5,
+            maxHeight: 140,
+          }}
+        />
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={!canGenerate}
+          className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg px-3 text-[12px] font-medium transition-colors"
+          style={{
+            background: canGenerate
+              ? 'var(--zyra-accent)'
+              : 'rgba(255, 255, 255, 0.06)',
+            color: canGenerate ? '#fff' : 'var(--zyra-text-3)',
+            boxShadow: canGenerate
+              ? '0 0 16px -2px var(--zyra-accent-glow)'
+              : 'none',
+            cursor: canGenerate ? 'pointer' : 'not-allowed',
+          }}
+        >
+          {pending ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : (
+            <Send className="size-3" aria-hidden />
+          )}
+          Editar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function aspectToRatio(aspect: string): number {
+  const [w, h] = aspect.split(':').map(Number);
+  return h > 0 ? w / h : 1;
+}
+
+function relativeShort(ts: number): string {
+  const diff = Date.now() - ts;
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h`;
 }

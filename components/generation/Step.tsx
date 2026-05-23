@@ -1,46 +1,72 @@
 'use client';
 
-import { Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
 export function Step({
   index,
   title,
+  subtitle,
   hint,
-  done,
-  badge,
   children,
 }: {
   index: number;
   title: string;
-  hint?: string;
-  done?: boolean;
-  badge?: React.ReactNode;
+  subtitle?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-2.5">
-      <header className="flex items-center gap-2.5">
+    <section>
+      <header className="mb-2.5 flex items-baseline gap-2">
         <span
-          className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums',
-            done
-              ? 'border-primary bg-primary/15 text-primary'
-              : 'border-border text-muted-foreground',
-          )}
-          aria-hidden
+          className="relative top-0.5 inline-grid size-[18px] shrink-0 place-items-center rounded-full text-[10.5px]"
+          style={{
+            background: 'rgba(123, 97, 255, 0.10)',
+            border: '1px solid var(--zyra-accent-rim)',
+            color: 'var(--zyra-accent-2)',
+            fontFamily: 'var(--zyra-font-mono)',
+          }}
         >
-          {done ? <Check className="size-3" /> : index}
+          {index}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-heading text-sm font-medium">{title}</h3>
-            {badge}
+          <div
+            className="flex items-center justify-between gap-2"
+            style={{ color: 'var(--zyra-text-1)' }}
+          >
+            <span className="text-[13px] font-medium">{title}</span>
+            {hint}
           </div>
-          {hint && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
+          {subtitle && (
+            <div className="mt-px text-[11.5px]" style={{ color: 'var(--zyra-text-3)' }}>
+              {subtitle}
+            </div>
+          )}
         </div>
       </header>
-      <div className="space-y-3">{children}</div>
+      <div>{children}</div>
     </section>
+  );
+}
+
+export function SectionHeading({
+  children,
+  hint,
+}: {
+  children: React.ReactNode;
+  hint?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-2.5 flex items-center justify-between">
+      <div
+        className="text-[11px] font-medium uppercase tracking-[0.08em]"
+        style={{ color: 'var(--zyra-text-3)' }}
+      >
+        {children}
+      </div>
+      {hint && (
+        <div className="text-[11px]" style={{ color: 'var(--zyra-text-3)' }}>
+          {hint}
+        </div>
+      )}
+    </div>
   );
 }
