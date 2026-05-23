@@ -109,3 +109,23 @@ export async function requireWorkspace(): Promise<{
   if (!workspace) redirect("/onboarding");
   return { user, workspace };
 }
+
+// Variante para API routes: no redirige, devuelve null para que el handler
+// pueda responder con 401/403 JSON. Usar requireWorkspace() solo en páginas
+// y server actions (donde el redirect HTML es la respuesta correcta).
+export type ApiAuthContext = {
+  user: CurrentUser;
+  workspace: CurrentWorkspace;
+};
+export type ApiAuthError = "unauthenticated" | "suspended" | "no_workspace";
+
+export async function getApiAuthContext(): Promise<
+  { ok: true; ctx: ApiAuthContext } | { ok: false; error: ApiAuthError }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "unauthenticated" };
+  if (user.status !== "active") return { ok: false, error: "suspended" };
+  const workspace = await getCurrentWorkspace();
+  if (!workspace) return { ok: false, error: "no_workspace" };
+  return { ok: true, ctx: { user, workspace } };
+}

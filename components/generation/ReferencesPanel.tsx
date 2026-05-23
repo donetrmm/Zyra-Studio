@@ -121,11 +121,18 @@ export function ReferencesPanel({
     onChange(value.filter((r) => r.id !== id));
   }
 
+  // Cleanup en unmount: revoca TODOS los object URLs activos.
+  // El useEffect con deps [] capturaría el `value` inicial (vacío) y dejaría
+  // leak. Usamos un ref sincronizado con cada render para que el cleanup
+  // siempre vea la lista actual al momento del unmount.
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
   useEffect(() => {
     return () => {
-      for (const r of value) URL.revokeObjectURL(r.previewUrl);
+      for (const r of valueRef.current) URL.revokeObjectURL(r.previewUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

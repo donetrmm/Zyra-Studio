@@ -397,6 +397,11 @@ function PromptArea({
   const ref = useRef<HTMLTextAreaElement>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [enhancing, startEnhance] = useTransition();
+  // useTransition tarda un tick en marcar `enhancing=true`. Un doble-click muy
+  // rápido (mismo event loop) podría disparar handleEnhance dos veces y cobrar
+  // 2× créditos antes de que el botón se deshabilite. Este ref se actualiza
+  // sincrónicamente y bloquea el segundo click en el acto.
+  const inFlight = useRef(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -412,11 +417,14 @@ function PromptArea({
 
   function handleEnhance() {
     if (!canEnhance) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     startEnhance(async () => {
       const res = await enhancePromptAction({
         prompt: value,
         hint: enhanceHint,
       });
+      inFlight.current = false;
       if (!res.ok) {
         const msg =
           res.error === 'insufficient_credits'

@@ -5,6 +5,52 @@ import { createAdminClient } from '@/lib/supabase/admin';
 // authenticated (ver migration 006). Solo service_role las puede invocar.
 // SIEMPRE pasar el userId validado contra la sesión, nunca uno del cliente.
 
+export type CompleteGenerationInput = {
+  userId: string;
+  generationId: string;
+  cost: number;
+  outputUrl: string;
+  thumbnailUrl: string;
+  processingMs: number;
+  fileSizeBytes: number;
+  providerPayload?: Record<string, unknown> | null;
+};
+
+// Atómica: status='done' + decremento de pending + credits_charged en una sola
+// transacción. Idempotente — si la generación ya fue confirmada, no-op.
+export async function completeGeneration(input: CompleteGenerationInput): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.rpc('complete_generation', {
+    p_user_id: input.userId,
+    p_generation_id: input.generationId,
+    p_cost: input.cost,
+    p_output_url: input.outputUrl,
+    p_thumbnail_url: input.thumbnailUrl,
+    p_processing_ms: input.processingMs,
+    p_file_size_bytes: input.fileSizeBytes,
+    p_provider_payload: input.providerPayload ?? null,
+  });
+  if (error) throw new Error(`complete_generation: ${error.message}`);
+}
+
+// Atómica: status='failed' + refund SOLO si no fue confirmada todavía
+// (idempotente — si ya estaba en estado terminal, no-op).
+export async function failGeneration(
+  userId: string,
+  generationId: string,
+  cost: number,
+  errorMessage: string,
+): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.rpc('fail_generation', {
+    p_user_id: userId,
+    p_generation_id: generationId,
+    p_cost: cost,
+    p_error_message: errorMessage,
+  });
+  if (error) throw new Error(`fail_generation: ${error.message}`);
+}
+
 export async function reserveCredits(
   userId: string,
   amount: number,
