@@ -11,8 +11,12 @@ export type SessionItem = {
   createdAt: number;
 };
 
+import type { ImageRouterReason } from '@/lib/router/model-selector';
+
 export type Selection = {
   provider: 'nano-banana' | 'flux';
   model: string;
   variant: string;
+  // Solo presente cuando viene del router auto; manual selection no la usa.
+  reason?: ImageRouterReason;
 };

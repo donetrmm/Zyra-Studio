@@ -6,11 +6,14 @@ import {
   Check,
   Globe,
   Info,
+  LayoutDashboard,
   Loader2,
   MessageSquareText,
+  Palette,
   Sparkles,
   Type,
   X,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Step as StepBase, SectionHeading } from './Step';
@@ -22,6 +25,10 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { enhancePromptAction } from '@/server-actions/prompt-enhancer';
+import {
+  ROUTER_REASON_LABEL,
+  type ImageIntent,
+} from '@/lib/router/model-selector';
 import type { ModelKey, Selection, SessionItem } from './types';
 
 const ASPECTS: { id: string; w: number; h: number }[] = [
@@ -80,6 +87,8 @@ export type ControlsPanelProps = {
   setPhotoreal: (v: boolean) => void;
   megapixels: 1 | 2 | 4;
   setMegapixels: (v: 1 | 2 | 4) => void;
+  intent: ImageIntent | null;
+  setIntent: (v: ImageIntent | null) => void;
   references: ReferenceClient[];
   setReferences: (next: ReferenceClient[]) => void;
   availableReferences: AvailableReference[];
@@ -118,7 +127,14 @@ export function ControlsPanel(props: ControlsPanelProps) {
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
         <Step n={1} title="Elige el modelo" subtitle="Auto decide por ti">
           <ModelPicker value={props.modelKey} onChange={props.setModelKey} />
-          <InfoCard text={MODEL_META[props.modelKey].desc} />
+          {props.modelKey === 'auto' && (
+            <IntentPicker value={props.intent} onChange={props.setIntent} />
+          )}
+          {props.modelKey === 'auto' ? (
+            <AutoInfoCard selection={props.selection} />
+          ) : (
+            <InfoCard text={MODEL_META[props.modelKey].desc} />
+          )}
         </Step>
 
         <Step n={2} title="Describe tu imagen" subtitle="Cuanto más concreto, mejor">
@@ -211,6 +227,78 @@ export function ControlsPanel(props: ControlsPanelProps) {
           hint={hint}
         />
       )}
+    </div>
+  );
+}
+
+const INTENTS: {
+  id: ImageIntent;
+  label: string;
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
+}[] = [
+  { id: 'photo', label: 'Fotografía', icon: Camera },
+  { id: 'illustration', label: 'Ilustración', icon: Palette },
+  { id: 'design', label: 'Diseño', icon: LayoutDashboard },
+  { id: 'draft', label: 'Borrador', icon: Zap },
+];
+
+function IntentPicker({
+  value,
+  onChange,
+}: {
+  value: ImageIntent | null;
+  onChange: (v: ImageIntent | null) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+        Estilo · opcional
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {INTENTS.map(({ id, label, icon: Ic }) => {
+          const active = value === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(active ? null : id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
+                active
+                  ? 'border-primary/40 bg-primary/10 text-foreground'
+                  : 'border-border bg-muted/30 text-muted-foreground hover:border-muted-foreground/30',
+              )}
+            >
+              <Ic className="size-3" aria-hidden /> {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function labelForSelection(sel: Selection): string {
+  if (sel.provider === 'flux') return 'FLUX 2 Pro';
+  if (sel.model === 'gemini-3-pro-image-preview') {
+    return `Nano Banana Pro · ${sel.variant.toUpperCase()}`;
+  }
+  return `Nano Banana Flash · ${sel.variant.toUpperCase()}`;
+}
+
+function AutoInfoCard({ selection }: { selection: Selection }) {
+  const label = labelForSelection(selection);
+  const reasonLabel = selection.reason
+    ? ROUTER_REASON_LABEL[selection.reason]
+    : 'calidad balanceada por defecto';
+  return (
+    <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.04] px-2.5 py-2 text-[11.5px] leading-[1.5]">
+      <Sparkles className="mt-px size-3 shrink-0 text-primary" aria-hidden />
+      <span className="text-muted-foreground">
+        Auto →{' '}
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="text-muted-foreground/70"> · {reasonLabel}</span>
+      </span>
     </div>
   );
 }

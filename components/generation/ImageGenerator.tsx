@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { estimateCredits } from '@/lib/credits/estimator';
-import { selectImageModel } from '@/lib/router/model-selector';
+import { selectImageModel, type ImageIntent } from '@/lib/router/model-selector';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
@@ -50,6 +50,7 @@ export function ImageGenerator(props: {
   const [useGrounding, setUseGrounding] = useState(false);
   const [photoreal, setPhotoreal] = useState(false);
   const [megapixels, setMegapixels] = useState<1 | 2 | 4>(1);
+  const [intent, setIntent] = useState<ImageIntent | null>(null);
   const [references, setReferences] = useState<ReferenceClient[]>([]);
   const [session, setSession] = useState<SessionItem[]>([]);
   const [activeResult, setActiveResult] = useState<SessionItem | null>(null);
@@ -58,11 +59,13 @@ export function ImageGenerator(props: {
   const selection = useMemo<Selection>(() => {
     if (modelKey === 'auto') {
       return selectImageModel({
+        intent,
         hasTextInImage,
+        photoreal,
         references,
         useGrounding,
+        conversational,
         resolution,
-        priority: 'quality',
       });
     }
     if (modelKey === 'nano-pro') {
@@ -84,7 +87,16 @@ export function ImageGenerator(props: {
       model: 'flux-2-pro-preview',
       variant: 'default',
     };
-  }, [modelKey, hasTextInImage, references, useGrounding, resolution]);
+  }, [
+    modelKey,
+    intent,
+    hasTextInImage,
+    photoreal,
+    references,
+    useGrounding,
+    conversational,
+    resolution,
+  ]);
 
   // FLUX no soporta conversational — auto-apagar al cambiar a FLUX.
   const effectiveConversational =
@@ -259,6 +271,8 @@ export function ImageGenerator(props: {
       setPhotoreal={setPhotoreal}
       megapixels={megapixels}
       setMegapixels={setMegapixels}
+      intent={intent}
+      setIntent={setIntent}
       references={references}
       setReferences={setReferences}
       availableReferences={props.availableReferences}
