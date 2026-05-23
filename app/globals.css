@@ -1,6 +1,40 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
+/* Zyra design tokens — scoped a la pantalla de creación. No pisan el tema
+   global de shadcn; los componentes los consumen con bg-[var(...)] o style. */
+:root {
+  --zyra-bg-deep: #0B0F19;
+  --zyra-bg-1: #0E1322;
+  --zyra-bg-2: #131A2E;
+  --zyra-bg-3: #1A2240;
+  --zyra-hairline: rgba(255, 255, 255, 0.06);
+  --zyra-hairline-strong: rgba(255, 255, 255, 0.11);
+  --zyra-hairline-bright: rgba(255, 255, 255, 0.18);
+
+  --zyra-text-1: #ECEEF6;
+  --zyra-text-2: #9098B0;
+  --zyra-text-3: #5A6280;
+  --zyra-text-4: #3B4262;
+
+  --zyra-accent: #7B61FF;
+  --zyra-accent-2: #9985FF;
+  --zyra-accent-soft: rgba(123, 97, 255, 0.14);
+  --zyra-accent-glow: rgba(123, 97, 255, 0.45);
+  --zyra-accent-rim: rgba(123, 97, 255, 0.35);
+
+  --zyra-warn: #F5B544;
+  --zyra-warn-soft: rgba(245, 181, 68, 0.12);
+  --zyra-danger: #FF6A86;
+  --zyra-danger-soft: rgba(255, 106, 134, 0.12);
+  --zyra-ok: #4ECD8A;
+  --zyra-ok-soft: rgba(78, 205, 138, 0.12);
+
+  --zyra-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --zyra-font-mono: "Geist Mono", ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -139,6 +173,55 @@
   100% {
     transform: translateX(300%);
   }
+}
+
+/* Zyra creation view animations */
+@keyframes zyra-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+@keyframes zyra-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes zyra-pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(123, 97, 255, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(123, 97, 255, 0.08);
+  }
+}
+@keyframes zyra-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes zyra-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.zyra-fade-up {
+  animation: zyra-fade-up 0.4s ease both;
+}
+.zyra-fade-in {
+  animation: zyra-fade-in 0.3s ease both;
 }
 
 /* Scrollbar minimalista que coincide con el tema dark. */
