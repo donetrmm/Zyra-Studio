@@ -16,7 +16,7 @@ export default async function LibraryPage() {
     supabase
       .from('generations')
       .select(
-        'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params',
+        'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id',
       )
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false })
@@ -29,18 +29,23 @@ export default async function LibraryPage() {
       .limit(60),
   ]);
 
-  const generations: LibraryGeneration[] = (generationsRes.data ?? []).map((g) => ({
-    id: g.id,
-    type: g.type,
-    provider: g.provider,
-    model: g.model_id,
-    prompt: g.prompt ?? '',
-    status: g.status,
-    thumbnailUrl: g.thumbnail_url ? publicThumbnailUrl(g.thumbnail_url) : null,
-    hasOutput: Boolean(g.output_url),
-    credits: g.credits_charged ?? 0,
-    createdAt: g.created_at,
-  }));
+  const generations: LibraryGeneration[] = (generationsRes.data ?? []).map((g) => {
+    const params = (g.params ?? {}) as { aspect_ratio?: string };
+    return {
+      id: g.id,
+      type: g.type,
+      provider: g.provider,
+      model: g.model_id,
+      prompt: g.prompt ?? '',
+      status: g.status,
+      thumbnailUrl: g.thumbnail_url ? publicThumbnailUrl(g.thumbnail_url) : null,
+      hasOutput: Boolean(g.output_url),
+      credits: g.credits_charged ?? 0,
+      createdAt: g.created_at,
+      parentGenerationId: g.parent_generation_id as string | null,
+      aspectRatio: params.aspect_ratio ?? null,
+    };
+  });
 
   // Firmamos las URLs en paralelo. Si falla (e.g. archivo borrado), dejamos
   // previewUrl null y la card cae a placeholder.
@@ -67,14 +72,12 @@ export default async function LibraryPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Biblioteca</h1>
-        <p className="text-sm text-muted-foreground">
-          Generaciones y referencias de {workspace.name}.
-        </p>
-      </header>
-      <LibraryView generations={generations} references={references} />
+    <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
+      <LibraryView
+        generations={generations}
+        references={references}
+        workspaceName={workspace.name}
+      />
     </div>
   );
 }

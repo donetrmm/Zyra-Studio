@@ -1,19 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Coins, Filter, Image as ImageIcon } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import Link from 'next/link';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { GenerationDetailDialog } from './GenerationDetailDialog';
+  ChevronDown,
+  Copy,
+  Download,
+  Image as ImageIcon,
+  Library,
+  Loader2,
+  Search,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 
 export type LibraryGeneration = {
   id: string;
@@ -26,6 +28,8 @@ export type LibraryGeneration = {
   hasOutput: boolean;
   credits: number;
   createdAt: string;
+  parentGenerationId: string | null;
+  aspectRatio: string | null;
 };
 
 export type LibraryReference = {
@@ -38,190 +42,893 @@ export type LibraryReference = {
   previewUrl: string | null;
 };
 
-type Filter = 'all' | 'image' | 'video' | 'audio';
-type ProviderFilter = 'all' | 'nano-banana' | 'flux' | 'veo' | 'kling' | 'elevenlabs';
+type Tab = 'sessions' | 'grid' | 'references';
+type SortKey = 'recent' | 'old';
+
+const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> }[] = [
+  { id: 'sessions', label: 'Sesiones', icon: Library },
+  { id: 'grid', label: 'Cuadrícula', icon: ImageIcon },
+  { id: 'references', label: 'Referencias', icon: Sparkles },
+];
+
+const MODEL_LABEL: Record<string, string> = {
+  'gemini-3-pro-image-preview': 'Nano Banana Pro',
+  'gemini-3.1-flash-image-preview': 'Nano Flash',
+  'flux-2-pro-preview': 'FLUX 2 Pro',
+};
+
+function modelLabel(g: { provider: string; model: string }): string {
+  return MODEL_LABEL[g.model] ?? `${g.provider}/${g.model}`;
+}
+
+function bucketOf(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const t = date.getTime();
+  if (t >= today0) return 'Hoy';
+  if (t >= today0 - dayMs) return 'Ayer';
+  if (t >= today0 - 7 * dayMs) return 'Esta semana';
+  if (date.getFullYear() === now.getFullYear()) {
+    const m = date.toLocaleString('es-MX', { month: 'long' });
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }
+  return `${date.toLocaleString('es-MX', { month: 'short' })} ${date.getFullYear()}`;
+}
+
+function shortTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const t = date.getTime();
+  const hhmm = date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  if (t >= today0) return `Hoy · ${hhmm}`;
+  if (t >= today0 - dayMs) return `Ayer · ${hhmm}`;
+  if (t >= today0 - 7 * dayMs) {
+    return date.toLocaleDateString('es-MX', { weekday: 'short' }) + ` · ${hhmm}`;
+  }
+  return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+}
+
+type Session = {
+  id: string;
+  items: LibraryGeneration[];
+  head: LibraryGeneration;
+  latest: LibraryGeneration;
+};
+
+function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
+  const map = new Map<string, LibraryGeneration[]>();
+  // Items con parent → bucket del parent. Sin parent → bucket propio.
+  for (const g of gens) {
+    const key = g.parentGenerationId ?? g.id;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(g);
+  }
+  const sessions: Session[] = [];
+  for (const [id, items] of map.entries()) {
+    // Dentro de la sesión las variaciones van siempre cronológicas (v1, v2…),
+    // independientemente del sort externo.
+    items.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    const head = items.find((i) => i.id === id) ?? items[0];
+    const latest = items[items.length - 1];
+    sessions.push({ id, items, head, latest });
+  }
+  sessions.sort((a, b) => {
+    const ta = new Date(a.latest.createdAt).getTime();
+    const tb = new Date(b.latest.createdAt).getTime();
+    return sort === 'old' ? ta - tb : tb - ta;
+  });
+  return sessions;
+}
 
 export function LibraryView({
   generations,
   references,
+  workspaceName,
 }: {
   generations: LibraryGeneration[];
   references: LibraryReference[];
+  workspaceName: string;
 }) {
-  const [type, setType] = useState<Filter>('all');
-  const [provider, setProvider] = useState<ProviderFilter>('all');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('sessions');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('recent');
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return generations.filter((g) => {
-      if (type !== 'all' && g.type !== type) return false;
-      if (provider !== 'all' && g.provider !== provider) return false;
-      return true;
-    });
-  }, [generations, type, provider]);
+  const filteredGens = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    let list = generations;
+    if (needle) {
+      list = list.filter(
+        (g) =>
+          g.prompt.toLowerCase().includes(needle) ||
+          modelLabel(g).toLowerCase().includes(needle),
+      );
+    }
+    if (sort === 'old') {
+      list = [...list].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    }
+    return list;
+  }, [generations, query, sort]);
+
+  const sessions = useMemo(() => groupSessions(filteredGens, sort), [filteredGens, sort]);
+  const active = useMemo(
+    () => generations.find((g) => g.id === activeId) ?? null,
+    [generations, activeId],
+  );
 
   return (
-    <Tabs defaultValue="generations" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="generations">
-          Generaciones ({generations.length})
-        </TabsTrigger>
-        <TabsTrigger value="references">
-          Referencias ({references.length})
-        </TabsTrigger>
-      </TabsList>
+    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col bg-background">
+      <LibHeader
+        tab={tab}
+        setTab={setTab}
+        query={query}
+        setQuery={setQuery}
+        sort={sort}
+        setSort={setSort}
+        totalImages={generations.length}
+        totalSessions={sessions.length}
+        totalRefs={references.length}
+        workspaceName={workspaceName}
+      />
 
-      <TabsContent value="generations" className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Filter className="size-4 text-muted-foreground" aria-hidden />
-          <Select value={type} onValueChange={(v) => setType(v as Filter)}>
-            <SelectTrigger className="h-9 w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
-              <SelectItem value="image">Imagen</SelectItem>
-              <SelectItem value="video">Video</SelectItem>
-              <SelectItem value="audio">Audio</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={provider} onValueChange={(v) => setProvider(v as ProviderFilter)}>
-            <SelectTrigger className="h-9 w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los modelos</SelectItem>
-              <SelectItem value="nano-banana">Nano Banana</SelectItem>
-              <SelectItem value="flux">FLUX</SelectItem>
-              <SelectItem value="veo">Veo</SelectItem>
-              <SelectItem value="kling">Kling</SelectItem>
-              <SelectItem value="elevenlabs">ElevenLabs</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex min-h-0 flex-1">
+        <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-6 pb-16 pt-1">
+          {tab === 'sessions' && (
+            <SessionsTab sessions={sessions} onOpen={setActiveId} />
+          )}
+          {tab === 'grid' && (
+            <GridTab items={filteredGens} onOpen={setActiveId} />
+          )}
+          {tab === 'references' && <ReferencesTab references={references} />}
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {filtered.map((g) => (
-              <GenerationCard
-                key={g.id}
-                generation={g}
-                onClick={() => setOpenId(g.id)}
-              />
-            ))}
-          </div>
+        {active && (
+          <DetailAside
+            key={active.id}
+            generation={active}
+            onClose={() => setActiveId(null)}
+          />
         )}
-      </TabsContent>
-
-      <TabsContent value="references">
-        {references.length === 0 ? (
-          <EmptyReferences />
-        ) : (
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-            {references.map((r) => (
-              <Card
-                key={r.id}
-                className="group relative aspect-square overflow-hidden bg-muted p-0"
-                title={r.name ?? r.type}
-              >
-                {r.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={r.previewUrl}
-                    alt={r.name ?? ''}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                    {r.name ?? r.type}
-                  </div>
-                )}
-              </Card>
-            ))}
-          </div>
-        )}
-      </TabsContent>
-
-      <GenerationDetailDialog
-        id={openId}
-        onOpenChange={(open) => !open && setOpenId(null)}
-      />
-    </Tabs>
+      </div>
+    </div>
   );
 }
 
-function GenerationCard({
-  generation,
-  onClick,
+function LibHeader({
+  tab,
+  setTab,
+  query,
+  setQuery,
+  sort,
+  setSort,
+  totalImages,
+  totalSessions,
+  totalRefs,
+  workspaceName,
 }: {
-  generation: LibraryGeneration;
-  onClick: () => void;
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  query: string;
+  setQuery: (q: string) => void;
+  sort: SortKey;
+  setSort: (s: SortKey) => void;
+  totalImages: number;
+  totalSessions: number;
+  totalRefs: number;
+  workspaceName: string;
 }) {
-  const isDone = generation.status === 'done';
+  const sortLabel = sort === 'recent' ? 'recientes' : 'antiguos';
+  return (
+    <div className="border-b border-border">
+      <div className="flex flex-wrap items-end justify-between gap-4 px-6 pb-3 pt-5">
+        <div>
+          <h1 className="font-heading text-[22px] font-medium tracking-tight text-foreground">
+            Biblioteca
+          </h1>
+          <div className="mt-1 text-[12.5px] text-muted-foreground/80">
+            <span className="font-mono tabular-nums">{totalImages.toLocaleString('es-MX')}</span>{' '}
+            imágenes ·{' '}
+            <span className="font-mono tabular-nums">{totalSessions}</span> sesiones ·{' '}
+            <span className="font-mono tabular-nums">{totalRefs}</span> refs · ordenado por{' '}
+            {sortLabel} · {workspaceName}
+          </div>
+        </div>
+        <Link
+          href="/app/create/image"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15"
+        >
+          <Sparkles className="size-3.5" aria-hidden /> Crear imagen
+        </Link>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3">
+        <div className="inline-flex gap-0.5 rounded-[10px] border border-border bg-muted/30 p-[3px]">
+          {TABS.map((t) => {
+            const active = tab === t.id;
+            const Ic = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+                  active
+                    ? 'border border-border bg-background text-foreground'
+                    : 'border border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Ic className="size-3.5" aria-hidden />
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-1 items-center justify-end gap-2 lg:max-w-[540px]">
+          <div className="relative flex-1">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70"
+              aria-hidden
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por prompt o modelo…"
+              className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors focus:border-primary/40"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className="h-9 appearance-none rounded-lg border border-border bg-muted/30 pl-3 pr-8 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+            >
+              <option value="recent">Más recientes</option>
+              <option value="old">Más antiguos</option>
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/70"
+              aria-hidden
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SessionsTab({
+  sessions,
+  onOpen,
+}: {
+  sessions: Session[];
+  onOpen: (id: string) => void;
+}) {
+  const buckets = useMemo(() => {
+    const map = new Map<string, Session[]>();
+    for (const s of sessions) {
+      const b = bucketOf(s.latest.createdAt);
+      if (!map.has(b)) map.set(b, []);
+      map.get(b)!.push(s);
+    }
+    return Array.from(map.entries());
+  }, [sessions]);
+
+  if (sessions.length === 0) {
+    return <LibEmptyState tab="sessions" />;
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      {buckets.map(([bucket, list]) => (
+        <section key={bucket}>
+          <BucketHeader name={bucket} count={list.length} />
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            {list.map((s) => (
+              <SessionCard key={s.id} session={s} onOpen={onOpen} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function GridTab({
+  items,
+  onOpen,
+}: {
+  items: LibraryGeneration[];
+  onOpen: (id: string) => void;
+}) {
+  const buckets = useMemo(() => {
+    const map = new Map<string, LibraryGeneration[]>();
+    for (const g of items) {
+      const b = bucketOf(g.createdAt);
+      if (!map.has(b)) map.set(b, []);
+      map.get(b)!.push(g);
+    }
+    return Array.from(map.entries());
+  }, [items]);
+
+  if (items.length === 0) {
+    return <LibEmptyState tab="grid" />;
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      {buckets.map(([bucket, list]) => (
+        <section key={bucket}>
+          <BucketHeader name={bucket} count={list.length} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {list.map((g) => (
+              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ReferencesTab({ references }: { references: LibraryReference[] }) {
+  const buckets = useMemo(() => {
+    const map = new Map<string, LibraryReference[]>();
+    for (const r of references) {
+      const b = bucketOf(r.createdAt);
+      if (!map.has(b)) map.set(b, []);
+      map.get(b)!.push(r);
+    }
+    return Array.from(map.entries());
+  }, [references]);
+
+  if (references.length === 0) {
+    return <LibEmptyState tab="references" />;
+  }
+
+  return (
+    <div className="space-y-2 pt-2">
+      {buckets.map(([bucket, list]) => (
+        <section key={bucket}>
+          <BucketHeader name={bucket} count={list.length} />
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {list.map((r) => (
+              <ReferenceTile key={r.id} reference={r} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function BucketHeader({ name, count }: { name: string; count: number }) {
+  return (
+    <div className="flex items-baseline gap-2.5 pb-3 pt-5">
+      <span className="text-[11px] font-medium uppercase tracking-[0.10em] text-muted-foreground">
+        {name}
+      </span>
+      <span className="font-mono text-[11px] text-muted-foreground/60">{count}</span>
+      <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+function SessionCard({
+  session,
+  onOpen,
+}: {
+  session: Session;
+  onOpen: (id: string) => void;
+}) {
+  const { head, latest, items } = session;
+  return (
+    <article className="zyra-fade-in overflow-hidden rounded-[14px] border border-border bg-card transition-colors hover:border-muted-foreground/20">
+      <header className="flex items-start gap-3 px-4 pb-3 pt-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[13.5px] leading-[1.5] text-foreground">
+            {head.prompt || <span className="text-muted-foreground">(sin prompt)</span>}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-[11px] text-muted-foreground/80">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-[5px] rounded-full bg-primary" />
+              {modelLabel(head)}
+            </span>
+            {head.aspectRatio && <span>{head.aspectRatio}</span>}
+            <span>−{items.reduce((sum, i) => sum + i.credits, 0)} cr.</span>
+            <span>{items.length} variación{items.length === 1 ? '' : 'es'}</span>
+            <span>{shortTime(latest.createdAt)}</span>
+          </div>
+        </div>
+      </header>
+
+      <div
+        className={cn(
+          'grid gap-2 px-4 pb-4',
+          items.length === 1
+            ? 'grid-cols-1'
+            : items.length === 2
+              ? 'grid-cols-2'
+              : items.length === 3
+                ? 'grid-cols-3'
+                : 'grid-cols-2 sm:grid-cols-4',
+        )}
+      >
+        {items.map((g, i) => (
+          <LibTile
+            key={g.id}
+            gen={g}
+            onClick={() => onOpen(g.id)}
+            variantTag={items.length > 1 ? `v${i + 1}` : undefined}
+          />
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function LibTile({
+  gen,
+  onClick,
+  variantTag,
+}: {
+  gen: LibraryGeneration;
+  onClick: () => void;
+  variantTag?: string;
+}) {
+  const [hover, setHover] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [addingRef, startAddRef] = useTransition();
+
+  const aspect = gen.aspectRatio ?? '1:1';
+  const [w, h] = aspect.split(':').map(Number);
+  const ratio = h > 0 ? w / h : 1;
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!gen.hasOutput || downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/generations/${gen.id}`, { cache: 'no-store' });
+      const data = (await res.json()) as { outputUrl?: string };
+      if (!data.outputUrl) throw new Error('sin output');
+      const imgRes = await fetch(data.outputUrl);
+      const blob = await imgRes.blob();
+      const ext = blob.type.includes('png')
+        ? 'png'
+        : blob.type.includes('webp')
+          ? 'webp'
+          : 'jpg';
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `zyra-${gen.id.slice(0, 8)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error('No se pudo descargar la imagen.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleUseAsRef(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (addingRef) return;
+    startAddRef(async () => {
+      const res = await addGenerationAsReferenceAction({ generationId: gen.id });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como referencia');
+        return;
+      }
+      toast.success('Agregada a tus referencias');
+    });
+  }
+
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onClick}
+      style={{ aspectRatio: String(ratio) }}
+      className="zyra-fade-in group relative cursor-pointer overflow-hidden rounded-lg border border-transparent bg-muted/40 shadow-[0_4px_14px_-8px_rgba(0,0,0,0.4)] transition-all hover:-translate-y-px hover:border-muted-foreground/20"
+    >
+      {gen.thumbnailUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={gen.thumbnailUrl}
+          alt={gen.prompt}
+          className="size-full object-cover"
+        />
+      ) : (
+        <div className="grid h-full place-items-center text-[11px] text-muted-foreground/70">
+          {gen.status}
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-0 transition-opacity',
+          hover ? 'opacity-100' : 'opacity-0',
+        )}
+        style={{
+          background:
+            'linear-gradient(180deg, transparent 50%, color-mix(in oklch, var(--background) 80%, transparent) 100%)',
+        }}
+      />
+
+      {variantTag && (
+        <div
+          className={cn(
+            'absolute bottom-2 left-2 rounded-full border border-border/40 bg-background/70 px-2 py-0.5 font-mono text-[10px] text-foreground/85 backdrop-blur transition-opacity',
+            hover ? 'opacity-100' : 'opacity-60',
+          )}
+        >
+          {variantTag}
+        </div>
+      )}
+
+      {hover && gen.hasOutput && (
+        <div className="absolute right-2 bottom-2 flex gap-1">
+          <TileBtn onClick={handleDownload} title="Descargar" busy={downloading}>
+            <Download className="size-3" aria-hidden />
+          </TileBtn>
+          <TileBtn
+            onClick={handleUseAsRef}
+            title="Usar como referencia"
+            busy={addingRef}
+          >
+            <Sparkles className="size-3" aria-hidden />
+          </TileBtn>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TileBtn({
+  children,
+  onClick,
+  title,
+  busy,
+}: {
+  children: React.ReactNode;
+  onClick: (e: React.MouseEvent) => void;
+  title: string;
+  busy?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        'group relative aspect-square overflow-hidden rounded-md border border-border bg-muted text-left transition-colors hover:border-primary/60',
-      )}
+      title={title}
+      disabled={busy}
+      className="grid size-6 place-items-center rounded-md border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors hover:bg-background/90 disabled:cursor-not-allowed"
     >
-      {generation.thumbnailUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={generation.thumbnailUrl}
-          alt=""
-          className="size-full object-cover transition-transform group-hover:scale-105"
-        />
-      ) : (
-        <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-          {generation.status}
-        </div>
-      )}
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-background/90 via-background/60 to-transparent p-2">
-        <div className="flex flex-wrap items-center gap-1 text-[10px]">
-          <Badge variant="outline" className="h-4 px-1.5 py-0">
-            {generation.provider}
-          </Badge>
-          {isDone && (
-            <Badge variant="outline" className="h-4 gap-0.5 px-1.5 py-0">
-              <Coins className="size-2.5" aria-hidden /> {generation.credits}
-            </Badge>
-          )}
-          {!isDone && (
-            <Badge variant="secondary" className="h-4 px-1.5 py-0">
-              {generation.status}
-            </Badge>
-          )}
-        </div>
-        <p className="line-clamp-1 text-[11px] text-foreground">{generation.prompt}</p>
-      </div>
+      {busy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : children}
     </button>
   );
 }
 
-function EmptyState() {
+function ReferenceTile({ reference }: { reference: LibraryReference }) {
   return (
-    <Card className="flex flex-col items-center gap-3 border-dashed p-10 text-center">
-      <ImageIcon className="size-8 text-muted-foreground" aria-hidden />
-      <p className="font-medium">Aún no hay generaciones</p>
-      <p className="text-sm text-muted-foreground">
-        Crea tu primera imagen desde el panel de generación.
-      </p>
-    </Card>
+    <div
+      title={reference.name ?? reference.type}
+      className="zyra-fade-in relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/40"
+    >
+      {reference.previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={reference.previewUrl}
+          alt={reference.name ?? ''}
+          className="size-full object-cover"
+        />
+      ) : (
+        <div className="grid h-full place-items-center px-2 text-center text-[10px] text-muted-foreground/70">
+          {reference.name ?? reference.type}
+        </div>
+      )}
+      {reference.source === 'generation' && (
+        <div className="absolute left-1.5 top-1.5 rounded-full border border-border/40 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground backdrop-blur">
+          gen
+        </div>
+      )}
+    </div>
   );
 }
 
-function EmptyReferences() {
+function DetailAside({
+  generation,
+  onClose,
+}: {
+  generation: LibraryGeneration;
+  onClose: () => void;
+}) {
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const [addingRef, startAddRef] = useTransition();
+
+  useEffect(() => {
+    // Componente se remonta con key={generation.id} cuando cambia la selección,
+    // así que loading inicia en true por estado inicial y solo hace falta fetch.
+    let cancelled = false;
+    fetch(`/api/generations/${generation.id}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { outputUrl?: string } | null) => {
+        if (!cancelled) {
+          setOutputUrl(data?.outputUrl ?? null);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [generation.id]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const aspect = generation.aspectRatio ?? '1:1';
+  const [w, h] = aspect.split(':').map(Number);
+  const ratio = h > 0 ? w / h : 1;
+
+  async function handleDownload() {
+    if (!outputUrl || downloading) return;
+    setDownloading(true);
+    try {
+      const imgRes = await fetch(outputUrl);
+      const blob = await imgRes.blob();
+      const ext = blob.type.includes('png')
+        ? 'png'
+        : blob.type.includes('webp')
+          ? 'webp'
+          : 'jpg';
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `zyra-${generation.id.slice(0, 8)}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error('No se pudo descargar la imagen.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleUseAsRef() {
+    if (addingRef) return;
+    startAddRef(async () => {
+      const res = await addGenerationAsReferenceAction({ generationId: generation.id });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como referencia');
+        return;
+      }
+      toast.success('Agregada a tus referencias');
+    });
+  }
+
+  async function handleCopyPrompt() {
+    try {
+      await navigator.clipboard.writeText(generation.prompt);
+      toast.success('Prompt copiado');
+    } catch {
+      toast.error('No se pudo copiar el prompt');
+    }
+  }
+
   return (
-    <Card className="flex flex-col items-center gap-3 border-dashed p-10 text-center">
-      <ImageIcon className="size-8 text-muted-foreground" aria-hidden />
-      <p className="font-medium">Sin referencias</p>
-      <p className="text-sm text-muted-foreground">
-        Sube imágenes desde el panel de creación para reutilizarlas.
-      </p>
-    </Card>
+    <aside className="zyra-fade-in flex w-full max-w-[360px] shrink-0 flex-col border-l border-border bg-card lg:w-[360px]">
+      <header className="flex h-11 items-center justify-between border-b border-border px-4">
+        <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
+          Detalle
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          title="Cerrar (Esc)"
+          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      </header>
+
+      <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-6 pt-4">
+        <div
+          style={{ aspectRatio: String(ratio) }}
+          className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40"
+        >
+          {loading ? (
+            <div className="grid h-full place-items-center">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
+            </div>
+          ) : outputUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={outputUrl}
+              alt={generation.prompt}
+              className="size-full object-contain"
+            />
+          ) : generation.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={generation.thumbnailUrl}
+              alt={generation.prompt}
+              className="size-full object-cover"
+            />
+          ) : (
+            <div className="grid h-full place-items-center text-[12px] text-muted-foreground">
+              Sin output
+            </div>
+          )}
+        </div>
+
+        <div className="mb-3.5 grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={!outputUrl || downloading}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {downloading ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Download className="size-3.5" aria-hidden />
+            )}{' '}
+            Descargar
+          </button>
+          <button
+            type="button"
+            onClick={handleUseAsRef}
+            disabled={!generation.hasOutput || addingRef}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {addingRef ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}{' '}
+            Usar como ref.
+          </button>
+        </div>
+
+        <DetailRow label="Prompt">
+          <div className="text-[13px] leading-[1.5] text-foreground">
+            {generation.prompt || (
+              <span className="text-muted-foreground">(sin prompt)</span>
+            )}
+          </div>
+          {generation.prompt && (
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Copy className="size-3" aria-hidden /> Copiar
+            </button>
+          )}
+        </DetailRow>
+
+        <DetailField label="Modelo" value={modelLabel(generation)} />
+        <DetailField label="Aspecto" value={generation.aspectRatio ?? '—'} />
+        <DetailField label="Estado" value={generation.status} />
+        <DetailField
+          label="Créditos"
+          value={`−${generation.credits}`}
+          mono
+        />
+        <DetailField
+          label="Generado"
+          value={shortTime(generation.createdAt)}
+        />
+        <DetailField label="ID" value={generation.id.slice(0, 8)} mono />
+      </div>
+    </aside>
+  );
+}
+
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3.5">
+      <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-border py-2 text-[12.5px]">
+      <span className="text-muted-foreground/80">{label}</span>
+      <span
+        className={cn(
+          'text-foreground',
+          mono && 'font-mono tabular-nums',
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function LibEmptyState({ tab }: { tab: Tab }) {
+  const cfg: Record<Tab, { icon: typeof Library; title: string; sub: string }> = {
+    sessions: {
+      icon: Library,
+      title: 'Aún no hay sesiones',
+      sub: 'Cuando generes imágenes aparecerán agrupadas aquí.',
+    },
+    grid: {
+      icon: ImageIcon,
+      title: 'Tu cuadrícula está vacía',
+      sub: 'Crea tu primera imagen para verla aquí.',
+    },
+    references: {
+      icon: Sparkles,
+      title: 'Sin referencias',
+      sub: 'Sube imágenes desde el panel de creación o usa una generación como referencia.',
+    },
+  };
+  const Ic = cfg[tab].icon;
+
+  return (
+    <div className="grid h-full min-h-[360px] place-items-center p-6">
+      <div className="max-w-[360px] text-center">
+        <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[18px] border border-border bg-muted/30 text-muted-foreground">
+          <Ic className="size-5" aria-hidden />
+        </div>
+        <h3 className="font-heading text-[16px] font-medium text-foreground">
+          {cfg[tab].title}
+        </h3>
+        <p className="mt-1.5 text-[13px] text-muted-foreground">{cfg[tab].sub}</p>
+        <Link
+          href="/app/create/image"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15"
+        >
+          <Sparkles className="size-3.5" aria-hidden /> Crear imagen
+        </Link>
+      </div>
+    </div>
   );
 }
