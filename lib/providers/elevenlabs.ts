@@ -1,0 +1,125 @@
+import 'server-only';
+import { ProviderError } from './types';
+
+const BASE_URL = 'https://api.elevenlabs.io';
+
+export type ElevenLabsModel = 'eleven_multilingual_v2' | 'eleven_flash_v2_5' | 'eleven_v3';
+
+export type VoiceSettings = {
+  stability: number;
+  similarity_boost: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+};
+
+// Split text en chunks para TTS largos. Estrategia:
+// 1. Si text.length <= threshold → un solo chunk
+// 2. Si no → dividir por frases (regex de puntuación seguida de espacio)
+// 3. Acumular frases hasta que el chunk se acerque al cap, después romper
+// 4. Si una "frase" sola excede el cap (texto sin puntuación), hard-split por chars
+//
+// `chunkCap` es el máximo absoluto por chunk; `threshold` decide cuándo activar
+// el split. Default: threshold=4000, cap=3000 (cap < threshold porque después
+// del primer split queremos chunks que claramente quepan).
+export function chunkText(
+  text: string,
+  threshold: number,
+  chunkCap: number,
+): string[] {
+  if (text.length <= threshold) return [text];
+
+  // Dividir por frases preservando el delimitador
+  const sentences = text.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g) ?? [text];
+
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const sentence of sentences) {
+    // Si la frase sola excede el cap, hard-split.
+    // Prepende `current` al primer slice para no fragmentar de más cuando
+    // venimos arrastrando frases cortas previas.
+    if (sentence.length > chunkCap) {
+      const combined = current + sentence;
+      current = '';
+      for (let i = 0; i < combined.length; i += chunkCap) {
+        chunks.push(combined.slice(i, i + chunkCap));
+      }
+      continue;
+    }
+    // Si agregar la frase excede el cap, empezar nuevo chunk
+    if (current.length + sentence.length > chunkCap) {
+      chunks.push(current);
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+// TTS — devuelve buffer MP3. Si text > 4000 chars hace chunking + concat raw.
+export async function tts(params: {
+  text: string;
+  voiceId: string;
+  modelId: ElevenLabsModel;
+  voiceSettings?: VoiceSettings;
+  languageCode?: string;
+}): Promise<Buffer> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new ProviderError('ELEVENLABS_API_KEY no configurada', 'auth', false);
+
+  const chunks = chunkText(params.text, 4000, 3000);
+  const buffers: Buffer[] = [];
+  for (const chunk of chunks) {
+    const buf = await ttsChunk({ ...params, text: chunk }, apiKey);
+    buffers.push(buf);
+  }
+  return Buffer.concat(buffers);
+}
+
+async function ttsChunk(
+  params: {
+    text: string;
+    voiceId: string;
+    modelId: ElevenLabsModel;
+    voiceSettings?: VoiceSettings;
+    languageCode?: string;
+  },
+  apiKey: string,
+): Promise<Buffer> {
+  const body: Record<string, unknown> = {
+    text: params.text,
+    model_id: params.modelId,
+    output_format: 'mp3_44100_128',
+  };
+  if (params.voiceSettings) body.voice_settings = params.voiceSettings;
+  if (params.languageCode) body.language_code = params.languageCode;
+
+  const res = await fetch(`${BASE_URL}/v1/text-to-speech/${params.voiceId}`, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+      accept: 'audio/mpeg',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new ProviderError('Auth inválida con ElevenLabs', 'auth', false);
+  }
+  if (res.status === 429) {
+    throw new ProviderError('Rate limit ElevenLabs', 'rate_limit', true);
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ProviderError(
+      `ElevenLabs TTS ${res.status}: ${text.slice(0, 200)}`,
+      res.status >= 500 ? 'server' : 'unknown',
+      res.status >= 500,
+    );
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
