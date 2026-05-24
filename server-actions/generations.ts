@@ -26,6 +26,7 @@ import {
   type SubmitGenerationInput,
 } from '@/lib/schemas/generations';
 import { SubmitTtsSchema, type SubmitTtsInput } from '@/lib/schemas/audio';
+import { SubmitKlingSchema, type SubmitKlingInput } from '@/lib/schemas/video';
 import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
@@ -436,6 +437,109 @@ export async function submitAudioGenerationAction(
       await failGeneration(user.id, generationId, refundAmount, message);
     } catch (failErr) {
       console.error('[fail_generation:audio]', {
+        userId: user.id,
+        generationId,
+        cost: refundAmount,
+        originalError: message,
+        failError: (failErr as Error)?.message,
+      });
+    }
+    // Mantenemos la fila como 'failed' para preservar el audit trail.
+    return {
+      ok: false,
+      error: message.includes('429') ? 'provider_error' : 'internal_error',
+      message,
+    };
+  }
+}
+
+function estimateKlingCost(
+  pricing: Awaited<ReturnType<typeof loadPricing>>,
+  model: SubmitKlingInput['model'],
+  duration: 5 | 10,
+): number {
+  // Variantes seeded: 'standard' (5s en standard model), 'long' (10s en standard),
+  // 'pro' (5s en pro model). Image-to-video usa pricing 'standard' por defecto.
+  const isPro = model.includes('/pro/');
+  let variant: string;
+  if (isPro) variant = 'pro';
+  else variant = duration === 10 ? 'long' : 'standard';
+  const row = pricing.find(
+    (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
+  );
+  if (!row) throw new Error(`pricing no encontrado para Kling ${model}/${variant}`);
+  return Number(row.credits_cost);
+}
+
+export async function submitVideoGenerationAction(
+  input: unknown,
+): Promise<Result<{ generationId: string }>> {
+  // Por ahora solo Kling; Veo se agrega en Task 14
+  const parsed = SubmitKlingSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: parsed.error.message };
+  }
+  const data = parsed.data;
+  const { user, workspace } = await requireWorkspace();
+
+  const pricing = await loadPricing();
+  const cost = estimateKlingCost(pricing, data.model, data.duration);
+
+  const supabase = await createClient();
+  const insertParams: Record<string, unknown> = {
+    operation: data.imageUrl ? 'image2video' : 'text2video',
+    aspectRatio: data.aspectRatio,
+    duration: data.duration,
+    cfgScale: data.cfgScale,
+    imageUrl: data.imageUrl,
+    negativePrompt: data.negativePrompt,
+  };
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('generations')
+    .insert({
+      user_id: user.id,
+      workspace_id: workspace.id,
+      type: 'video',
+      provider: 'kling',
+      model_id: data.model,
+      prompt: data.prompt,
+      params: insertParams,
+      reference_ids: [],
+      status: 'queued',
+      credits_estimated: cost,
+      timeout_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insertErr || !inserted) {
+    return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
+  }
+  const generationId = inserted.id as string;
+
+  // Mismo patrón corregido que image/audio: reserveCredits + enqueue dentro del
+  // try. Si reserveCredits o enqueueJob throwean, el catch limpia vía
+  // failGeneration (idempotente, refund condicional).
+  let reserved = false;
+  try {
+    reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      // Sin reserva, no hay nada que auditar → delete row.
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      return { ok: false, error: 'insufficient_credits' };
+    }
+    await enqueueJob({ generationId, action: 'submit' });
+    revalidatePath('/app/library');
+    return { ok: true, data: { generationId } };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'unknown';
+    // failGeneration es idempotente. refundAmount=0 si la reserva nunca se hizo.
+    const refundAmount = reserved ? cost : 0;
+    try {
+      await failGeneration(user.id, generationId, refundAmount, `queue_failed: ${message}`);
+    } catch (failErr) {
+      console.error('[fail_generation:video]', {
         userId: user.id,
         generationId,
         cost: refundAmount,
