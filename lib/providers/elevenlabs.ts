@@ -28,8 +28,18 @@ export function chunkText(
 ): string[] {
   if (text.length <= threshold) return [text];
 
-  // Dividir por frases preservando el delimitador
+  // Dividir por frases preservando el delimitador.
+  // El regex puede saltar caracteres iniciales de puntuación (e.g. text="...hola long...")
+  // porque ambas alternativas requieren `[^.!?]+` al inicio. Si detectamos
+  // que se perdieron chars, fallback a hard-split puro para no perder contenido.
   const sentences = text.match(/[^.!?]+[.!?]+\s*|[^.!?]+$/g) ?? [text];
+  if (sentences.join('').length < text.length) {
+    const fallback: string[] = [];
+    for (let i = 0; i < text.length; i += chunkCap) {
+      fallback.push(text.slice(i, i + chunkCap));
+    }
+    return fallback;
+  }
 
   const chunks: string[] = [];
   let current = '';
@@ -108,6 +118,9 @@ async function ttsChunk(
 
   if (res.status === 401 || res.status === 403) {
     throw new ProviderError('Auth inválida con ElevenLabs', 'auth', false);
+  }
+  if (res.status === 402) {
+    throw new ProviderError('Cuota de ElevenLabs agotada', 'auth', false);
   }
   if (res.status === 429) {
     throw new ProviderError('Rate limit ElevenLabs', 'rate_limit', true);
