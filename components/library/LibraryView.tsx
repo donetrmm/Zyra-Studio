@@ -592,19 +592,33 @@ function LibTile({
           className="size-full object-cover"
         />
       ) : gen.type === 'audio' ? (
-        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.08] to-transparent">
-          <div className="flex flex-col items-center gap-1">
-            <Music className="size-5 text-primary/60" aria-hidden />
-            <span className="font-mono text-[9.5px] text-muted-foreground/60">
+        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.07] via-primary/[0.03] to-transparent">
+          <div className="flex flex-col items-center gap-2">
+            <div className="grid size-9 place-items-center rounded-full border border-primary/25 bg-primary/10">
+              <Music className="size-4 text-primary/70" aria-hidden />
+            </div>
+            {/* Mini waveform decorativa */}
+            <div className="flex h-3 items-end gap-[2px]">
+              {Array.from({ length: 12 }, (_, i) => (
+                <div
+                  key={i}
+                  className="w-[2px] rounded-full bg-primary/30"
+                  style={{ height: `${25 + 75 * Math.abs(Math.sin(i * 0.7 + 0.5))}%` }}
+                />
+              ))}
+            </div>
+            <span className="font-mono text-[9px] text-muted-foreground/50">
               {gen.status === 'done' ? 'Audio' : gen.status}
             </span>
           </div>
         </div>
       ) : gen.type === 'video' ? (
-        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.08] to-transparent">
-          <div className="flex flex-col items-center gap-1">
-            <VideoIcon className="size-5 text-primary/60" aria-hidden />
-            <span className="font-mono text-[9.5px] text-muted-foreground/60">
+        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.07] via-primary/[0.03] to-transparent">
+          <div className="flex flex-col items-center gap-2">
+            <div className="grid size-9 place-items-center rounded-full border border-primary/25 bg-primary/10">
+              <VideoIcon className="size-4 text-primary/70" aria-hidden />
+            </div>
+            <span className="font-mono text-[9px] text-muted-foreground/50">
               {gen.status === 'done' ? 'Video' : gen.status}
             </span>
           </div>
@@ -801,19 +815,55 @@ function DetailAside({
 
       <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-6 pt-4">
         {generation.type === 'audio' ? (
-          <div className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40 p-4">
+          <div className="mb-3.5 overflow-hidden rounded-[14px] border border-border bg-gradient-to-b from-primary/[0.06] to-muted/40">
             {loading ? (
-              <div className="grid h-20 place-items-center">
+              <div className="grid h-[160px] place-items-center">
                 <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
               </div>
             ) : outputUrl ? (
-              <div className="flex flex-col items-center gap-3">
-                <Music className="size-8 text-primary/50" aria-hidden />
-                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <audio controls src={outputUrl} crossOrigin="anonymous" className="w-full" />
+              <div className="flex flex-col items-center px-4 pb-4 pt-6">
+                {/* Icono con glow */}
+                <div className="relative mb-4">
+                  <div className="absolute -inset-3 rounded-full bg-primary/20 blur-xl" />
+                  <div className="relative grid size-14 place-items-center rounded-full border border-primary/30 bg-primary/10">
+                    <Music className="size-6 text-primary" aria-hidden />
+                  </div>
+                </div>
+                {/* Meta del audio */}
+                <div className="mb-1 text-center text-[12px] font-medium text-foreground/80">
+                  {modelLabel(generation)}
+                </div>
+                <div className="mb-4 font-mono text-[10.5px] text-muted-foreground/60">
+                  {generation.credits > 0 && `−${generation.credits} cr · `}
+                  {shortTime(generation.createdAt)}
+                </div>
+                {/* Onda decorativa estática */}
+                <div className="mb-3 flex h-8 w-full items-end justify-center gap-[3px]">
+                  {Array.from({ length: 32 }, (_, i) => {
+                    const h = 20 + 80 * Math.abs(Math.sin((i * 0.45) + 1.2)) * Math.sin((i * 0.12) + 0.8);
+                    return (
+                      <div
+                        key={i}
+                        className="w-[3px] rounded-full bg-primary/40"
+                        style={{ height: `${h}%` }}
+                      />
+                    );
+                  })}
+                </div>
+                {/* Player nativo estilizado dentro de un contenedor dark */}
+                <div className="w-full rounded-xl border border-border/60 bg-background/60 p-2 backdrop-blur">
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio
+                    controls
+                    src={outputUrl}
+                    crossOrigin="anonymous"
+                    className="w-full"
+                    style={{ height: 36 }}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="grid h-20 place-items-center text-[12px] text-muted-foreground">
+              <div className="grid h-[160px] place-items-center text-[12px] text-muted-foreground">
                 Sin audio
               </div>
             )}
