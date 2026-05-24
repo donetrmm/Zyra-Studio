@@ -251,7 +251,7 @@ export function WavePlayer({ src }: { src: string }) {
   return (
     <div className="flex h-full flex-col">
       {/* Hidden audio */}
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={src} preload="metadata" crossOrigin="anonymous" />
 
       {/* Wave stage */}
       <div className="relative flex-1 overflow-hidden">
