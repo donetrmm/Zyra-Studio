@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-references/download-client';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 
 export type LibraryGeneration = {
@@ -753,23 +754,9 @@ function DetailAside({
     if (!outputUrl || downloading) return;
     setDownloading(true);
     try {
-      const imgRes = await fetch(outputUrl);
-      const blob = await imgRes.blob();
-      const ext = blob.type.includes('png')
-        ? 'png'
-        : blob.type.includes('webp')
-          ? 'webp'
-          : 'jpg';
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = `zyra-${generation.id.slice(0, 8)}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
+      await downloadGenerationFile(outputUrl, `zyra-${generation.id.slice(0, 8)}`);
     } catch {
-      toast.error('No se pudo descargar la imagen.');
+      toast.error('No se pudo descargar.');
     } finally {
       setDownloading(false);
     }
@@ -813,34 +800,76 @@ function DetailAside({
       </header>
 
       <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-6 pt-4">
-        <div
-          style={{ aspectRatio: String(ratio) }}
-          className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40"
-        >
-          {loading ? (
-            <div className="grid h-full place-items-center">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
-            </div>
-          ) : outputUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={outputUrl}
-              alt={generation.prompt}
-              className="size-full object-contain"
-            />
-          ) : generation.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={generation.thumbnailUrl}
-              alt={generation.prompt}
-              className="size-full object-cover"
-            />
-          ) : (
-            <div className="grid h-full place-items-center text-[12px] text-muted-foreground">
-              Sin output
-            </div>
-          )}
-        </div>
+        {generation.type === 'audio' ? (
+          <div className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40 p-4">
+            {loading ? (
+              <div className="grid h-20 place-items-center">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
+              </div>
+            ) : outputUrl ? (
+              <div className="flex flex-col items-center gap-3">
+                <Music className="size-8 text-primary/50" aria-hidden />
+                {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                <audio controls src={outputUrl} crossOrigin="anonymous" className="w-full" />
+              </div>
+            ) : (
+              <div className="grid h-20 place-items-center text-[12px] text-muted-foreground">
+                Sin audio
+              </div>
+            )}
+          </div>
+        ) : generation.type === 'video' ? (
+          <div className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40">
+            {loading ? (
+              <div className="grid place-items-center" style={{ aspectRatio: String(ratio) }}>
+                <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
+              </div>
+            ) : outputUrl ? (
+              <video
+                controls
+                playsInline
+                muted
+                src={outputUrl}
+                poster={generation.thumbnailUrl ?? undefined}
+                className="w-full rounded-lg"
+                style={{ aspectRatio: String(ratio) }}
+              />
+            ) : (
+              <div className="grid place-items-center text-[12px] text-muted-foreground" style={{ aspectRatio: String(ratio) }}>
+                Sin video
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{ aspectRatio: String(ratio) }}
+            className="mb-3.5 overflow-hidden rounded-lg border border-border bg-muted/40"
+          >
+            {loading ? (
+              <div className="grid h-full place-items-center">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
+              </div>
+            ) : outputUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={outputUrl}
+                alt={generation.prompt}
+                className="size-full object-contain"
+              />
+            ) : generation.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={generation.thumbnailUrl}
+                alt={generation.prompt}
+                className="size-full object-cover"
+              />
+            ) : (
+              <div className="grid h-full place-items-center text-[12px] text-muted-foreground">
+                Sin output
+              </div>
+            )}
+          </div>
+        )}
 
         {generation.prompt && (
           <Link
