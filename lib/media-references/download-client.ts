@@ -17,7 +17,17 @@ export async function downloadGenerationImage(
     ? 'png'
     : blob.type.includes('webp')
       ? 'webp'
-      : 'jpg';
+      : blob.type.includes('mp4')
+        ? 'mp4'
+        : blob.type.includes('webm')
+          ? 'webm'
+          : blob.type.includes('mpeg') || blob.type.includes('mp3')
+            ? 'mp3'
+            : blob.type.includes('wav')
+              ? 'wav'
+              : blob.type.includes('ogg')
+                ? 'ogg'
+                : 'jpg';
   const objectUrl = URL.createObjectURL(blob);
   try {
     const a = document.createElement('a');

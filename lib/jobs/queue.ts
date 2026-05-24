@@ -9,7 +9,12 @@ function getClient(): Client {
   if (_client) return _client;
   const token = process.env.QSTASH_TOKEN;
   if (!token) throw new Error('QSTASH_TOKEN no configurada');
-  _client = new Client({ token });
+  // QSTASH_URL es opcional. Si no se setea, el SDK usa el endpoint global
+  // (https://qstash.upstash.io) que puede no coincidir con la región donde
+  // vive tu cuenta. Si ves "user not found in this region", configura
+  // QSTASH_URL al endpoint exacto que muestra tu dashboard de Upstash.
+  const baseUrl = process.env.QSTASH_URL;
+  _client = new Client(baseUrl ? { token, baseUrl } : { token });
   return _client;
 }
 

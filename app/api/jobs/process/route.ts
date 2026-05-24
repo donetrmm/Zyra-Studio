@@ -28,10 +28,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'missing signature' }, { status: 401 });
   }
   try {
+    // QStash firma contra la URL pública que le pasamos en publishJSON.
+    // req.url detrás de proxy (ngrok, Vercel) resuelve a localhost/internal,
+    // no a la URL pública. Usamos NEXT_PUBLIC_APP_URL para matchear.
+    const verifyUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/jobs/process`
+      : req.url;
     await verifyQStashSignature({
       signature,
       body: rawBody,
-      url: req.url,
+      url: verifyUrl,
     });
   } catch (err) {
     console.error('[worker] firma inválida', err);

@@ -1,11 +1,8 @@
 'use client';
 
 import { Loader2, Music4 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useState } from 'react';
-import { downloadGenerationImage } from '@/lib/media-references/download-client';
-import { cn } from '@/lib/utils';
 import type { LiveGeneration } from './use-generation-status';
+import { WavePlayer } from './WavePlayer';
 
 export function AudioPreview({
   generation,
@@ -14,22 +11,6 @@ export function AudioPreview({
   generation: LiveGeneration | null;
   resolvedOutputUrl: string | null;
 }) {
-  const [downloading, setDownloading] = useState(false);
-
-  async function handleDownload() {
-    if (!resolvedOutputUrl || !generation) return;
-    setDownloading(true);
-    try {
-      await downloadGenerationImage(resolvedOutputUrl, `zyra-audio`);
-    } catch (e) {
-      toast.error(
-        `No se pudo descargar${e instanceof Error ? `: ${e.message}` : ''}`,
-      );
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   if (!generation) {
     return (
       <div className="grid h-full place-items-center text-muted-foreground/60">
@@ -69,27 +50,13 @@ export function AudioPreview({
     );
   }
 
-  // done
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
-      {resolvedOutputUrl ? (
-        <>
-          <audio controls src={resolvedOutputUrl} className="w-full max-w-md" />
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={downloading}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-[12.5px]',
-              downloading ? 'opacity-60' : 'hover:bg-muted',
-            )}
-          >
-            {downloading ? <Loader2 className="size-3.5 animate-spin" /> : 'Descargar MP3'}
-          </button>
-        </>
-      ) : (
-        <p className="text-muted-foreground">Audio listo, cargando URL…</p>
-      )}
-    </div>
-  );
+  if (!resolvedOutputUrl) {
+    return (
+      <div className="grid h-full place-items-center text-muted-foreground">
+        <p className="text-[13px]">Audio listo, cargando URL…</p>
+      </div>
+    );
+  }
+
+  return <WavePlayer src={resolvedOutputUrl} />;
 }

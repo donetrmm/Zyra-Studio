@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.app', '*.ngrok.io'],
+  serverExternalPackages: ['@ffmpeg-installer/ffmpeg'],
   images: {
     remotePatterns: [
       {
