@@ -10,9 +10,11 @@ import {
   Image as ImageIcon,
   Library,
   Loader2,
+  Music,
   RotateCcw,
   Search,
   Sparkles,
+  Video as VideoIcon,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -588,6 +590,24 @@ function LibTile({
           alt={gen.prompt}
           className="size-full object-cover"
         />
+      ) : gen.type === 'audio' ? (
+        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.08] to-transparent">
+          <div className="flex flex-col items-center gap-1">
+            <Music className="size-5 text-primary/60" aria-hidden />
+            <span className="font-mono text-[9.5px] text-muted-foreground/60">
+              {gen.status === 'done' ? 'Audio' : gen.status}
+            </span>
+          </div>
+        </div>
+      ) : gen.type === 'video' ? (
+        <div className="grid h-full place-items-center bg-gradient-to-b from-primary/[0.08] to-transparent">
+          <div className="flex flex-col items-center gap-1">
+            <VideoIcon className="size-5 text-primary/60" aria-hidden />
+            <span className="font-mono text-[9.5px] text-muted-foreground/60">
+              {gen.status === 'done' ? 'Video' : gen.status}
+            </span>
+          </div>
+        </div>
       ) : (
         <div className="grid h-full place-items-center text-[11px] text-muted-foreground/70">
           {gen.status}
