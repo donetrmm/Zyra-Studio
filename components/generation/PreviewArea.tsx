@@ -9,10 +9,11 @@ import {
   Maximize2,
   Shield,
   Sparkles,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { downloadGenerationImage } from '@/lib/media-references/download-client';
+import { Lightbox } from './Lightbox';
 import type { SessionItem } from './types';
 
 const ROTATING_TIPS = [
@@ -280,23 +281,7 @@ function ResultState({
     if (!result.outputUrl) return;
     setDownloading(true);
     try {
-      const res = await fetch(result.outputUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      // Inferir extensión del content-type para no terminar con .undefined.
-      const ext = blob.type.includes('png')
-        ? 'png'
-        : blob.type.includes('webp')
-          ? 'webp'
-          : 'jpg';
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = `zyra-${result.id.slice(0, 8)}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
+      await downloadGenerationImage(result.outputUrl, `zyra-${result.id.slice(0, 8)}`);
     } catch (e) {
       toast.error(
         `No se pudo descargar la imagen${e instanceof Error ? `: ${e.message}` : ''}`,
@@ -532,43 +517,6 @@ export function SafetyErrorState({ refunded }: { refunded: number }) {
           <span className="font-mono">+{refunded}</span> créditos devueltos a tu balance
         </div>
       </div>
-    </div>
-  );
-}
-
-function Lightbox({
-  src,
-  alt,
-  onClose,
-}: {
-  src: string;
-  alt: string;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Imagen ampliada"
-      onClick={onClose}
-      className="fixed inset-0 z-50 grid place-items-center bg-background/90 p-4 backdrop-blur-sm sm:p-8"
-      style={{ animation: 'zyra-fade-in 120ms ease-out' }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[92vh] max-w-[92vw] rounded-lg object-contain shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]"
-      />
-      <button
-        type="button"
-        onClick={onClose}
-        title="Cerrar (ESC)"
-        className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors hover:bg-background/90"
-      >
-        <X className="size-4" aria-hidden />
-      </button>
     </div>
   );
 }

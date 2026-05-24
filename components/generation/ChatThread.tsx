@@ -1,17 +1,20 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
   Download,
   Loader2,
+  Maximize2,
   MessageSquareText,
-  MoreHorizontal,
   Plus,
   Send,
   Sparkles,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { downloadGenerationImage } from '@/lib/media-references/download-client';
+import { Lightbox } from './Lightbox';
 import type { SessionItem } from './types';
 
 const QUICK_EDITS = [
@@ -32,6 +35,8 @@ export function ChatThread({
   onExit,
   providerLabel,
   aspectRatio,
+  onAttach,
+  canAttach,
 }: {
   thread: SessionItem[];
   prompt: string;
@@ -42,6 +47,8 @@ export function ChatThread({
   onExit: () => void;
   providerLabel: string;
   aspectRatio: string;
+  onAttach?: (file: File) => void | Promise<void>;
+  canAttach?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -108,6 +115,8 @@ export function ChatThread({
         pending={pending}
         canGenerate={canGenerate}
         textareaRef={textareaRef}
+        onAttach={onAttach}
+        canAttach={canAttach}
       />
     </div>
   );
@@ -142,9 +151,6 @@ function ChatHeader({
       <div className="flex gap-1.5">
         <HeaderIconBtn title="Salir del hilo" onClick={onExit}>
           <Plus className="size-3.5 rotate-45" aria-hidden />
-        </HeaderIconBtn>
-        <HeaderIconBtn title="Más">
-          <MoreHorizontal className="size-3.5" aria-hidden />
         </HeaderIconBtn>
       </div>
     </div>
@@ -201,6 +207,23 @@ function ConvMessage({
   ratio: number;
 }) {
   const t = relativeShort(item.createdAt);
+  const [lightbox, setLightbox] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!item.outputUrl || downloading) return;
+    setDownloading(true);
+    try {
+      await downloadGenerationImage(item.outputUrl, `zyra-${item.id.slice(0, 8)}`);
+    } catch (e) {
+      toast.error(
+        `No se pudo descargar la imagen${e instanceof Error ? `: ${e.message}` : ''}`,
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <>
       <div className="mb-3.5 flex justify-end">
@@ -232,39 +255,72 @@ function ConvMessage({
               <img
                 src={item.outputUrl}
                 alt={item.prompt}
-                className="size-full object-cover"
+                onDoubleClick={() => setLightbox(true)}
+                className="size-full cursor-zoom-in object-cover"
               />
               {isLast && (
                 <div className="absolute right-1.5 top-1.5 flex gap-1">
-                  <BubbleChip>
-                    <a
-                      href={item.outputUrl}
-                      download
-                      target="_blank"
-                      rel="noreferrer"
-                      className="grid size-full place-items-center"
-                    >
+                  <BubbleChipButton
+                    onClick={() => setLightbox(true)}
+                    title="Ver en grande"
+                  >
+                    <Maximize2 className="size-3" aria-hidden />
+                  </BubbleChipButton>
+                  <BubbleChipButton
+                    onClick={handleDownload}
+                    disabled={downloading}
+                    title="Descargar"
+                  >
+                    {downloading ? (
+                      <Loader2 className="size-3 animate-spin" aria-hidden />
+                    ) : (
                       <Download className="size-3" aria-hidden />
-                    </a>
-                  </BubbleChip>
-                  <BubbleChip>
-                    <MoreHorizontal className="size-3" aria-hidden />
-                  </BubbleChip>
+                    )}
+                  </BubbleChipButton>
                 </div>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {lightbox && item.outputUrl && (
+        <Lightbox
+          src={item.outputUrl}
+          alt={item.prompt}
+          onClose={() => setLightbox(false)}
+        />
+      )}
     </>
   );
 }
 
-function BubbleChip({ children }: { children: React.ReactNode }) {
+function BubbleChipButton({
+  children,
+  onClick,
+  title,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  disabled?: boolean;
+}) {
   return (
-    <span className="grid size-[22px] place-items-center rounded-md border border-border/40 bg-background/70 text-foreground backdrop-blur">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        'grid size-[22px] place-items-center rounded-md border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors',
+        disabled
+          ? 'cursor-not-allowed opacity-60'
+          : 'hover:bg-background/90',
+      )}
+    >
       {children}
-    </span>
+    </button>
   );
 }
 
@@ -297,6 +353,8 @@ function ChatComposer({
   pending,
   canGenerate,
   textareaRef,
+  onAttach,
+  canAttach,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -305,7 +363,12 @@ function ChatComposer({
   pending: boolean;
   canGenerate: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onAttach?: (file: File) => void | Promise<void>;
+  canAttach?: boolean;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachEnabled = !!onAttach && canAttach !== false;
+
   return (
     <div className="border-t border-border bg-card/50 px-4 py-3 backdrop-blur">
       <div className="mb-2 flex flex-wrap gap-1.5">
@@ -321,10 +384,32 @@ function ChatComposer({
         ))}
       </div>
       <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-3 py-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && onAttach) void onAttach(file);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }}
+        />
         <button
           type="button"
-          title="Adjuntar referencia"
-          className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
+          title={
+            attachEnabled
+              ? 'Adjuntar referencia'
+              : 'Cap de referencias alcanzado'
+          }
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!attachEnabled}
+          className={cn(
+            'grid size-7 shrink-0 place-items-center rounded-lg transition-colors',
+            attachEnabled
+              ? 'text-muted-foreground hover:text-foreground'
+              : 'cursor-not-allowed text-muted-foreground/30',
+          )}
         >
           <Plus className="size-3.5" aria-hidden />
         </button>
@@ -340,7 +425,7 @@ function ChatComposer({
           }}
           placeholder="Describe el cambio que quieres…"
           rows={1}
-          className="min-w-0 flex-1 resize-none border-0 bg-transparent py-1 text-[13.5px] leading-[1.5] text-foreground outline-none"
+          className="scroll-thin min-w-0 flex-1 resize-none border-0 bg-transparent py-1 text-[13.5px] leading-[1.5] text-foreground outline-none"
           style={{ maxHeight: 140 }}
         />
         <button

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { estimateCredits } from '@/lib/credits/estimator';
+import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { selectImageModel, type ImageIntent } from '@/lib/router/model-selector';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
@@ -223,6 +224,25 @@ export function ImageGenerator(props: {
       : 8;
   const canAddReference = references.length < maxRefs;
 
+  // Atajo del botón + dentro del chat composer: sube un archivo local y lo
+  // agrega al array de references. Respeta el cap del modelo activo.
+  const handleAttachFromChat = useCallback(
+    async (file: File) => {
+      if (references.length >= maxRefs) {
+        toast.error(`Máximo ${maxRefs} referencias para este modelo`);
+        return;
+      }
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setReferences((prev) => [...prev, res.ref]);
+      toast.success('Referencia agregada');
+    },
+    [references.length, maxRefs],
+  );
+
   const handleUseAsReference = useCallback(
     async (item: SessionItem) => {
       if (references.length >= maxRefs) {
@@ -306,6 +326,8 @@ export function ImageGenerator(props: {
       onExit={() => setConversational(false)}
       providerLabel={providerLabel}
       aspectRatio={aspectRatio}
+      onAttach={handleAttachFromChat}
+      canAttach={canAddReference}
     />
   ) : (
     <PreviewArea

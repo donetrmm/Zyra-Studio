@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2, Plus, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  createMediaReferenceAction,
-  getUploadSignedUrlAction,
-} from '@/server-actions/media-references';
+import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { cn } from '@/lib/utils';
 
 export type ReferenceClient = {
@@ -23,9 +20,6 @@ export type AvailableReference = {
   filename: string;
   source: string;
 };
-
-const MAX_BYTES = 10 * 1024 * 1024;
-const ALLOWED = /^image\/(jpeg|png|webp|gif|bmp|tiff)$/i;
 
 export function ReferencesPanel({
   value,
@@ -46,50 +40,12 @@ export function ReferencesPanel({
 
   const uploadFile = useCallback(
     async (file: File): Promise<ReferenceClient | null> => {
-      if (file.size > MAX_BYTES) {
-        toast.error(`"${file.name}" supera 10 MB`);
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) {
+        toast.error(res.message);
         return null;
       }
-      if (!ALLOWED.test(file.type)) {
-        toast.error(`"${file.name}" no es una imagen válida`);
-        return null;
-      }
-      const urlRes = await getUploadSignedUrlAction({
-        filename: file.name,
-        mimeType: file.type,
-        sizeBytes: file.size,
-      });
-      if (!urlRes.ok) {
-        toast.error(urlRes.message ?? 'No se pudo iniciar el upload');
-        return null;
-      }
-      const putRes = await fetch(urlRes.data.signedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
-      if (!putRes.ok) {
-        toast.error(`Subida falló (${putRes.status})`);
-        return null;
-      }
-      const created = await createMediaReferenceAction({
-        storagePath: urlRes.data.path,
-        type: 'image',
-        name: file.name,
-        mimeType: file.type,
-        sizeBytes: file.size,
-      });
-      if (!created.ok) {
-        toast.error(created.message ?? 'No se pudo registrar la referencia');
-        return null;
-      }
-      const previewUrl = URL.createObjectURL(file);
-      return {
-        id: created.data.id,
-        storagePath: urlRes.data.path,
-        previewUrl,
-        filename: file.name,
-      };
+      return res.ref;
     },
     [],
   );
