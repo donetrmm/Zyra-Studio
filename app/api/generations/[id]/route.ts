@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireWorkspace } from '@/lib/auth/dal';
+import { getApiAuthContext } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { publicThumbnailUrl, signedOutputUrl } from '@/lib/supabase/storage';
 
@@ -8,7 +8,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { workspace } = await requireWorkspace();
+
+  // Variante JSON de requireWorkspace: nada de redirects HTML — los clientes
+  // que llegan acá (LibraryView.handleDownload, ImageGenerator.fetchGenerationDetail)
+  // hacen res.json() y un 307 a /login los rompería.
+  const auth = await getApiAuthContext();
+  if (!auth.ok) {
+    const status = auth.error === 'unauthenticated' ? 401 : 403;
+    return NextResponse.json({ error: auth.error }, { status });
+  }
+  const { workspace } = auth.ctx;
 
   const supabase = await createClient();
   const { data, error } = await supabase

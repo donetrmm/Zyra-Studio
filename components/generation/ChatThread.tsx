@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import {
   Download,
   Loader2,
@@ -66,8 +67,12 @@ export function ChatThread({
   }
 
   function handleQuick(text: string) {
-    setPrompt(text);
-    queueMicrotask(send);
+    // flushSync fuerza que el setState del prompt (que vive en el parent) se
+    // committee antes de seguir, así send() → onGenerate() del parent lee el
+    // prompt actualizado en su buildInput. Sin esto, queueMicrotask corría
+    // antes del flush de React y se enviaba el prompt anterior.
+    flushSync(() => setPrompt(text));
+    send();
   }
 
   return (

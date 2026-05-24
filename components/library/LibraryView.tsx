@@ -119,10 +119,26 @@ type Session = {
 };
 
 function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
+  // Para cadenas conversacionales A→B→C→D, el bucket es la RAÍZ del hilo (A),
+  // no el parent inmediato. Iteramos hacia atrás hasta encontrar un item sin
+  // parent (o uno cuyo parent no esté en la lista visible). El guard `visited`
+  // evita loops en caso de datos corruptos con ciclos.
+  const byId = new Map(gens.map((g) => [g.id, g]));
+  function rootOf(g: LibraryGeneration): string {
+    let cur = g;
+    const visited = new Set<string>([cur.id]);
+    while (cur.parentGenerationId) {
+      const parent = byId.get(cur.parentGenerationId);
+      if (!parent || visited.has(parent.id)) break;
+      visited.add(parent.id);
+      cur = parent;
+    }
+    return cur.id;
+  }
+
   const map = new Map<string, LibraryGeneration[]>();
-  // Items con parent → bucket del parent. Sin parent → bucket propio.
   for (const g of gens) {
-    const key = g.parentGenerationId ?? g.id;
+    const key = rootOf(g);
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(g);
   }

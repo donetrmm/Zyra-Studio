@@ -34,14 +34,17 @@ const PollResponseSchema = z.object({
 const POLL_INTERVAL_MS = 500;
 const POLL_TIMEOUT_MS = 30_000;
 
-// FLUX 2 Pro se comporta como editor: si el prompt no menciona "image 1" / "imagen"
-// / "referencia" / "ref", trata las refs como contexto opcional y se va a
-// text-to-image. Anteponemos una directiva en inglés (el modelo es multilingüe pero
-// responde mejor a instrucciones operativas en EN) solo cuando detectamos que el
-// usuario no lo nombró ya. Mantener corto: el prompt original sigue siendo el
-// "cuerpo" de la instrucción.
-const REF_MENTION_RE =
-  /\b(image|imagen|images|im[áa]genes|reference|referencia|ref|photo|foto|picture|retrato|portrait)\b/i;
+// FLUX 2 Pro se comporta como editor: si el prompt no llama explícitamente a
+// las refs ("image 1", "imagen 2", "ref 3"), trata las refs como contexto
+// opcional y se va a text-to-image. Anteponemos una directiva en inglés (el
+// modelo es multilingüe pero responde mejor a instrucciones operativas en EN)
+// cuando el usuario no nombró las refs por número.
+//
+// CRÍTICO: este regex DEBE ser estricto. Una versión anterior incluía palabras
+// sueltas como "foto", "imagen", "photo", "picture", "retrato", "portrait",
+// que matcheaban prompts naturales en español como "una foto de mi gato" y
+// suprimían la directiva — FLUX entonces ignoraba las refs silenciosamente.
+const REF_MENTION_RE = /\b(image|imagen|ref)\s*\d+/i;
 
 const PHOTOREAL_DIRECTIVE =
   'Photoreal cinematic photography, sharp focus, natural lighting, fine micro-details, professional camera, accurate skin tones.';

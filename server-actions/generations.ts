@@ -15,8 +15,8 @@ import {
 import { loadPricing } from '@/lib/credits/pricing';
 import { estimateCredits } from '@/lib/credits/estimator';
 import {
-  confirmCredits,
-  refundCredits,
+  completeGeneration,
+  failGeneration,
   reserveCredits,
 } from '@/lib/credits/operations';
 import {
@@ -200,17 +200,20 @@ export async function submitGenerationAction(
   }
   const generationId = inserted.id as string;
 
-  // Reservar créditos (atómico, security definer)
-  const reserved = await reserveCredits(user.id, cost, generationId);
-  if (!reserved) {
-    // borrar la fila ya que no hay reserva
-    const admin = createAdminClient();
-    await admin.from('generations').delete().eq('id', generationId);
-    return { ok: false, error: 'insufficient_credits' };
-  }
-
+  // A partir de aquí TODO va dentro del try: si reserveCredits o cualquier paso
+  // posterior lanza, el catch limpia la fila huérfana via failGeneration.
+  let reserved = false;
   const startedAt = Date.now();
   try {
+    // Reservar créditos (atómico, security definer)
+    reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      // borrar la fila ya que no hay reserva
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      return { ok: false, error: 'insufficient_credits' };
+    }
+
     const references = await loadReferences(workspace.id, data.references);
 
     // Conversational: traer el output + prompt del parent para inyectarlos como
@@ -229,7 +232,7 @@ export async function submitGenerationAction(
     ) {
       const { data: parent } = await supabase
         .from('generations')
-        .select('output_url, workspace_id, status, prompt, provider_payload')
+        .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
         .eq('id', data.parentGenerationId)
         .single();
       if (
@@ -242,11 +245,17 @@ export async function submitGenerationAction(
         const payload = (parent.provider_payload ?? {}) as {
           thought_signature?: string;
         };
+        // El thought_signature solo es válido dentro del MISMO modelo Gemini.
+        // Si el usuario cambió de Pro a Flash (o viceversa) en medio del hilo,
+        // reusar la sig produce 400 'Image part is missing a thought_signature'.
+        // En ese caso, omitimos la sig — nano-banana.ts cae a su fallback
+        // single-turn que adjunta la imagen previa como ref normal.
+        const modelMatches = parent.model_id === data.model;
         previousTurn = {
           prompt: parent.prompt ?? '',
           imageBuffer: buffer,
           mimeType,
-          thoughtSignature: payload.thought_signature,
+          thoughtSignature: modelMatches ? payload.thought_signature : undefined,
         };
       }
     }
@@ -287,48 +296,49 @@ export async function submitGenerationAction(
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
-    await confirmCredits(user.id, cost, generationId);
-
-    const admin = createAdminClient();
     const providerPayload: Record<string, unknown> = {};
     if (result.thoughtSignature) {
       providerPayload.thought_signature = result.thoughtSignature;
     }
-    const { error: updateErr } = await admin
-      .from('generations')
-      .update({
-        status: 'done',
-        output_url: outputPath,
-        thumbnail_url: thumbPath,
-        credits_charged: cost,
-        processing_ms: processingMs,
-        completed_at: new Date().toISOString(),
-        file_size_bytes: result.buffer.byteLength,
-        provider_payload:
-          Object.keys(providerPayload).length > 0 ? providerPayload : null,
-      })
-      .eq('id', generationId);
-    if (updateErr) {
-      // No revertimos: la imagen ya subió. Pero log.
-      console.error('generations update failed', updateErr.message);
-    }
+
+    // Atómico: confirma el cargo + marca status='done' + escribe URLs en una
+    // sola tx server-side. Si esto falla, el catch hace failGeneration que
+    // refundea (idempotentemente — si llegó a confirmar parcialmente, no
+    // double-refunda).
+    await completeGeneration({
+      userId: user.id,
+      generationId,
+      cost,
+      outputUrl: outputPath,
+      thumbnailUrl: thumbPath,
+      processingMs,
+      fileSizeBytes: result.buffer.byteLength,
+      providerPayload:
+        Object.keys(providerPayload).length > 0 ? providerPayload : null,
+    });
 
     revalidatePath('/app/library');
     revalidatePath('/app/create/image');
     return { ok: true, data: { generationId } };
   } catch (err) {
-    await refundCredits(user.id, cost, generationId).catch(() => {});
-    const admin = createAdminClient();
     const errMsg =
       err instanceof ProviderError ? err.message : (err as Error)?.message ?? 'unknown';
-    await admin
-      .from('generations')
-      .update({
-        status: 'failed',
-        error_message: errMsg,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', generationId);
+    // failGeneration es idempotente y solo refunda si NO fue confirmada.
+    // Si reserveCredits falló antes de reservar (reserved=false), pasamos
+    // cost=0 para que el RPC no intente sumar al balance.
+    const refundAmount = reserved ? cost : 0;
+    try {
+      await failGeneration(user.id, generationId, refundAmount, errMsg);
+    } catch (failErr) {
+      // Loggear pero no propagar — el usuario ya recibe error del provider.
+      console.error('[fail_generation]', {
+        userId: user.id,
+        generationId,
+        cost: refundAmount,
+        originalError: errMsg,
+        failError: (failErr as Error)?.message,
+      });
+    }
     if (err instanceof ProviderError && err.code === 'safety') {
       return { ok: false, error: 'safety', message: errMsg };
     }
