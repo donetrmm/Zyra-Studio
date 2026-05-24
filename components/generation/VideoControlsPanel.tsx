@@ -2,17 +2,31 @@
 
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { KLING_MODELS } from '@/lib/schemas/video';
+
+export type ModelKey =
+  | 'fal-ai/kling-video/v2.6/standard/text-to-video'
+  | 'fal-ai/kling-video/v2.6/pro/text-to-video'
+  | 'fal-ai/kling-video/v2.6/standard/image-to-video'
+  | 'veo-3.1-fast-generate-preview'
+  | 'veo-3.1-generate-preview'
+  | 'veo-3.1-lite-generate-preview';
 
 export type VideoControlsProps = {
   prompt: string;
   setPrompt: (v: string) => void;
   negativePrompt: string;
   setNegativePrompt: (v: string) => void;
-  model: (typeof KLING_MODELS)[number];
-  setModel: (v: (typeof KLING_MODELS)[number]) => void;
+  model: ModelKey;
+  setModel: (v: ModelKey) => void;
+  // Kling
   duration: 5 | 10;
   setDuration: (v: 5 | 10) => void;
+  // Veo
+  veoDuration: 4 | 6 | 8;
+  setVeoDuration: (v: 4 | 6 | 8) => void;
+  veoResolution: '720p' | '1080p';
+  setVeoResolution: (v: '720p' | '1080p') => void;
+  // Common
   aspectRatio: '16:9' | '9:16' | '1:1';
   setAspectRatio: (v: '16:9' | '9:16' | '1:1') => void;
   cost: number;
@@ -23,6 +37,8 @@ export type VideoControlsProps = {
 };
 
 export function VideoControlsPanel(props: VideoControlsProps) {
+  const isVeo = props.model.startsWith('veo-');
+
   return (
     <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 p-5">
       <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
@@ -34,39 +50,93 @@ export function VideoControlsPanel(props: VideoControlsProps) {
       </label>
       <select
         value={props.model}
-        onChange={(e) => props.setModel(e.target.value as (typeof KLING_MODELS)[number])}
+        onChange={(e) => props.setModel(e.target.value as ModelKey)}
         className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
       >
-        <option value="fal-ai/kling-video/v2.6/standard/text-to-video">Kling 2.6 Standard</option>
-        <option value="fal-ai/kling-video/v2.6/pro/text-to-video">Kling 2.6 Pro</option>
+        <optgroup label="Kling (rápido)">
+          <option value="fal-ai/kling-video/v2.6/standard/text-to-video">Kling 2.6 Standard</option>
+          <option value="fal-ai/kling-video/v2.6/pro/text-to-video">Kling 2.6 Pro</option>
+        </optgroup>
+        <optgroup label="Veo 3.1 (premium)">
+          <option value="veo-3.1-fast-generate-preview">Veo Fast</option>
+          <option value="veo-3.1-generate-preview">Veo Standard</option>
+          <option value="veo-3.1-lite-generate-preview">Veo Lite</option>
+        </optgroup>
       </select>
 
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Duración
-      </label>
-      <div className="mt-1.5 flex gap-2">
-        {[5, 10].map((d) => (
-          <button
-            key={d}
-            type="button"
-            onClick={() => props.setDuration(d as 5 | 10)}
-            className={cn(
-              'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
-              props.duration === d
-                ? 'border-primary bg-primary/10 text-foreground'
-                : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-            )}
-          >
-            {d}s
-          </button>
-        ))}
-      </div>
+      {isVeo ? (
+        <>
+          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Duración
+          </label>
+          <div className="mt-1.5 flex gap-2">
+            {([4, 6, 8] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => props.setVeoDuration(d)}
+                className={cn(
+                  'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
+                  props.veoDuration === d
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                )}
+              >
+                {d}s
+              </button>
+            ))}
+          </div>
+          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Resolución
+          </label>
+          <div className="mt-1.5 flex gap-2">
+            {(['720p', '1080p'] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => props.setVeoResolution(r)}
+                className={cn(
+                  'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
+                  props.veoResolution === r
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                )}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Duración
+          </label>
+          <div className="mt-1.5 flex gap-2">
+            {([5, 10] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => props.setDuration(d)}
+                className={cn(
+                  'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
+                  props.duration === d
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                )}
+              >
+                {d}s
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Aspect ratio
       </label>
       <div className="mt-1.5 flex gap-2">
-        {(['16:9', '9:16', '1:1'] as const).map((r) => (
+        {(isVeo ? (['16:9', '9:16'] as const) : (['16:9', '9:16', '1:1'] as const)).map((r) => (
           <button
             key={r}
             type="button"

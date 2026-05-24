@@ -6,20 +6,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
-import { KLING_MODELS } from '@/lib/schemas/video';
-import { VideoControlsPanel } from './VideoControlsPanel';
+import { KLING_MODELS, VEO_MODELS } from '@/lib/schemas/video';
+import { VideoControlsPanel, type ModelKey } from './VideoControlsPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
 
 function calcCost(
   pricing: PricingRow[],
-  model: (typeof KLING_MODELS)[number],
-  duration: 5 | 10,
+  model: ModelKey,
+  durationSeconds: number,
 ): number {
+  if (model.startsWith('veo-')) {
+    const row = pricing.find(
+      (p) => p.provider === 'veo' && p.model_id === model && p.variant === '1080p',
+    );
+    return row ? durationSeconds * Number(row.credits_cost) : 0;
+  }
+  // Kling
   const isPro = model.includes('/pro/');
   let variant: string;
   if (isPro) variant = 'pro';
-  else variant = duration === 10 ? 'long' : 'standard';
+  else variant = durationSeconds === 10 ? 'long' : 'standard';
   const row = pricing.find(
     (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
   );
@@ -32,12 +39,14 @@ export function VideoGenerator(props: {
   pricing: PricingRow[];
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
-  const [model, setModel] = useState<(typeof KLING_MODELS)[number]>(
+  const [model, setModel] = useState<ModelKey>(
     'fal-ai/kling-video/v2.6/standard/text-to-video',
   );
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [duration, setDuration] = useState<5 | 10>(5);
+  const [veoDuration, setVeoDuration] = useState<4 | 6 | 8>(8);
+  const [veoResolution, setVeoResolution] = useState<'720p' | '1080p'>('1080p');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -46,24 +55,36 @@ export function VideoGenerator(props: {
 
   const live = useGenerationStatus(activeId);
 
-  const cost = useMemo(
-    () => calcCost(props.pricing, model, duration),
-    [props.pricing, model, duration],
-  );
+  const cost = useMemo(() => {
+    const dur = model.startsWith('veo-') ? veoDuration : duration;
+    return calcCost(props.pricing, model, dur);
+  }, [props.pricing, model, duration, veoDuration]);
   const canGenerate = prompt.trim().length > 0 && cost > 0 && cost <= balance && !pending;
 
   function handleGenerate() {
     if (!canGenerate) return;
     startTransition(async () => {
-      const res = await submitVideoGenerationAction({
-        kind: 'kling',
-        model,
-        prompt,
-        negativePrompt: negativePrompt || undefined,
-        aspectRatio,
-        duration,
-        cfgScale: 0.5,
-      });
+      const input = model.startsWith('veo-')
+        ? {
+            kind: 'veo' as const,
+            model: model as (typeof VEO_MODELS)[number],
+            prompt,
+            negativePrompt: negativePrompt || undefined,
+            // Veo no soporta 1:1; mapeamos defensivamente al fallback 16:9.
+            aspectRatio: (aspectRatio === '1:1' ? '16:9' : aspectRatio) as '16:9' | '9:16',
+            resolution: veoResolution,
+            durationSeconds: veoDuration,
+          }
+        : {
+            kind: 'kling' as const,
+            model: model as (typeof KLING_MODELS)[number],
+            prompt,
+            negativePrompt: negativePrompt || undefined,
+            aspectRatio,
+            duration,
+            cfgScale: 0.5,
+          };
+      const res = await submitVideoGenerationAction(input);
       if (!res.ok) {
         toast.error(
           res.error === 'insufficient_credits'
@@ -106,6 +127,10 @@ export function VideoGenerator(props: {
       setModel={setModel}
       duration={duration}
       setDuration={setDuration}
+      veoDuration={veoDuration}
+      setVeoDuration={setVeoDuration}
+      veoResolution={veoResolution}
+      setVeoResolution={setVeoResolution}
       aspectRatio={aspectRatio}
       setAspectRatio={setAspectRatio}
       cost={cost}

@@ -26,7 +26,11 @@ import {
   type SubmitGenerationInput,
 } from '@/lib/schemas/generations';
 import { SubmitTtsSchema, type SubmitTtsInput } from '@/lib/schemas/audio';
-import { SubmitKlingSchema, type SubmitKlingInput } from '@/lib/schemas/video';
+import {
+  SubmitVideoSchema,
+  type SubmitKlingInput,
+  type SubmitVeoInput,
+} from '@/lib/schemas/video';
 import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
@@ -471,38 +475,69 @@ function estimateKlingCost(
   return Number(row.credits_cost);
 }
 
+function estimateVeoCost(
+  pricing: Awaited<ReturnType<typeof loadPricing>>,
+  model: SubmitVeoInput['model'],
+  durationSeconds: 4 | 6 | 8,
+): number {
+  // Pricing seeded por segundo a 1080p; el costo total = segundos * credits_cost.
+  const row = pricing.find(
+    (p) => p.provider === 'veo' && p.model_id === model && p.variant === '1080p',
+  );
+  if (!row) throw new Error(`pricing no encontrado para Veo ${model}`);
+  return durationSeconds * Number(row.credits_cost);
+}
+
 export async function submitVideoGenerationAction(
   input: unknown,
 ): Promise<Result<{ generationId: string }>> {
-  // Por ahora solo Kling; Veo se agrega en Task 14
-  const parsed = SubmitKlingSchema.safeParse(input);
+  const parsed = SubmitVideoSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
   const data = parsed.data;
   const { user, workspace } = await requireWorkspace();
-
   const pricing = await loadPricing();
-  const cost = estimateKlingCost(pricing, data.model, data.duration);
+
+  let cost: number;
+  let provider: 'veo' | 'kling';
+  let modelId: string;
+  let insertParams: Record<string, unknown>;
+
+  if (data.kind === 'kling') {
+    provider = 'kling';
+    modelId = data.model;
+    cost = estimateKlingCost(pricing, data.model, data.duration);
+    insertParams = {
+      operation: data.imageUrl ? 'image2video' : 'text2video',
+      aspectRatio: data.aspectRatio,
+      duration: data.duration,
+      cfgScale: data.cfgScale,
+      imageUrl: data.imageUrl,
+      negativePrompt: data.negativePrompt,
+    };
+  } else {
+    provider = 'veo';
+    modelId = data.model;
+    cost = estimateVeoCost(pricing, data.model, data.durationSeconds);
+    insertParams = {
+      aspectRatio: data.aspectRatio,
+      resolution: data.resolution,
+      durationSeconds: data.durationSeconds,
+      negativePrompt: data.negativePrompt,
+      imageReference: data.imageReference,
+    };
+  }
 
   const supabase = await createClient();
-  const insertParams: Record<string, unknown> = {
-    operation: data.imageUrl ? 'image2video' : 'text2video',
-    aspectRatio: data.aspectRatio,
-    duration: data.duration,
-    cfgScale: data.cfgScale,
-    imageUrl: data.imageUrl,
-    negativePrompt: data.negativePrompt,
-  };
-
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
     .insert({
       user_id: user.id,
       workspace_id: workspace.id,
       type: 'video',
-      provider: 'kling',
-      model_id: data.model,
+      provider,
+      model_id: modelId,
       prompt: data.prompt,
       params: insertParams,
       reference_ids: [],
