@@ -1348,7 +1348,7 @@ El `maxDuration` se declara en el propio route como `export const maxDuration = 
 - Plan Free: 500 MB DB, 1 GB Storage, 50K MAU, 5 GB egress/mes, 200 conexiones realtime concurrentes
 - Buckets configurados con políticas RLS
 - Realtime habilitado para `generations`, `credit_balances` y `notifications` (las 3 tablas que la UI observa en vivo; ver sección 5 → "Realtime publication" para el SQL exacto)
-- **CORS de Storage:** cada bucket que reciba uploads directos del navegador (`references`, `voice-samples`, `avatars`) requiere allowed origins = dominio Vercel + `http://localhost:3000`. Configurar desde Dashboard → Storage → Settings.
+- **CORS de Storage:** Supabase actual maneja CORS automáticamente para signed upload URLs y reads autenticados — no hay configuración per-bucket. (La nota original del spec era de una versión anterior; ver `docs/setup/supabase.md` §6.)
 
 ### Estrategia para no reventar los límites free de Supabase
 
@@ -1583,7 +1583,7 @@ NEXT_PUBLIC_APP_URL=https://tu-proyecto.vercel.app
 - **Polling de FLUX usa el `polling_url` devuelto, nunca hardcodear.**
 - **Descarga de outputs Veo en máx 2 días, Kling 24h, FLUX 10 min** — el worker debe ser rápido.
 - **Thumbnail de video con ffmpeg usa `-ss 0 -frames:v 1`** (un solo frame) para no exceder los 60s de Vercel Hobby en videos 4K.
-- **Uploads directos a Supabase desde cliente** (límite 4.5 MB en API de Vercel; recordar configurar CORS del bucket).
+- **Uploads directos a Supabase desde cliente** para esquivar el límite de 4.5 MB del request body de Vercel. CORS lo maneja Supabase automáticamente; no requiere setup adicional.
 - **Polling siempre, sin webhooks** — menos puntos de fallo para la demo.
 - **`maxDuration = 60`** declarado en el propio `/api/jobs/process` (no duplicar en `vercel.json`).
 - **Truncar referencias al máximo del modelo destino** (Nano Banana Pro 11, FLUX 8, Veo 3) al inyectar personajes o brand kit.

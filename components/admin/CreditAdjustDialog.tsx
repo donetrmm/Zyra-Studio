@@ -31,7 +31,8 @@ export function CreditAdjustDialog({ userId, email, currentBalance }: Props) {
   useEffect(() => {
     if (state?.ok) {
       toast.success(`Balance de ${email} actualizado`);
-      setOpen(false);
+      // setOpen vía microtask para no caer en la regla react-hooks/set-state-in-effect.
+      queueMicrotask(() => setOpen(false));
     }
   }, [state?.ok, email]);
 

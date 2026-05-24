@@ -10,7 +10,7 @@ export function Sidebar() {
   return (
     <aside className="hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground lg:flex">
       <Brand />
-      <nav className="flex-1 overflow-y-auto px-3 pb-6">
+      <nav className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
         {APP_SIDEBAR.map((section, idx) => (
           <div key={idx} className="mt-6 first:mt-2">
             {section.title ? (

@@ -16,10 +16,8 @@ export function useAnimatedNumber(target: number, duration = 700): number {
 
   useEffect(() => {
     if (displayRef.current === target) return;
-
     if (prefersReducedMotion()) {
       displayRef.current = target;
-      setDisplay(target);
       return;
     }
 
@@ -41,6 +39,8 @@ export function useAnimatedNumber(target: number, duration = 700): number {
     return () => cancelAnimationFrame(raf);
   }, [target, duration]);
 
+  // Reduced motion: saltar directo al target sin animar (sin setState en effect).
+  if (prefersReducedMotion()) return target;
   return display;
 }
 
