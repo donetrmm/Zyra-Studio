@@ -80,8 +80,18 @@ export function useGenerationStatus(generationId: string | null): LiveGeneration
       channel.subscribe();
     });
 
+    // Re-aplicar token al rotarse (mismo patrón que use-live-balance).
+    // Sin esto, tras un TOKEN_REFRESHED el canal sigue con el JWT viejo y
+    // las policies de RLS empiezan a rechazar los UPDATEs.
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+      }
+    });
+
     return () => {
       active = false;
+      authSub.subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
   }, [generationId]);

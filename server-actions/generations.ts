@@ -410,30 +410,44 @@ export async function submitAudioGenerationAction(
   }
   const generationId = inserted.id as string;
 
-  // Reservar créditos
-  const reserved = await reserveCredits(user.id, cost, generationId);
-  if (!reserved) {
-    const admin = createAdminClient();
-    await admin.from('generations').delete().eq('id', generationId);
-    return { ok: false, error: 'insufficient_credits' };
-  }
-
-  // Encolar en QStash
+  // Mismo patrón que submitGenerationAction (imagen): reserveCredits + enqueue
+  // dentro del try. Si reserveCredits o enqueueJob throwean, el catch limpia
+  // vía failGeneration (idempotente, refund condicional).
+  let reserved = false;
   try {
+    reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      // No hubo reserva: borrar la fila (no hay nada que auditar).
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      return { ok: false, error: 'insufficient_credits' };
+    }
+
     await enqueueJob({ generationId, action: 'submit' });
+
+    revalidatePath('/app/library');
+    return { ok: true, data: { generationId } };
   } catch (err) {
-    // Si encolar falla, refund + delete
-    await failGeneration(user.id, generationId, cost, 'queue_failed').catch(() => {});
-    const admin = createAdminClient();
-    await admin.from('generations').delete().eq('id', generationId);
-    const message = (err as Error)?.message ?? 'queue error';
+    const message = (err as Error)?.message ?? 'unknown';
+    // failGeneration es idempotente. Si reserved=false (reserveCredits throw),
+    // pasamos refund=0 para no sumar al balance algo que nunca se restó.
+    const refundAmount = reserved ? cost : 0;
+    try {
+      await failGeneration(user.id, generationId, refundAmount, message);
+    } catch (failErr) {
+      console.error('[fail_generation:audio]', {
+        userId: user.id,
+        generationId,
+        cost: refundAmount,
+        originalError: message,
+        failError: (failErr as Error)?.message,
+      });
+    }
+    // Mantenemos la fila como 'failed' para preservar el audit trail.
     return {
       ok: false,
       error: message.includes('429') ? 'provider_error' : 'internal_error',
       message,
     };
   }
-
-  revalidatePath('/app/library');
-  return { ok: true, data: { generationId } };
 }

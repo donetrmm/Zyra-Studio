@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { submitAudioGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
 import { AudioControlsPanel, OFFICIAL_VOICES } from './AudioControlsPanel';
@@ -85,30 +86,58 @@ export function AudioGenerator(props: {
     };
   }, [liveStatus, activeId]);
 
+  const controls = (
+    <AudioControlsPanel
+      text={text}
+      setText={setText}
+      voiceId={voiceId}
+      setVoiceId={setVoiceId}
+      modelId={modelId}
+      setModelId={setModelId}
+      languageCode={languageCode}
+      setLanguageCode={setLanguageCode}
+      stability={stability}
+      setStability={setStability}
+      similarityBoost={similarityBoost}
+      setSimilarityBoost={setSimilarityBoost}
+      style={style}
+      setStyle={setStyle}
+      cost={cost}
+      balance={balance}
+      pending={pending}
+      canGenerate={canGenerate}
+      onGenerate={handleGenerate}
+    />
+  );
+
+  const preview = <AudioPreview generation={live} resolvedOutputUrl={resolvedOutputUrl} />;
+
   return (
-    <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8 lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px_1fr]">
-      <AudioControlsPanel
-        text={text}
-        setText={setText}
-        voiceId={voiceId}
-        setVoiceId={setVoiceId}
-        modelId={modelId}
-        setModelId={setModelId}
-        languageCode={languageCode}
-        setLanguageCode={setLanguageCode}
-        stability={stability}
-        setStability={setStability}
-        similarityBoost={similarityBoost}
-        setSimilarityBoost={setSimilarityBoost}
-        style={style}
-        setStyle={setStyle}
-        cost={cost}
-        balance={balance}
-        pending={pending}
-        canGenerate={canGenerate}
-        onGenerate={handleGenerate}
-      />
-      <AudioPreview generation={live} resolvedOutputUrl={resolvedOutputUrl} />
+    <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
+      {/* Desktop: 2 columnas flush bajo el topbar global. */}
+      <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px_1fr]">
+        <div className="min-h-0 overflow-hidden">{controls}</div>
+        <div className="min-h-0 overflow-hidden">{preview}</div>
+      </div>
+
+      {/* Mobile / tablet: tabs. */}
+      <div className="lg:hidden">
+        <Tabs
+          defaultValue="controls"
+          className="flex h-[calc(100dvh-7.5rem)] flex-col"
+        >
+          <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">
+            <TabsTrigger value="controls">Controles</TabsTrigger>
+            <TabsTrigger value="preview">Vista previa</TabsTrigger>
+          </TabsList>
+          <TabsContent value="controls" className="mt-3 flex-1 overflow-hidden">
+            <div className="h-full">{controls}</div>
+          </TabsContent>
+          <TabsContent value="preview" className="mt-3 flex-1 overflow-hidden">
+            <div className="h-full">{preview}</div>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
