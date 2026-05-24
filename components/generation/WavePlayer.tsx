@@ -6,42 +6,6 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { downloadGenerationImage } from '@/lib/media-references/download-client';
 
-// Precomputed "speech envelope": 512 samples simulating energy over time
-// (sentence arcs + syllable oscillation + breath pauses). Same time → same
-// value, so scrubbing back returns the exact same waveform shape.
-const N_ENV = 512;
-const ENV = new Float32Array(N_ENV);
-(function buildEnvelope() {
-  let s = 9173;
-  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-  for (let i = 0; i < N_ENV; i++) {
-    const t = (i / (N_ENV - 1)) * 32;
-    const sentence = 0.5 + 0.45 * Math.sin(t * 0.42 - 0.7) + 0.20 * Math.sin(t * 0.18 + 1.4);
-    const syll = Math.abs(Math.sin(t * 2.6 + 0.6 * Math.sin(t * 0.5)));
-    const breathFn = (ct: number, span: number) => {
-      const d = Math.abs(t - ct);
-      return d < span ? Math.cos((d / span) * Math.PI / 2) : 0;
-    };
-    const breath = 1 - 0.85 * Math.max(
-      breathFn(6.5, 0.55), breathFn(14.0, 0.65),
-      breathFn(21.8, 0.50), breathFn(28.2, 0.45),
-    );
-    const tail = t > 31.2 ? Math.max(0.05, 1 - (t - 31.2) / 0.8) : 1;
-    const noise = 0.92 + 0.16 * rnd();
-    ENV[i] = Math.max(0.04, Math.min(1, sentence * (0.55 + 0.45 * syll) * breath * tail * noise));
-  }
-})();
-
-function envAt(time: number, duration: number): number {
-  if (duration <= 0) return 0.04;
-  const u = Math.max(0, Math.min(1, time / duration));
-  const idx = u * (N_ENV - 1);
-  const i0 = Math.floor(idx);
-  const i1 = Math.min(N_ENV - 1, i0 + 1);
-  const f = idx - i0;
-  return ENV[i0] * (1 - f) + ENV[i1] * f;
-}
-
 function fmt(s: number): string {
   s = Math.max(0, Math.floor(s));
   const m = Math.floor(s / 60);
@@ -96,6 +60,44 @@ export function WavePlayer({ src }: { src: string }) {
   const scrubBoostRef = useRef(0);
   const rafRef = useRef(0);
 
+  // Web Audio API: AnalyserNode para leer amplitud real del audio en cada frame
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const timeDomainRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+
+  function ensureAnalyser() {
+    if (analyserRef.current) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    const source = ctx.createMediaElementSource(audio);
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+    audioCtxRef.current = ctx;
+    analyserRef.current = analyser;
+    sourceRef.current = source;
+    timeDomainRef.current = new Uint8Array(analyser.fftSize);
+  }
+
+  // RMS de la señal de tiempo → amplitud normalizada 0..1
+  function getRealtimeAmplitude(): number {
+    const analyser = analyserRef.current;
+    const data = timeDomainRef.current;
+    if (!analyser || !data) return 0;
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    // Escalar a 0..1 con boost (RMS de voz ~0.05-0.3, queremos que llene)
+    return Math.min(1, rms * 4);
+  }
+
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -105,6 +107,11 @@ export function WavePlayer({ src }: { src: string }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      // AudioContext requiere user gesture para iniciar
+      ensureAnalyser();
+      if (audioCtxRef.current?.state === 'suspended') {
+        audioCtxRef.current.resume();
+      }
       audio.play().catch(() => {});
     } else {
       audio.pause();
@@ -166,7 +173,9 @@ export function WavePlayer({ src }: { src: string }) {
       const dur = audio.duration || 1;
       const isPlaying = !audio.paused && !audio.ended;
 
-      const target = (isPlaying ? envAt(pos, dur) : 0.04) + scrubBoostRef.current * 0.6;
+      // Amplitud real del audio via Web Audio AnalyserNode
+      const realAmp = isPlaying ? getRealtimeAmplitude() : 0;
+      const target = Math.max(0.04, realAmp) + scrubBoostRef.current * 0.6;
       const k = target > liveAmpRef.current ? 0.18 : 0.10;
       liveAmpRef.current += (target - liveAmpRef.current) * k;
       scrubBoostRef.current = Math.max(0, scrubBoostRef.current - dt * 2.4);
@@ -187,7 +196,10 @@ export function WavePlayer({ src }: { src: string }) {
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      audioCtxRef.current?.close().catch(() => {});
+    };
   }, []);
 
   // Sync React state from audio events
