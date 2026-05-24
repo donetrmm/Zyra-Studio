@@ -858,7 +858,7 @@ function DetailAside({
                     src={outputUrl}
                     crossOrigin="anonymous"
                     className="w-full"
-                    style={{ height: 36 }}
+                    style={{ height: 36, colorScheme: 'dark' }}
                   />
                 </div>
               </div>
@@ -930,7 +930,7 @@ function DetailAside({
           </Link>
         )}
 
-        <div className="mb-3.5 grid grid-cols-2 gap-1.5">
+        <div className={cn('mb-3.5 grid gap-1.5', generation.type === 'audio' ? 'grid-cols-1' : 'grid-cols-2')}>
           <button
             type="button"
             onClick={handleDownload}
@@ -944,19 +944,21 @@ function DetailAside({
             )}{' '}
             Descargar
           </button>
-          <button
-            type="button"
-            onClick={handleUseAsRef}
-            disabled={!generation.hasOutput || addingRef}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {addingRef ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="size-3.5" aria-hidden />
-            )}{' '}
-            Usar como ref.
-          </button>
+          {generation.type !== 'audio' && (
+            <button
+              type="button"
+              onClick={handleUseAsRef}
+              disabled={!generation.hasOutput || addingRef}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {addingRef ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="size-3.5" aria-hidden />
+              )}{' '}
+              Usar como ref.
+            </button>
+          )}
         </div>
 
         <DetailRow label="Prompt">
