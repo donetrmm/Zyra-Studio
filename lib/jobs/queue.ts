@@ -22,11 +22,12 @@ export type EnqueueJobInput = {
 // Encola un mensaje POST al worker /api/jobs/process. El worker se re-encola
 // a sí mismo con `delaySeconds` cuando necesita polling adicional.
 //
-// PUBLIC_URL DEBE estar configurada (la URL externa del deploy o ngrok local).
-// QStash necesita un endpoint HTTPS accesible desde su backend.
+// NEXT_PUBLIC_APP_URL DEBE estar configurada (la URL externa del deploy).
+// QStash necesita un endpoint HTTPS accesible desde su backend — para dev
+// local usa ngrok y override la var de entorno con la URL del túnel.
 export async function enqueueJob(input: EnqueueJobInput): Promise<{ messageId: string }> {
-  const baseUrl = process.env.PUBLIC_URL;
-  if (!baseUrl) throw new Error('PUBLIC_URL no configurada');
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!baseUrl) throw new Error('NEXT_PUBLIC_APP_URL no configurada');
   const client = getClient();
   const res = await client.publishJSON({
     url: `${baseUrl}/api/jobs/process`,
