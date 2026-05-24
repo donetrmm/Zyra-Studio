@@ -25,9 +25,11 @@ import {
   SubmitGenerationSchema,
   type SubmitGenerationInput,
 } from '@/lib/schemas/generations';
+import { SubmitTtsSchema, type SubmitTtsInput } from '@/lib/schemas/audio';
 import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
+import { enqueueJob } from '@/lib/jobs/queue';
 
 type ActionError =
   | 'validation_error'
@@ -344,4 +346,94 @@ export async function submitGenerationAction(
     }
     return { ok: false, error: 'provider_error', message: errMsg };
   }
+}
+
+function estimateTtsCost(
+  pricing: Awaited<ReturnType<typeof loadPricing>>,
+  modelId: SubmitTtsInput['modelId'],
+  chars: number,
+): number {
+  const row = pricing.find(
+    (p) => p.provider === 'elevenlabs' && p.model_id === modelId && p.variant === 'default',
+  );
+  if (!row) throw new Error(`pricing no encontrado para ${modelId}`);
+  // unit_size = 1000 chars; cost = ceil(chars / 1000) * credits_cost
+  const units = Math.max(1, Math.ceil(chars / row.unit_size!));
+  return units * Number(row.credits_cost);
+}
+
+export async function submitAudioGenerationAction(
+  input: unknown,
+): Promise<Result<{ generationId: string }>> {
+  const parsed = SubmitTtsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: parsed.error.message };
+  }
+  const data = parsed.data;
+  const { user, workspace } = await requireWorkspace();
+
+  const pricing = await loadPricing();
+  const cost = estimateTtsCost(pricing, data.modelId, data.text.length);
+
+  const supabase = await createClient();
+  const insertParams = {
+    voiceId: data.voiceId,
+    voiceSettings: data.voiceSettings,
+    languageCode: data.languageCode,
+    chars: data.text.length,
+  };
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('generations')
+    .insert({
+      user_id: user.id,
+      workspace_id: workspace.id,
+      type: 'audio',
+      provider: 'elevenlabs',
+      model_id: data.modelId,
+      prompt: data.text,
+      params: insertParams,
+      reference_ids: [],
+      status: 'queued',
+      credits_estimated: cost,
+      timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (insertErr || !inserted) {
+    return {
+      ok: false,
+      error: 'internal_error',
+      message: insertErr?.message ?? 'no row',
+    };
+  }
+  const generationId = inserted.id as string;
+
+  // Reservar créditos
+  const reserved = await reserveCredits(user.id, cost, generationId);
+  if (!reserved) {
+    const admin = createAdminClient();
+    await admin.from('generations').delete().eq('id', generationId);
+    return { ok: false, error: 'insufficient_credits' };
+  }
+
+  // Encolar en QStash
+  try {
+    await enqueueJob({ generationId, action: 'submit' });
+  } catch (err) {
+    // Si encolar falla, refund + delete
+    await failGeneration(user.id, generationId, cost, 'queue_failed').catch(() => {});
+    const admin = createAdminClient();
+    await admin.from('generations').delete().eq('id', generationId);
+    const message = (err as Error)?.message ?? 'queue error';
+    return {
+      ok: false,
+      error: message.includes('429') ? 'provider_error' : 'internal_error',
+      message,
+    };
+  }
+
+  revalidatePath('/app/library');
+  return { ok: true, data: { generationId } };
 }
