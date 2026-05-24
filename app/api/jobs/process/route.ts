@@ -78,24 +78,26 @@ export async function POST(req: Request) {
     }
     const reason = generation.cancel_requested ? 'canceled by user' : 'timeout';
     try {
+      // fail_generation RPC es idempotente: marca status='failed' +
+      // error_message + refund condicional. Si necesitamos diferenciar
+      // 'canceled' vs 'failed' lo hacemos en un segundo UPDATE acotado por
+      // WHERE status='failed' (solo flippa lo que el RPC recién dejó).
       await failGeneration(
         generation.user_id,
         generation.id,
         generation.credits_estimated,
         reason,
       );
+      if (generation.cancel_requested) {
+        await admin
+          .from('generations')
+          .update({ status: 'canceled' })
+          .eq('id', generation.id)
+          .eq('status', 'failed'); // solo flippa si fail_generation lo dejó así
+      }
     } catch (err) {
       console.error('[worker] fail_generation falló', { generationId, err });
     }
-    // Update final status explícito
-    await admin
-      .from('generations')
-      .update({
-        status: generation.cancel_requested ? 'canceled' : 'failed',
-        error_message: reason,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', generation.id);
     return NextResponse.json({ ok: true, ack: reason });
   }
 
@@ -104,7 +106,10 @@ export async function POST(req: Request) {
 
   // 7. Procesar resultado
   if (result.kind === 'continue') {
-    // Re-encolar para el próximo poll
+    // Re-encolar para el próximo poll. WHERE status IN ('queued','processing')
+    // garantiza que un duplicado tardío de QStash no rebaje un terminal
+    // ('done' / 'failed' / 'canceled'). Si el UPDATE afecta 0 rows, otra
+    // invocación ganó la carrera — no re-encolamos y ack.
     const update: Record<string, unknown> = {
       status: 'processing',
       poll_attempts: generation.poll_attempts + 1,
@@ -118,7 +123,16 @@ export async function POST(req: Request) {
         ...result.providerPayload,
       };
     }
-    await admin.from('generations').update(update).eq('id', generation.id);
+    const { count } = await admin
+      .from('generations')
+      .update(update, { count: 'exact' })
+      .eq('id', generation.id)
+      .in('status', ['queued', 'processing']);
+    if (count === 0) {
+      // Otra invocación llevó el job a terminal entre nuestro SELECT y UPDATE.
+      // No re-encolamos.
+      return NextResponse.json({ ok: true, ack: 'continue_lost_race' });
+    }
     await enqueueJob({
       generationId: generation.id,
       action: 'poll',
@@ -128,6 +142,8 @@ export async function POST(req: Request) {
   }
 
   if (result.kind === 'fail') {
+    // fail_generation RPC hace UPDATE de status='failed' + error_message +
+    // refund condicional (idempotente). No duplicamos el UPDATE.
     try {
       await failGeneration(
         generation.user_id,
@@ -138,14 +154,6 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error('[worker] fail_generation falló', { generationId, err });
     }
-    await admin
-      .from('generations')
-      .update({
-        status: 'failed',
-        error_message: result.message,
-        completed_at: new Date().toISOString(),
-      })
-      .eq('id', generation.id);
     return NextResponse.json({ ok: true, ack: 'failed' });
   }
 
