@@ -1,6 +1,8 @@
 import 'server-only';
 import sharp from 'sharp';
 import { revalidatePath } from 'next/cache';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import { spawn } from 'node:child_process';
 import { uploadOutput, uploadThumbnail } from '@/lib/supabase/storage';
 import { completeGeneration } from '@/lib/credits/operations';
 import type { GenerationRow } from './handlers/types';
@@ -23,7 +25,39 @@ async function makeImageThumbnail(buffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-// Para video, devuelve null por ahora (Task 8 agrega FFmpeg).
+async function makeVideoThumbnail(buffer: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn(
+      ffmpegInstaller.path,
+      [
+        '-loglevel', 'error',
+        '-i', 'pipe:0',
+        '-ss', '0',
+        '-frames:v', '1',
+        '-vf', 'scale=512:-1',
+        '-f', 'image2',
+        '-vcodec', 'mjpeg',
+        '-q:v', '4',
+        'pipe:1',
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+
+    const chunks: Buffer[] = [];
+    let errMsg = '';
+    ffmpeg.stdout.on('data', (c) => chunks.push(c));
+    ffmpeg.stderr.on('data', (c) => (errMsg += c.toString()));
+    ffmpeg.on('error', reject);
+    ffmpeg.on('close', (code) => {
+      if (code !== 0) reject(new Error(`ffmpeg exit ${code}: ${errMsg.slice(0, 300)}`));
+      else resolve(Buffer.concat(chunks));
+    });
+
+    ffmpeg.stdin.write(buffer);
+    ffmpeg.stdin.end();
+  });
+}
+
 // Audio siempre devuelve null (no hay thumbnail visual).
 async function makeThumbnail(
   type: GenerationRow['type'],
@@ -31,6 +65,15 @@ async function makeThumbnail(
   _mimeType: string,
 ): Promise<Buffer | null> {
   if (type === 'image') return makeImageThumbnail(buffer);
+  if (type === 'video') {
+    try {
+      return await makeVideoThumbnail(buffer);
+    } catch (err) {
+      // Si FFmpeg falla, seguimos sin thumbnail. La UI muestra placeholder.
+      console.error('[finalize] video thumbnail falló', err);
+      return null;
+    }
+  }
   return null;
 }
 
