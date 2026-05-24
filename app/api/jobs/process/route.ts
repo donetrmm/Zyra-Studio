@@ -7,6 +7,7 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
+import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
