@@ -176,14 +176,18 @@ export async function POST(req: Request) {
     // (la imagen/video ya fue generada y consumida del provider). El usuario
     // pagó por un output que no logramos servir. Operacionalmente: log + alert
     // manual; en una fase futura se podría reintentar el upload.
+    //
+    // WHERE status IN ('queued','processing'): si un duplicado de QStash ya
+    // ejecutó finalize con éxito y dejó status='done', NO degradar a 'failed'.
     await admin
       .from('generations')
       .update({
         status: 'failed',
-        error_message: `finalize failed: ${(err as Error).message}`,
+        error_message: `finalize failed: ${(err as Error)?.message ?? 'unknown'}`,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', generation.id);
+      .eq('id', generation.id)
+      .in('status', ['queued', 'processing']);
     return NextResponse.json({ ok: false, error: 'finalize failed' }, { status: 500 });
   }
 }
