@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration } from '@/lib/credits/operations';
+import { finalizeGeneration } from '@/lib/jobs/finalize';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 
 export const runtime = 'nodejs';
@@ -158,10 +159,31 @@ export async function POST(req: Request) {
   }
 
   // result.kind === 'finalize' — handler entregó el buffer
-  // El paso de upload + thumbnail + complete_generation se delega a finalize.ts
-  // que se implementa en Task 4.
-  return NextResponse.json(
-    { ok: false, error: 'finalize not implemented yet' },
-    { status: 501 },
-  );
+  const startedAt = generation.provider_payload?._started_at as number | undefined;
+  const processingMs = startedAt ? Date.now() - startedAt : 0;
+  try {
+    await finalizeGeneration({
+      gen: generation,
+      outputBuffer: result.outputBuffer,
+      mimeType: result.mimeType,
+      processingMs,
+      metadata: result.metadata,
+    });
+    return NextResponse.json({ ok: true, ack: 'finalized' });
+  } catch (err) {
+    console.error('[worker] finalize falló', { generationId, err });
+    // Si finalize falla, marcar la generación failed pero NO refundear el cost
+    // (la imagen/video ya fue generada y consumida del provider). El usuario
+    // pagó por un output que no logramos servir. Operacionalmente: log + alert
+    // manual; en una fase futura se podría reintentar el upload.
+    await admin
+      .from('generations')
+      .update({
+        status: 'failed',
+        error_message: `finalize failed: ${(err as Error).message}`,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', generation.id);
+    return NextResponse.json({ ok: false, error: 'finalize failed' }, { status: 500 });
+  }
 }
