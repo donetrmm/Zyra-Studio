@@ -220,7 +220,7 @@ export function LibraryView({
       />
 
       <div className="flex min-h-0 flex-1">
-        <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-6 pb-16 pt-1">
+        <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-4 pb-16 pt-1 sm:px-6">
           {tab === 'sessions' && (
             <SessionsTab sessions={sessions} onOpen={setActiveId} />
           )}
@@ -231,11 +231,18 @@ export function LibraryView({
         </div>
 
         {active && (
-          <DetailAside
-            key={active.id}
-            generation={active}
-            onClose={() => setActiveId(null)}
-          />
+          <>
+            {/* Overlay backdrop (mobile only) */}
+            <div
+              className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm lg:hidden"
+              onClick={() => setActiveId(null)}
+            />
+            <DetailAside
+              key={active.id}
+              generation={active}
+              onClose={() => setActiveId(null)}
+            />
+          </>
         )}
       </div>
     </div>
@@ -495,9 +502,9 @@ function SessionCard({
         className={cn(
           'grid gap-2 px-4 pb-4',
           items.length === 1
-            ? 'grid-cols-1'
+            ? 'grid-cols-2 sm:grid-cols-3'
             : items.length === 2
-              ? 'grid-cols-2'
+              ? 'grid-cols-2 sm:grid-cols-3'
               : items.length === 3
                 ? 'grid-cols-3'
                 : 'grid-cols-2 sm:grid-cols-4',
@@ -509,6 +516,7 @@ function SessionCard({
             gen={g}
             onClick={() => onOpen(g.id)}
             variantTag={items.length > 1 ? `v${i + 1}` : undefined}
+            compact
           />
         ))}
       </div>
@@ -520,16 +528,20 @@ function LibTile({
   gen,
   onClick,
   variantTag,
+  compact,
 }: {
   gen: LibraryGeneration;
   onClick: () => void;
   variantTag?: string;
+  compact?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [addingRef, startAddRef] = useTransition();
 
-  const aspect = gen.aspectRatio ?? '1:1';
+  // En modo compact (dentro de SessionCard) usamos aspect cuadrado para evitar
+  // que las cards se vuelvan enormes con aspect ratios como 16:9.
+  const aspect = compact ? '1:1' : (gen.aspectRatio ?? '1:1');
   const [w, h] = aspect.split(':').map(Number);
   const ratio = h > 0 ? w / h : 1;
 
@@ -541,23 +553,9 @@ function LibTile({
       const res = await fetch(`/api/generations/${gen.id}`, { cache: 'no-store' });
       const data = (await res.json()) as { outputUrl?: string };
       if (!data.outputUrl) throw new Error('sin output');
-      const imgRes = await fetch(data.outputUrl);
-      const blob = await imgRes.blob();
-      const ext = blob.type.includes('png')
-        ? 'png'
-        : blob.type.includes('webp')
-          ? 'webp'
-          : 'jpg';
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = `zyra-${gen.id.slice(0, 8)}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(objectUrl);
+      await downloadGenerationFile(data.outputUrl, `zyra-${gen.id.slice(0, 8)}`);
     } catch {
-      toast.error('No se pudo descargar la imagen.');
+      toast.error('No se pudo descargar.');
     } finally {
       setDownloading(false);
     }
@@ -798,7 +796,7 @@ function DetailAside({
   }
 
   return (
-    <aside className="zyra-fade-in flex w-full max-w-[360px] shrink-0 flex-col border-l border-border bg-card lg:w-[360px]">
+    <aside className="zyra-fade-in fixed inset-y-0 right-0 z-50 flex w-[min(360px,85vw)] shrink-0 flex-col border-l border-border bg-card shadow-[-8px_0_30px_-10px_rgba(0,0,0,0.5)] lg:static lg:z-auto lg:w-[360px] lg:shadow-none">
       <header className="flex h-11 items-center justify-between border-b border-border px-4">
         <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
           Detalle
