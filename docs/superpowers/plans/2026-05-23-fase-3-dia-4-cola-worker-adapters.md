@@ -166,9 +166,10 @@ insert into model_pricing (provider, model_id, variant, credits_cost, unit_size,
   ('veo',        'veo-3.1-fast-generate-preview',  '1080p',    150, 1,    'segundo'),
   ('veo',        'veo-3.1-generate-preview',       '1080p',    300, 1,    'segundo'),
   ('veo',        'veo-3.1-lite-generate-preview',  '1080p',     80, 1,    'segundo'),
-  ('kling',      'kling-v2.6-pro',                 'standard', 200, 5,    'video'),
-  ('kling',      'kling-v2.6-pro',                 'long',     400, 10,   'video'),
-  ('kling',      'kling-3-0-omni',                 'lip-sync', 500, 5,    'video'),
+  -- Kling via fal.ai (klingapi.com no disponible). Model IDs son los slugs de fal.ai.
+  ('kling',      'fal-ai/kling-video/v2.6/standard/text-to-video', 'standard', 200, 5,  'video'),
+  ('kling',      'fal-ai/kling-video/v2.6/standard/text-to-video', 'long',     400, 10, 'video'),
+  ('kling',      'fal-ai/kling-video/v2.6/pro/text-to-video',      'pro',      400, 5,  'video'),
   ('elevenlabs', 'eleven_multilingual_v2',         'default',   30, 1000, 'chars'),
   ('elevenlabs', 'eleven_flash_v2_5',              'default',   15, 1000, 'chars'),
   ('elevenlabs', 'eleven_v3',                      'default',   50, 1000, 'chars'),
@@ -1950,127 +1951,158 @@ git commit -m "feat(jobs): thumbnail de video via @ffmpeg-installer/ffmpeg"
 
 ---
 
-## Task 9: Kling provider (HTTP client)
+## Task 9: Kling provider via fal.ai (cliente SDK + queue API)
 
 **Files:**
 - Create: `lib/providers/kling.ts`
 - Create: `lib/providers/kling.test.ts`
+- Modify: `package.json` (add `@fal-ai/client`)
 
-**Reference:** `docs/modelos/02-kling-3.0.md` para endpoints y parámetros.
+**Reference:** `docs/modelos/02-kling-3.0.md` y https://fal.ai/models/fal-ai/kling-video.
 
-- [ ] **Step 1: Write failing tests for `kling.submitTask` payload shape**
+**Por qué fal.ai en vez de klingapi.com:** klingapi.com no permite signup directo. fal.ai es el wrapper recomendado en el doc, tiene SDK oficial JS, queue API que cabe perfecto en el patrón del worker (submit → status → result), y modelos Kling 2.6 standard/pro accesibles.
+
+**Diferencias vs klingapi.com:**
+- Auth: header `Authorization: Key <FAL_KEY>` (no Bearer)
+- Endpoint via SDK: `fal.queue.submit('fal-ai/kling-video/v2.6/standard/text-to-video', {input})`
+- Response: `{ video: { url, content_type, file_size } }`
+- No hay cancel remoto en queue API → handler no expone `cancel`
+- No hay modo `professional` como toggle: es un modelo separado (`pro/text-to-video`)
+- No hay `lip-sync` Omni en fal.ai (se mantiene fuera de scope Fase 3)
+
+- [ ] **Step 1: Install @fal-ai/client**
+
+Run: `pnpm add @fal-ai/client`
+Expected: installed, package.json updated.
+
+- [ ] **Step 2: Write failing tests for `kling.submitTask` payload shape**
 
 Create `lib/providers/kling.test.ts`:
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-describe('kling.submitTask', () => {
-  const originalFetch = global.fetch;
+// Mockeamos el módulo entero del SDK fal.ai
+vi.mock('@fal-ai/client', () => {
+  const queue = {
+    submit: vi.fn(),
+    status: vi.fn(),
+    result: vi.fn(),
+  };
+  const config = vi.fn();
+  return { fal: { config, queue }, queue };
+});
 
+describe('kling provider (via fal.ai)', () => {
   beforeEach(() => {
-    vi.stubEnv('KLING_API_KEY', 'fake-key');
+    vi.stubEnv('FAL_KEY', 'fake-fal-key');
   });
-
   afterEach(() => {
-    global.fetch = originalFetch;
     vi.unstubAllEnvs();
+    vi.clearAllMocks();
   });
 
-  it('text2video sends correct payload', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ task_id: 'task-123' }), { status: 200 }),
-    );
-    global.fetch = fetchSpy;
+  it('submitTask passes prompt/duration/aspect_ratio to fal.queue.submit', async () => {
+    const { fal } = await import('@fal-ai/client');
+    (fal.queue.submit as ReturnType<typeof vi.fn>).mockResolvedValue({
+      request_id: 'req-123',
+    });
 
     const { submitTask } = await import('./kling');
     const res = await submitTask({
       operation: 'text2video',
-      model: 'kling-v2.6-pro',
+      model: 'fal-ai/kling-video/v2.6/standard/text-to-video',
       prompt: 'a cat',
       duration: 5,
       aspectRatio: '16:9',
     });
 
-    expect(res.taskId).toBe('task-123');
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toContain('/v1/videos/text2video');
-    const body = JSON.parse((init as RequestInit).body as string);
-    expect(body).toMatchObject({
-      model: 'kling-v2.6-pro',
+    expect(res.taskId).toBe('req-123');
+    expect(fal.queue.submit).toHaveBeenCalledOnce();
+    const [modelSlug, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(modelSlug).toBe('fal-ai/kling-video/v2.6/standard/text-to-video');
+    expect(opts.input).toMatchObject({
       prompt: 'a cat',
-      duration: 5,
+      duration: '5',
       aspect_ratio: '16:9',
     });
   });
 
-  it('throws ProviderError on 401', async () => {
-    global.fetch = vi.fn().mockResolvedValue(new Response('unauthorized', { status: 401 }));
-    const { submitTask } = await import('./kling');
-    await expect(
-      submitTask({
-        operation: 'text2video',
-        model: 'kling-v2.6-pro',
-        prompt: 'a cat',
-        duration: 5,
-        aspectRatio: '16:9',
-      }),
-    ).rejects.toThrow(/Auth/);
+  it('pollTask maps fal status COMPLETED → completed with videoUrl', async () => {
+    const { fal } = await import('@fal-ai/client');
+    (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'COMPLETED' });
+    (fal.queue.result as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { video: { url: 'https://v3.fal.media/a.mp4', content_type: 'video/mp4' } },
+    });
+    const { pollTask } = await import('./kling');
+    const res = await pollTask(
+      'fal-ai/kling-video/v2.6/standard/text-to-video',
+      'req-123',
+    );
+    expect(res.status).toBe('completed');
+    expect(res.videoUrl).toBe('https://v3.fal.media/a.mp4');
   });
 
-  it('throws rate_limit on 429', async () => {
-    global.fetch = vi.fn().mockResolvedValue(new Response('rate', { status: 429 }));
+  it('pollTask maps IN_PROGRESS → processing', async () => {
+    const { fal } = await import('@fal-ai/client');
+    (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'IN_PROGRESS' });
+    const { pollTask } = await import('./kling');
+    const res = await pollTask(
+      'fal-ai/kling-video/v2.6/standard/text-to-video',
+      'req-123',
+    );
+    expect(res.status).toBe('processing');
+    expect(res.videoUrl).toBeUndefined();
+  });
+
+  it('throws when FAL_KEY missing', async () => {
+    vi.unstubAllEnvs();
     const { submitTask } = await import('./kling');
     await expect(
       submitTask({
         operation: 'text2video',
-        model: 'kling-v2.6-pro',
+        model: 'fal-ai/kling-video/v2.6/standard/text-to-video',
         prompt: 'a cat',
         duration: 5,
         aspectRatio: '16:9',
       }),
-    ).rejects.toMatchObject({ code: 'rate_limit' });
+    ).rejects.toThrow(/FAL_KEY/);
   });
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 3: Run tests to verify they fail**
 
 Run: `pnpm test`
-Expected: 3 new tests FAIL (kling not yet created).
+Expected: 4 new tests FAIL (kling not yet created).
 
-- [ ] **Step 3: Create `lib/providers/kling.ts`**
+- [ ] **Step 4: Create `lib/providers/kling.ts`**
 
 ```typescript
 import 'server-only';
-import { z } from 'zod';
+import { fal } from '@fal-ai/client';
 import { ProviderError } from './types';
 
-const BASE_URL = 'https://api.klingapi.com';
+// Kling via fal.ai. fal.ai expone los modelos Kling como slugs únicos:
+//   - fal-ai/kling-video/v2.6/standard/text-to-video
+//   - fal-ai/kling-video/v2.6/pro/text-to-video
+//   - fal-ai/kling-video/v2.6/standard/image-to-video
+// El "operation" lo decide el modelo, no un parámetro.
 
-export type KlingOperation = 'text2video' | 'image2video' | 'lip-sync';
-export type KlingModel = 'kling-v2.6-pro' | 'kling-3-0-omni';
+export type KlingOperation = 'text2video' | 'image2video';
+export type KlingModel =
+  | 'fal-ai/kling-video/v2.6/standard/text-to-video'
+  | 'fal-ai/kling-video/v2.6/pro/text-to-video'
+  | 'fal-ai/kling-video/v2.6/standard/image-to-video';
 
-const SubmitResponseSchema = z.object({
-  task_id: z.string(),
-});
-
-const PollResponseSchema = z.object({
-  status: z.enum(['submitted', 'processing', 'completed', 'failed']),
-  video_url: z.string().url().optional(),
-  error: z.string().optional(),
-});
-
-function getApiKey(): string {
-  const key = process.env.KLING_API_KEY;
-  if (!key) throw new ProviderError('KLING_API_KEY no configurada', 'auth', false);
-  return key;
-}
-
-function endpointFor(operation: KlingOperation): string {
-  if (operation === 'text2video') return '/v1/videos/text2video';
-  if (operation === 'image2video') return '/v1/videos/image2video';
-  return '/v1/videos/lip-sync';
+let configured = false;
+function ensureConfigured(): void {
+  if (configured) return;
+  const credentials = process.env.FAL_KEY;
+  if (!credentials) {
+    throw new ProviderError('FAL_KEY no configurada', 'auth', false);
+  }
+  fal.config({ credentials });
+  configured = true;
 }
 
 export async function submitTask(params: {
@@ -2079,112 +2111,79 @@ export async function submitTask(params: {
   prompt?: string;
   negativePrompt?: string;
   imageUrl?: string;
-  videoUrl?: string;
-  audioUrl?: string;
   duration: 5 | 10;
   aspectRatio: '16:9' | '9:16' | '1:1';
-  mode?: 'standard' | 'professional';
   cfgScale?: number;
-  cameraControl?: Record<string, unknown>;
 }): Promise<{ taskId: string }> {
-  const apiKey = getApiKey();
-  const body: Record<string, unknown> = {
-    model: params.model,
-    duration: params.duration,
+  ensureConfigured();
+  const input: Record<string, unknown> = {
+    duration: String(params.duration), // fal espera "5" / "10" (string)
     aspect_ratio: params.aspectRatio,
   };
-  if (params.prompt) body.prompt = params.prompt;
-  if (params.negativePrompt) body.negative_prompt = params.negativePrompt;
-  if (params.imageUrl) body.image = params.imageUrl;
-  if (params.videoUrl) body.video = params.videoUrl;
-  if (params.audioUrl) body.audio = params.audioUrl;
-  if (params.mode) body.mode = params.mode;
-  if (params.cfgScale !== undefined) body.cfg_scale = params.cfgScale;
-  if (params.cameraControl) body.camera_control = params.cameraControl;
+  if (params.prompt) input.prompt = params.prompt;
+  if (params.negativePrompt) input.negative_prompt = params.negativePrompt;
+  if (params.imageUrl) input.image_url = params.imageUrl;
+  if (params.cfgScale !== undefined) input.cfg_scale = params.cfgScale;
 
-  const res = await fetch(`${BASE_URL}${endpointFor(params.operation)}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Kling', 'auth', false);
+  try {
+    const res = await fal.queue.submit(params.model, { input });
+    return { taskId: res.request_id };
+  } catch (err) {
+    const message = (err as Error)?.message ?? '';
+    if (message.match(/401|403|unauthorized/i)) {
+      throw new ProviderError('Auth inválida con fal.ai', 'auth', false);
+    }
+    if (message.match(/429|rate.?limit/i)) {
+      throw new ProviderError('Rate limit fal.ai', 'rate_limit', true);
+    }
+    throw new ProviderError(`fal.ai submit: ${message}`, 'unknown', false);
   }
-  if (res.status === 429) {
-    throw new ProviderError('Rate limit Kling', 'rate_limit', true);
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(
-      `Kling submit ${res.status}: ${text.slice(0, 200)}`,
-      res.status >= 500 ? 'server' : 'unknown',
-      res.status >= 500,
-    );
-  }
-  const parsed = SubmitResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new ProviderError(
-      `Respuesta inesperada de Kling submit: ${parsed.error.message}`,
-      'unknown',
-      false,
-    );
-  }
-  return { taskId: parsed.data.task_id };
 }
 
-export async function pollTask(taskId: string): Promise<{
+export async function pollTask(
+  model: KlingModel,
+  taskId: string,
+): Promise<{
   status: 'processing' | 'completed' | 'failed';
   videoUrl?: string;
   error?: string;
 }> {
-  const apiKey = getApiKey();
-  const res = await fetch(`${BASE_URL}/v1/videos/${taskId}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) {
-    if (res.status >= 500) {
-      return { status: 'processing' }; // retry next tick
+  ensureConfigured();
+  try {
+    const status = await fal.queue.status(model, { requestId: taskId });
+    if (status.status === 'COMPLETED') {
+      const result = await fal.queue.result(model, { requestId: taskId });
+      const data = result.data as { video?: { url?: string } } | undefined;
+      const videoUrl = data?.video?.url;
+      if (!videoUrl) {
+        return { status: 'failed', error: 'completed sin video.url' };
+      }
+      return { status: 'completed', videoUrl };
     }
-    throw new ProviderError(`Kling poll ${res.status}`, 'unknown', false);
+    if (status.status === 'IN_QUEUE' || status.status === 'IN_PROGRESS') {
+      return { status: 'processing' };
+    }
+    // Cualquier otro estado lo tratamos como failed (incluye errores)
+    return { status: 'failed', error: `fal status: ${status.status}` };
+  } catch (err) {
+    const message = (err as Error)?.message ?? '';
+    if (message.match(/429|rate.?limit/i)) {
+      // Devolver processing para reintentar en el próximo tick
+      return { status: 'processing' };
+    }
+    throw new ProviderError(`fal.ai poll: ${message}`, 'unknown', false);
   }
-  const parsed = PollResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new ProviderError(
-      `Respuesta inesperada de Kling poll: ${parsed.error.message}`,
-      'unknown',
-      false,
-    );
-  }
-  const data = parsed.data;
-  // 'submitted' es transición inicial — lo tratamos como processing
-  const normalizedStatus =
-    data.status === 'submitted' || data.status === 'processing' ? 'processing' : data.status;
-  return {
-    status: normalizedStatus,
-    videoUrl: data.video_url,
-    error: data.error,
-  };
 }
 
-export async function cancelTask(taskId: string): Promise<void> {
-  const apiKey = getApiKey();
-  await fetch(`${BASE_URL}/v1/videos/${taskId}/cancel`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-  }).catch(() => {
-    // best-effort, no propagamos
-  });
-}
+// fal.ai queue API no expone cancel remoto. El handler no implementa cancel
+// (similar a Veo). El job sigue corriendo en fal pero el output se ignora
+// y los créditos se refundean local.
 
 export async function downloadVideo(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
   const res = await fetch(url);
   if (!res.ok) {
     throw new ProviderError(
-      `No se pudo descargar el video de Kling (${res.status})`,
+      `No se pudo descargar el video de fal.ai (${res.status})`,
       'server',
       false,
     );
@@ -2194,16 +2193,24 @@ export async function downloadVideo(url: string): Promise<{ buffer: Buffer; mime
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 5: Run tests**
 
 Run: `pnpm test`
 Expected: all tests pass (Kling + chunkText + queue + smoke).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Add `FAL_KEY` to `.env.example`**
+
+Append to `.env.example`:
+```bash
+# fal.ai (wrapper de Kling — klingapi.com no acepta nuevos signups)
+FAL_KEY=
+```
+
+- [ ] **Step 7: Commit**
 
 ```powershell
-git add lib/providers/kling.ts lib/providers/kling.test.ts
-git commit -m "feat(providers): Kling client (submit/poll/cancel/download) + tests"
+git add lib/providers/kling.ts lib/providers/kling.test.ts package.json pnpm-lock.yaml .env.example
+git commit -m "feat(providers): Kling via fal.ai SDK + queue API + tests"
 ```
 
 ---
@@ -2219,7 +2226,7 @@ git commit -m "feat(providers): Kling client (submit/poll/cancel/download) + tes
 Create `lib/jobs/handlers/kling.ts`:
 ```typescript
 import 'server-only';
-import { downloadVideo, pollTask, submitTask, cancelTask, type KlingModel, type KlingOperation } from '@/lib/providers/kling';
+import { downloadVideo, pollTask, submitTask, type KlingModel, type KlingOperation } from '@/lib/providers/kling';
 import { ProviderError } from '@/lib/providers/types';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
 
@@ -2229,11 +2236,8 @@ type KlingParams = {
   operation?: KlingOperation;
   aspectRatio?: '16:9' | '9:16' | '1:1';
   duration?: 5 | 10;
-  mode?: 'standard' | 'professional';
   cfgScale?: number;
   imageUrl?: string;
-  videoUrl?: string;
-  audioUrl?: string;
   negativePrompt?: string;
 };
 
@@ -2247,20 +2251,18 @@ export const klingHandler: JobHandler = {
       return { kind: 'fail', message: `type=${gen.type}, esperaba video`, code: 'unknown' };
     }
     const params = gen.params as KlingParams;
+    const model = gen.model_id as KlingModel;
     try {
       if (action === 'submit') {
         const startedAt = Date.now();
         const { taskId } = await submitTask({
           operation: params.operation ?? 'text2video',
-          model: gen.model_id as KlingModel,
+          model,
           prompt: gen.prompt ?? '',
           negativePrompt: params.negativePrompt,
           imageUrl: params.imageUrl,
-          videoUrl: params.videoUrl,
-          audioUrl: params.audioUrl,
           duration: params.duration ?? 5,
           aspectRatio: params.aspectRatio ?? '16:9',
-          mode: params.mode,
           cfgScale: params.cfgScale,
         });
         return {
@@ -2278,7 +2280,7 @@ export const klingHandler: JobHandler = {
       if (gen.poll_attempts >= MAX_POLLS) {
         return { kind: 'fail', message: `MAX_POLLS=${MAX_POLLS} excedido`, code: 'timeout' };
       }
-      const poll = await pollTask(gen.provider_task_id);
+      const poll = await pollTask(model, gen.provider_task_id);
       if (poll.status === 'processing') {
         return { kind: 'continue', delaySeconds: nextDelay(gen.poll_attempts) };
       }
@@ -2309,12 +2311,8 @@ export const klingHandler: JobHandler = {
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }
   },
-
-  async cancel(gen: GenerationRow): Promise<void> {
-    if (gen.provider_task_id) {
-      await cancelTask(gen.provider_task_id);
-    }
-  },
+  // fal.ai queue API no expone cancel remoto → handler no expone cancel.
+  // El worker, ante cancel_requested, marca status='canceled' local y refunda.
 };
 ```
 
@@ -2360,7 +2358,13 @@ git commit -m "feat(jobs): handler Kling con polling + cancel"
 ```typescript
 import { z } from 'zod';
 
-export const KLING_MODELS = ['kling-v2.6-pro', 'kling-3-0-omni'] as const;
+// Slugs de fal.ai (un slug = un modelo concreto en su catálogo).
+// Standard = más rápido/barato; Pro = más calidad pero más caro.
+export const KLING_MODELS = [
+  'fal-ai/kling-video/v2.6/standard/text-to-video',
+  'fal-ai/kling-video/v2.6/pro/text-to-video',
+  'fal-ai/kling-video/v2.6/standard/image-to-video',
+] as const;
 
 export const SubmitKlingSchema = z.object({
   kind: z.literal('kling'),
@@ -2369,14 +2373,13 @@ export const SubmitKlingSchema = z.object({
   negativePrompt: z.string().trim().max(500).optional(),
   aspectRatio: z.enum(['16:9', '9:16', '1:1']),
   duration: z.union([z.literal(5), z.literal(10)]),
-  mode: z.enum(['standard', 'professional']).optional(),
   cfgScale: z.number().min(0).max(1).optional(),
   imageUrl: z.string().url().optional(), // para image2video
 });
 
 export type SubmitKlingInput = z.infer<typeof SubmitKlingSchema>;
 
-// Más adelante (Task 12) agregamos:
+// Más adelante (Task 14) agregamos:
 // export const SubmitVeoSchema = ...
 // export const SubmitVideoSchema = z.discriminatedUnion('kind', [SubmitKlingSchema, SubmitVeoSchema]);
 ```
@@ -2392,9 +2395,11 @@ function estimateKlingCost(
   model: SubmitKlingInput['model'],
   duration: 5 | 10,
 ): number {
-  // Variantes: 'standard' (5s), 'long' (10s), 'lip-sync'
+  // Variantes seeded: 'standard' (5s en standard model), 'long' (10s en standard),
+  // 'pro' (5s en pro model). Image-to-video usa pricing 'standard' por defecto.
+  const isPro = model.includes('/pro/');
   let variant: string;
-  if (model === 'kling-3-0-omni') variant = 'lip-sync';
+  if (isPro) variant = 'pro';
   else variant = duration === 10 ? 'long' : 'standard';
   const row = pricing.find(
     (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
@@ -2518,8 +2523,8 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         onChange={(e) => props.setModel(e.target.value as (typeof KLING_MODELS)[number])}
         className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
       >
-        <option value="kling-v2.6-pro">Kling 2.6 Pro</option>
-        <option value="kling-3-0-omni">Kling 3.0 Omni (lip-sync)</option>
+        <option value="fal-ai/kling-video/v2.6/standard/text-to-video">Kling 2.6 Standard</option>
+        <option value="fal-ai/kling-video/v2.6/pro/text-to-video">Kling 2.6 Pro</option>
       </select>
 
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -2743,7 +2748,8 @@ function calcCost(
   duration: 5 | 10,
 ): number {
   let variant: string;
-  if (model === 'kling-3-0-omni') variant = 'lip-sync';
+  const isPro = model.includes('/pro/');
+  if (isPro) variant = 'pro';
   else variant = duration === 10 ? 'long' : 'standard';
   const row = pricing.find(
     (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
@@ -2757,7 +2763,7 @@ export function VideoGenerator(props: {
   pricing: PricingRow[];
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
-  const [model, setModel] = useState<(typeof KLING_MODELS)[number]>('kling-v2.6-pro');
+  const [model, setModel] = useState<(typeof KLING_MODELS)[number]>('fal-ai/kling-video/v2.6/standard/text-to-video');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [duration, setDuration] = useState<5 | 10>(5);
@@ -3290,7 +3296,11 @@ Replace contents:
 ```typescript
 import { z } from 'zod';
 
-export const KLING_MODELS = ['kling-v2.6-pro', 'kling-3-0-omni'] as const;
+export const KLING_MODELS = [
+  'fal-ai/kling-video/v2.6/standard/text-to-video',
+  'fal-ai/kling-video/v2.6/pro/text-to-video',
+  'fal-ai/kling-video/v2.6/standard/image-to-video',
+] as const;
 export const VEO_MODELS = [
   'veo-3.1-fast-generate-preview',
   'veo-3.1-generate-preview',
@@ -3377,7 +3387,6 @@ export async function submitVideoGenerationAction(
       operation: data.imageUrl ? 'image2video' : 'text2video',
       aspectRatio: data.aspectRatio,
       duration: data.duration,
-      mode: data.mode,
       cfgScale: data.cfgScale,
       imageUrl: data.imageUrl,
       negativePrompt: data.negativePrompt,
@@ -3454,8 +3463,9 @@ import { KLING_MODELS, VEO_MODELS } from '@/lib/schemas/video';
 
 // Extend the props type by replacing `model` typing:
 export type ModelKey =
-  | 'kling-v2.6-pro'
-  | 'kling-3-0-omni'
+  | 'fal-ai/kling-video/v2.6/standard/text-to-video'
+  | 'fal-ai/kling-video/v2.6/pro/text-to-video'
+  | 'fal-ai/kling-video/v2.6/standard/image-to-video'
   | 'veo-3.1-fast-generate-preview'
   | 'veo-3.1-generate-preview'
   | 'veo-3.1-lite-generate-preview';
@@ -3479,8 +3489,8 @@ export type VideoControlsProps = {
   className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
 >
   <optgroup label="Kling (rápido)">
-    <option value="kling-v2.6-pro">Kling 2.6 Pro</option>
-    <option value="kling-3-0-omni">Kling 3.0 Omni (lip-sync)</option>
+    <option value="fal-ai/kling-video/v2.6/standard/text-to-video">Kling 2.6 Standard</option>
+    <option value="fal-ai/kling-video/v2.6/pro/text-to-video">Kling 2.6 Pro</option>
   </optgroup>
   <optgroup label="Veo 3.1 (premium)">
     <option value="veo-3.1-fast-generate-preview">Veo Fast</option>
@@ -3564,9 +3574,10 @@ function calcCost(
     );
     return row ? durationSeconds * Number(row.credits_cost) : 0;
   }
-  // Kling
+  // Kling (via fal.ai)
   let variant: string;
-  if (model === 'kling-3-0-omni') variant = 'lip-sync';
+  const isPro = model.includes('/pro/');
+  if (isPro) variant = 'pro';
   else variant = durationSeconds === 10 ? 'long' : 'standard';
   const row = pricing.find(
     (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
@@ -3575,7 +3586,7 @@ function calcCost(
 }
 
 // In the component body, change useState for model:
-const [model, setModel] = useState<ModelKey>('kling-v2.6-pro');
+const [model, setModel] = useState<ModelKey>('fal-ai/kling-video/v2.6/standard/text-to-video');
 const [veoDuration, setVeoDuration] = useState<4 | 6 | 8>(8);
 const [veoResolution, setVeoResolution] = useState<'720p' | '1080p'>('1080p');
 
@@ -3606,8 +3617,7 @@ function handleGenerate() {
           negativePrompt: negativePrompt || undefined,
           aspectRatio,
           duration,
-          mode: 'professional' as const,
-        };
+          };
     const res = await submitVideoGenerationAction(input);
     // ... existing handling ...
   });
