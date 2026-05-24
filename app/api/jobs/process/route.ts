@@ -1,0 +1,159 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { verifyQStashSignature } from '@/lib/jobs/receiver';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
+import { enqueueJob } from '@/lib/jobs/queue';
+import { failGeneration } from '@/lib/credits/operations';
+import type { GenerationRow } from '@/lib/jobs/handlers/types';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
+const BodySchema = z.object({
+  generationId: z.string().uuid(),
+  action: z.enum(['submit', 'poll']),
+});
+
+const TERMINAL_STATUSES = new Set(['done', 'failed', 'canceled']);
+
+export async function POST(req: Request) {
+  // 1. Verificar firma ANTES de leer el body como JSON
+  const rawBody = await req.text();
+  const signature = req.headers.get('upstash-signature');
+  if (!signature) {
+    return NextResponse.json({ error: 'missing signature' }, { status: 401 });
+  }
+  try {
+    await verifyQStashSignature({
+      signature,
+      body: rawBody,
+      url: req.url,
+    });
+  } catch (err) {
+    console.error('[worker] firma inválida', err);
+    return NextResponse.json({ error: 'invalid signature' }, { status: 401 });
+  }
+
+  // 2. Parsear body
+  let parsed;
+  try {
+    parsed = BodySchema.parse(JSON.parse(rawBody));
+  } catch (err) {
+    console.error('[worker] body inválido', err);
+    return NextResponse.json({ error: 'invalid body' }, { status: 400 });
+  }
+  const { generationId, action } = parsed;
+
+  // 3. Cargar generation con service_role
+  const admin = createAdminClient();
+  const { data: gen, error: loadErr } = await admin
+    .from('generations')
+    .select(
+      'id, user_id, workspace_id, type, provider, model_id, prompt, params, reference_ids, status, provider_task_id, provider_payload, poll_attempts, timeout_at, cancel_requested, credits_estimated',
+    )
+    .eq('id', generationId)
+    .single();
+  if (loadErr || !gen) {
+    // Row borrada (cleanup, etc.) → ack y exit. No error para QStash.
+    console.warn('[worker] gen no encontrada', { generationId });
+    return NextResponse.json({ ok: true, ack: 'not_found' });
+  }
+  const generation = gen as unknown as GenerationRow;
+
+  // 4. Guard: status terminal → ack
+  if (TERMINAL_STATUSES.has(generation.status)) {
+    return NextResponse.json({ ok: true, ack: 'terminal' });
+  }
+
+  // 5. Guard: cancel_requested o timeout
+  const timedOut =
+    generation.timeout_at !== null && new Date(generation.timeout_at) < new Date();
+  if (generation.cancel_requested || timedOut) {
+    try {
+      await dispatchCancel(generation);
+    } catch (err) {
+      console.error('[worker] cancel adapter falló', { generationId, err });
+    }
+    const reason = generation.cancel_requested ? 'canceled by user' : 'timeout';
+    try {
+      await failGeneration(
+        generation.user_id,
+        generation.id,
+        generation.credits_estimated,
+        reason,
+      );
+    } catch (err) {
+      console.error('[worker] fail_generation falló', { generationId, err });
+    }
+    // Update final status explícito
+    await admin
+      .from('generations')
+      .update({
+        status: generation.cancel_requested ? 'canceled' : 'failed',
+        error_message: reason,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', generation.id);
+    return NextResponse.json({ ok: true, ack: reason });
+  }
+
+  // 6. Dispatch al handler del provider
+  const result = await dispatchJob(generation, action);
+
+  // 7. Procesar resultado
+  if (result.kind === 'continue') {
+    // Re-encolar para el próximo poll
+    const update: Record<string, unknown> = {
+      status: 'processing',
+      poll_attempts: generation.poll_attempts + 1,
+    };
+    if (result.taskId && !generation.provider_task_id) {
+      update.provider_task_id = result.taskId;
+    }
+    if (result.providerPayload) {
+      update.provider_payload = {
+        ...(generation.provider_payload ?? {}),
+        ...result.providerPayload,
+      };
+    }
+    await admin.from('generations').update(update).eq('id', generation.id);
+    await enqueueJob({
+      generationId: generation.id,
+      action: 'poll',
+      delaySeconds: result.delaySeconds,
+    });
+    return NextResponse.json({ ok: true, ack: 'continue' });
+  }
+
+  if (result.kind === 'fail') {
+    try {
+      await failGeneration(
+        generation.user_id,
+        generation.id,
+        generation.credits_estimated,
+        result.message,
+      );
+    } catch (err) {
+      console.error('[worker] fail_generation falló', { generationId, err });
+    }
+    await admin
+      .from('generations')
+      .update({
+        status: 'failed',
+        error_message: result.message,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', generation.id);
+    return NextResponse.json({ ok: true, ack: 'failed' });
+  }
+
+  // result.kind === 'finalize' — handler entregó el buffer
+  // El paso de upload + thumbnail + complete_generation se delega a finalize.ts
+  // que se implementa en Task 4.
+  return NextResponse.json(
+    { ok: false, error: 'finalize not implemented yet' },
+    { status: 501 },
+  );
+}
