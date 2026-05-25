@@ -3,9 +3,9 @@ import { z } from 'zod';
 // Slugs de fal.ai (un slug = un modelo concreto en su catálogo).
 // Standard = más rápido/barato; Pro = más calidad pero más caro.
 export const KLING_MODELS = [
-  'fal-ai/kling-video/v2.6/standard/text-to-video',
-  'fal-ai/kling-video/v2.6/pro/text-to-video',
-  'fal-ai/kling-video/v2.6/standard/image-to-video',
+  'fal-ai/kling-video/v3/standard/text-to-video',
+  'fal-ai/kling-video/v3/pro/text-to-video',
+  'fal-ai/kling-video/v3/standard/image-to-video',
 ] as const;
 
 export const VEO_MODELS = [

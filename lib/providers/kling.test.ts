@@ -29,7 +29,7 @@ describe('kling provider (via fal.ai)', () => {
     const { submitTask } = await import('./kling');
     const res = await submitTask({
       operation: 'text2video',
-      model: 'fal-ai/kling-video/v2.6/standard/text-to-video',
+      model: 'fal-ai/kling-video/v3/standard/text-to-video',
       prompt: 'a cat',
       duration: 5,
       aspectRatio: '16:9',
@@ -38,7 +38,7 @@ describe('kling provider (via fal.ai)', () => {
     expect(res.taskId).toBe('req-123');
     expect(fal.queue.submit).toHaveBeenCalledOnce();
     const [modelSlug, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(modelSlug).toBe('fal-ai/kling-video/v2.6/standard/text-to-video');
+    expect(modelSlug).toBe('fal-ai/kling-video/v3/standard/text-to-video');
     expect(opts.input).toMatchObject({
       prompt: 'a cat',
       duration: '5',
@@ -54,7 +54,7 @@ describe('kling provider (via fal.ai)', () => {
     });
     const { pollTask } = await import('./kling');
     const res = await pollTask(
-      'fal-ai/kling-video/v2.6/standard/text-to-video',
+      'fal-ai/kling-video/v3/standard/text-to-video',
       'req-123',
     );
     expect(res.status).toBe('completed');
@@ -66,7 +66,7 @@ describe('kling provider (via fal.ai)', () => {
     (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'IN_PROGRESS' });
     const { pollTask } = await import('./kling');
     const res = await pollTask(
-      'fal-ai/kling-video/v2.6/standard/text-to-video',
+      'fal-ai/kling-video/v3/standard/text-to-video',
       'req-123',
     );
     expect(res.status).toBe('processing');
@@ -79,7 +79,7 @@ describe('kling provider (via fal.ai)', () => {
     await expect(
       submitTask({
         operation: 'text2video',
-        model: 'fal-ai/kling-video/v2.6/standard/text-to-video',
+        model: 'fal-ai/kling-video/v3/standard/text-to-video',
         prompt: 'a cat',
         duration: 5,
         aspectRatio: '16:9',

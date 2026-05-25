@@ -4,9 +4,9 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type ModelKey =
-  | 'fal-ai/kling-video/v2.6/standard/text-to-video'
-  | 'fal-ai/kling-video/v2.6/pro/text-to-video'
-  | 'fal-ai/kling-video/v2.6/standard/image-to-video'
+  | 'fal-ai/kling-video/v3/standard/text-to-video'
+  | 'fal-ai/kling-video/v3/pro/text-to-video'
+  | 'fal-ai/kling-video/v3/standard/image-to-video'
   | 'veo-3.1-fast-generate-preview'
   | 'veo-3.1-generate-preview'
   | 'veo-3.1-lite-generate-preview';
@@ -53,9 +53,9 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         onChange={(e) => props.setModel(e.target.value as ModelKey)}
         className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
       >
-        <optgroup label="Kling (rápido)">
-          <option value="fal-ai/kling-video/v2.6/standard/text-to-video">Kling 2.6 Standard</option>
-          <option value="fal-ai/kling-video/v2.6/pro/text-to-video">Kling 2.6 Pro</option>
+        <optgroup label="Kling 3.0 (rápido)">
+          <option value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</option>
+          <option value="fal-ai/kling-video/v3/pro/text-to-video">Kling 3.0 Pro</option>
         </optgroup>
         <optgroup label="Veo 3.1 (premium)">
           <option value="veo-3.1-fast-generate-preview">Veo Fast</option>

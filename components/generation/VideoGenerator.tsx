@@ -40,7 +40,7 @@ export function VideoGenerator(props: {
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
   const [model, setModel] = useState<ModelKey>(
-    'fal-ai/kling-video/v2.6/standard/text-to-video',
+    'fal-ai/kling-video/v3/standard/text-to-video',
   );
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');

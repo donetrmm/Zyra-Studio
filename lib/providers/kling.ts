@@ -3,16 +3,16 @@ import { fal } from '@fal-ai/client';
 import { ProviderError } from './types';
 
 // Kling via fal.ai. fal.ai expone los modelos Kling como slugs únicos:
-//   - fal-ai/kling-video/v2.6/standard/text-to-video
-//   - fal-ai/kling-video/v2.6/pro/text-to-video
-//   - fal-ai/kling-video/v2.6/standard/image-to-video
+//   - fal-ai/kling-video/v3/standard/text-to-video
+//   - fal-ai/kling-video/v3/pro/text-to-video
+//   - fal-ai/kling-video/v3/standard/image-to-video
 // El "operation" lo decide el modelo, no un parámetro.
 
 export type KlingOperation = 'text2video' | 'image2video';
 export type KlingModel =
-  | 'fal-ai/kling-video/v2.6/standard/text-to-video'
-  | 'fal-ai/kling-video/v2.6/pro/text-to-video'
-  | 'fal-ai/kling-video/v2.6/standard/image-to-video';
+  | 'fal-ai/kling-video/v3/standard/text-to-video'
+  | 'fal-ai/kling-video/v3/pro/text-to-video'
+  | 'fal-ai/kling-video/v3/standard/image-to-video';
 
 let configuredFor: string | null = null;
 function ensureConfigured(): void {
@@ -42,7 +42,7 @@ export async function submitTask(params: {
   };
   if (params.prompt) input.prompt = params.prompt;
   if (params.negativePrompt) input.negative_prompt = params.negativePrompt;
-  if (params.imageUrl) input.image_url = params.imageUrl;
+  if (params.imageUrl) input.start_image_url = params.imageUrl;
   if (params.cfgScale !== undefined) input.cfg_scale = params.cfgScale;
 
   try {
@@ -50,13 +50,14 @@ export async function submitTask(params: {
     return { taskId: res.request_id };
   } catch (err) {
     const message = (err as Error)?.message ?? '';
-    if (message.match(/401|403|unauthorized/i)) {
-      throw new ProviderError('Auth inválida con fal.ai', 'auth', false);
+    const detail = (err as { body?: { detail?: string } })?.body?.detail;
+    if (message.match(/401|403|unauthorized|forbidden/i)) {
+      throw new ProviderError(detail ?? 'Auth inválida con fal.ai', 'auth', false);
     }
     if (message.match(/429|rate.?limit/i)) {
       throw new ProviderError('Rate limit fal.ai', 'rate_limit', true);
     }
-    throw new ProviderError(`fal.ai submit: ${message}`, 'unknown', false);
+    throw new ProviderError(`fal.ai submit: ${detail ?? message}`, 'unknown', false);
   }
 }
 
