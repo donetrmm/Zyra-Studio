@@ -57,8 +57,8 @@ export const veoHandler: JobHandler = {
       if (poll.error) {
         return {
           kind: 'fail',
-          message: `Veo error ${poll.error.code}: ${poll.error.message}`,
-          code: 'unknown',
+          message: poll.error.message,
+          code: poll.error.code === 403 ? 'safety' : 'unknown',
         };
       }
       if (!poll.videoUri) {

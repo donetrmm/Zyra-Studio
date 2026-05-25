@@ -33,6 +33,8 @@ const PollResponseSchema = z.object({
               }),
             )
             .optional(),
+          raiMediaFilteredCount: z.number().optional(),
+          raiMediaFilteredReasons: z.array(z.string()).optional(),
         })
         .optional(),
     })
@@ -65,8 +67,8 @@ export async function submitOperation(params: {
     parameters: {
       aspectRatio: params.aspectRatio,
       resolution: params.resolution,
-      durationSeconds: String(params.durationSeconds),
-      personGeneration: 'allow_adult',
+      durationSeconds: params.durationSeconds,
+      personGeneration: 'allow_all',
       ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
     },
   };
@@ -118,7 +120,8 @@ export async function pollOperation(operationName: string): Promise<{
     if (res.status >= 500) return { done: false };
     throw new ProviderError(`Veo poll ${res.status}`, 'unknown', false);
   }
-  const parsed = PollResponseSchema.safeParse(await res.json());
+  const raw = await res.json();
+  const parsed = PollResponseSchema.safeParse(raw);
   if (!parsed.success) {
     throw new ProviderError(
       `Respuesta inesperada de Veo poll: ${parsed.error.message}`,
@@ -127,7 +130,12 @@ export async function pollOperation(operationName: string): Promise<{
     );
   }
   const data = parsed.data;
-  const uri = data.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri;
+  const vr = data.response?.generateVideoResponse;
+  const uri = vr?.generatedSamples?.[0]?.video?.uri;
+  if (vr?.raiMediaFilteredCount && vr.raiMediaFilteredCount > 0) {
+    const reason = vr.raiMediaFilteredReasons?.[0] ?? 'Contenido bloqueado por filtro de seguridad de Google';
+    return { done: true, error: { code: 403, message: reason } };
+  }
   return { done: data.done === true, videoUri: uri, error: data.error };
 }
 
