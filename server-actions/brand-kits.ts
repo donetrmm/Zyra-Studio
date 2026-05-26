@@ -71,19 +71,19 @@ export async function updateBrandKitAction(
   if (!parsed.success) {
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
-  await requireWorkspace();
+  const { workspace } = await requireWorkspace();
   const supabase = await createClient();
+  const update: Record<string, unknown> = { name: parsed.data.name };
+  if (parsed.data.colors !== undefined) update.colors = parsed.data.colors;
+  if (parsed.data.fonts !== undefined) update.fonts = parsed.data.fonts;
+  if (parsed.data.logoUrl !== undefined) update.logo_url = parsed.data.logoUrl;
+  if (parsed.data.toneDescription !== undefined) update.tone_description = parsed.data.toneDescription || null;
+  if (parsed.data.styleGuidelines !== undefined) update.style_guidelines = parsed.data.styleGuidelines || null;
   const { error } = await supabase
     .from('brand_kits')
-    .update({
-      name: parsed.data.name,
-      colors: parsed.data.colors ?? [],
-      fonts: parsed.data.fonts ?? [],
-      logo_url: parsed.data.logoUrl ?? null,
-      tone_description: parsed.data.toneDescription ?? null,
-      style_guidelines: parsed.data.styleGuidelines ?? null,
-    })
-    .eq('id', id);
+    .update(update)
+    .eq('id', id)
+    .eq('workspace_id', workspace.id);
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };
   }
@@ -94,12 +94,13 @@ export async function updateBrandKitAction(
 export async function deleteBrandKitAction(
   id: string,
 ): Promise<Result<{ deleted: true }>> {
-  await requireWorkspace();
+  const { workspace } = await requireWorkspace();
   const supabase = await createClient();
   const { error } = await supabase
     .from('brand_kits')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('workspace_id', workspace.id);
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };
   }

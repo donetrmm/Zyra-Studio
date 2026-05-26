@@ -21,11 +21,10 @@ function inferExtension(mime: string): string {
   return 'bin';
 }
 
-async function makeImageThumbnail(buffer: Buffer): Promise<Buffer> {
-  return sharp(buffer)
-    .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80, mozjpeg: true })
-    .toBuffer();
+async function makeImageThumbnail(buffer: Buffer, mimeType: string): Promise<Buffer> {
+  const s = sharp(buffer).resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true });
+  if (mimeType === 'image/png') return s.png({ quality: 80 }).toBuffer();
+  return s.jpeg({ quality: 80, mozjpeg: true }).toBuffer();
 }
 
 async function makeVideoThumbnail(buffer: Buffer): Promise<Buffer> {
@@ -78,7 +77,7 @@ async function makeThumbnail(
   buffer: Buffer,
   _mimeType: string,
 ): Promise<Buffer | null> {
-  if (type === 'image') return makeImageThumbnail(buffer);
+  if (type === 'image') return makeImageThumbnail(buffer, _mimeType);
   if (type === 'video') {
     try {
       return await makeVideoThumbnail(buffer);

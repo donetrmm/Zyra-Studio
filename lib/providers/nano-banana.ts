@@ -235,6 +235,7 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
   const RETRY_DELAYS = [2000, 5000, 10000];
   for (const delay of RETRY_DELAYS) {
     if (res.status !== 429) break;
+    await res.body?.cancel().catch(() => {});
     await new Promise((r) => setTimeout(r, delay));
     res = await callOnce(params, apiKey);
   }
@@ -316,7 +317,7 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
-    const threshold = 240;
+    const threshold = 250;
     for (let i = 0; i < data.length; i += 4) {
       if (data[i] > threshold && data[i + 1] > threshold && data[i + 2] > threshold) {
         data[i + 3] = 0;

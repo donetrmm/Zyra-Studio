@@ -280,14 +280,14 @@ function MiniPlayer({ src }: { src: string }) {
     const onEnd = () => { setPlaying(false); setProgress(0); };
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('ended', onEnd);
-    return () => { el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnd); };
+    return () => { el.pause(); el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnd); };
   }, [src]);
 
   function toggle() {
     const el = audioRef.current;
     if (!el) return;
     if (playing) { el.pause(); setPlaying(false); }
-    else { el.play(); setPlaying(true); }
+    else { el.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
   }
 
   function seek(e: React.MouseEvent<HTMLDivElement>) {

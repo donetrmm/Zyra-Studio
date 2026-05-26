@@ -1075,7 +1075,7 @@ function DetailAside({
           {generation.type === 'image' && generation.status === 'done' && generation.prompt && (
             <>
               <Link
-                href={`/app/create/image?prompt=${encodeURIComponent(generation.prompt)}&variations=3`}
+                href={`/app/create/image?prompt=${encodeURIComponent(generation.prompt)}`}
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30"
               >
                 <Layers className="size-3.5" aria-hidden />

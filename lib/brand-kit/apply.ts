@@ -11,7 +11,8 @@ export function applyBrandKit(
   kit: BrandKit,
   type: 'image' | 'video' | 'audio',
 ): string {
-  const parts: string[] = [prompt.trimEnd()];
+  const trimmed = prompt.trimEnd().replace(/[.\s]+$/, '');
+  const parts: string[] = [trimmed];
 
   if (type === 'audio') {
     if (kit.tone_description) {

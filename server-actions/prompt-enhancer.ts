@@ -47,8 +47,9 @@ export async function enhancePromptAction(input: unknown): Promise<EnhanceResult
 
   // Cargo atómico antes de invocar al proveedor: si falla, no le cobramos.
   // Si Gemini falla después, refundimos.
+  const source = `${parsed.data.type ?? 'image'}_create`;
   const charged = await chargeCredits(user.id, cost, 'prompt_enhance', {
-    source: 'image_create',
+    source,
   });
   if (!charged) {
     return { ok: false, error: 'insufficient_credits' };
@@ -63,7 +64,7 @@ export async function enhancePromptAction(input: unknown): Promise<EnhanceResult
     return { ok: true, enhanced, cost };
   } catch (err) {
     await refundCharge(user.id, cost, 'prompt_enhance_refund', {
-      source: 'image_create',
+      source,
     }).catch(() => {});
     if (err instanceof ProviderError && err.code === 'safety') {
       return { ok: false, error: 'safety', message: err.message };
