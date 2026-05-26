@@ -61,6 +61,7 @@ export async function cloneVoiceAction(
       .single();
 
     if (error || !row) {
+      await deleteVoice(voiceId).catch(() => {});
       return { ok: false, error: 'internal_error', message: error?.message ?? 'insert failed' };
     }
 
@@ -84,18 +85,23 @@ export async function deleteVoiceAction(
     .eq('user_id', user.id)
     .single();
 
-  if (row?.elevenlabs_voice_id) {
+  if (!row) {
+    return { ok: false, error: 'not_found', message: 'Voz no encontrada' };
+  }
+
+  if (row.elevenlabs_voice_id) {
     try {
       await deleteVoice(row.elevenlabs_voice_id);
     } catch {
-      // Best-effort — delete local even if ElevenLabs fails
+      // Best-effort
     }
   }
 
   const { error } = await supabase
     .from('voice_clones')
     .delete()
-    .eq('id', voiceCloneId);
+    .eq('id', voiceCloneId)
+    .eq('user_id', user.id);
 
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };

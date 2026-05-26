@@ -65,7 +65,7 @@ export async function signedReferenceUrlAdmin(path: string): Promise<string> {
   const admin = createAdminClient();
   const { data, error } = await admin.storage
     .from(REFERENCES_BUCKET)
-    .createSignedUrl(path, 60 * 60);
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (error || !data) throw new Error(`sign reference (admin) failed: ${error?.message ?? 'unknown'}`);
   return data.signedUrl;
 }

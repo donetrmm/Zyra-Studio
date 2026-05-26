@@ -361,9 +361,8 @@ function estimateTtsCost(
   const row = pricing.find(
     (p) => p.provider === 'elevenlabs' && p.model_id === modelId && p.variant === 'default',
   );
-  if (!row) throw new Error(`pricing no encontrado para ${modelId}`);
-  // unit_size = 1000 chars; cost = ceil(chars / 1000) * credits_cost
-  const units = Math.max(1, Math.ceil(chars / row.unit_size!));
+  if (!row || !row.unit_size) throw new Error(`pricing no encontrado para ${modelId}`);
+  const units = Math.max(1, Math.ceil(chars / row.unit_size));
   return units * Number(row.credits_cost);
 }
 
@@ -492,6 +491,14 @@ export async function submitVideoGenerationAction(
   const { user, workspace } = await requireWorkspace();
   const pricing = await loadPricing();
 
+  const refPath = data.referenceStoragePath;
+  const endRefPath = data.kind === 'kling' ? data.endReferenceStoragePath : undefined;
+  for (const p of [refPath, endRefPath]) {
+    if (p && !p.startsWith(`${workspace.id}/`)) {
+      return { ok: false, error: 'forbidden' as const, message: 'Referencia no pertenece al workspace' };
+    }
+  }
+
   let cost: number;
   let provider: 'veo' | 'kling';
   let modelId: string;
@@ -501,7 +508,7 @@ export async function submitVideoGenerationAction(
     provider = 'kling';
     const hasRef = !!data.referenceStoragePath;
     modelId = hasRef
-      ? data.model.replace('/text-to-video', '/image-to-video') as string
+      ? 'fal-ai/kling-video/v3/standard/image-to-video'
       : data.model;
     cost = estimateKlingCost(pricing, data.model, data.duration);
     insertParams = {
@@ -586,9 +593,14 @@ export async function submitVideoGenerationAction(
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function cancelGenerationAction(
   generationId: string,
 ): Promise<Result<{ canceled: true }>> {
+  if (!UUID_RE.test(generationId)) {
+    return { ok: false, error: 'validation_error', message: 'ID inválido' };
+  }
   const { user } = await requireWorkspace();
   const supabase = await createClient();
   const { error } = await supabase

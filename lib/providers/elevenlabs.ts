@@ -101,12 +101,11 @@ async function ttsChunk(
   const body: Record<string, unknown> = {
     text: params.text,
     model_id: params.modelId,
-    output_format: 'mp3_44100_128',
   };
   if (params.voiceSettings) body.voice_settings = params.voiceSettings;
   if (params.languageCode) body.language_code = params.languageCode;
 
-  const res = await fetch(`${BASE_URL}/v1/text-to-speech/${params.voiceId}`, {
+  const res = await fetch(`${BASE_URL}/v1/text-to-speech/${params.voiceId}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: {
       'xi-api-key': apiKey,

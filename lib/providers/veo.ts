@@ -122,7 +122,7 @@ export async function pollOperation(operationName: string): Promise<{
     headers: { 'x-goog-api-key': apiKey },
   });
   if (!res.ok) {
-    if (res.status >= 500) return { done: false };
+    if (res.status >= 500 || res.status === 429) return { done: false };
     throw new ProviderError(`Veo poll ${res.status}`, 'unknown', false);
   }
   const raw = await res.json();

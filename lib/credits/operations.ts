@@ -10,7 +10,7 @@ export type CompleteGenerationInput = {
   generationId: string;
   cost: number;
   outputUrl: string;
-  thumbnailUrl: string;
+  thumbnailUrl: string | null;
   processingMs: number;
   fileSizeBytes: number;
   providerPayload?: Record<string, unknown> | null;

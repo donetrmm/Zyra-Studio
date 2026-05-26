@@ -119,7 +119,7 @@ export async function finalizeGeneration(params: {
     generationId: gen.id,
     cost: gen.credits_estimated,
     outputUrl: outputPath,
-    thumbnailUrl: thumbPath ?? '',
+    thumbnailUrl: thumbPath,
     processingMs,
     fileSizeBytes: outputBuffer.byteLength,
     providerPayload: metadata ?? null,

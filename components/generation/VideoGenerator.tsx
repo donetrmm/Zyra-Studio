@@ -122,7 +122,8 @@ export function VideoGenerator(props: {
         if (!active || !data) return;
         if (data.outputUrl) setResolvedOutputUrl(data.outputUrl);
         if (data.thumbnailUrl) setResolvedThumbnailUrl(data.thumbnailUrl);
-      });
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
