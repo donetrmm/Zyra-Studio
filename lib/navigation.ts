@@ -60,7 +60,7 @@ export const APP_SIDEBAR: NavSection[] = [
       { label: "Referencias", href: "/app/references", icon: Files },
       { label: "Personajes", href: "/app/characters", icon: Users },
       { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
-      { label: "Voces", href: "/app/voices", icon: FlaskConical, badge: "Gratis" },
+      { label: "Voces", href: "/app/voices", icon: Mic, badge: "Beta" },
       { label: "Presets", href: "/app/presets", icon: Sparkles },
     ],
   },

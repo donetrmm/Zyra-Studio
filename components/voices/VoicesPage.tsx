@@ -83,6 +83,9 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
           <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
             Clona voces a partir de samples de audio para usarlas en la generación de texto a voz. Sube 1-2 minutos de audio limpio para mejores resultados.
           </p>
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400">
+            Gratis por tiempo limitado
+          </div>
         </div>
         <button
           type="button"
