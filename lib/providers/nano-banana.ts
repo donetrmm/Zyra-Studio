@@ -57,7 +57,7 @@ const TEXT_IN_IMAGE_DIRECTIVE =
   'Render any embedded text exactly as written, preserve spelling, kerning and legible typography; align text crisply within the composition.';
 
 const NO_BG_DIRECTIVE =
-  'Generate the subject on a completely transparent background with no ground, shadow or environment. Output as PNG with alpha transparency.';
+  'Generate the subject isolated on a plain solid pure white background (#FFFFFF). No shadows, no ground plane, no gradients, no environment. The background must be completely uniform white.';
 
 function buildPrompt(params: NanoBananaParams): string {
   let prompt = params.prompt.trim();
@@ -310,9 +310,21 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
     );
   }
 
-  if (params.noBackground && result.mimeType !== 'image/png') {
+  if (params.noBackground) {
     const sharp = (await import('sharp')).default;
-    result.buffer = await sharp(result.buffer).png().toBuffer();
+    const { data, info } = await sharp(result.buffer)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const threshold = 240;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] > threshold && data[i + 1] > threshold && data[i + 2] > threshold) {
+        data[i + 3] = 0;
+      }
+    }
+    result.buffer = await sharp(data, {
+      raw: { width: info.width, height: info.height, channels: 4 },
+    }).png().toBuffer();
     result.mimeType = 'image/png';
   }
 
