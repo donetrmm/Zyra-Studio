@@ -56,12 +56,16 @@ const ErrorSchema = z.object({
 const TEXT_IN_IMAGE_DIRECTIVE =
   'Render any embedded text exactly as written, preserve spelling, kerning and legible typography; align text crisply within the composition.';
 
+const NO_BG_DIRECTIVE =
+  'Generate the subject on a completely transparent background with no ground, shadow or environment. Output as PNG with alpha transparency.';
+
 function buildPrompt(params: NanoBananaParams): string {
   let prompt = params.prompt.trim();
-  // Texto en imagen: directiva explícita al inicio. Gemini 3 renderiza texto
-  // bien pero solo si el prompt lo trata como elemento gráfico literal.
   if (params.hasTextInImage) {
     prompt = `${TEXT_IN_IMAGE_DIRECTIVE} ${prompt}`;
+  }
+  if (params.noBackground) {
+    prompt = `${NO_BG_DIRECTIVE} ${prompt}`;
   }
   return prompt;
 }
@@ -304,6 +308,12 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
       'unknown',
       false,
     );
+  }
+
+  if (params.noBackground && result.mimeType !== 'image/png') {
+    const sharp = (await import('sharp')).default;
+    result.buffer = await sharp(result.buffer).png().toBuffer();
+    result.mimeType = 'image/png';
   }
 
   return result;

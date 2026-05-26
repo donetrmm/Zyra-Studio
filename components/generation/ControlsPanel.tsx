@@ -80,6 +80,8 @@ export type ControlsPanelProps = {
   setResolution: (v: '1k' | '2k' | '4k') => void;
   hasTextInImage: boolean;
   setHasTextInImage: (v: boolean) => void;
+  noBackground: boolean;
+  setNoBackground: (v: boolean) => void;
   conversational: boolean;
   setConversational: (v: boolean) => void;
   useGrounding: boolean;
@@ -204,6 +206,8 @@ export function ControlsPanel(props: ControlsPanelProps) {
                 setResolution={props.setResolution}
                 hasTextInImage={props.hasTextInImage}
                 setHasTextInImage={props.setHasTextInImage}
+                noBackground={props.noBackground}
+                setNoBackground={props.setNoBackground}
                 conversational={props.conversational}
                 setConversational={props.setConversational}
                 useGrounding={props.useGrounding}
@@ -671,6 +675,8 @@ function NanoParams({
   setResolution,
   hasTextInImage,
   setHasTextInImage,
+  noBackground,
+  setNoBackground,
   conversational,
   setConversational,
   useGrounding,
@@ -682,6 +688,8 @@ function NanoParams({
   setResolution: (v: '1k' | '2k' | '4k') => void;
   hasTextInImage: boolean;
   setHasTextInImage: (v: boolean) => void;
+  noBackground: boolean;
+  setNoBackground: (v: boolean) => void;
   conversational: boolean;
   setConversational: (v: boolean) => void;
   useGrounding: boolean;
@@ -715,6 +723,13 @@ function NanoParams({
         hint="Mejora la fidelidad de palabras dentro de la imagen."
         on={hasTextInImage}
         onChange={setHasTextInImage}
+      />
+      <ToggleRow
+        icon={LayoutDashboard}
+        label="Sin fondo"
+        hint="Genera el sujeto aislado sobre fondo transparente (PNG)."
+        on={noBackground}
+        onChange={setNoBackground}
       />
       {isPro && (
         <ToggleRow

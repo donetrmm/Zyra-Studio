@@ -32,6 +32,7 @@ export const NanoBananaInputSchema = z.object({
   aspectRatio: z.enum(NanoBananaAspectRatios).default('1:1'),
   references: z.array(ReferenceItem).max(14).default([]),
   hasTextInImage: z.boolean().default(false),
+  noBackground: z.boolean().default(false),
   conversational: z.boolean().default(false),
   useGrounding: z.boolean().default(false),
   // Cuando conversational=true, el cliente envía la generación anterior aquí

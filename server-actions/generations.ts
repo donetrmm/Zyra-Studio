@@ -279,6 +279,7 @@ export async function submitGenerationAction(
         useGrounding: data.useGrounding,
         conversational: data.conversational,
         hasTextInImage: data.hasTextInImage,
+        noBackground: data.noBackground,
       });
     } else {
       const { width, height } = fluxDimensions(data.aspectRatio, data.megapixels);

@@ -56,6 +56,7 @@ export function ImageGenerator(props: {
   );
   const [resolution, setResolution] = useState<'1k' | '2k' | '4k'>('2k');
   const [hasTextInImage, setHasTextInImage] = useState(false);
+  const [noBackground, setNoBackground] = useState(false);
   const [conversational, setConversational] = useState(false);
   const [useGrounding, setUseGrounding] = useState(false);
   const [photoreal, setPhotoreal] = useState(false);
@@ -160,6 +161,7 @@ export function ImageGenerator(props: {
         aspectRatio,
         references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
         hasTextInImage,
+        noBackground,
         conversational: effectiveConversational,
         useGrounding,
         parentGenerationId:
@@ -182,6 +184,7 @@ export function ImageGenerator(props: {
     aspectRatio,
     references,
     hasTextInImage,
+    noBackground,
     effectiveConversational,
     useGrounding,
     megapixels,
@@ -295,6 +298,8 @@ export function ImageGenerator(props: {
       setResolution={setResolution}
       hasTextInImage={hasTextInImage}
       setHasTextInImage={setHasTextInImage}
+      noBackground={noBackground}
+      setNoBackground={setNoBackground}
       conversational={conversational}
       setConversational={setConversational}
       useGrounding={useGrounding}

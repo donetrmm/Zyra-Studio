@@ -27,6 +27,7 @@ export type NanoBananaParams = {
   // Si presente, el adapter construye contents en formato chat multi-turn:
   // [user: prompt anterior, model: imagen anterior, user: nuevo prompt+refs].
   // Esto es lo que mantiene composición real al editar (no "pegar cara").
+  noBackground?: boolean;
   previousTurn?: NanoBananaTurn | null;
 };
 
