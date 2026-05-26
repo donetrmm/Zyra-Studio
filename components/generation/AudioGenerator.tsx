@@ -7,6 +7,8 @@ import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { applyBrandKit } from '@/lib/brand-kit/apply';
+import type { SelectedBrandKit } from './BrandKitSelector';
 import { AudioControlsPanel, OFFICIAL_VOICES } from './AudioControlsPanel';
 import { AudioPreview } from './AudioPreview';
 import { useGenerationStatus } from './use-generation-status';
@@ -34,6 +36,7 @@ export function AudioGenerator(props: {
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [style, setStyle] = useState(0);
+  const [brandKit, setBrandKit] = useState<SelectedBrandKit>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resolvedOutputUrl, setResolvedOutputUrl] = useState<string | null>(null);
@@ -56,11 +59,12 @@ export function AudioGenerator(props: {
   function handleGenerate() {
     if (!canGenerate) return;
     startTransition(async () => {
+      const finalText = brandKit ? applyBrandKit(text, brandKit, 'audio') : text;
       const res = await submitAudioGenerationAction({
         kind: 'tts',
         voiceId,
         modelId,
-        text,
+        text: finalText,
         voiceSettings: { stability, similarity_boost: similarityBoost, style },
         languageCode,
       });
@@ -112,6 +116,8 @@ export function AudioGenerator(props: {
       cost={cost}
       balance={balance}
       enhanceCost={enhanceCost}
+      brandKit={brandKit}
+      setBrandKit={setBrandKit}
       pending={pending}
       canGenerate={canGenerate}
       onGenerate={handleGenerate}

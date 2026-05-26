@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { estimateCredits } from '@/lib/credits/estimator';
+import { applyBrandKit } from '@/lib/brand-kit/apply';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { selectImageModel, type ImageIntent } from '@/lib/router/model-selector';
 import { submitGenerationAction } from '@/server-actions/generations';
@@ -13,6 +14,7 @@ import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { ControlsPanel } from './ControlsPanel';
 import { ChatThread } from './ChatThread';
 import { PreviewArea } from './PreviewArea';
+import type { SelectedBrandKit } from './BrandKitSelector';
 import type { ReferenceClient } from './ReferencesPanel';
 import type { ModelKey, Selection, SessionItem } from './types';
 
@@ -60,6 +62,7 @@ export function ImageGenerator(props: {
   const [megapixels, setMegapixels] = useState<1 | 2 | 4>(1);
   const [intent, setIntent] = useState<ImageIntent | null>(null);
   const [references, setReferences] = useState<ReferenceClient[]>([]);
+  const [brandKit, setBrandKit] = useState<SelectedBrandKit>(null);
   const [session, setSession] = useState<SessionItem[]>([]);
   const [activeResult, setActiveResult] = useState<SessionItem | null>(null);
   const [pending, startTransition] = useTransition();
@@ -145,6 +148,7 @@ export function ImageGenerator(props: {
   }, [selection, megapixels, resolution]);
 
   const buildInput = useCallback(() => {
+    const finalPrompt = brandKit ? applyBrandKit(prompt, brandKit, 'image') : prompt;
     if (selection.provider === 'nano-banana') {
       return {
         provider: 'nano-banana' as const,
@@ -152,7 +156,7 @@ export function ImageGenerator(props: {
           | 'gemini-3-pro-image-preview'
           | 'gemini-3.1-flash-image-preview',
         variant: selection.variant as '1k' | '2k' | '4k',
-        prompt,
+        prompt: finalPrompt,
         aspectRatio,
         references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
         hasTextInImage,
@@ -166,7 +170,7 @@ export function ImageGenerator(props: {
       provider: 'flux' as const,
       model: 'flux-2-pro-preview' as const,
       variant: 'default' as const,
-      prompt,
+      prompt: finalPrompt,
       aspectRatio,
       megapixels,
       references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
@@ -183,6 +187,7 @@ export function ImageGenerator(props: {
     megapixels,
     photoreal,
     activeResult,
+    brandKit,
   ]);
 
   const handleGenerate = useCallback(() => {
@@ -312,6 +317,8 @@ export function ImageGenerator(props: {
       onGenerate={handleGenerate}
       hideCta={effectiveConversational}
       enhanceCost={enhanceCost}
+      brandKit={brandKit}
+      setBrandKit={setBrandKit}
     />
   );
 

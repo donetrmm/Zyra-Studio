@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { BrandKitSelector, type SelectedBrandKit } from './BrandKitSelector';
 import { EnhanceButton } from './EnhanceButton';
 
 export const OFFICIAL_VOICES = [
@@ -32,6 +33,8 @@ export type AudioControlsProps = {
   cost: number;
   balance: number;
   enhanceCost: number;
+  brandKit: SelectedBrandKit;
+  setBrandKit: (v: SelectedBrandKit) => void;
   pending: boolean;
   canGenerate: boolean;
   onGenerate: () => void;
@@ -62,6 +65,8 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           </option>
         ))}
       </select>
+
+      <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
 
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Modelo

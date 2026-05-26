@@ -23,6 +23,7 @@ import {
   type ReferenceClient,
 } from './ReferencesPanel';
 import { Switch } from '@/components/ui/switch';
+import { BrandKitSelector } from './BrandKitSelector';
 import { cn } from '@/lib/utils';
 import { enhancePromptAction } from '@/server-actions/prompt-enhancer';
 import {
@@ -101,6 +102,8 @@ export type ControlsPanelProps = {
   onGenerate: () => void;
   hideCta?: boolean;
   enhanceCost: number;
+  brandKit: import('./BrandKitSelector').SelectedBrandKit;
+  setBrandKit: (v: import('./BrandKitSelector').SelectedBrandKit) => void;
 };
 
 // Palabras que sugieren que el prompt pide datos del mundo real / actuales.
@@ -186,7 +189,11 @@ export function ControlsPanel(props: ControlsPanelProps) {
           />
         </Step>
 
-        <Step n={4} title="Formato y parámetros">
+        <Step n={4} title="Brand Kit">
+          <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
+        </Step>
+
+        <Step n={5} title="Formato y parámetros">
           <SectionHeading>Proporción</SectionHeading>
           <AspectPicker value={props.aspectRatio} onChange={props.setAspectRatio} />
           <div className="mt-3.5">

@@ -5,6 +5,7 @@ import { AlertTriangle, ImagePlus, Loader2, Volume2, VolumeOff, X } from 'lucide
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { cn } from '@/lib/utils';
+import { BrandKitSelector, type SelectedBrandKit } from './BrandKitSelector';
 import { EnhanceButton } from './EnhanceButton';
 
 export type ModelKey =
@@ -39,6 +40,9 @@ export type VideoControlsProps = {
   // Styles
   selectedStyles: string[];
   setSelectedStyles: (v: string[]) => void;
+  // Brand kit
+  brandKit: SelectedBrandKit;
+  setBrandKit: (v: SelectedBrandKit) => void;
   // Kling
   duration: number;
   setDuration: (v: number) => void;
@@ -134,6 +138,9 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           <option value="veo-3.1-lite-generate-preview">Veo Lite</option>
         </optgroup>
       </select>
+
+      {/* ── Brand Kit ── */}
+      <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
 
       {/* ── Duración ── */}
       {isVeo ? (
