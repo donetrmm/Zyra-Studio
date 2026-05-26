@@ -65,3 +65,32 @@ export async function deleteCampaignAction(id: string): Promise<Result<{ deleted
   revalidatePath('/app/campaigns');
   return { ok: true, data: { deleted: true } };
 }
+
+export async function assignCampaignAction(
+  generationId: string,
+  campaignId: string | null,
+): Promise<Result<{ assigned: true }>> {
+  const { user } = await requireWorkspace();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('generations')
+    .update({ campaign_id: campaignId })
+    .eq('id', generationId)
+    .eq('user_id', user.id);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath('/app/library');
+  revalidatePath('/app/campaigns');
+  return { ok: true, data: { assigned: true } };
+}
+
+export async function listCampaignsAction(): Promise<Result<{ id: string; name: string; color: string }[]>> {
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('id, name, color')
+    .eq('workspace_id', workspace.id)
+    .order('name');
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  return { ok: true, data: (data ?? []) as { id: string; name: string; color: string }[] };
+}

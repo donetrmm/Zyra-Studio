@@ -12,6 +12,7 @@ type CampaignRow = {
   description: string | null;
   color: string;
   created_at: string;
+  generationCount: number;
 };
 
 export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[] }) {
@@ -66,9 +67,10 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
                 {c.description && (
                   <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{c.description}</p>
                 )}
-                <p className="mt-2 text-[10px] text-muted-foreground/50">
-                  {new Date(c.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </p>
+                <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                  <span>{c.generationCount} generacion{c.generationCount !== 1 ? 'es' : ''}</span>
+                  <span>{new Date(c.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                </div>
               </div>
               <div className="flex gap-2 border-t border-border/30 p-3">
                 <button type="button" onClick={() => setEditing(c)} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">

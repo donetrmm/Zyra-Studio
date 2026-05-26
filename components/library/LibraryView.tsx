@@ -22,7 +22,8 @@ import { cn } from '@/lib/utils';
 import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-references/download-client';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
-import { Bookmark } from 'lucide-react';
+import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
+import { Bookmark, FolderKanban } from 'lucide-react';
 
 export type LibraryGeneration = {
   id: string;
@@ -38,6 +39,7 @@ export type LibraryGeneration = {
   parentGenerationId: string | null;
   batchId: string | null;
   batchKind: string | null;
+  campaignId: string | null;
   aspectRatio: string | null;
 };
 
@@ -1086,6 +1088,8 @@ function DetailAside({
         />
         <DetailField label="ID" value={generation.id.slice(0, 8)} mono />
 
+        <CampaignAssigner generation={generation} />
+
         {(() => {
           const parent = generation.parentGenerationId
             ? allGenerations.find((g) => g.id === generation.parentGenerationId)
@@ -1151,6 +1155,49 @@ function DetailAside({
         })()}
       </div>
     </aside>
+  );
+}
+
+function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [assigning, startAssign] = useTransition();
+
+  useEffect(() => {
+    listCampaignsAction().then((res) => {
+      if (res.ok) setCampaigns(res.data);
+      setLoaded(true);
+    });
+  }, []);
+
+  if (!loaded || campaigns.length === 0) return null;
+
+  function handleChange(campaignId: string) {
+    startAssign(async () => {
+      const res = await assignCampaignAction(generation.id, campaignId || null);
+      if (res.ok) toast.success(campaignId ? 'Asignado a campaña' : 'Campaña removida');
+      else toast.error(res.message || 'Error');
+    });
+  }
+
+  return (
+    <div className="mt-3">
+      <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <FolderKanban className="size-3" aria-hidden />
+        Campaña
+      </label>
+      <select
+        value={generation.campaignId ?? ''}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={assigning}
+        className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none disabled:opacity-50"
+      >
+        <option value="">Sin campaña</option>
+        {campaigns.map((c) => (
+          <option key={c.id} value={c.id}>{c.name}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 

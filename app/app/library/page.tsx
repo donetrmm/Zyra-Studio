@@ -16,7 +16,7 @@ export default async function LibraryPage() {
     supabase
       .from('generations')
       .select(
-        'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind',
+        'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id',
       )
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false })
@@ -45,6 +45,7 @@ export default async function LibraryPage() {
       parentGenerationId: g.parent_generation_id as string | null,
       batchId: (g.batch_id as string | null) ?? null,
       batchKind: (g.batch_kind as string | null) ?? null,
+      campaignId: (g.campaign_id as string | null) ?? null,
       aspectRatio: params.aspect_ratio ?? null,
     };
   });

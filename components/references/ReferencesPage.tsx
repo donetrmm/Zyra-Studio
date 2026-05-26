@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useRef, useState, useTransition } from 'react';
-import { Files, ImageIcon, Loader2, Trash2, Upload } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { deleteMediaReferenceAction } from '@/server-actions/media-references';
@@ -20,7 +20,28 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
   const [refs, setRefs] = useState(initial);
   const [uploading, setUploading] = useState(false);
   const [deleting, startDelete] = useTransition();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    if (!query) return refs;
+    const q = query.toLowerCase();
+    return refs.filter((r) => r.name.toLowerCase().includes(q) || r.source.includes(q));
+  }, [refs, query]);
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map((r) => r.id)));
+  }
 
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -38,8 +59,23 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
     if (!confirm(`Eliminar "${name}"?`)) return;
     startDelete(async () => {
       const res = await deleteMediaReferenceAction({ id });
-      if (res.ok) { setRefs((r) => r.filter((x) => x.id !== id)); toast.success('Referencia eliminada'); }
+      if (res.ok) { setRefs((r) => r.filter((x) => x.id !== id)); setSelected((s) => { const n = new Set(s); n.delete(id); return n; }); toast.success('Eliminada'); }
       else toast.error(res.message || 'Error');
+    });
+  }
+
+  function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Eliminar ${selected.size} referencia${selected.size > 1 ? 's' : ''}?`)) return;
+    startDelete(async () => {
+      let deleted = 0;
+      for (const id of selected) {
+        const res = await deleteMediaReferenceAction({ id });
+        if (res.ok) deleted++;
+      }
+      setRefs((r) => r.filter((x) => !selected.has(x.id)));
+      setSelected(new Set());
+      toast.success(`${deleted} referencia${deleted > 1 ? 's' : ''} eliminada${deleted > 1 ? 's' : ''}`);
     });
   }
 
@@ -71,43 +107,103 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
         />
       </div>
 
-      {refs.length === 0 ? (
+      {refs.length > 0 && (
+        <div className="mt-4 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por nombre..."
+              className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={selectAll}
+            className="rounded-md border border-border px-3 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            {selected.size === filtered.length && filtered.length > 0 ? 'Deseleccionar' : 'Seleccionar todo'}
+          </button>
+        </div>
+      )}
+
+      {selected.size > 0 && (
+        <div className="mt-3 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2">
+          <span className="text-[12.5px] text-foreground">{selected.size} seleccionada{selected.size > 1 ? 's' : ''}</span>
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1 text-[12px] font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+          >
+            {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+            Eliminar seleccionadas
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
         <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
           <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
             <Files className="size-7" aria-hidden />
           </div>
-          <p className="text-[14px] text-foreground/70">No tienes referencias</p>
-          <p className="max-w-xs text-[12.5px]">Sube imágenes para usarlas como referencia visual en tus generaciones</p>
+          <p className="text-[14px] text-foreground/70">{query ? 'Sin resultados' : 'No tienes referencias'}</p>
+          <p className="max-w-xs text-[12.5px]">{query ? 'Intenta otro término' : 'Sube imágenes para usarlas como referencia visual'}</p>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {refs.map((r) => (
-            <div key={r.id} className="group relative overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
-              {r.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={r.previewUrl} alt={r.name} className="aspect-square w-full object-cover" />
-              ) : (
-                <div className="grid aspect-square place-items-center bg-muted/20">
-                  <ImageIcon className="size-8 text-muted-foreground/30" aria-hidden />
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {filtered.map((r) => {
+            const isSel = selected.has(r.id);
+            return (
+              <div key={r.id} className={cn('group relative overflow-hidden rounded-xl border bg-card/50 transition-colors', isSel ? 'border-primary' : 'border-border hover:border-muted-foreground/20')}>
+                <button type="button" onClick={() => toggleSelect(r.id)} className="block w-full text-left">
+                  {r.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.previewUrl} alt={r.name} className="aspect-square w-full object-cover" />
+                  ) : (
+                    <div className="grid aspect-square place-items-center bg-muted/20">
+                      <ImageIcon className="size-8 text-muted-foreground/30" aria-hidden />
+                    </div>
+                  )}
+                </button>
+                <div className="p-2.5">
+                  <p className="truncate text-[11.5px] font-medium text-foreground">{r.name}</p>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                    <span>{r.source === 'generation' ? 'Generación' : 'Upload'}</span>
+                    <span>{new Date(r.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
+                  </div>
                 </div>
-              )}
-              <div className="p-2.5">
-                <p className="truncate text-[11.5px] font-medium text-foreground">{r.name}</p>
-                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/50">
-                  <span>{r.source === 'generation' ? 'Generación' : 'Upload'}</span>
-                  <span>{new Date(r.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
-                </div>
+                {(isSel || true) && (
+                  <button
+                    type="button"
+                    onClick={() => toggleSelect(r.id)}
+                    className={cn(
+                      'absolute left-1.5 top-1.5 grid size-5 place-items-center rounded border transition-colors',
+                      isSel ? 'border-primary bg-primary text-primary-foreground' : 'border-white/60 bg-background/60 opacity-0 backdrop-blur group-hover:opacity-100',
+                    )}
+                  >
+                    {isSel && <Check className="size-3" aria-hidden />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDelete(r.id, r.name)}
+                  disabled={deleting}
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 hover:text-destructive"
+                >
+                  <Trash2 className="size-3" aria-hidden />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(r.id, r.name)}
-                disabled={deleting}
-                className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 hover:text-destructive"
-              >
-                <Trash2 className="size-3" aria-hidden />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
