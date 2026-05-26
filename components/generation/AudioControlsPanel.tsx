@@ -36,6 +36,10 @@ export type AudioControlsProps = {
 };
 
 export function AudioControlsPanel(props: AudioControlsProps) {
+  const selectedVoice = OFFICIAL_VOICES.find((v) => v.id === props.voiceId);
+  const isEnglishOnly = selectedVoice?.lang === 'en';
+  const canSelectLanguage = props.modelId === 'eleven_multilingual_v2' && !isEnglishOnly;
+
   return (
     <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 p-5">
       <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
@@ -70,21 +74,28 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         <option value="eleven_v3">V3 (expresivo)</option>
       </select>
 
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Idioma (solo Multilingual)
-      </label>
-      <select
-        value={props.languageCode}
-        onChange={(e) => props.setLanguageCode(e.target.value as (typeof TTS_LANGUAGES)[number])}
-        disabled={props.modelId !== 'eleven_multilingual_v2'}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none disabled:opacity-40"
-      >
-        {TTS_LANGUAGES.map((l) => (
-          <option key={l} value={l}>
-            {l}
-          </option>
-        ))}
-      </select>
+      {canSelectLanguage ? (
+        <>
+          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Idioma
+          </label>
+          <select
+            value={props.languageCode}
+            onChange={(e) => props.setLanguageCode(e.target.value as (typeof TTS_LANGUAGES)[number])}
+            className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
+          >
+            {TTS_LANGUAGES.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : (
+        <p className="mt-4 text-[11px] text-muted-foreground/50">
+          {isEnglishOnly ? 'Voz solo en inglés' : 'Idioma disponible con modelo Multilingual y voz multi'}
+        </p>
+      )}
 
       <label className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Texto
