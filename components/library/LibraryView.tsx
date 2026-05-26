@@ -80,7 +80,11 @@ function reuseHref(g: LibraryGeneration): string {
   if (g.prompt) params.set('prompt', g.prompt);
   if (g.aspectRatio) params.set('aspect', g.aspectRatio);
   params.set('model', generationToModelKey(g));
-  return `/app/create/image?${params.toString()}`;
+  const base =
+    g.type === 'video' ? '/app/create/video'
+    : g.type === 'audio' ? '/app/create/audio'
+    : '/app/create/image';
+  return `${base}?${params.toString()}`;
 }
 
 function bucketOf(iso: string): string {
@@ -654,13 +658,6 @@ function LibTile({
           <TileBtn onClick={handleDownload} title="Descargar" busy={downloading}>
             <Download className="size-3" aria-hidden />
           </TileBtn>
-          <TileBtn
-            onClick={handleUseAsRef}
-            title="Usar como referencia"
-            busy={addingRef}
-          >
-            <Sparkles className="size-3" aria-hidden />
-          </TileBtn>
         </div>
       )}
     </div>
@@ -918,7 +915,7 @@ function DetailAside({
           </Link>
         )}
 
-        <div className={cn('mb-3.5 grid gap-1.5', generation.type === 'audio' ? 'grid-cols-1' : 'grid-cols-2')}>
+        <div className="mb-3.5 grid gap-1.5 grid-cols-1">
           <button
             type="button"
             onClick={handleDownload}
@@ -932,21 +929,6 @@ function DetailAside({
             )}{' '}
             Descargar
           </button>
-          {generation.type !== 'audio' && (
-            <button
-              type="button"
-              onClick={handleUseAsRef}
-              disabled={!generation.hasOutput || addingRef}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {addingRef ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden />
-              ) : (
-                <Sparkles className="size-3.5" aria-hidden />
-              )}{' '}
-              Usar como ref.
-            </button>
-          )}
         </div>
 
         <DetailRow label="Prompt">

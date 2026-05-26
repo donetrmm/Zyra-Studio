@@ -3,6 +3,9 @@ import sharp from 'sharp';
 import { revalidatePath } from 'next/cache';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { spawn } from 'node:child_process';
+import { writeFile, unlink, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { uploadOutput, uploadThumbnail } from '@/lib/supabase/storage';
 import { completeGeneration } from '@/lib/credits/operations';
 import type { GenerationRow } from './handlers/types';
@@ -26,36 +29,47 @@ async function makeImageThumbnail(buffer: Buffer): Promise<Buffer> {
 }
 
 async function makeVideoThumbnail(buffer: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn(
-      ffmpegInstaller.path,
-      [
-        '-loglevel', 'error',
-        '-i', 'pipe:0',
-        '-ss', '0',
-        '-frames:v', '1',
-        '-vf', 'scale=512:-1',
-        '-f', 'image2',
-        '-vcodec', 'mjpeg',
-        '-q:v', '4',
-        'pipe:1',
-      ],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
-    );
+  const dir = await mkdtemp(join(tmpdir(), 'zyra-thumb-'));
+  const inputPath = join(dir, 'input.mp4');
+  const outputPath = join(dir, 'thumb.jpg');
+  await writeFile(inputPath, buffer);
 
-    const chunks: Buffer[] = [];
-    let errMsg = '';
-    ffmpeg.stdout.on('data', (c) => chunks.push(c));
-    ffmpeg.stderr.on('data', (c) => (errMsg += c.toString()));
-    ffmpeg.on('error', reject);
-    ffmpeg.on('close', (code) => {
-      if (code !== 0) reject(new Error(`ffmpeg exit ${code}: ${errMsg.slice(0, 300)}`));
-      else resolve(Buffer.concat(chunks));
+  try {
+    return await new Promise((resolve, reject) => {
+      const ffmpeg = spawn(
+        ffmpegInstaller.path,
+        [
+          '-loglevel', 'error',
+          '-i', inputPath,
+          '-ss', '0',
+          '-frames:v', '1',
+          '-vf', 'scale=512:-1',
+          '-q:v', '4',
+          outputPath,
+        ],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+
+      let errMsg = '';
+      ffmpeg.stderr.on('data', (c) => (errMsg += c.toString()));
+      ffmpeg.on('error', reject);
+      ffmpeg.on('close', async (code) => {
+        if (code !== 0) {
+          reject(new Error(`ffmpeg exit ${code}: ${errMsg.slice(0, 300)}`));
+          return;
+        }
+        try {
+          const { readFile } = await import('node:fs/promises');
+          resolve(await readFile(outputPath));
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
-
-    ffmpeg.stdin.write(buffer);
-    ffmpeg.stdin.end();
-  });
+  } finally {
+    await unlink(inputPath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
+  }
 }
 
 // Audio siempre devuelve null (no hay thumbnail visual).

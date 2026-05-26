@@ -5,7 +5,12 @@ import { VideoGenerator } from '@/components/generation/VideoGenerator';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CreateVideoPage() {
+export default async function CreateVideoPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
   const { user } = await requireWorkspace();
   const supabase = await createClient();
   const { data: balance } = await supabase
@@ -19,6 +24,7 @@ export default async function CreateVideoPage() {
       userId={user.id}
       initialBalance={(balance?.balance as number | undefined) ?? 0}
       pricing={pricing}
+      initialPrompt={params.prompt}
     />
   );
 }

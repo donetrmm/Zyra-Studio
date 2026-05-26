@@ -24,9 +24,10 @@ export function AudioGenerator(props: {
   userId: string;
   initialBalance: number;
   pricing: PricingRow[];
+  initialText?: string;
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(props.initialText ?? '');
   const [voiceId, setVoiceId] = useState<string>(OFFICIAL_VOICES[0].id);
   const [modelId, setModelId] = useState<(typeof TTS_MODELS)[number]>('eleven_multilingual_v2');
   const [languageCode, setLanguageCode] = useState<(typeof TTS_LANGUAGES)[number]>('es');

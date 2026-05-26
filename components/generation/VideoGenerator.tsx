@@ -32,12 +32,13 @@ export function VideoGenerator(props: {
   userId: string;
   initialBalance: number;
   pricing: PricingRow[];
+  initialPrompt?: string;
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
   const [model, setModel] = useState<ModelKey>(
     'fal-ai/kling-video/v3/standard/text-to-video',
   );
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(props.initialPrompt ?? '');
   const [duration, setDuration] = useState(5);
   const [generateAudio, setGenerateAudio] = useState(false);
   const [veoDuration, setVeoDuration] = useState<4 | 6 | 8>(8);
