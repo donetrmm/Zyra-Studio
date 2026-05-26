@@ -46,7 +46,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
   const canSelectLanguage = props.modelId === 'eleven_multilingual_v2' && !isEnglishOnly;
 
   return (
-    <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 p-5">
+    <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 px-4 py-[18px]">
       <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
         Texto a voz
       </h2>

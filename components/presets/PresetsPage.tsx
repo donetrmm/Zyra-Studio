@@ -79,16 +79,16 @@ export function PresetsPage({
       </div>
 
       {/* Tabs */}
-      <div className="mt-5 flex gap-1 rounded-lg bg-muted/30 p-1">
+      <div className="mt-5 flex gap-1 rounded-[10px] border border-border bg-muted/30 p-[3px]">
         {(['community', 'mine'] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             className={cn(
-              'flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors',
+              'flex-1 rounded-[8px] px-3 py-1.5 text-[13px] font-medium transition-colors',
               tab === t
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'border border-border bg-background text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
@@ -115,10 +115,10 @@ export function PresetsPage({
               type="button"
               onClick={() => setTypeFilter(f)}
               className={cn(
-                'rounded-full px-2.5 py-1 text-[11px] transition-colors',
+                'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
                 typeFilter === f
-                  ? 'bg-primary/10 text-foreground'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'border-primary/50 bg-primary/10 text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               {f === 'all' ? 'Todos' : TYPE_LABEL[f]}
