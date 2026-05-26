@@ -111,24 +111,54 @@ function PresetCard({ preset, owned, onDelete }: { preset: PresetRow; owned: boo
     });
   }
 
+  const thumbnailUrl = preset.params.thumbnailUrl as string | undefined;
+  const prompt = preset.params.prompt as string | undefined;
+  const modelName = preset.params.model as string | undefined;
+  const aspectRatio = preset.params.aspectRatio as string | undefined;
+
   return (
     <div className="group overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
-      <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-3">
-        <div className="grid size-8 place-items-center rounded-full bg-primary/10">
-          <Icon className="size-3.5 text-primary" aria-hidden />
+      {thumbnailUrl ? (
+        <div className="relative aspect-video overflow-hidden border-b border-border/50 bg-black">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={thumbnailUrl} alt={preset.name} className="size-full object-cover" />
+          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
+            <Icon className="size-3" aria-hidden />
+            {label}
+          </div>
+          {preset.is_public && (
+            <div className="absolute right-2 top-2 rounded-full bg-primary/80 px-1.5 py-0.5 text-[9px] font-medium text-primary-foreground backdrop-blur">
+              <Globe className="inline size-2.5" /> Público
+            </div>
+          )}
         </div>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[13.5px] font-medium text-foreground">{preset.name}</h3>
-          <div className="flex items-center gap-2 text-[10.5px] text-muted-foreground/60">
-            <span>{label}</span>
-            <span>{preset.is_public ? <Globe className="inline size-3" /> : <Lock className="inline size-3" />}</span>
-            {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
+      ) : (
+        <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-3">
+          <div className="grid size-8 place-items-center rounded-full bg-primary/10">
+            <Icon className="size-3.5 text-primary" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 text-[10.5px] text-muted-foreground/60">
+              <span>{label}</span>
+              <span>{preset.is_public ? <Globe className="inline size-3" /> : <Lock className="inline size-3" />}</span>
+            </div>
           </div>
         </div>
-      </div>
-      {preset.description && (
-        <p className="border-b border-border/30 px-4 py-2 text-[11.5px] text-muted-foreground/70">{preset.description}</p>
       )}
+      <div className="px-4 py-3">
+        <h3 className="truncate text-[13.5px] font-medium text-foreground">{preset.name}</h3>
+        {preset.description && (
+          <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground/70">{preset.description}</p>
+        )}
+        {prompt && (
+          <p className="mt-1.5 line-clamp-2 rounded bg-muted/30 px-2 py-1 text-[10.5px] text-muted-foreground/60">{prompt}</p>
+        )}
+        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground/50">
+          {modelName && <span>{modelName}</span>}
+          {aspectRatio && <span>{aspectRatio}</span>}
+          {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
+        </div>
+      </div>
       <div className="flex gap-2 p-3">
         <button
           type="button"

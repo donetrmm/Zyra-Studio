@@ -1173,6 +1173,8 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
           model: generation.model,
           provider: generation.provider,
           aspectRatio: generation.aspectRatio,
+          generationId: generation.id,
+          thumbnailUrl: generation.thumbnailUrl,
         },
         isPublic,
       });
