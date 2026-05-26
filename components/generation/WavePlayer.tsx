@@ -313,7 +313,7 @@ export function WavePlayer({ src }: { src: string }) {
       {/* Progress bar */}
       <div
         ref={progressRef}
-        className="relative flex h-[22px] cursor-pointer items-center px-7"
+        className="relative flex h-[22px] cursor-pointer items-center px-4 sm:px-7"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -344,47 +344,45 @@ export function WavePlayer({ src }: { src: string }) {
       </div>
 
       {/* Bottom controls */}
-      <div className="z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-7 pb-6 pt-3.5">
-        {/* Status */}
-        <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground/60">
-          <span
-            className={cn(
-              'size-1.5 rounded-full',
-              playing
-                ? 'animate-[zyra-blink_1.4s_ease-in-out_infinite] bg-primary shadow-[0_0_8px_rgba(123,97,255,0.45)]'
-                : 'bg-muted-foreground/40',
-            )}
-          />
-          <span>{playing ? 'Reproduciendo' : 'Pausado'}</span>
+      <div className="z-10 flex flex-col gap-3 px-4 pb-5 pt-3 sm:px-7 sm:pb-6 sm:pt-3.5">
+        {/* Time + status row */}
+        <div className="flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground/60">
+            <span
+              className={cn(
+                'size-1.5 rounded-full',
+                playing
+                  ? 'animate-[zyra-blink_1.4s_ease-in-out_infinite] bg-primary shadow-[0_0_8px_rgba(123,97,255,0.45)]'
+                  : 'bg-muted-foreground/40',
+              )}
+            />
+            <span className="hidden sm:inline">{playing ? 'Reproduciendo' : 'Pausado'}</span>
+          </div>
+          <div className="font-mono text-[20px] font-normal tracking-tight text-foreground sm:text-[26px]">
+            {fmt(currentTime)}
+            <span className="ml-1.5 text-[12px] text-muted-foreground/60 sm:ml-2 sm:text-[14px]">/ {fmt(duration)}</span>
+          </div>
         </div>
 
-        {/* Time */}
-        <div className="justify-self-center font-mono text-[26px] font-normal tracking-tight text-foreground">
-          {fmt(currentTime)}
-          <span className="ml-2 text-[14px] text-muted-foreground/60">/ {fmt(duration)}</span>
-        </div>
-
-        {/* Buttons */}
-        <div className="inline-flex items-center gap-2 justify-self-end">
-          {/* Back 10s */}
+        {/* Buttons row */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
             onClick={() => skip(-10)}
             title="Atrasar 10 s"
-            className="relative grid size-10 place-items-center rounded-full border border-white/[0.14] bg-[#131A2E]/60 text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.94]"
+            className="relative grid size-9 place-items-center rounded-full border border-white/[0.14] bg-[#131A2E]/60 text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.94] sm:size-10"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="sm:size-[22px]">
               <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
               <path d="M3 3v5h5" />
             </svg>
-            <span className="pointer-events-none absolute font-mono text-[9.5px] font-medium text-foreground">10</span>
+            <span className="pointer-events-none absolute font-mono text-[8px] font-medium text-foreground sm:text-[9.5px]">10</span>
           </button>
 
-          {/* Play/Pause */}
           <button
             type="button"
             onClick={togglePlay}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-primary/[0.35] bg-primary/[0.14] px-4 text-[13px] font-medium text-foreground backdrop-blur transition-all hover:border-primary/50 hover:bg-primary/[0.22] active:scale-[0.96]"
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-primary/[0.35] bg-primary/[0.14] px-3.5 text-[12px] font-medium text-foreground backdrop-blur transition-all hover:border-primary/50 hover:bg-primary/[0.22] active:scale-[0.96] sm:h-10 sm:px-4 sm:text-[13px]"
           >
             {playing ? (
               <>
@@ -399,34 +397,32 @@ export function WavePlayer({ src }: { src: string }) {
             )}
           </button>
 
-          {/* Forward 10s */}
           <button
             type="button"
             onClick={() => skip(10)}
             title="Adelantar 10 s"
-            className="relative grid size-10 place-items-center rounded-full border border-white/[0.14] bg-[#131A2E]/60 text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.94]"
+            className="relative grid size-9 place-items-center rounded-full border border-white/[0.14] bg-[#131A2E]/60 text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.94] sm:size-10"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="sm:size-[22px]">
               <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
               <path d="M21 3v5h-5" />
             </svg>
-            <span className="pointer-events-none absolute font-mono text-[9.5px] font-medium text-foreground">10</span>
+            <span className="pointer-events-none absolute font-mono text-[8px] font-medium text-foreground sm:text-[9.5px]">10</span>
           </button>
 
-          {/* Download */}
           <button
             type="button"
             onClick={handleDownload}
             disabled={downloading}
             title="Descargar audio"
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-white/[0.14] bg-[#131A2E]/60 px-4 text-[13px] font-medium text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.96]"
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-white/[0.14] bg-[#131A2E]/60 px-3.5 text-[12px] font-medium text-foreground backdrop-blur transition-all hover:border-white/[0.22] hover:bg-[#1A2240]/85 active:scale-[0.96] sm:h-10 sm:px-4 sm:text-[13px]"
           >
             {downloading ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <Download className="size-3.5" />
             )}
-            Descargar
+            <span className="hidden sm:inline">Descargar</span>
           </button>
         </div>
       </div>
