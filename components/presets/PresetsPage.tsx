@@ -1,10 +1,24 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Globe, Loader2, Lock, Sparkles, Trash2, Play, ImageIcon, Video, Mic } from 'lucide-react';
+import {
+  Download,
+  Globe,
+  ImageIcon,
+  Loader2,
+  Lock,
+  Mic,
+  Play,
+  Search,
+  Sparkles,
+  Trash2,
+  Video,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { deletePresetAction, usePresetAction } from '@/server-actions/presets';
+import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import { cn } from '@/lib/utils';
 
 type PresetRow = {
@@ -21,6 +35,7 @@ type PresetRow = {
 
 const TYPE_ICON = { image: ImageIcon, video: Video, audio: Mic } as const;
 const TYPE_LABEL = { image: 'Imagen', video: 'Video', audio: 'Audio' } as const;
+const TYPE_FILTERS = ['all', 'image', 'video', 'audio'] as const;
 
 export function PresetsPage({
   userId,
@@ -33,17 +48,36 @@ export function PresetsPage({
 }) {
   const [tab, setTab] = useState<'mine' | 'community'>('community');
   const [myPresets, setMyPresets] = useState(initialMy);
-  const publicPresets = initialPublic;
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>('all');
+  const [preview, setPreview] = useState<PresetRow | null>(null);
+
+  const filtered = useMemo(() => {
+    const list = tab === 'community' ? initialPublic : myPresets;
+    return list.filter((p) => {
+      if (typeFilter !== 'all' && p.type !== typeFilter) return false;
+      if (query) {
+        const q = query.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.description?.toLowerCase().includes(q) ?? false) ||
+          (String(p.params.prompt ?? '').toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [tab, initialPublic, myPresets, query, typeFilter]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
       <div>
         <h1 className="text-[18px] font-semibold text-foreground">Presets</h1>
         <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
-          Configuraciones reutilizables para generaciones. Publica los tuyos para que otros los usen, o explora los de la comunidad.
+          Configuraciones reutilizables. Publica los tuyos para que otros los usen, o explora los de la comunidad.
         </p>
       </div>
 
+      {/* Tabs */}
       <div className="mt-5 flex gap-1 rounded-lg bg-muted/30 p-1">
         {(['community', 'mine'] as const).map((t) => (
           <button
@@ -62,35 +96,80 @@ export function PresetsPage({
         ))}
       </div>
 
-      {tab === 'community' ? (
-        publicPresets.length === 0 ? (
-          <EmptyState message="No hay presets públicos aún" sub="Publica uno de tus presets para que aparezca aquí" />
-        ) : (
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {publicPresets.map((p) => (
-              <PresetCard key={p.id} preset={p} owned={p.user_id === userId} onDelete={(id) => setMyPresets((ps) => ps.filter((x) => x.id !== id))} />
-            ))}
-          </div>
-        )
-      ) : myPresets.length === 0 ? (
-        <EmptyState message="No tienes presets" sub="Genera contenido y guárdalo como preset desde la biblioteca" />
+      {/* Filters */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" aria-hidden />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar presets..."
+            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+          />
+        </div>
+        <div className="flex gap-1">
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setTypeFilter(f)}
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11px] transition-colors',
+                typeFilter === f
+                  ? 'bg-primary/10 text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {f === 'all' ? 'Todos' : TYPE_LABEL[f]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Grid */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          message={query ? 'Sin resultados' : 'No hay presets'}
+          sub={query ? 'Intenta con otro término' : tab === 'community' ? 'Publica uno desde la biblioteca' : 'Guarda una generación como preset'}
+        />
       ) : (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {myPresets.map((p) => (
-            <PresetCard key={p.id} preset={p} owned onDelete={(id) => setMyPresets((ps) => ps.filter((x) => x.id !== id))} />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((p) => (
+            <PresetCard
+              key={p.id}
+              preset={p}
+              owned={p.user_id === userId}
+              onDelete={(id) => setMyPresets((ps) => ps.filter((x) => x.id !== id))}
+              onPreview={() => setPreview(p)}
+            />
           ))}
         </div>
       )}
+
+      {/* Preview modal */}
+      {preview && <PreviewModal preset={preview} onClose={() => setPreview(null)} />}
     </div>
   );
 }
 
-function PresetCard({ preset, owned, onDelete }: { preset: PresetRow; owned: boolean; onDelete: (id: string) => void }) {
+function PresetCard({
+  preset,
+  owned,
+  onDelete,
+  onPreview,
+}: {
+  preset: PresetRow;
+  owned: boolean;
+  onDelete: (id: string) => void;
+  onPreview: () => void;
+}) {
   const router = useRouter();
   const [using, startUse] = useTransition();
   const [deleting, startDelete] = useTransition();
   const Icon = TYPE_ICON[preset.type as keyof typeof TYPE_ICON] ?? Sparkles;
   const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
+  const thumbnailUrl = preset.params.thumbnailUrl as string | undefined;
+  const prompt = preset.params.prompt as string | undefined;
 
   function handleUse() {
     startUse(async () => {
@@ -111,74 +190,177 @@ function PresetCard({ preset, owned, onDelete }: { preset: PresetRow; owned: boo
     });
   }
 
-  const thumbnailUrl = preset.params.thumbnailUrl as string | undefined;
-  const prompt = preset.params.prompt as string | undefined;
-  const modelName = preset.params.model as string | undefined;
-  const aspectRatio = preset.params.aspectRatio as string | undefined;
-
   return (
     <div className="group overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
-      {thumbnailUrl ? (
-        <div className="relative aspect-video overflow-hidden border-b border-border/50 bg-black">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={thumbnailUrl} alt={preset.name} className="size-full object-cover" />
-          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
-            <Icon className="size-3" aria-hidden />
-            {label}
+      {/* Preview area — clickable */}
+      <button type="button" onClick={onPreview} className="relative block w-full text-left">
+        {thumbnailUrl ? (
+          <div className="relative aspect-video overflow-hidden bg-black">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={thumbnailUrl} alt={preset.name} className="size-full object-cover transition-transform group-hover:scale-[1.02]" />
           </div>
-          {preset.is_public && (
-            <div className="absolute right-2 top-2 rounded-full bg-primary/80 px-1.5 py-0.5 text-[9px] font-medium text-primary-foreground backdrop-blur">
-              <Globe className="inline size-2.5" /> Público
-            </div>
-          )}
+        ) : (
+          <div className="grid aspect-video place-items-center bg-muted/20">
+            <Icon className="size-8 text-muted-foreground/30" aria-hidden />
+          </div>
+        )}
+        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
+          <Icon className="size-3" aria-hidden />
+          {label}
         </div>
-      ) : (
-        <div className="flex items-center gap-3 border-b border-border/50 bg-muted/20 px-4 py-3">
-          <div className="grid size-8 place-items-center rounded-full bg-primary/10">
-            <Icon className="size-3.5 text-primary" aria-hidden />
+        {preset.is_public && (
+          <div className="absolute right-2 top-2 rounded-full bg-primary/80 px-1.5 py-0.5 text-[9px] font-medium text-primary-foreground backdrop-blur">
+            Público
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[10.5px] text-muted-foreground/60">
-              <span>{label}</span>
-              <span>{preset.is_public ? <Globe className="inline size-3" /> : <Lock className="inline size-3" />}</span>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </button>
+
+      {/* Info */}
       <div className="px-4 py-3">
         <h3 className="truncate text-[13.5px] font-medium text-foreground">{preset.name}</h3>
-        {preset.description && (
-          <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground/70">{preset.description}</p>
-        )}
         {prompt && (
-          <p className="mt-1.5 line-clamp-2 rounded bg-muted/30 px-2 py-1 text-[10.5px] text-muted-foreground/60">{prompt}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/60">{prompt}</p>
         )}
         <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground/50">
-          {modelName && <span>{modelName}</span>}
-          {aspectRatio && <span>{aspectRatio}</span>}
           {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
         </div>
       </div>
-      <div className="flex gap-2 p-3">
+
+      {/* Actions */}
+      <div className="flex gap-2 border-t border-border/30 p-3">
         <button
           type="button"
           onClick={handleUse}
           disabled={using}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/20"
         >
           {using ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-          Usar
+          Usar preset
         </button>
         {owned && (
           <button
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
           >
             <Trash2 className="size-3.5" aria-hidden />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => void }) {
+  const router = useRouter();
+  const [using, startUse] = useTransition();
+  const [downloading, setDownloading] = useState(false);
+  const thumbnailUrl = preset.params.thumbnailUrl as string | undefined;
+  const prompt = preset.params.prompt as string | undefined;
+  const modelName = preset.params.model as string | undefined;
+  const aspectRatio = preset.params.aspectRatio as string | undefined;
+  const generationId = preset.params.generationId as string | undefined;
+  const Icon = TYPE_ICON[preset.type as keyof typeof TYPE_ICON] ?? Sparkles;
+  const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
+
+  function handleUse() {
+    startUse(async () => {
+      const res = await usePresetAction(preset.id);
+      if (!res.ok) { toast.error('No se pudo cargar'); return; }
+      const params = new URLSearchParams();
+      if (res.data.params.prompt) params.set('prompt', String(res.data.params.prompt));
+      router.push(`/app/create/${res.data.type}?${params.toString()}`);
+      onClose();
+    });
+  }
+
+  async function handleDownload() {
+    if (!generationId) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/generations/${generationId}`);
+      if (!res.ok) throw new Error('No se pudo obtener la URL');
+      const data = await res.json() as { outputUrl?: string };
+      if (data.outputUrl) await downloadFile(data.outputUrl, `zyra-preset`);
+    } catch {
+      toast.error('No se pudo descargar');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {/* Media */}
+        {thumbnailUrl && (
+          <div className="relative bg-black">
+            {preset.type === 'video' ? (
+              <video controls autoPlay muted playsInline src={thumbnailUrl} className="max-h-[50vh] w-full object-contain" />
+            ) : preset.type === 'audio' ? (
+              <div className="flex items-center justify-center p-8">
+                <audio controls autoPlay src={thumbnailUrl} className="w-full" />
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumbnailUrl} alt={preset.name} className="max-h-[50vh] w-full object-contain" />
+            )}
+          </div>
+        )}
+
+        {/* Details */}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold text-foreground">{preset.name}</h2>
+              <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/60">
+                <span className="inline-flex items-center gap-1"><Icon className="size-3" />{label}</span>
+                {modelName && <span>{modelName}</span>}
+                {aspectRatio && <span>{aspectRatio}</span>}
+                {preset.is_public ? <Globe className="size-3" /> : <Lock className="size-3" />}
+                {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
+              </div>
+            </div>
+            <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+              <X className="size-5" aria-hidden />
+            </button>
+          </div>
+
+          {preset.description && (
+            <p className="mt-3 text-[13px] leading-relaxed text-muted-foreground">{preset.description}</p>
+          )}
+
+          {prompt && (
+            <div className="mt-3 rounded-lg bg-muted/30 px-3 py-2">
+              <p className="text-[11px] font-medium text-muted-foreground/50">Prompt</p>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-foreground">{prompt}</p>
+            </div>
+          )}
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={handleUse}
+              disabled={using}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {using ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+              Usar preset
+            </button>
+            {generationId && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+              >
+                {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                Descargar
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
