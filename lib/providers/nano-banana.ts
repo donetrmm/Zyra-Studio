@@ -228,16 +228,18 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
 
   let res = await callOnce(params, apiKey);
 
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, 1500));
+  const RETRY_DELAYS = [2000, 5000, 10000];
+  for (const delay of RETRY_DELAYS) {
+    if (res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, delay));
     res = await callOnce(params, apiKey);
-    if (res.status === 429) {
-      throw new ProviderError(
-        'Rate limit del proveedor. Intenta de nuevo en unos segundos.',
-        'rate_limit',
-        true,
-      );
-    }
+  }
+  if (res.status === 429) {
+    throw new ProviderError(
+      'Rate limit del proveedor. Intenta de nuevo en unos segundos.',
+      'rate_limit',
+      true,
+    );
   }
 
   if (res.status === 401 || res.status === 403) {

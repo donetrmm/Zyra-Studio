@@ -72,7 +72,9 @@ export function StoryboardEditor(props: {
         ),
       );
 
-      for (const frame of toGenerate) {
+      for (let i = 0; i < toGenerate.length; i++) {
+        const frame = toGenerate[i];
+        if (i > 0) await new Promise((r) => setTimeout(r, 3000));
         try {
           const res = await submitGenerationAction({
             provider: 'nano-banana',
