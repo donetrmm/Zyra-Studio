@@ -28,7 +28,7 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Brand Kits</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Paleta, fuentes y tono para inyectar en tus generaciones
+            Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para que sus colores, tipografía y estilo se inyecten automáticamente en el prompt.
           </p>
         </div>
         <button
