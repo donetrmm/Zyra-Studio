@@ -16,7 +16,7 @@ Al cerrar la fase:
 2. Las plantillas comunitarias (presets públicos) están funcionando con un puñado precargado.
 3. Dubbing automático genera versiones doblabas de un video.
 4. El cleanup automático corre cada noche.
-5. La cuenta demo tiene contenido pre-existente creíble (campañas, brand kits, personajes, generaciones de ejemplo).
+5. La cuenta demo tiene contenido pre-existente creíble (campañas, brand kits, generaciones de ejemplo).
 6. Hay un guion de demo de 5-7 minutos documentado.
 
 ## Tareas en orden
@@ -96,10 +96,8 @@ Script `supabase/seed/demo.sql` que un admin corre una sola vez:
 - 2-3 campañas: "Campaña Verano 2026", "Brand Refresh".
 - 4-5 proyectos en cada campaña.
 - 2 brand kits: uno minimalista (negro/blanco), uno expresivo (violetas y naranjas).
-- 1 cast de 3 personajes: con refs precargadas (subir manualmente).
 - 6-8 presets públicos cubriendo casos comunes (photo-product, vertical-reel, infografía, narración corporativa).
 - 15-20 generaciones de ejemplo (imágenes y videos cortos) cubriendo todos los proveedores. Hacerlas con cuentas reales para que sean believable.
-- 1 storyboard completado.
 - 2-3 compras simbólicas con estados distintos (pending, approved, rejected).
 
 ### 7. Auditoría técnica (1h)
@@ -119,10 +117,10 @@ Crear `docs/demo-guion.md` con:
 - 5-7 minutos cronometrados.
 - Orden sugerido:
   1. (1 min) Landing → signup express con email → onboarding → vista del dashboard con seed precargado.
-  2. (1.5 min) `/app/create/image` con Nano Banana Pro: prompt + brand kit + personaje + generar → mostrar resultado.
+  2. (1.5 min) `/app/create/image` con Nano Banana Pro: prompt + brand kit + generar → mostrar resultado.
   3. (1 min) Smart crop multi-formato del resultado.
   4. (1.5 min) `/app/create/video` con Veo Fast: image-to-video usando la imagen anterior como primer frame.
-  5. (1 min) Storyboard mode: tira de 4 frames → generar → animar.
+  5. (1 min) Comparador A/B: seleccionar 2-3 generaciones → comparar lado a lado.
   6. (1 min) `/app/billing` → comprar pack → switch a `/admin/purchases` → aprobar → ver balance subir en vivo.
 - Plan B si falla un proveedor: tener videos pre-generados en seed para mostrar en su lugar.
 

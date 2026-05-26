@@ -15,8 +15,6 @@ import {
   Receipt,
   Tag,
   History,
-  ListChecks,
-  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,7 +55,6 @@ export const APP_SIDEBAR: NavSection[] = [
     title: "Recursos",
     items: [
       { label: "Referencias", href: "/app/references", icon: Files },
-      { label: "Personajes", href: "/app/characters", icon: Users },
       { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
       { label: "Voces", href: "/app/voices", icon: Mic, badge: "Beta" },
       { label: "Presets", href: "/app/presets", icon: Sparkles },
