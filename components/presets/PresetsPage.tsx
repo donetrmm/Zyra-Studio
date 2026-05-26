@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Download,
@@ -264,6 +264,25 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   const Icon = TYPE_ICON[preset.type as keyof typeof TYPE_ICON] ?? Sparkles;
   const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
 
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [loadingMedia, setLoadingMedia] = useState(!!generationId);
+
+  useEffect(() => {
+    if (!generationId) return;
+    let active = true;
+    fetch(`/api/generations/${generationId}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { outputUrl?: string; thumbnailUrl?: string } | null) => {
+        if (!active) return;
+        setOutputUrl(data?.outputUrl ?? null);
+        setLoadingMedia(false);
+      })
+      .catch(() => { if (active) setLoadingMedia(false); });
+    return () => { active = false; };
+  }, [generationId]);
+
+  const mediaUrl = outputUrl ?? thumbnailUrl;
+
   function handleUse() {
     startUse(async () => {
       const res = await usePresetAction(preset.id);
@@ -294,20 +313,28 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
       <div className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Media */}
-        {thumbnailUrl && (
-          <div className="relative bg-black">
-            {preset.type === 'video' ? (
-              <video controls autoPlay muted playsInline src={thumbnailUrl} className="max-h-[50vh] w-full object-contain" />
+        <div className="relative bg-black">
+          {loadingMedia ? (
+            <div className="grid aspect-video place-items-center">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : mediaUrl ? (
+            preset.type === 'video' ? (
+              <video controls autoPlay muted playsInline src={mediaUrl} className="max-h-[50vh] w-full object-contain" />
             ) : preset.type === 'audio' ? (
-              <div className="flex items-center justify-center p-8">
-                <audio controls autoPlay src={thumbnailUrl} className="w-full" />
+              <div className="flex items-center justify-center bg-card p-8">
+                <audio controls autoPlay src={mediaUrl} className="w-full" />
               </div>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbnailUrl} alt={preset.name} className="max-h-[50vh] w-full object-contain" />
-            )}
-          </div>
-        )}
+              <img src={mediaUrl} alt={preset.name} className="max-h-[50vh] w-full object-contain" />
+            )
+          ) : (
+            <div className="grid aspect-video place-items-center text-muted-foreground/40">
+              <Icon className="size-10" aria-hidden />
+            </div>
+          )}
+        </div>
 
         {/* Details */}
         <div className="p-5">
