@@ -58,7 +58,6 @@ export const APP_SIDEBAR: NavSection[] = [
     items: [
       { label: "Referencias", href: "/app/references", icon: Files },
       { label: "Personajes", href: "/app/characters", icon: Users },
-      { label: "Brand kits", href: "/app/brand-kits", icon: Palette },
       { label: "Voces", href: "/app/voices", icon: Mic },
       { label: "Presets", href: "/app/presets", icon: Sparkles },
     ],

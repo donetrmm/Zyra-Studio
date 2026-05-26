@@ -7,8 +7,6 @@ import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
 import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
-import { applyBrandKit } from '@/lib/brand-kit/apply';
-import type { SelectedBrandKit } from './BrandKitSelector';
 import { VideoControlsPanel, VIDEO_STYLES, type ModelKey, type ReferenceImage } from './VideoControlsPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
@@ -48,7 +46,6 @@ export function VideoGenerator(props: {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
-  const [brandKit, setBrandKit] = useState<SelectedBrandKit>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resolvedOutputUrl, setResolvedOutputUrl] = useState<string | null>(null);
@@ -82,8 +79,7 @@ export function VideoGenerator(props: {
         .filter(Boolean)
         .join(', ');
       const maxLen = model.startsWith('veo-') ? 1024 : 2000;
-      let raw = styleSuffix ? `${prompt.trimEnd()}, ${styleSuffix}` : prompt;
-      if (brandKit) raw = applyBrandKit(raw, brandKit, 'video');
+      const raw = styleSuffix ? `${prompt.trimEnd()}, ${styleSuffix}` : prompt;
       const finalPrompt = raw.slice(0, maxLen);
 
       const input = model.startsWith('veo-')
@@ -147,8 +143,6 @@ export function VideoGenerator(props: {
       setModel={setModel}
       selectedStyles={selectedStyles}
       setSelectedStyles={setSelectedStyles}
-      brandKit={brandKit}
-      setBrandKit={setBrandKit}
       duration={duration}
       setDuration={setDuration}
       generateAudio={generateAudio}
