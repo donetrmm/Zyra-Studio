@@ -299,7 +299,7 @@ function ResultState({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-5 pt-5">
+    <div className="flex h-full flex-col overflow-hidden p-3 sm:p-5">
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
         <div
           className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]"
@@ -340,15 +340,15 @@ function ResultState({
         <Lightbox src={result.outputUrl} alt={promptText} onClose={() => setLightbox(false)} />
       )}
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <div className="truncate text-[12.5px] text-foreground">{promptText}</div>
           <div className="mt-1 flex gap-3.5 font-mono text-[11px] text-muted-foreground/80">
             <span>−{result.credits} cr.</span>
             <span>{relativeTime(result.createdAt)}</span>
           </div>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           <GhostBtn
             onClick={() => setLightbox(true)}
             disabled={!result.outputUrl}

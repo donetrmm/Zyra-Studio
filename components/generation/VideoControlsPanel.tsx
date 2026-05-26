@@ -447,7 +447,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         value={props.prompt}
         onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
         placeholder="Describe la escena que quieres animar..."
-        className="scroll-thin mt-1.5 min-h-[100px] max-h-[280px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="scroll-thin mt-1.5 min-h-[100px] max-h-[180px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40 sm:max-h-[280px]"
       />
       <EnhanceButton
         prompt={props.prompt}

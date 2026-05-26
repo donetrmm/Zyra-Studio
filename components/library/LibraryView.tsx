@@ -224,7 +224,7 @@ export function LibraryView({
   );
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col bg-background">
+    <div className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col bg-background lg:h-[calc(100dvh-4rem)]">
       <LibHeader
         tab={tab}
         setTab={setTab}
@@ -360,7 +360,7 @@ function LibHeader({
   const sortLabel = sort === 'recent' ? 'recientes' : 'antiguos';
   return (
     <div className="border-b border-border">
-      <div className="flex flex-wrap items-end justify-between gap-4 px-6 pb-3 pt-5">
+      <div className="flex flex-wrap items-end justify-between gap-4 px-4 pb-3 pt-5 sm:px-6">
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">
             Biblioteca
@@ -380,7 +380,7 @@ function LibHeader({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
         <div className="inline-flex gap-0.5 rounded-[10px] border border-border bg-muted/30 p-[3px]">
           {TABS.map((t) => {
             const active = tab === t.id;
