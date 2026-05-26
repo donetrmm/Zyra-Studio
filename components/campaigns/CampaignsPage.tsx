@@ -23,7 +23,7 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
   const [editing, setEditing] = useState<CampaignRow | 'new' | null>(null);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-4xl">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Campañas</h1>

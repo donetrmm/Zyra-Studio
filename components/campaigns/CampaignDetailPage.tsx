@@ -31,7 +31,7 @@ export function CampaignDetailPage({
   generations: Generation[];
 }) {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-4xl">
       <Link
         href="/app/campaigns"
         className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"

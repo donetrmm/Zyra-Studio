@@ -71,7 +71,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-4xl">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>

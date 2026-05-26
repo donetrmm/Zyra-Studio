@@ -70,7 +70,7 @@ export function PresetsPage({
   }, [tab, initialPublic, myPresets, query, typeFilter]);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
+    <div className="mx-auto max-w-4xl">
       <div>
         <h1 className="text-[18px] font-semibold text-foreground">Presets</h1>
         <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
