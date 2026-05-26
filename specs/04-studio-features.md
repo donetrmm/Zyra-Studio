@@ -100,35 +100,24 @@ En el preview de cualquier imagen completada: botón "Smart crop".
 - Página/modal con split screen sincronizado: para imagen, swipe slider; para video, controles sincronizados (play/pause/seek aplica a todos a la vez).
 - Útil para visualizar resultados del comparador entre auto-variaciones o batches.
 
-### 8. Pipeline voz+video sincronizado (1h)
-
-- Botón "Generar video con voz" en alguna parte prominente (idea: `/app/create/audio` → tras generar voz, botón "Animar esta voz").
-- Wizard de 3 pasos:
-  1. **Audio:** ya generado (pre-seleccionado) o "Generar nuevo audio".
-  2. **Video base:** prompt + modelo (Kling 2.6 Pro recomendado).
-  3. **Confirmar:** muestra costo total (audio + video + lip-sync) y dispara los 3 jobs con `batch_id` y `batch_kind='lipsync_pipeline'`.
-- `parent_generation_id` encadena audio → video → lip-sync (sección 11.7 del spec).
-- UI de seguimiento: una sola card con los 3 pasos (icono por status de cada uno).
-
-### 9. Vista de batches en biblioteca (0.5h)
+### 8. Vista de batches en biblioteca (0.5h)
 
 - En `/app/library`: si un `generation` tiene `batch_id`, se agrupa visualmente con sus hermanos (border común, label "Storyboard de 6 frames" / "3 variantes" / etc.).
 - Click en el batch → grid con todos los hermanos + opciones (descargar todos como ZIP, eliminar batch entero).
 
-### 10. Árbol de iteraciones (0.5h)
+### 9. Árbol de iteraciones (0.5h)
 
 - En el modal de detalle de cualquier generación: panel lateral "Historial".
 - Renderiza el árbol usando `parent_generation_id` recursivo (query con CTE recursiva o resolución cliente-side).
 - Visualización tipo git branch con react-flow simple o solo cards anidadas.
 
-### 11. Smoke test (0.5h)
+### 10. Smoke test (0.5h)
 
 - Crear brand kit con paleta + logo → generar imagen con toggle activo → la imagen incorpora el logo.
 - Crear personaje con 4 refs → generar video Veo (truncado a 3) → personaje reconocible.
 - Storyboard de 6 frames → genera todas → animar → 6 videos cortos consistentes.
 - Auto-variaciones de una imagen → 3 alternativas distintas pero relacionadas.
 - Smart crop con 4 formatos → 4 versiones de la misma imagen sin cropping ciego.
-- Pipeline voz+video: TTS español → video Kling → lip-sync → resultado coherente.
 
 ## Criterios de aceptación
 
@@ -138,7 +127,6 @@ En el preview de cualquier imagen completada: botón "Smart crop".
 - [ ] Storyboard: las N filas comparten `batch_id` y `batch_kind='storyboard'`; los videos animados tienen `parent_generation_id` correcto.
 - [ ] Auto-variaciones: dispara 3 generaciones con un solo click, batch agrupado en library.
 - [ ] Smart crop: cada formato es una fila separada con su `params.target_aspect`.
-- [ ] Pipeline voz+video: las 3 filas forman cadena por `parent_generation_id`; comparten `batch_id`.
 - [ ] Comparador A/B funciona con 2, 3 y 4 selecciones.
 
 ## Lo que NO entra en esta fase
@@ -157,5 +145,4 @@ En el preview de cualquier imagen completada: botón "Smart crop".
 | Storyboard de 8 frames consume 8 mensajes QStash de golpe | Mostrar en UI cuántos mensajes consume; advertir si quedan <100 mensajes diarios |
 | Smart crop con edición conversacional puede no reframear bien si la imagen es muy compleja | Aceptar como limitación de la demo; permitir regenerar individualmente |
 | Cast de personajes con 5 refs en Veo solo manda 3 → personaje inconsistente | UI muestra "Solo se usarán 3 de tus 5 refs en Veo" como warning antes de generar |
-| Pipeline voz+video: si lip-sync falla, audio y video ya están pagados | Documentado en spec sección 11.7; mostrar mensaje "El audio y video siguen disponibles en biblioteca" |
 | Árbol de iteraciones con DAG grande (10+ niveles) puede crashear UI | Limitar profundidad visual a 5 niveles + botón "Ver más" |
