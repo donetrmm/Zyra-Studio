@@ -600,5 +600,6 @@ export async function cancelGenerationAction(
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };
   }
+  revalidatePath('/app/library');
   return { ok: true, data: { canceled: true } };
 }

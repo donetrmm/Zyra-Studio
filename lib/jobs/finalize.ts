@@ -3,7 +3,7 @@ import sharp from 'sharp';
 import { revalidatePath } from 'next/cache';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { spawn } from 'node:child_process';
-import { writeFile, unlink, mkdtemp } from 'node:fs/promises';
+import { writeFile, readFile, unlink, rmdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { uploadOutput, uploadThumbnail } from '@/lib/supabase/storage';
@@ -59,7 +59,6 @@ async function makeVideoThumbnail(buffer: Buffer): Promise<Buffer> {
           return;
         }
         try {
-          const { readFile } = await import('node:fs/promises');
           resolve(await readFile(outputPath));
         } catch (e) {
           reject(e);
@@ -69,6 +68,7 @@ async function makeVideoThumbnail(buffer: Buffer): Promise<Buffer> {
   } finally {
     await unlink(inputPath).catch(() => {});
     await unlink(outputPath).catch(() => {});
+    await rmdir(dir).catch(() => {});
   }
 }
 

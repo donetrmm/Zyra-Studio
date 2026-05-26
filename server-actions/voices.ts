@@ -74,13 +74,14 @@ export async function cloneVoiceAction(
 export async function deleteVoiceAction(
   voiceCloneId: string,
 ): Promise<Result<{ deleted: true }>> {
-  await requireWorkspace();
+  const { user } = await requireWorkspace();
   const supabase = await createClient();
 
   const { data: row } = await supabase
     .from('voice_clones')
     .select('elevenlabs_voice_id')
     .eq('id', voiceCloneId)
+    .eq('user_id', user.id)
     .single();
 
   if (row?.elevenlabs_voice_id) {
@@ -108,7 +109,18 @@ export async function tryVoiceAction(params: {
   voiceId: string;
   text: string;
 }): Promise<Result<{ audioBase64: string }>> {
-  await requireWorkspace();
+  const { user } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: voice } = await supabase
+    .from('voice_clones')
+    .select('id')
+    .eq('elevenlabs_voice_id', params.voiceId)
+    .eq('user_id', user.id)
+    .single();
+  if (!voice) {
+    return { ok: false, error: 'forbidden', message: 'Voz no encontrada' };
+  }
 
   if (!params.text.trim() || params.text.length > 500) {
     return { ok: false, error: 'validation_error', message: 'Texto entre 1 y 500 caracteres' };
