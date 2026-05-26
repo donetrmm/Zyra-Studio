@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { deletePresetAction, usePresetAction } from '@/server-actions/presets';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
+import { WavePlayer } from '@/components/generation/WavePlayer';
 import { cn } from '@/lib/utils';
 
 type PresetRow = {
@@ -319,8 +320,8 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
             preset.type === 'video' ? (
               <video controls autoPlay muted playsInline src={mediaUrl} className="max-h-[50vh] w-full object-contain" />
             ) : preset.type === 'audio' ? (
-              <div className="flex items-center justify-center bg-card p-8">
-                <audio controls autoPlay src={mediaUrl} className="w-full" />
+              <div className="bg-card p-4">
+                <WavePlayer src={mediaUrl} />
               </div>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
