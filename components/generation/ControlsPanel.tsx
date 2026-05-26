@@ -192,6 +192,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
         </Step>
 
         <Step n={4} title="Brand Kit">
+          <p className="mb-2 text-[11px] text-muted-foreground/60">Inyecta tu paleta y estilo en el prompt.</p>
           <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
         </Step>
 
