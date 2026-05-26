@@ -43,23 +43,13 @@ export type LibraryGeneration = {
   aspectRatio: string | null;
 };
 
-export type LibraryReference = {
-  id: string;
-  type: string;
-  storagePath: string;
-  name: string | null;
-  source: string;
-  createdAt: string;
-  previewUrl: string | null;
-};
 
-type Tab = 'sessions' | 'grid' | 'references';
+type Tab = 'sessions' | 'grid';
 type SortKey = 'recent' | 'old';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> }[] = [
   { id: 'sessions', label: 'Sesiones', icon: Library },
   { id: 'grid', label: 'Cuadrícula', icon: ImageIcon },
-  { id: 'references', label: 'Referencias', icon: Sparkles },
 ];
 
 const MODEL_LABEL: Record<string, string> = {
@@ -187,11 +177,9 @@ function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
 
 export function LibraryView({
   generations,
-  references,
   workspaceName,
 }: {
   generations: LibraryGeneration[];
-  references: LibraryReference[];
   workspaceName: string;
 }) {
   const [tab, setTab] = useState<Tab>('sessions');
@@ -246,7 +234,6 @@ export function LibraryView({
         setSort={setSort}
         totalImages={generations.length}
         totalSessions={sessions.length}
-        totalRefs={references.length}
         workspaceName={workspaceName}
       />
 
@@ -258,7 +245,6 @@ export function LibraryView({
           {tab === 'grid' && (
             <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} />
           )}
-          {tab === 'references' && <ReferencesTab references={references} />}
         </div>
 
         {active && (
@@ -359,7 +345,6 @@ function LibHeader({
   setSort,
   totalImages,
   totalSessions,
-  totalRefs,
   workspaceName,
 }: {
   tab: Tab;
@@ -370,7 +355,6 @@ function LibHeader({
   setSort: (s: SortKey) => void;
   totalImages: number;
   totalSessions: number;
-  totalRefs: number;
   workspaceName: string;
 }) {
   const sortLabel = sort === 'recent' ? 'recientes' : 'antiguos';
@@ -384,8 +368,7 @@ function LibHeader({
           <div className="mt-1 text-[12.5px] text-muted-foreground/80">
             <span className="font-mono tabular-nums">{totalImages.toLocaleString('es-MX')}</span>{' '}
             imágenes ·{' '}
-            <span className="font-mono tabular-nums">{totalSessions}</span> sesiones ·{' '}
-            <span className="font-mono tabular-nums">{totalRefs}</span> refs · ordenado por{' '}
+            <span className="font-mono tabular-nums">{totalSessions}</span> sesiones · ordenado por{' '}
             {sortLabel} · {workspaceName}
           </div>
         </div>
@@ -532,36 +515,6 @@ function GridTab({
   );
 }
 
-function ReferencesTab({ references }: { references: LibraryReference[] }) {
-  const buckets = useMemo(() => {
-    const map = new Map<string, LibraryReference[]>();
-    for (const r of references) {
-      const b = bucketOf(r.createdAt);
-      if (!map.has(b)) map.set(b, []);
-      map.get(b)!.push(r);
-    }
-    return Array.from(map.entries());
-  }, [references]);
-
-  if (references.length === 0) {
-    return <LibEmptyState tab="references" />;
-  }
-
-  return (
-    <div className="space-y-2 pt-2">
-      {buckets.map(([bucket, list]) => (
-        <section key={bucket}>
-          <BucketHeader name={bucket} count={list.length} />
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-            {list.map((r) => (
-              <ReferenceTile key={r.id} reference={r} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
 
 function BucketHeader({ name, count }: { name: string; count: number }) {
   return (
@@ -807,32 +760,6 @@ function TileBtn({
   );
 }
 
-function ReferenceTile({ reference }: { reference: LibraryReference }) {
-  return (
-    <div
-      title={reference.name ?? reference.type}
-      className="zyra-fade-in relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/40"
-    >
-      {reference.previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={reference.previewUrl}
-          alt={reference.name ?? ''}
-          className="size-full object-cover"
-        />
-      ) : (
-        <div className="grid h-full place-items-center px-2 text-center text-[10px] text-muted-foreground/70">
-          {reference.name ?? reference.type}
-        </div>
-      )}
-      {reference.source === 'generation' && (
-        <div className="absolute left-1.5 top-1.5 rounded-full border border-border/40 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground backdrop-blur">
-          gen
-        </div>
-      )}
-    </div>
-  );
-}
 
 function DetailAside({
   generation,
@@ -1344,11 +1271,6 @@ function LibEmptyState({ tab }: { tab: Tab }) {
       icon: ImageIcon,
       title: 'Tu cuadrícula está vacía',
       sub: 'Crea tu primera imagen para verla aquí.',
-    },
-    references: {
-      icon: Sparkles,
-      title: 'Sin referencias',
-      sub: 'Sube imágenes desde el panel de creación o usa una generación como referencia.',
     },
   };
   const Ic = cfg[tab].icon;
