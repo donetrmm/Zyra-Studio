@@ -8,8 +8,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  await requireUser();
-
   const admin = createAdminClient();
 
   const { data: preset } = await admin
@@ -19,6 +17,11 @@ export async function GET(
     .single();
   if (!preset) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  const user = await requireUser();
+  if (!preset.is_public && preset.user_id !== user.id) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
   const presetParams = preset.params as Record<string, unknown>;
