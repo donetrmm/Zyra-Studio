@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  Check,
   ChevronDown,
   Copy,
   Download,
   Image as ImageIcon,
+  Layers,
   Library,
   Loader2,
   Music,
@@ -182,6 +184,17 @@ export function LibraryView({
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
+  const [showCompare, setShowCompare] = useState(false);
+
+  function toggleCompare(id: string) {
+    setCompareIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 4) next.add(id);
+      return next;
+    });
+  }
 
   const filteredGens = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -229,14 +242,13 @@ export function LibraryView({
             <SessionsTab sessions={sessions} onOpen={setActiveId} />
           )}
           {tab === 'grid' && (
-            <GridTab items={filteredGens} onOpen={setActiveId} />
+            <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} />
           )}
           {tab === 'references' && <ReferencesTab references={references} />}
         </div>
 
         {active && (
           <>
-            {/* Overlay backdrop (mobile only) */}
             <div
               className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm lg:hidden"
               onClick={() => setActiveId(null)}
@@ -248,6 +260,74 @@ export function LibraryView({
             />
           </>
         )}
+      </div>
+
+      {compareIds.size >= 2 && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/40 bg-card px-5 py-2.5 shadow-xl">
+          <span className="text-[13px] text-foreground">{compareIds.size} seleccionados</span>
+          <button
+            type="button"
+            onClick={() => setShowCompare(true)}
+            className="rounded-full bg-primary px-4 py-1.5 text-[12.5px] font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Comparar A/B
+          </button>
+          <button
+            type="button"
+            onClick={() => setCompareIds(new Set())}
+            className="text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            Limpiar
+          </button>
+        </div>
+      )}
+
+      {showCompare && (
+        <CompareModal
+          generations={generations.filter((g) => compareIds.has(g.id))}
+          onClose={() => setShowCompare(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CompareModal({
+  generations,
+  onClose,
+}: {
+  generations: LibraryGeneration[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
+      <div className="mx-4 max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-[16px] font-semibold text-foreground">Comparador A/B</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="size-5" aria-hidden />
+          </button>
+        </div>
+        <div className={cn('grid gap-4', generations.length === 2 ? 'grid-cols-2' : generations.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4')}>
+          {generations.map((g) => (
+            <div key={g.id} className="space-y-2">
+              <div className="overflow-hidden rounded-lg border border-border bg-black">
+                {g.thumbnailUrl ? (
+                  g.type === 'video' ? (
+                    <video src={g.thumbnailUrl} controls muted playsInline className="w-full" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={g.thumbnailUrl} alt={g.prompt} className="w-full object-contain" />
+                  )
+                ) : (
+                  <div className="grid h-40 place-items-center text-muted-foreground/50">Sin preview</div>
+                )}
+              </div>
+              <p className="line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">{g.prompt}</p>
+              <p className="text-[10px] text-muted-foreground/50">{modelLabel(g)}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -397,9 +477,13 @@ function SessionsTab({
 function GridTab({
   items,
   onOpen,
+  compareIds,
+  onToggleCompare,
 }: {
   items: LibraryGeneration[];
   onOpen: (id: string) => void;
+  compareIds: Set<string>;
+  onToggleCompare: (id: string) => void;
 }) {
   const buckets = useMemo(() => {
     const map = new Map<string, LibraryGeneration[]>();
@@ -422,7 +506,7 @@ function GridTab({
           <BucketHeader name={bucket} count={list.length} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {list.map((g) => (
-              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} />
+              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={compareIds.has(g.id)} onToggleCompare={() => onToggleCompare(g.id)} />
             ))}
           </div>
         </section>
@@ -533,11 +617,15 @@ function LibTile({
   onClick,
   variantTag,
   compact,
+  selected,
+  onToggleCompare,
 }: {
   gen: LibraryGeneration;
   onClick: () => void;
   variantTag?: string;
   compact?: boolean;
+  selected?: boolean;
+  onToggleCompare?: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -659,6 +747,20 @@ function LibTile({
             <Download className="size-3" aria-hidden />
           </TileBtn>
         </div>
+      )}
+      {onToggleCompare && (hover || selected) && gen.status === 'done' && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+          className={cn(
+            'absolute left-2 top-2 grid size-5 place-items-center rounded border transition-colors',
+            selected
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-white/60 bg-background/60 backdrop-blur',
+          )}
+        >
+          {selected && <Check className="size-3" aria-hidden />}
+        </button>
       )}
     </div>
   );
@@ -929,6 +1031,15 @@ function DetailAside({
             )}{' '}
             Descargar
           </button>
+          {generation.type === 'image' && generation.status === 'done' && generation.prompt && (
+            <Link
+              href={`/app/create/image?prompt=${encodeURIComponent(generation.prompt)}&variations=3`}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30"
+            >
+              <Layers className="size-3.5" aria-hidden />
+              3 variantes
+            </Link>
+          )}
         </div>
 
         <DetailRow label="Prompt">
