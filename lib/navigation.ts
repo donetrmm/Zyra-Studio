@@ -51,7 +51,6 @@ export const APP_SIDEBAR: NavSection[] = [
     items: [
       { label: "Campañas", href: "/app/campaigns", icon: FolderKanban },
       { label: "Library", href: "/app/library", icon: Library },
-      { label: "Storyboard", href: "/app/storyboard", icon: ListChecks },
     ],
   },
   {
