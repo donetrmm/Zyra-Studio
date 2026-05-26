@@ -52,6 +52,15 @@ export async function signedOutputUrl(path: string): Promise<string> {
   return data.signedUrl;
 }
 
+export async function signedOutputUrlAdmin(path: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from(OUTPUTS_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) throw new Error(`sign output (admin) failed: ${error?.message ?? 'unknown'}`);
+  return data.signedUrl;
+}
+
 export async function signedReferenceUrl(path: string): Promise<string> {
   const supabase = await createClient();
   const { data, error } = await supabase.storage

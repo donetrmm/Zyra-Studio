@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/dal';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { signedOutputUrl, publicThumbnailUrl } from '@/lib/supabase/storage';
+import { signedOutputUrlAdmin, publicThumbnailUrl } from '@/lib/supabase/storage';
 
 export async function GET(
   _req: Request,
@@ -39,7 +39,7 @@ export async function GET(
     return NextResponse.json({ outputUrl: null, thumbnailUrl: presetParams.thumbnailUrl ?? null });
   }
 
-  const outputUrl = gen.output_url ? await signedOutputUrl(gen.output_url) : null;
+  const outputUrl = gen.output_url ? await signedOutputUrlAdmin(gen.output_url) : null;
   const thumbnailUrl = gen.thumbnail_url ? publicThumbnailUrl(gen.thumbnail_url) : null;
 
   return NextResponse.json({ outputUrl, thumbnailUrl });
