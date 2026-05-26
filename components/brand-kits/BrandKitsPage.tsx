@@ -154,7 +154,9 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
           <div className="mt-1.5 space-y-1.5">
             {colors.map((c, i) => (
               <div key={i} className="flex items-center gap-2">
-                <input type="color" value={c.hex} onChange={(e) => { const next = [...colors]; next[i] = { ...c, hex: e.target.value }; setColors(next); }} className="size-8 cursor-pointer rounded border border-border bg-transparent" />
+                <label className="relative size-8 cursor-pointer overflow-hidden rounded-md border border-border" style={{ backgroundColor: c.hex }}>
+                  <input type="color" value={c.hex} onChange={(e) => { const next = [...colors]; next[i] = { ...c, hex: e.target.value }; setColors(next); }} className="absolute inset-0 size-full cursor-pointer opacity-0" />
+                </label>
                 <input value={c.name} onChange={(e) => { const next = [...colors]; next[i] = { ...c, name: e.target.value }; setColors(next); }} placeholder="Nombre" className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none" />
                 <button type="button" onClick={() => setColors(colors.filter((_, j) => j !== i))} className="text-[11px] text-muted-foreground hover:text-destructive">x</button>
               </div>
