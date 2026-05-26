@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { EnhanceButton } from './EnhanceButton';
 
 export const OFFICIAL_VOICES = [
   { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', lang: 'en' },
@@ -30,6 +31,7 @@ export type AudioControlsProps = {
   setStyle: (v: number) => void;
   cost: number;
   balance: number;
+  enhanceCost: number;
   pending: boolean;
   canGenerate: boolean;
   onGenerate: () => void;
@@ -106,8 +108,17 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         placeholder="Escribe el texto a sintetizar…"
         className="scroll-thin mt-1.5 min-h-[140px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none"
       />
-      <div className="mt-1 text-right font-mono text-[10.5px] text-muted-foreground/70">
-        {props.text.length.toLocaleString('es-MX')} / 20 000
+      <div className="mt-1 flex items-center justify-between">
+        <EnhanceButton
+          prompt={props.text}
+          onAccept={props.setText}
+          type="audio"
+          cost={props.enhanceCost}
+          balance={props.balance}
+        />
+        <span className="font-mono text-[10.5px] text-muted-foreground/70">
+          {props.text.length.toLocaleString('es-MX')} / 20 000
+        </span>
       </div>
 
       <SliderRow label="Stability" value={props.stability} onChange={props.setStability} />

@@ -23,7 +23,7 @@ const ResponseSchema = z.object({
     .optional(),
 });
 
-const SYSTEM_INSTRUCTION = `Eres un experto en prompts de generación de imagen para modelos como FLUX 2 y Nano Banana (Gemini Image). Recibes un prompt y devuelves UNA SOLA versión mejorada, más rica y específica.
+const SYSTEM_IMAGE = `Eres un experto en prompts de generación de imagen para modelos como FLUX 2 y Nano Banana (Gemini Image). Recibes un prompt y devuelves UNA SOLA versión mejorada, más rica y específica.
 
 Reglas:
 - Mantén la intención y el sujeto del prompt original; no cambies el tema.
@@ -34,11 +34,43 @@ Reglas:
 - Largo objetivo: 1-3 oraciones, máximo 80 palabras.
 - Devuelve SOLO el prompt mejorado, sin "Aquí tienes:" ni prefijos ni comillas.`;
 
+const SYSTEM_VIDEO = `Eres un experto en prompts de generación de video para modelos como Veo 3.1 y Kling 3.0. Recibes un prompt y devuelves UNA SOLA versión mejorada optimizada para video.
+
+Reglas:
+- Estructura: Sujeto + Acción + Estilo visual + Cámara + Composición + Enfoque + Ambiente.
+- Describe movimiento explícitamente: qué se mueve, cómo, a qué velocidad.
+- Especifica tipo de cámara: tracking shot, dolly zoom, handheld, static, drone, slow pan.
+- Incluye atmósfera temporal: hora del día, clima, iluminación.
+- NO inventes atributos del sujeto que el usuario no mencionó.
+- Si el modelo soporta audio nativo, incluye cues de audio: diálogos entre comillas, efectos de sonido, ambiente sonoro.
+- Lenguaje conciso y descriptivo. Sin listas, sin explicaciones, sin emojis.
+- Responde en la MISMA lengua que el input.
+- Largo objetivo: 2-4 oraciones, máximo 120 palabras.
+- Devuelve SOLO el prompt mejorado.`;
+
+const SYSTEM_AUDIO = `Eres un experto en prompts de texto-a-voz (TTS) para modelos como ElevenLabs V3. Recibes un texto y devuelves una versión mejorada con indicaciones de expresividad.
+
+Reglas:
+- Mantén el contenido y significado exacto del texto original.
+- Agrega tags expresivos inline donde sea natural: [whispers], [excited], [pause], [laughs], [sighs], [serious], [soft], [loud].
+- Usa puntuación estratégica para controlar ritmo: puntos suspensivos para pausas, signos de exclamación para énfasis, comas para respiración.
+- NO cambies el idioma del texto original.
+- NO agregues contenido nuevo ni cambies el mensaje.
+- Devuelve SOLO el texto mejorado con tags.`;
+
+const SYSTEM_INSTRUCTIONS: Record<string, string> = {
+  image: SYSTEM_IMAGE,
+  video: SYSTEM_VIDEO,
+  audio: SYSTEM_AUDIO,
+};
+
 export type EnhanceHint = 'photoreal' | 'illustration' | 'text-in-image';
+export type EnhanceType = 'image' | 'video' | 'audio';
 
 export async function enhancePrompt(input: {
   prompt: string;
   hint?: EnhanceHint;
+  type?: EnhanceType;
 }): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -51,7 +83,7 @@ export async function enhancePrompt(input: {
   const userText = `Prompt original:\n"""${input.prompt.trim()}"""${hintLine}\n\nDevuelve el prompt mejorado:`;
 
   const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTIONS[input.type ?? 'image'] ?? SYSTEM_INSTRUCTIONS.image }] },
     contents: [{ role: 'user' as const, parts: [{ text: userText }] }],
     generationConfig: {
       temperature: 0.7,

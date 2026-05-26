@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { requireUser } from '@/lib/auth/dal';
 import { chargeCredits, refundCharge } from '@/lib/credits/operations';
 import { loadPricing } from '@/lib/credits/pricing';
-import { enhancePrompt, type EnhanceHint } from '@/lib/providers/prompt-enhancer';
+import { enhancePrompt, type EnhanceHint, type EnhanceType } from '@/lib/providers/prompt-enhancer';
 import { ProviderError } from '@/lib/providers/types';
 
 const InputSchema = z.object({
-  prompt: z.string().trim().min(3, 'prompt muy corto').max(8000),
+  prompt: z.string().trim().min(3, 'prompt muy corto').max(20000),
   hint: z.enum(['photoreal', 'illustration', 'text-in-image']).optional(),
+  type: z.enum(['image', 'video', 'audio']).optional(),
 });
 
 type ActionError =
@@ -57,6 +58,7 @@ export async function enhancePromptAction(input: unknown): Promise<EnhanceResult
     const enhanced = await enhancePrompt({
       prompt: parsed.data.prompt,
       hint: parsed.data.hint as EnhanceHint | undefined,
+      type: parsed.data.type as EnhanceType | undefined,
     });
     return { ok: true, enhanced, cost };
   } catch (err) {

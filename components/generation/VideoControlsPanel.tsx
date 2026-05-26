@@ -5,6 +5,7 @@ import { AlertTriangle, ImagePlus, Loader2, Volume2, VolumeOff, X } from 'lucide
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { cn } from '@/lib/utils';
+import { EnhanceButton } from './EnhanceButton';
 
 export type ModelKey =
   | 'fal-ai/kling-video/v3/standard/text-to-video'
@@ -56,6 +57,7 @@ export type VideoControlsProps = {
   setAspectRatio: (v: '16:9' | '9:16' | '1:1') => void;
   cost: number;
   balance: number;
+  enhanceCost: number;
   pending: boolean;
   canGenerate: boolean;
   onGenerate: () => void;
@@ -440,6 +442,13 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
         placeholder="Describe la escena que quieres animar..."
         className="scroll-thin mt-1.5 min-h-[100px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none"
+      />
+      <EnhanceButton
+        prompt={props.prompt}
+        onAccept={props.setPrompt}
+        type="video"
+        cost={props.enhanceCost}
+        balance={props.balance}
       />
 
       {/* ── Costo ── */}

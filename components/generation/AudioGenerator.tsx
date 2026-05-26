@@ -44,6 +44,12 @@ export function AudioGenerator(props: {
     () => calcCost(props.pricing, modelId, text.length || 1),
     [props.pricing, modelId, text.length],
   );
+  const enhanceCost = useMemo(() => {
+    const row = props.pricing.find(
+      (p) => p.provider === 'internal' && p.model_id === 'prompt-enhance',
+    );
+    return row?.credits_cost ?? 5;
+  }, [props.pricing]);
 
   const canGenerate = text.trim().length > 0 && cost > 0 && cost <= balance && !pending;
 
@@ -105,6 +111,7 @@ export function AudioGenerator(props: {
       setStyle={setStyle}
       cost={cost}
       balance={balance}
+      enhanceCost={enhanceCost}
       pending={pending}
       canGenerate={canGenerate}
       onGenerate={handleGenerate}

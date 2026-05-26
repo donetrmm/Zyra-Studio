@@ -63,6 +63,12 @@ export function VideoGenerator(props: {
     const dur = model.startsWith('veo-') ? veoDuration : duration;
     return calcCost(props.pricing, model, dur);
   }, [props.pricing, model, duration, veoDuration]);
+  const enhanceCost = useMemo(() => {
+    const row = props.pricing.find(
+      (p) => p.provider === 'internal' && p.model_id === 'prompt-enhance',
+    );
+    return row?.credits_cost ?? 5;
+  }, [props.pricing]);
   const canGenerate = prompt.trim().length > 0 && cost > 0 && cost <= balance && !pending;
 
   function handleGenerate() {
@@ -151,6 +157,7 @@ export function VideoGenerator(props: {
       setAspectRatio={setAspectRatio}
       cost={cost}
       balance={balance}
+      enhanceCost={enhanceCost}
       pending={pending}
       canGenerate={canGenerate}
       onGenerate={handleGenerate}
