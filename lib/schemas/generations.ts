@@ -38,6 +38,7 @@ export const NanoBananaInputSchema = z.object({
   // Cuando conversational=true, el cliente envía la generación anterior aquí
   // para que el server la inyecte como referencia y mantenga composición.
   parentGenerationId: z.string().uuid().optional(),
+  campaignId: z.string().uuid().optional(),
 });
 
 export const FluxInputSchema = z.object({
@@ -49,6 +50,7 @@ export const FluxInputSchema = z.object({
   megapixels: z.union([z.literal(1), z.literal(2), z.literal(4)]).default(1),
   references: z.array(ReferenceItem).max(8).default([]),
   photoreal: z.boolean().default(false),
+  campaignId: z.string().uuid().optional(),
 });
 
 export const SubmitGenerationSchema = z.discriminatedUnion('provider', [

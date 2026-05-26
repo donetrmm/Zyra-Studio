@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
 export const OFFICIAL_VOICES = [
@@ -29,6 +30,8 @@ export type AudioControlsProps = {
   setSimilarityBoost: (v: number) => void;
   style: number;
   setStyle: (v: number) => void;
+  campaign: SelectedCampaign;
+  setCampaign: (v: SelectedCampaign) => void;
   cost: number;
   balance: number;
   enhanceCost: number;
@@ -98,6 +101,8 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           {isEnglishOnly ? 'Voz solo en inglés' : 'Idioma disponible con modelo Multilingual y voz multi'}
         </p>
       )}
+
+      <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
 
       <label className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Texto

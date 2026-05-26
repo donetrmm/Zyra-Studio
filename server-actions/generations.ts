@@ -191,6 +191,7 @@ export async function submitGenerationAction(
       params: insertParams,
       reference_ids: data.references.map((r) => r.id),
       parent_generation_id: parentGenerationId,
+      campaign_id: data.campaignId ?? null,
       status: 'processing',
       credits_estimated: cost,
       timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -401,6 +402,7 @@ export async function submitAudioGenerationAction(
       reference_ids: [],
       status: 'queued',
       credits_estimated: cost,
+      campaign_id: data.campaignId ?? null,
       timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
     })
     .select('id')
@@ -547,6 +549,7 @@ export async function submitVideoGenerationAction(
       reference_ids: [],
       status: 'queued',
       credits_estimated: cost,
+      campaign_id: data.campaignId ?? null,
       timeout_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     })
     .select('id')

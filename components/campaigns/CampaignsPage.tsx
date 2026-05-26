@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCampaignAction, updateCampaignAction, deleteCampaignAction } from '@/server-actions/campaigns';
@@ -61,9 +62,10 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
               key={c.id}
               className="group overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20"
             >
-              <div className="h-2" style={{ backgroundColor: c.color }} />
-              <div className="p-4">
-                <h3 className="truncate text-[14px] font-medium text-foreground">{c.name}</h3>
+              <Link href={`/app/campaigns/${c.id}`} className="block">
+                <div className="h-2" style={{ backgroundColor: c.color }} />
+                <div className="p-4">
+                  <h3 className="truncate text-[14px] font-medium text-foreground">{c.name}</h3>
                 {c.description && (
                   <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{c.description}</p>
                 )}
@@ -71,7 +73,8 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
                   <span>{c.generationCount} generacion{c.generationCount !== 1 ? 'es' : ''}</span>
                   <span>{new Date(c.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 </div>
-              </div>
+                </div>
+              </Link>
               <div className="flex gap-2 border-t border-border/30 p-3">
                 <button type="button" onClick={() => setEditing(c)} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
                   <Pencil className="size-3" aria-hidden /> Editar

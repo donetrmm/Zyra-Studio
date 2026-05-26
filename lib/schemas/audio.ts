@@ -17,6 +17,7 @@ export const SubmitTtsSchema = z.object({
   text: z.string().trim().min(1, 'texto vacío').max(20000, 'texto muy largo (max 20k chars)'),
   voiceSettings: VoiceSettingsSchema,
   languageCode: z.enum(TTS_LANGUAGES).optional(),
+  campaignId: z.string().uuid().optional(),
 });
 
 export type SubmitTtsInput = z.infer<typeof SubmitTtsSchema>;

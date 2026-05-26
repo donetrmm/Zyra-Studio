@@ -30,6 +30,7 @@ export const SubmitKlingSchema = z.object({
   generateAudio: z.boolean().optional(),
   referenceStoragePath: z.string().optional(),
   endReferenceStoragePath: z.string().optional(),
+  campaignId: z.string().uuid().optional(),
 });
 
 export const SubmitVeoSchema = z.object({
@@ -40,6 +41,7 @@ export const SubmitVeoSchema = z.object({
   resolution: z.enum(['720p', '1080p']),
   durationSeconds: z.union([z.literal(4), z.literal(6), z.literal(8)]),
   referenceStoragePath: z.string().optional(),
+  campaignId: z.string().uuid().optional(),
 });
 
 export const SubmitVideoSchema = z.discriminatedUnion('kind', [

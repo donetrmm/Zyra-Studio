@@ -24,6 +24,7 @@ import {
 } from './ReferencesPanel';
 import { Switch } from '@/components/ui/switch';
 import { BrandKitSelector } from './BrandKitSelector';
+import { CampaignSelector } from './CampaignSelector';
 import { cn } from '@/lib/utils';
 import { enhancePromptAction } from '@/server-actions/prompt-enhancer';
 import {
@@ -106,6 +107,8 @@ export type ControlsPanelProps = {
   enhanceCost: number;
   brandKit: import('./BrandKitSelector').SelectedBrandKit;
   setBrandKit: (v: import('./BrandKitSelector').SelectedBrandKit) => void;
+  campaign: import('./CampaignSelector').SelectedCampaign;
+  setCampaign: (v: import('./CampaignSelector').SelectedCampaign) => void;
 };
 
 // Palabras que sugieren que el prompt pide datos del mundo real / actuales.
@@ -196,7 +199,11 @@ export function ControlsPanel(props: ControlsPanelProps) {
           <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
         </Step>
 
-        <Step n={5} title="Formato y parámetros">
+        <Step n={5} title="Campaña">
+          <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
+        </Step>
+
+        <Step n={6} title="Formato y parámetros">
           <SectionHeading>Proporción</SectionHeading>
           <AspectPicker value={props.aspectRatio} onChange={props.setAspectRatio} />
           <div className="mt-3.5">

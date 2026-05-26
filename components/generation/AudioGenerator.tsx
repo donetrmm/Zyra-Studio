@@ -7,6 +7,7 @@ import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import type { SelectedCampaign } from './CampaignSelector';
 import { AudioControlsPanel, OFFICIAL_VOICES } from './AudioControlsPanel';
 import { AudioPreview } from './AudioPreview';
 import { useGenerationStatus } from './use-generation-status';
@@ -34,6 +35,7 @@ export function AudioGenerator(props: {
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [style, setStyle] = useState(0);
+  const [campaign, setCampaign] = useState<SelectedCampaign>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resolvedOutputUrl, setResolvedOutputUrl] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export function AudioGenerator(props: {
         text,
         voiceSettings: { stability, similarity_boost: similarityBoost, style },
         languageCode,
+        campaignId: campaign?.id,
       });
       if (!res.ok) {
         toast.error(
@@ -109,6 +112,8 @@ export function AudioGenerator(props: {
       setSimilarityBoost={setSimilarityBoost}
       style={style}
       setStyle={setStyle}
+      campaign={campaign}
+      setCampaign={setCampaign}
       cost={cost}
       balance={balance}
       enhanceCost={enhanceCost}

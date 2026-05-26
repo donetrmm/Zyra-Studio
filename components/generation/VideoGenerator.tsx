@@ -7,6 +7,7 @@ import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
 import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
+import type { SelectedCampaign } from './CampaignSelector';
 import { VideoControlsPanel, VIDEO_STYLES, type ModelKey, type ReferenceImage } from './VideoControlsPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
@@ -46,6 +47,7 @@ export function VideoGenerator(props: {
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
+  const [campaign, setCampaign] = useState<SelectedCampaign>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resolvedOutputUrl, setResolvedOutputUrl] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export function VideoGenerator(props: {
             resolution: veoResolution,
             durationSeconds: veoDuration,
             referenceStoragePath: referenceImages[0]?.storagePath,
+            campaignId: campaign?.id,
           }
         : {
             kind: 'kling' as const,
@@ -102,6 +105,7 @@ export function VideoGenerator(props: {
             generateAudio,
             referenceStoragePath: referenceImages[0]?.storagePath,
             endReferenceStoragePath: referenceImages[1]?.storagePath,
+            campaignId: campaign?.id,
           };
       const res = await submitVideoGenerationAction(input);
       if (!res.ok) {
@@ -155,6 +159,8 @@ export function VideoGenerator(props: {
       setReferenceImages={setReferenceImages}
       aspectRatio={aspectRatio}
       setAspectRatio={setAspectRatio}
+      campaign={campaign}
+      setCampaign={setCampaign}
       cost={cost}
       balance={balance}
       enhanceCost={enhanceCost}

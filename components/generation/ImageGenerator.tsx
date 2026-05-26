@@ -15,6 +15,7 @@ import { ControlsPanel } from './ControlsPanel';
 import { ChatThread } from './ChatThread';
 import { PreviewArea } from './PreviewArea';
 import type { SelectedBrandKit } from './BrandKitSelector';
+import type { SelectedCampaign } from './CampaignSelector';
 import type { ReferenceClient } from './ReferencesPanel';
 import type { ModelKey, Selection, SessionItem } from './types';
 
@@ -64,6 +65,7 @@ export function ImageGenerator(props: {
   const [intent, setIntent] = useState<ImageIntent | null>(null);
   const [references, setReferences] = useState<ReferenceClient[]>([]);
   const [brandKit, setBrandKit] = useState<SelectedBrandKit>(null);
+  const [campaign, setCampaign] = useState<SelectedCampaign>(null);
   const [session, setSession] = useState<SessionItem[]>([]);
   const [activeResult, setActiveResult] = useState<SessionItem | null>(null);
   const [pending, startTransition] = useTransition();
@@ -166,6 +168,7 @@ export function ImageGenerator(props: {
         useGrounding,
         parentGenerationId:
           effectiveConversational && activeResult ? activeResult.id : undefined,
+        campaignId: campaign?.id,
       };
     }
     return {
@@ -177,6 +180,7 @@ export function ImageGenerator(props: {
       megapixels,
       references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
       photoreal,
+      campaignId: campaign?.id,
     };
   }, [
     selection,
@@ -191,6 +195,7 @@ export function ImageGenerator(props: {
     photoreal,
     activeResult,
     brandKit,
+    campaign,
   ]);
 
   const handleGenerate = useCallback(() => {
@@ -324,6 +329,8 @@ export function ImageGenerator(props: {
       enhanceCost={enhanceCost}
       brandKit={brandKit}
       setBrandKit={setBrandKit}
+      campaign={campaign}
+      setCampaign={setCampaign}
     />
   );
 

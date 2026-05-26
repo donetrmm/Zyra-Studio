@@ -5,6 +5,7 @@ import { AlertTriangle, ImagePlus, Loader2, Volume2, VolumeOff, X } from 'lucide
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { cn } from '@/lib/utils';
+import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
 export type ModelKey =
@@ -55,6 +56,8 @@ export type VideoControlsProps = {
   // Common
   aspectRatio: '16:9' | '9:16' | '1:1';
   setAspectRatio: (v: '16:9' | '9:16' | '1:1') => void;
+  campaign: SelectedCampaign;
+  setCampaign: (v: SelectedCampaign) => void;
   cost: number;
   balance: number;
   enhanceCost: number;
@@ -401,6 +404,9 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           )}
         </div>
       )}
+
+      {/* ── Campaña ── */}
+      <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
 
       {/* ── Estilos ── */}
       <label className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
