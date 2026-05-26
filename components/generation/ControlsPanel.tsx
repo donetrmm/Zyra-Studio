@@ -192,6 +192,9 @@ export function ControlsPanel(props: ControlsPanelProps) {
         </Step>
 
         <Step n={4} title="Brand Kit">
+          <p className="mb-2 text-[11.5px] leading-relaxed text-muted-foreground/70">
+            Selecciona un brand kit para inyectar automáticamente tu paleta de colores, fuentes y estilo visual en el prompt. Crea y edita tus kits en <a href="/app/brand-kits" className="text-primary hover:underline">/brand-kits</a>.
+          </p>
           <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
         </Step>
 
