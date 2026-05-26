@@ -9,7 +9,6 @@ import {
   Copy,
   Download,
   Image as ImageIcon,
-  Layers,
   Library,
   Loader2,
   Music,
@@ -305,29 +304,6 @@ export function LibraryView({
   );
 }
 
-const CROP_FORMATS = [
-  { ratio: '1:1', label: '1:1' },
-  { ratio: '9:16', label: '9:16' },
-  { ratio: '16:9', label: '16:9' },
-  { ratio: '4:5', label: '4:5' },
-] as const;
-
-function SmartCropButtons({ prompt, currentAspect }: { prompt: string; currentAspect: string | null }) {
-  const others = CROP_FORMATS.filter((f) => f.ratio !== currentAspect);
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {others.map((f) => (
-        <Link
-          key={f.ratio}
-          href={`/app/create/image?prompt=${encodeURIComponent(`Recreate this exact scene in ${f.ratio} format, maintaining the main subject centered. Original: ${prompt}`)}&aspect=${f.ratio}`}
-          className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-muted-foreground/30 hover:text-foreground"
-        >
-          Crop {f.label}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 function CompareModal({
   generations,
@@ -1072,18 +1048,6 @@ function DetailAside({
             )}{' '}
             Descargar
           </button>
-          {generation.type === 'image' && generation.status === 'done' && generation.prompt && (
-            <>
-              <Link
-                href={`/app/create/image?prompt=${encodeURIComponent(generation.prompt)}`}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30"
-              >
-                <Layers className="size-3.5" aria-hidden />
-                3 variantes
-              </Link>
-              <SmartCropButtons prompt={generation.prompt} currentAspect={generation.aspectRatio} />
-            </>
-          )}
         </div>
 
         <DetailRow label="Prompt">
