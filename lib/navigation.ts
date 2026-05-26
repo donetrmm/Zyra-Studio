@@ -16,6 +16,7 @@ import {
   Tag,
   History,
   ListChecks,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,8 +24,8 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Lucide icon name as string for cases where we need to look it up dynamically. */
   iconName?: string;
+  badge?: string;
 };
 
 export type NavSection = {
@@ -59,7 +60,7 @@ export const APP_SIDEBAR: NavSection[] = [
       { label: "Referencias", href: "/app/references", icon: Files },
       { label: "Personajes", href: "/app/characters", icon: Users },
       { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
-      { label: "Voces", href: "/app/voices", icon: Mic },
+      { label: "Voces", href: "/app/voices", icon: FlaskConical, badge: "Gratis" },
       { label: "Presets", href: "/app/presets", icon: Sparkles },
     ],
   },

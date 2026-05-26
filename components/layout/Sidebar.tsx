@@ -61,7 +61,12 @@ function SidebarLink({ item }: { item: NavItem }) {
         )}
       >
         <Icon className="size-4" aria-hidden />
-        {item.label}
+        <span className="flex-1">{item.label}</span>
+        {item.badge && (
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+            {item.badge}
+          </span>
+        )}
       </Link>
     </li>
   );
