@@ -30,8 +30,8 @@ export async function Topbar({ user, workspace }: Props) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
       <div className="flex min-w-0 items-center gap-3">
-        <p className="truncate text-sm font-medium">{workspace.name}</p>
-        <span className="hidden text-xs text-muted-foreground sm:inline">
+        <p className="truncate text-[13.5px] font-medium">{workspace.name}</p>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">
           · {roleLabel(workspace.role)}
         </span>
       </div>

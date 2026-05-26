@@ -83,7 +83,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Referencias</h1>
           <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">

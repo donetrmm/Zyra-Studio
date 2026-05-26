@@ -131,7 +131,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-r border-border bg-card">
+    <div className="flex h-full min-h-0 flex-col border-r border-border bg-card/30">
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
         <Step n={1} title="Elige el modelo" subtitle="Auto decide por ti">
           <ModelPicker value={props.modelKey} onChange={props.setModelKey} />
@@ -473,7 +473,7 @@ function PromptArea({
             if (suggestion) setSuggestion(null);
           }}
           placeholder="Describe lo que quieres crear. Sé específico con luz, lente y atmósfera."
-          className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[14px] leading-[1.5] text-foreground outline-none"
+          className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[13.5px] leading-[1.5] text-foreground outline-none"
           style={{ minHeight: 96, maxHeight: 280 }}
         />
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">

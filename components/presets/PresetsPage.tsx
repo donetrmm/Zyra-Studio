@@ -309,7 +309,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Media */}
         <div className="relative bg-black">
           {loadingMedia ? (

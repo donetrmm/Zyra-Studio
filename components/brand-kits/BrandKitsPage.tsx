@@ -52,9 +52,12 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
       )}
 
       {kits.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-muted-foreground/60">
-          <Palette className="size-12" aria-hidden />
-          <p className="text-[14px]">No tienes brand kits</p>
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
+            <Palette className="size-7" aria-hidden />
+          </div>
+          <p className="text-[14px] text-foreground/70">No tienes brand kits</p>
+          <p className="max-w-xs text-[12.5px]">Crea tu primer kit para inyectar identidad de marca en tus generaciones</p>
         </div>
       ) : (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,7 +85,8 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
 
 function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => void; onDelete: () => void }) {
   return (
-    <div className="rounded-xl border border-border bg-card/50 p-4 transition-colors hover:border-muted-foreground/20">
+    <div className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
+      <div className="p-4">
       <h3 className="truncate text-[14px] font-medium text-foreground">{kit.name}</h3>
       {kit.colors.length > 0 && (
         <div className="mt-2 flex gap-1">
@@ -107,7 +111,8 @@ function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => 
       {kit.tone_description && (
         <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
       )}
-      <div className="mt-3 flex gap-2">
+      </div>
+      <div className="flex gap-2 border-t border-border/30 p-3">
         <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
@@ -146,9 +151,11 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
   }
 
   return (
-    <div className="mt-6 rounded-xl border border-border bg-card p-5">
-      <h2 className="text-[15px] font-medium text-foreground">{kit ? 'Editar' : 'Nuevo'} Brand Kit</h2>
-      <div className="mt-4 space-y-3">
+    <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border bg-muted/30 px-5 py-3.5">
+        <h2 className="text-[15px] font-medium text-foreground">{kit ? 'Editar' : 'Nuevo'} Brand Kit</h2>
+      </div>
+      <div className="space-y-3 p-5">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
 
         <div>

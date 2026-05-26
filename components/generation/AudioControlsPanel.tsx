@@ -111,7 +111,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         value={props.text}
         onChange={(e) => props.setText(e.target.value.slice(0, 20000))}
         placeholder="Escribe el texto a sintetizar…"
-        className="scroll-thin mt-1.5 min-h-[140px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="scroll-thin mt-1.5 min-h-[140px] max-h-[280px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
       />
       <div className="mt-1 flex items-center justify-between">
         <EnhanceButton
@@ -146,7 +146,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         onClick={props.onGenerate}
         disabled={!props.canGenerate}
         className={cn(
-          'mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
+          'mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
           props.canGenerate
             ? 'bg-primary text-primary-foreground hover:bg-primary/90'
             : 'cursor-not-allowed bg-muted text-muted-foreground/60',

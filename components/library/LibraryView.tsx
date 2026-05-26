@@ -304,14 +304,14 @@ function CompareModal({
 }) {
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="mx-4 max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">Comparador A/B</h2>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="size-5" aria-hidden />
           </button>
         </div>
-        <div className={cn('grid gap-4', generations.length === 2 ? 'grid-cols-2' : generations.length === 3 ? 'grid-cols-3' : 'grid-cols-2 lg:grid-cols-4')}>
+        <div className={cn('grid gap-4', generations.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : generations.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4')}>
           {generations.map((g) => (
             <div key={g.id} className="space-y-2">
               <div className="overflow-hidden rounded-lg border border-border bg-black">
@@ -362,7 +362,7 @@ function LibHeader({
     <div className="border-b border-border">
       <div className="flex flex-wrap items-end justify-between gap-4 px-6 pb-3 pt-5">
         <div>
-          <h1 className="font-heading text-[22px] font-medium tracking-tight text-foreground">
+          <h1 className="text-[18px] font-semibold text-foreground">
             Biblioteca
           </h1>
           <div className="mt-1 text-[12.5px] text-muted-foreground/80">

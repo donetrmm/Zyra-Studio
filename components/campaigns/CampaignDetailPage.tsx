@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ImageIcon, Mic, Video } from 'lucide-react';
+import { ArrowLeft, FolderKanban, ImageIcon, Mic, Video } from 'lucide-react';
 
 type Generation = {
   id: string;
@@ -42,8 +42,8 @@ export function CampaignDetailPage({
 
       <div className="flex items-start gap-3">
         <div className="mt-1 size-3 shrink-0 rounded-full" style={{ backgroundColor: campaign.color }} />
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">{campaign.name}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[18px] font-semibold text-foreground">{campaign.name}</h1>
           {campaign.description && (
             <p className="mt-0.5 text-[13px] text-muted-foreground">{campaign.description}</p>
           )}
@@ -54,9 +54,12 @@ export function CampaignDetailPage({
       </div>
 
       {generations.length === 0 ? (
-        <div className="mt-12 text-center text-muted-foreground/60">
+        <div className="mt-12 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
+            <FolderKanban className="size-7" aria-hidden />
+          </div>
           <p className="text-[14px] text-foreground/70">Sin generaciones asignadas</p>
-          <p className="mt-1 text-[12.5px]">Asigna generaciones a esta campaña desde la biblioteca o al crear contenido</p>
+          <p className="max-w-xs text-[12.5px]">Asigna generaciones desde la biblioteca o al crear contenido</p>
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">

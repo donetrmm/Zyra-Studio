@@ -447,7 +447,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         value={props.prompt}
         onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
         placeholder="Describe la escena que quieres animar..."
-        className="scroll-thin mt-1.5 min-h-[100px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="scroll-thin mt-1.5 min-h-[100px] max-h-[280px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
       />
       <EnhanceButton
         prompt={props.prompt}
@@ -472,7 +472,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         onClick={props.onGenerate}
         disabled={!props.canGenerate}
         className={cn(
-          'mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
+          'mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
           props.canGenerate
             ? 'bg-primary text-primary-foreground hover:bg-primary/90'
             : 'cursor-not-allowed bg-muted text-muted-foreground/60',
