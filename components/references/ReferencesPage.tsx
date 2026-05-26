@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
@@ -17,6 +18,7 @@ type ReferenceRow = {
 };
 
 export function ReferencesPage({ references: initial }: { references: ReferenceRow[] }) {
+  const router = useRouter();
   const [refs, setRefs] = useState(initial);
   const [uploading, setUploading] = useState(false);
   const [deleting, startDelete] = useTransition();
@@ -52,7 +54,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
       toast.success(`${file.name} subido`);
     }
     setUploading(false);
-    window.location.reload();
+    router.refresh();
   }, []);
 
   function handleDelete(id: string, name: string) {
@@ -187,7 +189,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                     onClick={() => toggleSelect(r.id)}
                     className={cn(
                       'absolute left-1.5 top-1.5 grid size-5 place-items-center rounded border transition-colors',
-                      isSel ? 'border-primary bg-primary text-primary-foreground' : 'border-white/60 bg-background/60 opacity-0 backdrop-blur group-hover:opacity-100',
+                      isSel ? 'border-primary bg-primary text-primary-foreground' : 'border-foreground/60 bg-background/60 opacity-0 backdrop-blur group-hover:opacity-100',
                     )}
                   >
                     {isSel && <Check className="size-3" aria-hidden />}

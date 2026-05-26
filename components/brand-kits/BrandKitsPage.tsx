@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction } from '@/server-actions/brand-kits';
@@ -19,6 +20,7 @@ type BrandKit = {
 };
 
 export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
+  const router = useRouter();
   const [kits, setKits] = useState(initial);
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
 
@@ -45,7 +47,7 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
         <BrandKitEditor
           kit={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={() => window.location.reload()}
+          onSaved={() => router.refresh()}
         />
       )}
 
@@ -147,7 +149,7 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
     <div className="mt-6 rounded-xl border border-border bg-card p-5">
       <h2 className="text-[15px] font-medium text-foreground">{kit ? 'Editar' : 'Nuevo'} Brand Kit</h2>
       <div className="mt-4 space-y-3">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none" />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paleta de colores</label>
@@ -167,10 +169,10 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
                     }}
                     maxLength={7}
                     placeholder="#7c3aed"
-                    className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none"
+                    className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40"
                   />
                 </div>
-                <input value={c.name} onChange={(e) => { const next = [...colors]; next[i] = { ...c, name: e.target.value }; setColors(next); }} placeholder="Nombre" className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none" />
+                <input value={c.name} onChange={(e) => { const next = [...colors]; next[i] = { ...c, name: e.target.value }; setColors(next); }} placeholder="Nombre" className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-primary/40" />
                 <button type="button" onClick={() => setColors(colors.filter((_, j) => j !== i))} className="text-[11px] text-muted-foreground hover:text-destructive">x</button>
               </div>
             ))}
@@ -182,17 +184,17 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Fuentes (separadas por coma)</label>
-          <input value={fonts} onChange={(e) => setFonts(e.target.value)} placeholder="Inter, Playfair Display" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none" />
+          <input value={fonts} onChange={(e) => setFonts(e.target.value)} placeholder="Inter, Playfair Display" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
         </div>
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tono de voz</label>
-          <textarea value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Profesional pero cercano, optimista..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none" rows={2} />
+          <textarea value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Profesional pero cercano, optimista..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" rows={2} />
         </div>
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Guidelines de estilo</label>
-          <textarea value={guidelines} onChange={(e) => setGuidelines(e.target.value)} placeholder="Usar fondos limpios, evitar saturación..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none" rows={2} />
+          <textarea value={guidelines} onChange={(e) => setGuidelines(e.target.value)} placeholder="Usar fondos limpios, evitar saturación..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" rows={2} />
         </div>
 
         <div className="flex gap-2">

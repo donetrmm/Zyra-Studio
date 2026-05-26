@@ -37,7 +37,7 @@ export function CampaignSelector({
           const c = campaigns.find((x) => x.id === e.target.value) ?? null;
           onChange(c ? { id: c.id, name: c.name } : null);
         }}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
         <option value="">Sin campaña</option>
         {campaigns.map((c) => (

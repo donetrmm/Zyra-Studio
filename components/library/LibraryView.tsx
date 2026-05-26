@@ -303,7 +303,7 @@ function CompareModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
       <div className="mx-4 max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">Comparador A/B</h2>
@@ -726,7 +726,7 @@ function LibTile({
             'absolute left-2 top-2 grid size-5 place-items-center rounded border transition-colors',
             selected
               ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-white/60 bg-background/60 backdrop-blur',
+              : 'border-foreground/60 bg-background/60 backdrop-blur',
           )}
         >
           {selected && <Check className="size-3" aria-hidden />}
@@ -1180,13 +1180,13 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nombre del preset"
-        className="mt-2 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none"
+        className="mt-2 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/40"
       />
       <input
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Descripción (opcional)"
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/40"
       />
       <label className="mt-2 flex items-center gap-2 text-[11.5px] text-muted-foreground">
         <input

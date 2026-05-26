@@ -46,7 +46,7 @@ export function BrandKitSelector({
           const kit = kits.find((k) => k.id === e.target.value) ?? null;
           onChange(kit);
         }}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
         <option value="">Sin brand kit</option>
         {kits.map((k) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { FlaskConical, Loader2, Mic, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction } from '@/server-actions/voices';
@@ -16,6 +17,7 @@ type VoiceRow = {
 };
 
 export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
+  const router = useRouter();
   const [voices, setVoices] = useState(initial);
   const [showClone, setShowClone] = useState(false);
   const [tryingId, setTryingId] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
       }
       toast.success('Voz clonada');
       setShowClone(false);
-      window.location.reload();
+      router.refresh();
     });
   }
 

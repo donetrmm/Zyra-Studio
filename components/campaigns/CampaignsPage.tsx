@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCampaignAction, updateCampaignAction, deleteCampaignAction } from '@/server-actions/campaigns';
@@ -17,6 +18,7 @@ type CampaignRow = {
 };
 
 export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[] }) {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState(initial);
   const [editing, setEditing] = useState<CampaignRow | 'new' | null>(null);
 
@@ -43,7 +45,7 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
         <CampaignEditor
           campaign={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={() => window.location.reload()}
+          onSaved={() => router.refresh()}
         />
       )}
 
@@ -125,13 +127,13 @@ function CampaignEditor({ campaign, onClose, onSaved }: { campaign: CampaignRow 
         <h2 className="text-[15px] font-medium text-foreground">{campaign ? 'Editar' : 'Nueva'} campaña</h2>
       </div>
       <div className="space-y-3 p-5">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la campaña" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none" />
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none" rows={2} />
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre de la campaña" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" rows={2} />
         <div className="flex items-center gap-2">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Color</label>
           <div className="flex items-center gap-1.5">
             <div className="size-7 rounded-md border border-border" style={{ backgroundColor: color }} />
-            <input type="text" value={color} onChange={(e) => setColor(e.target.value)} maxLength={7} className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none" />
+            <input type="text" value={color} onChange={(e) => setColor(e.target.value)} maxLength={7} className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40" />
           </div>
         </div>
         <div className="flex gap-2 pt-1">

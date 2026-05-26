@@ -57,7 +57,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
       <select
         value={props.voiceId}
         onChange={(e) => props.setVoiceId(e.target.value)}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
+        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
       >
         {OFFICIAL_VOICES.map((v) => (
           <option key={v.id} value={v.id}>
@@ -72,7 +72,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
       <select
         value={props.modelId}
         onChange={(e) => props.setModelId(e.target.value as (typeof TTS_MODELS)[number])}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
+        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
       >
         <option value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</option>
         <option value="eleven_flash_v2_5">Flash v2.5 (rápido)</option>
@@ -87,7 +87,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           <select
             value={props.languageCode}
             onChange={(e) => props.setLanguageCode(e.target.value as (typeof TTS_LANGUAGES)[number])}
-            className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none"
+            className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
           >
             {TTS_LANGUAGES.map((l) => (
               <option key={l} value={l}>
@@ -111,7 +111,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         value={props.text}
         onChange={(e) => props.setText(e.target.value.slice(0, 20000))}
         placeholder="Escribe el texto a sintetizar…"
-        className="scroll-thin mt-1.5 min-h-[140px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none"
+        className="scroll-thin mt-1.5 min-h-[140px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
       />
       <div className="mt-1 flex items-center justify-between">
         <EnhanceButton
@@ -146,7 +146,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         onClick={props.onGenerate}
         disabled={!props.canGenerate}
         className={cn(
-          'mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md text-[13.5px] font-medium transition-colors',
+          'mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-md text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
           props.canGenerate
             ? 'bg-primary text-primary-foreground hover:bg-primary/90'
             : 'cursor-not-allowed bg-muted text-muted-foreground/60',
@@ -181,7 +181,7 @@ function SliderRow({
         step={0.01}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-1 w-full"
+        className="mt-1 w-full accent-primary"
       />
     </div>
   );

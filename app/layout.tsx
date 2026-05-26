@@ -38,6 +38,7 @@ export default function RootLayout({
     <html
       lang="es"
       className={`dark ${inter.variable} ${geist.variable} ${geistMono.variable} h-full antialiased`}
+      style={{ colorScheme: 'dark' }}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
