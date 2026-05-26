@@ -61,7 +61,12 @@ export async function submitOperation(params: {
     instances: [
       {
         prompt: params.prompt,
-        ...(params.imageReference && { image: params.imageReference }),
+        ...(params.imageReference && {
+          image: {
+            bytesBase64Encoded: params.imageReference.data,
+            mimeType: params.imageReference.mimeType,
+          },
+        }),
       },
     ],
     parameters: {

@@ -29,21 +29,23 @@ export async function submitTask(params: {
   operation: KlingOperation;
   model: KlingModel;
   prompt?: string;
-  negativePrompt?: string;
   imageUrl?: string;
-  duration: 5 | 10;
+  endImageUrl?: string;
+  duration: number;
   aspectRatio: '16:9' | '9:16' | '1:1';
   cfgScale?: number;
+  generateAudio?: boolean;
 }): Promise<{ taskId: string }> {
   ensureConfigured();
   const input: Record<string, unknown> = {
-    duration: String(params.duration), // fal espera "5" / "10" (string)
+    duration: String(params.duration),
     aspect_ratio: params.aspectRatio,
   };
   if (params.prompt) input.prompt = params.prompt;
-  if (params.negativePrompt) input.negative_prompt = params.negativePrompt;
   if (params.imageUrl) input.start_image_url = params.imageUrl;
+  if (params.endImageUrl) input.end_image_url = params.endImageUrl;
   if (params.cfgScale !== undefined) input.cfg_scale = params.cfgScale;
+  if (params.generateAudio !== undefined) input.generate_audio = params.generateAudio;
 
   try {
     const res = await fal.queue.submit(params.model, { input });

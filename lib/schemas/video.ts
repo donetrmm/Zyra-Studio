@@ -2,10 +2,16 @@ import { z } from 'zod';
 
 // Slugs de fal.ai (un slug = un modelo concreto en su catálogo).
 // Standard = más rápido/barato; Pro = más calidad pero más caro.
+// i2v se selecciona automáticamente cuando el usuario sube imagen de referencia.
 export const KLING_MODELS = [
   'fal-ai/kling-video/v3/standard/text-to-video',
   'fal-ai/kling-video/v3/pro/text-to-video',
   'fal-ai/kling-video/v3/standard/image-to-video',
+] as const;
+
+export const KLING_T2V_MODELS = [
+  'fal-ai/kling-video/v3/standard/text-to-video',
+  'fal-ai/kling-video/v3/pro/text-to-video',
 ] as const;
 
 export const VEO_MODELS = [
@@ -16,29 +22,24 @@ export const VEO_MODELS = [
 
 export const SubmitKlingSchema = z.object({
   kind: z.literal('kling'),
-  model: z.enum(KLING_MODELS),
+  model: z.enum(KLING_T2V_MODELS),
   prompt: z.string().trim().min(1).max(2000),
-  negativePrompt: z.string().trim().max(500).optional(),
   aspectRatio: z.enum(['16:9', '9:16', '1:1']),
-  duration: z.union([z.literal(5), z.literal(10)]),
+  duration: z.number().int().min(5).max(10),
   cfgScale: z.number().min(0).max(1).optional(),
-  imageUrl: z.string().url().optional(), // para image2video
+  generateAudio: z.boolean().optional(),
+  referenceStoragePath: z.string().optional(),
+  endReferenceStoragePath: z.string().optional(),
 });
 
 export const SubmitVeoSchema = z.object({
   kind: z.literal('veo'),
   model: z.enum(VEO_MODELS),
   prompt: z.string().trim().min(1).max(1024),
-  negativePrompt: z.string().trim().max(500).optional(),
   aspectRatio: z.enum(['16:9', '9:16']),
   resolution: z.enum(['720p', '1080p']),
   durationSeconds: z.union([z.literal(4), z.literal(6), z.literal(8)]),
-  imageReference: z
-    .object({
-      mimeType: z.string(),
-      data: z.string(), // base64
-    })
-    .optional(),
+  referenceStoragePath: z.string().optional(),
 });
 
 export const SubmitVideoSchema = z.discriminatedUnion('kind', [

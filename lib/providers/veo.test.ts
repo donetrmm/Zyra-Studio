@@ -44,7 +44,7 @@ describe('veo.submitOperation', () => {
     ).rejects.toMatchObject({ code: 'auth' });
   });
 
-  it('injects personGeneration=allow_adult', async () => {
+  it('injects personGeneration=allow_all', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ name: 'operations/abc-123' }), { status: 200 }),
     );
@@ -59,6 +59,6 @@ describe('veo.submitOperation', () => {
     });
     const init = fetchSpy.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(init.body as string);
-    expect(body.parameters?.personGeneration).toBe('allow_adult');
+    expect(body.parameters?.personGeneration).toBe('allow_all');
   });
 });

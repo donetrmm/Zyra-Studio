@@ -1,22 +1,26 @@
 'use client';
 
-import { Loader2, Video } from 'lucide-react';
+import { Loader2, Video, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { cancelGenerationAction } from '@/server-actions/generations';
 import { downloadGenerationImage } from '@/lib/media-references/download-client';
 import { cn } from '@/lib/utils';
 import type { LiveGeneration } from './use-generation-status';
 
 export function VideoPreview({
   generation,
+  generationId,
   resolvedOutputUrl,
   resolvedThumbnailUrl,
 }: {
   generation: LiveGeneration | null;
+  generationId: string | null;
   resolvedOutputUrl: string | null;
   resolvedThumbnailUrl: string | null;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const [canceling, startCancel] = useTransition();
 
   async function handleDownload() {
     if (!resolvedOutputUrl) return;
@@ -30,6 +34,14 @@ export function VideoPreview({
     } finally {
       setDownloading(false);
     }
+  }
+
+  function handleCancel() {
+    if (!generationId) return;
+    startCancel(async () => {
+      const res = await cancelGenerationAction(generationId);
+      if (!res.ok) toast.error('No se pudo cancelar');
+    });
   }
 
   if (!generation) {
@@ -48,8 +60,17 @@ export function VideoPreview({
       <div className="grid h-full place-items-center text-muted-foreground">
         <div className="flex flex-col items-center gap-3 text-center">
           <Loader2 className="size-10 animate-spin text-primary" aria-hidden />
-          <p className="text-[13.5px] text-foreground">Generando video…</p>
+          <p className="text-[13.5px] text-foreground">Generando video...</p>
           <p className="text-[11.5px] text-muted-foreground/80">Esto puede tomar hasta 3 minutos</p>
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={canceling}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+          >
+            <XCircle className="size-3.5" aria-hidden />
+            {canceling ? 'Cancelando...' : 'Cancelar'}
+          </button>
         </div>
       </div>
     );
@@ -98,7 +119,7 @@ export function VideoPreview({
           </button>
         </>
       ) : (
-        <p className="text-muted-foreground">Video listo, cargando URL…</p>
+        <p className="text-muted-foreground">Video listo, cargando URL...</p>
       )}
     </div>
   );

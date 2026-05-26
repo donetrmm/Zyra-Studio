@@ -61,6 +61,15 @@ export async function signedReferenceUrl(path: string): Promise<string> {
   return data.signedUrl;
 }
 
+export async function signedReferenceUrlAdmin(path: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from(REFERENCES_BUCKET)
+    .createSignedUrl(path, 60 * 60);
+  if (error || !data) throw new Error(`sign reference (admin) failed: ${error?.message ?? 'unknown'}`);
+  return data.signedUrl;
+}
+
 export async function downloadReferenceBuffer(path: string): Promise<{
   buffer: Buffer;
   mimeType: string;

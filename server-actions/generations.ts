@@ -448,7 +448,6 @@ export async function submitAudioGenerationAction(
         failError: (failErr as Error)?.message,
       });
     }
-    // Mantenemos la fila como 'failed' para preservar el audit trail.
     return {
       ok: false,
       error: message.includes('429') ? 'provider_error' : 'internal_error',
@@ -460,19 +459,13 @@ export async function submitAudioGenerationAction(
 function estimateKlingCost(
   pricing: Awaited<ReturnType<typeof loadPricing>>,
   model: SubmitKlingInput['model'],
-  duration: 5 | 10,
+  duration: number,
 ): number {
-  // Variantes seeded: 'standard' (5s en standard model), 'long' (10s en standard),
-  // 'pro' (5s en pro model). Image-to-video usa pricing 'standard' por defecto.
-  const isPro = model.includes('/pro/');
-  let variant: string;
-  if (isPro) variant = 'pro';
-  else variant = duration === 10 ? 'long' : 'standard';
   const row = pricing.find(
-    (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
+    (p) => p.provider === 'kling' && p.model_id === model && p.variant === 'per_second',
   );
-  if (!row) throw new Error(`pricing no encontrado para Kling ${model}/${variant}`);
-  return Number(row.credits_cost);
+  if (!row) throw new Error(`pricing no encontrado para Kling ${model}/per_second`);
+  return duration * Number(row.credits_cost);
 }
 
 function estimateVeoCost(
@@ -506,15 +499,19 @@ export async function submitVideoGenerationAction(
 
   if (data.kind === 'kling') {
     provider = 'kling';
-    modelId = data.model;
+    const hasRef = !!data.referenceStoragePath;
+    modelId = hasRef
+      ? data.model.replace('/text-to-video', '/image-to-video') as string
+      : data.model;
     cost = estimateKlingCost(pricing, data.model, data.duration);
     insertParams = {
-      operation: data.imageUrl ? 'image2video' : 'text2video',
+      operation: hasRef ? 'image2video' : 'text2video',
       aspectRatio: data.aspectRatio,
       duration: data.duration,
       cfgScale: data.cfgScale,
-      imageUrl: data.imageUrl,
-      negativePrompt: data.negativePrompt,
+      generateAudio: data.generateAudio,
+      referenceStoragePath: data.referenceStoragePath,
+      endReferenceStoragePath: data.endReferenceStoragePath,
     };
   } else {
     provider = 'veo';
@@ -524,8 +521,7 @@ export async function submitVideoGenerationAction(
       aspectRatio: data.aspectRatio,
       resolution: data.resolution,
       durationSeconds: data.durationSeconds,
-      negativePrompt: data.negativePrompt,
-      imageReference: data.imageReference,
+      referenceStoragePath: data.referenceStoragePath,
     };
   }
 
@@ -582,11 +578,27 @@ export async function submitVideoGenerationAction(
         failError: (failErr as Error)?.message,
       });
     }
-    // Mantenemos la fila como 'failed' para preservar el audit trail.
     return {
       ok: false,
       error: message.includes('429') ? 'provider_error' : 'internal_error',
       message,
     };
   }
+}
+
+export async function cancelGenerationAction(
+  generationId: string,
+): Promise<Result<{ canceled: true }>> {
+  const { user } = await requireWorkspace();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('generations')
+    .update({ cancel_requested: true })
+    .eq('id', generationId)
+    .eq('user_id', user.id)
+    .in('status', ['queued', 'processing']);
+  if (error) {
+    return { ok: false, error: 'internal_error', message: error.message };
+  }
+  return { ok: true, data: { canceled: true } };
 }

@@ -6,8 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
-import { KLING_MODELS, VEO_MODELS } from '@/lib/schemas/video';
-import { VideoControlsPanel, type ModelKey } from './VideoControlsPanel';
+import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
+import { VideoControlsPanel, VIDEO_STYLES, type ModelKey, type ReferenceImage } from './VideoControlsPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
 
@@ -22,15 +22,10 @@ function calcCost(
     );
     return row ? durationSeconds * Number(row.credits_cost) : 0;
   }
-  // Kling
-  const isPro = model.includes('/pro/');
-  let variant: string;
-  if (isPro) variant = 'pro';
-  else variant = durationSeconds === 10 ? 'long' : 'standard';
   const row = pricing.find(
-    (p) => p.provider === 'kling' && p.model_id === model && p.variant === variant,
+    (p) => p.provider === 'kling' && p.model_id === model && p.variant === 'per_second',
   );
-  return row ? Number(row.credits_cost) : 0;
+  return row ? durationSeconds * Number(row.credits_cost) : 0;
 }
 
 export function VideoGenerator(props: {
@@ -43,17 +38,25 @@ export function VideoGenerator(props: {
     'fal-ai/kling-video/v3/standard/text-to-video',
   );
   const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
-  const [duration, setDuration] = useState<5 | 10>(5);
+  const [duration, setDuration] = useState(5);
+  const [generateAudio, setGenerateAudio] = useState(false);
   const [veoDuration, setVeoDuration] = useState<4 | 6 | 8>(8);
-  const [veoResolution, setVeoResolution] = useState<'720p' | '1080p'>('1080p');
+  const [veoResolution, setVeoResolution] = useState<'720p' | '1080p'>('720p');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
+  const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resolvedOutputUrl, setResolvedOutputUrl] = useState<string | null>(null);
   const [resolvedThumbnailUrl, setResolvedThumbnailUrl] = useState<string | null>(null);
 
   const live = useGenerationStatus(activeId);
+
+  useEffect(() => {
+    if (model.startsWith('veo-') && (veoResolution === '1080p' || referenceImages.length > 0)) {
+      setVeoDuration(8);
+    }
+  }, [model, veoResolution, referenceImages.length]);
 
   const cost = useMemo(() => {
     const dur = model.startsWith('veo-') ? veoDuration : duration;
@@ -64,25 +67,34 @@ export function VideoGenerator(props: {
   function handleGenerate() {
     if (!canGenerate) return;
     startTransition(async () => {
+      const styleSuffix = selectedStyles
+        .map((id) => VIDEO_STYLES.find((s) => s.id === id)?.suffix)
+        .filter(Boolean)
+        .join(', ');
+      const maxLen = model.startsWith('veo-') ? 1024 : 2000;
+      const raw = styleSuffix ? `${prompt.trimEnd()}, ${styleSuffix}` : prompt;
+      const finalPrompt = raw.slice(0, maxLen);
+
       const input = model.startsWith('veo-')
         ? {
             kind: 'veo' as const,
             model: model as (typeof VEO_MODELS)[number],
-            prompt,
-            negativePrompt: negativePrompt || undefined,
-            // Veo no soporta 1:1; mapeamos defensivamente al fallback 16:9.
+            prompt: finalPrompt,
             aspectRatio: (aspectRatio === '1:1' ? '16:9' : aspectRatio) as '16:9' | '9:16',
             resolution: veoResolution,
             durationSeconds: veoDuration,
+            referenceStoragePath: referenceImages[0]?.storagePath,
           }
         : {
             kind: 'kling' as const,
-            model: model as (typeof KLING_MODELS)[number],
-            prompt,
-            negativePrompt: negativePrompt || undefined,
+            model: model as (typeof KLING_T2V_MODELS)[number],
+            prompt: finalPrompt,
             aspectRatio,
             duration,
             cfgScale: 0.5,
+            generateAudio,
+            referenceStoragePath: referenceImages[0]?.storagePath,
+            endReferenceStoragePath: referenceImages[1]?.storagePath,
           };
       const res = await submitVideoGenerationAction(input);
       if (!res.ok) {
@@ -99,8 +111,6 @@ export function VideoGenerator(props: {
     });
   }
 
-  // Cuando llega 'done', resolver la signed URL desde el API route.
-  // Solo dependemos del status para no re-fetchear si live cambia por otra razón.
   const liveStatus = live?.status;
   useEffect(() => {
     if (liveStatus !== 'done' || !activeId) return;
@@ -121,16 +131,20 @@ export function VideoGenerator(props: {
     <VideoControlsPanel
       prompt={prompt}
       setPrompt={setPrompt}
-      negativePrompt={negativePrompt}
-      setNegativePrompt={setNegativePrompt}
       model={model}
       setModel={setModel}
+      selectedStyles={selectedStyles}
+      setSelectedStyles={setSelectedStyles}
       duration={duration}
       setDuration={setDuration}
+      generateAudio={generateAudio}
+      setGenerateAudio={setGenerateAudio}
       veoDuration={veoDuration}
       setVeoDuration={setVeoDuration}
       veoResolution={veoResolution}
       setVeoResolution={setVeoResolution}
+      referenceImages={referenceImages}
+      setReferenceImages={setReferenceImages}
       aspectRatio={aspectRatio}
       setAspectRatio={setAspectRatio}
       cost={cost}
@@ -144,6 +158,7 @@ export function VideoGenerator(props: {
   const preview = (
     <VideoPreview
       generation={live}
+      generationId={activeId}
       resolvedOutputUrl={resolvedOutputUrl}
       resolvedThumbnailUrl={resolvedThumbnailUrl}
     />
@@ -151,13 +166,11 @@ export function VideoGenerator(props: {
 
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
-      {/* Desktop: 2 columnas flush bajo el topbar global. */}
       <div className="hidden lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[360px_1fr]">
         <div className="min-h-0 overflow-hidden">{controls}</div>
         <div className="min-h-0 overflow-hidden">{preview}</div>
       </div>
 
-      {/* Mobile / tablet: tabs. */}
       <div className="lg:hidden">
         <Tabs defaultValue="controls" className="flex h-[calc(100dvh-7.5rem)] flex-col">
           <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">

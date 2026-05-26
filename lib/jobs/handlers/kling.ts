@@ -1,6 +1,7 @@
 import 'server-only';
 import { downloadVideo, pollTask, submitTask, type KlingModel, type KlingOperation } from '@/lib/providers/kling';
 import { ProviderError } from '@/lib/providers/types';
+import { signedReferenceUrlAdmin } from '@/lib/supabase/storage';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
 
 const MAX_POLLS = 30;
@@ -8,10 +9,12 @@ const MAX_POLLS = 30;
 type KlingParams = {
   operation?: KlingOperation;
   aspectRatio?: '16:9' | '9:16' | '1:1';
-  duration?: 5 | 10;
+  duration?: number;
   cfgScale?: number;
   imageUrl?: string;
-  negativePrompt?: string;
+  generateAudio?: boolean;
+  referenceStoragePath?: string;
+  endReferenceStoragePath?: string;
 };
 
 function nextDelay(attempts: number): number {
@@ -27,16 +30,25 @@ export const klingHandler: JobHandler = {
     const model = gen.model_id as KlingModel;
     try {
       if (action === 'submit') {
+        let imageUrl = params.imageUrl;
+        if (!imageUrl && params.referenceStoragePath) {
+          imageUrl = await signedReferenceUrlAdmin(params.referenceStoragePath);
+        }
+        let endImageUrl: string | undefined;
+        if (params.endReferenceStoragePath) {
+          endImageUrl = await signedReferenceUrlAdmin(params.endReferenceStoragePath);
+        }
         const startedAt = Date.now();
         const { taskId } = await submitTask({
           operation: params.operation ?? 'text2video',
           model,
           prompt: gen.prompt ?? '',
-          negativePrompt: params.negativePrompt,
-          imageUrl: params.imageUrl,
+          imageUrl,
+          endImageUrl,
           duration: params.duration ?? 5,
           aspectRatio: params.aspectRatio ?? '16:9',
           cfgScale: params.cfgScale,
+          generateAudio: params.generateAudio,
         });
         return {
           kind: 'continue',
@@ -84,6 +96,4 @@ export const klingHandler: JobHandler = {
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }
   },
-  // fal.ai queue API no expone cancel remoto → handler no expone cancel.
-  // El worker, ante cancel_requested, marca status='canceled' local y refunda.
 };

@@ -110,7 +110,7 @@ export function AudioGenerator(props: {
     />
   );
 
-  const preview = <AudioPreview generation={live} resolvedOutputUrl={resolvedOutputUrl} />;
+  const preview = <AudioPreview generation={live} generationId={activeId} resolvedOutputUrl={resolvedOutputUrl} />;
 
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">

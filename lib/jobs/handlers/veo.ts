@@ -1,6 +1,7 @@
 import 'server-only';
 import { downloadVideo, pollOperation, submitOperation, type VeoModel } from '@/lib/providers/veo';
 import { ProviderError } from '@/lib/providers/types';
+import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
 
 const MAX_POLLS = 24;
@@ -11,6 +12,7 @@ type VeoParams = {
   durationSeconds?: 4 | 6 | 8;
   negativePrompt?: string;
   imageReference?: { mimeType: string; data: string };
+  referenceStoragePath?: string;
 };
 
 function nextDelay(attempts: number): number {
@@ -25,6 +27,11 @@ export const veoHandler: JobHandler = {
     const params = gen.params as VeoParams;
     try {
       if (action === 'submit') {
+        let imageReference = params.imageReference;
+        if (!imageReference && params.referenceStoragePath) {
+          const { buffer, mimeType } = await downloadReferenceBuffer(params.referenceStoragePath);
+          imageReference = { mimeType, data: buffer.toString('base64') };
+        }
         const startedAt = Date.now();
         const { operationName } = await submitOperation({
           model: gen.model_id as VeoModel,
@@ -33,7 +40,7 @@ export const veoHandler: JobHandler = {
           aspectRatio: params.aspectRatio ?? '16:9',
           resolution: params.resolution ?? '1080p',
           durationSeconds: params.durationSeconds ?? 8,
-          imageReference: params.imageReference,
+          imageReference,
         });
         return {
           kind: 'continue',

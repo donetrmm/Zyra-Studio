@@ -136,3 +136,47 @@ async function ttsChunk(
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+
+function getApiKey(): string {
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!key) throw new ProviderError('ELEVENLABS_API_KEY no configurada', 'auth', false);
+  return key;
+}
+
+export async function cloneVoice(params: {
+  name: string;
+  description?: string;
+  files: { buffer: Buffer; filename: string }[];
+}): Promise<{ voiceId: string }> {
+  const apiKey = getApiKey();
+  const form = new FormData();
+  form.append('name', params.name);
+  if (params.description) form.append('description', params.description);
+  for (const f of params.files) {
+    form.append('files', new Blob([new Uint8Array(f.buffer)]), f.filename);
+  }
+
+  const res = await fetch(`${BASE_URL}/v1/voices/add`, {
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ProviderError(`ElevenLabs clone ${res.status}: ${text.slice(0, 200)}`, 'unknown', false);
+  }
+  const data = (await res.json()) as { voice_id: string };
+  return { voiceId: data.voice_id };
+}
+
+export async function deleteVoice(voiceId: string): Promise<void> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${BASE_URL}/v1/voices/${voiceId}`, {
+    method: 'DELETE',
+    headers: { 'xi-api-key': apiKey },
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new ProviderError(`ElevenLabs delete voice ${res.status}`, 'unknown', false);
+  }
+}
