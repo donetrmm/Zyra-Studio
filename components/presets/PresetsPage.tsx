@@ -265,21 +265,20 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
 
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
-  const [loadingMedia, setLoadingMedia] = useState(!!generationId);
+  const [loadingMedia, setLoadingMedia] = useState(true);
 
   useEffect(() => {
-    if (!generationId) return;
     let active = true;
-    fetch(`/api/generations/${generationId}`, { cache: 'no-store' })
+    fetch(`/api/presets/${preset.id}/media`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { outputUrl?: string; thumbnailUrl?: string } | null) => {
         if (!active) return;
-        setOutputUrl(data?.outputUrl ?? null);
+        setOutputUrl(data?.outputUrl ?? data?.thumbnailUrl ?? null);
         setLoadingMedia(false);
       })
       .catch(() => { if (active) setLoadingMedia(false); });
     return () => { active = false; };
-  }, [generationId]);
+  }, [preset.id]);
 
   const mediaUrl = outputUrl ?? thumbnailUrl;
 
@@ -295,13 +294,11 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   }
 
   async function handleDownload() {
-    if (!generationId) return;
+    const url = outputUrl;
+    if (!url) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/generations/${generationId}`);
-      if (!res.ok) throw new Error('No se pudo obtener la URL');
-      const data = await res.json() as { outputUrl?: string };
-      if (data.outputUrl) await downloadFile(data.outputUrl, `zyra-preset`);
+      await downloadFile(url, `zyra-preset`);
     } catch {
       toast.error('No se pudo descargar');
     } finally {
@@ -375,7 +372,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
               {using ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
               Usar preset
             </button>
-            {generationId && (
+            {outputUrl && (
               <button
                 type="button"
                 onClick={handleDownload}
