@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { FlaskConical, Loader2, Mic, Play, Plus, Trash2, Volume2 } from 'lucide-react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { FlaskConical, Loader2, Mic, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction } from '@/server-actions/voices';
 import { cn } from '@/lib/utils';
@@ -192,9 +192,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 Cerrar
               </button>
             </div>
-            {tryAudio && (
-              <audio controls autoPlay src={tryAudio} className="mt-3 h-10 w-full" />
-            )}
+            {tryAudio && <MiniPlayer src={tryAudio} />}
           </div>
         </div>
       )}
@@ -263,6 +261,51 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniPlayer({ src }: { src: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.play().then(() => setPlaying(true)).catch(() => {});
+    const onTime = () => {
+      if (el.duration) setProgress(el.currentTime / el.duration);
+    };
+    const onEnd = () => { setPlaying(false); setProgress(0); };
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('ended', onEnd);
+    return () => { el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnd); };
+  }, [src]);
+
+  function toggle() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) { el.pause(); setPlaying(false); }
+    else { el.play(); setPlaying(true); }
+  }
+
+  function seek(e: React.MouseEvent<HTMLDivElement>) {
+    const el = audioRef.current;
+    if (!el || !el.duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    el.currentTime = ((e.clientX - rect.left) / rect.width) * el.duration;
+  }
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+      <audio ref={audioRef} src={src} />
+      <button type="button" onClick={toggle} className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+        {playing ? <Pause className="size-3" aria-hidden /> : <Play className="ml-0.5 size-3" aria-hidden />}
+      </button>
+      <div className="h-1.5 flex-1 cursor-pointer rounded-full bg-border" onClick={seek}>
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress * 100}%` }} />
+      </div>
     </div>
   );
 }
