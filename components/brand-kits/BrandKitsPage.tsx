@@ -24,17 +24,17 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-8">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Brand Kits</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para que sus colores, tipografía y estilo se inyecten automáticamente en el prompt.
+          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+            Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para inyectar tu estilo en el prompt.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="size-4" aria-hidden />
           Nuevo kit
