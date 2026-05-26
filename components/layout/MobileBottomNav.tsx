@@ -9,7 +9,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky bottom-0 z-30 grid grid-cols-5 border-t border-border bg-background/95 backdrop-blur lg:hidden">
+    <nav className="shrink-0 grid grid-cols-5 border-t border-border bg-background/95 lg:hidden">
       {MOBILE_NAV.map((item) => {
         const Icon = item.icon;
         const active =
