@@ -187,7 +187,7 @@ export function VideoGenerator(props: {
       </div>
 
       <div className="lg:hidden">
-        <Tabs defaultValue="controls" className="flex h-[calc(100dvh-7.5rem)] flex-col">
+        <Tabs defaultValue="controls" className="flex h-[calc(100dvh-7rem)] flex-col">
           <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">
             <TabsTrigger value="controls">Controles</TabsTrigger>
             <TabsTrigger value="preview">Vista previa</TabsTrigger>

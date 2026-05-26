@@ -137,7 +137,7 @@ export function AudioGenerator(props: {
       <div className="lg:hidden">
         <Tabs
           defaultValue="controls"
-          className="flex h-[calc(100dvh-7.5rem)] flex-col"
+          className="flex h-[calc(100dvh-7rem)] flex-col"
         >
           <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">
             <TabsTrigger value="controls">Controles</TabsTrigger>
