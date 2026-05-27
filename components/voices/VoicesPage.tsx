@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { FlaskConical, Loader2, Mic, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { toast } from 'sonner';
 import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction } from '@/server-actions/voices';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ type VoiceRow = {
 
 export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [voices, setVoices] = useState(initial);
   const [showClone, setShowClone] = useState(false);
   const [tryingId, setTryingId] = useState<string | null>(null);
@@ -40,8 +42,9 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
     });
   }
 
-  function handleDelete(id: string, name: string) {
-    if (!confirm(`Eliminar la voz "${name}"?`)) return;
+  async function handleDelete(id: string, name: string) {
+    const ok = await confirm({ title: `Eliminar "${name}"?`, description: 'Esta accion no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
+    if (!ok) return;
     startDelete(async () => {
       const res = await deleteVoiceAction(id);
       if (!res.ok) {

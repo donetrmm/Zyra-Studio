@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction } from '@/server-actions/brand-kits';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 type ColorEntry = { name: string; hex: string };
@@ -21,6 +22,7 @@ type BrandKit = {
 
 export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
 
@@ -66,8 +68,9 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
               key={kit.id}
               kit={kit}
               onEdit={() => setEditing(kit)}
-              onDelete={() => {
-                if (!confirm(`Eliminar "${kit.name}"?`)) return;
+              onDelete={async () => {
+                const ok = await confirm({ title: `Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
+                if (!ok) return;
                 deleteBrandKitAction(kit.id).then((res) => {
                   if (res.ok) {
                     setKits((k) => k.filter((x) => x.id !== kit.id));

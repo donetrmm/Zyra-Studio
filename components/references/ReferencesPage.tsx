@@ -6,6 +6,7 @@ import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { deleteMediaReferenceAction } from '@/server-actions/media-references';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 type ReferenceRow = {
@@ -19,6 +20,7 @@ type ReferenceRow = {
 
 export function ReferencesPage({ references: initial }: { references: ReferenceRow[] }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [refs, setRefs] = useState(initial);
   const [uploading, setUploading] = useState(false);
   const [deleting, startDelete] = useTransition();
@@ -57,8 +59,9 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
     router.refresh();
   }, []);
 
-  function handleDelete(id: string, name: string) {
-    if (!confirm(`Eliminar "${name}"?`)) return;
+  async function handleDelete(id: string, name: string) {
+    const ok = await confirm({ title: `Eliminar "${name}"?`, description: 'La referencia se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
+    if (!ok) return;
     startDelete(async () => {
       const res = await deleteMediaReferenceAction({ id });
       if (res.ok) { setRefs((r) => r.filter((x) => x.id !== id)); setSelected((s) => { const n = new Set(s); n.delete(id); return n; }); toast.success('Eliminada'); }
@@ -66,9 +69,10 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
     });
   }
 
-  function handleBulkDelete() {
+  async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`Eliminar ${selected.size} referencia${selected.size > 1 ? 's' : ''}?`)) return;
+    const ok = await confirm({ title: `Eliminar ${selected.size} referencia${selected.size > 1 ? 's' : ''}?`, description: 'Esta accion no se puede deshacer.', confirmLabel: 'Eliminar todas', destructive: true });
+    if (!ok) return;
     startDelete(async () => {
       let deleted = 0;
       for (const id of selected) {

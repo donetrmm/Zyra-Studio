@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCampaignAction, updateCampaignAction, deleteCampaignAction } from '@/server-actions/campaigns';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 type CampaignRow = {
@@ -20,6 +21,7 @@ type CampaignRow = {
 export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[] }) {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState(initial);
+  const confirm = useConfirm();
   const [editing, setEditing] = useState<CampaignRow | 'new' | null>(null);
 
   return (
@@ -83,8 +85,9 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!confirm(`Eliminar "${c.name}"?`)) return;
+                  onClick={async () => {
+                    const ok = await confirm({ title: `Eliminar "${c.name}"?`, description: 'Se eliminara la campana y se desvincularan sus generaciones.', confirmLabel: 'Eliminar', destructive: true });
+                    if (!ok) return;
                     deleteCampaignAction(c.id).then((res) => {
                       if (res.ok) { setCampaigns((cs) => cs.filter((x) => x.id !== c.id)); toast.success('Campaña eliminada'); }
                       else toast.error(res.message || 'Error');

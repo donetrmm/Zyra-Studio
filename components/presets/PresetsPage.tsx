@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { deletePresetAction, usePresetAction } from '@/server-actions/presets';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import { WavePlayer } from '@/components/generation/WavePlayer';
 import { cn } from '@/lib/utils';
@@ -166,6 +167,7 @@ function PresetCard({
 }) {
   const router = useRouter();
   const [using, startUse] = useTransition();
+  const confirm = useConfirm();
   const [deleting, startDelete] = useTransition();
   const Icon = TYPE_ICON[preset.type as keyof typeof TYPE_ICON] ?? Sparkles;
   const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
@@ -182,8 +184,9 @@ function PresetCard({
     });
   }
 
-  function handleDelete() {
-    if (!confirm(`Eliminar "${preset.name}"?`)) return;
+  async function handleDelete() {
+    const ok = await confirm({ title: `Eliminar "${preset.name}"?`, description: 'El preset se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
+    if (!ok) return;
     startDelete(async () => {
       const res = await deletePresetAction(preset.id);
       if (res.ok) { onDelete(preset.id); toast.success('Preset eliminado'); }
