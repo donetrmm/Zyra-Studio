@@ -79,9 +79,9 @@ export function BillingView({
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Billing</h1>
-          <p className="text-sm text-muted-foreground">
-            Compra créditos para generar imagen, video y voz.
+          <h1 className="text-[18px] font-semibold text-foreground">Billing</h1>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            Compra packs de creditos en MXN para generar imagen, video y audio.
           </p>
         </div>
         <Card className="px-5 py-3">

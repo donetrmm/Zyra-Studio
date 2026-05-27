@@ -3,10 +3,10 @@
 // quedaría undefined del lado cliente al importarlo).
 
 export const PACK_CATALOG = {
-  starter: { credits: 2000, priceMxn: 99 },
-  creator: { credits: 10000, priceMxn: 399 },
-  pro: { credits: 50000, priceMxn: 1499 },
-  studio: { credits: 200000, priceMxn: 4999 },
+  starter: { credits: 500, priceMxn: 49 },
+  creator: { credits: 2000, priceMxn: 179 },
+  pro: { credits: 5000, priceMxn: 399 },
+  studio: { credits: 15000, priceMxn: 999 },
 } as const;
 
 export type PackId = keyof typeof PACK_CATALOG;
