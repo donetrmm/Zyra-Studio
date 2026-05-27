@@ -36,7 +36,7 @@ function Brand() {
       className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5 font-heading text-lg font-semibold tracking-tight"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="" className="size-6" />
+      <img src="/logo.png" alt="" className="h-7 w-auto" />
       Zyra Studio
     </Link>
   );

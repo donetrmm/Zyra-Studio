@@ -175,16 +175,14 @@ function AnimatedChat() {
 /* ------------------------------------------------------------------ */
 /*  SVG Icons                                                          */
 /* ------------------------------------------------------------------ */
-function ZyraLogo({ size = 54 }: { size?: number }) {
+function ZyraLogo({ height = 40 }: { height?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/logo.png"
       alt=""
-      width={size}
-      height={size}
       className="block"
-      style={{ width: size, height: size }}
+      style={{ height, width: 'auto' }}
     />
   );
 }
