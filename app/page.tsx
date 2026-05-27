@@ -1243,6 +1243,13 @@ export default function LandingPage() {
           color: var(--text-2);
         }
 
+        /* =========== CTA BUTTONS =========== */
+        .l-cta-buttons {
+          position: relative;
+          display: inline-flex;
+          gap: 10px;
+        }
+
         /* =========== FOOTER =========== */
         .l-footer {
           border-top: 1px solid var(--hairline);
@@ -1312,6 +1319,39 @@ export default function LandingPage() {
           .l-b-1, .l-b-2, .l-b-3, .l-b-4 { grid-column: span 1; }
           .l-models-grid, .l-pricing-grid { grid-template-columns: 1fr; }
           .l-foot-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 480px) {
+          .l-nav-cta .btn-l-ghost { display: none; }
+          .l-nav-cta .btn-l-primary {
+            padding: 7px 14px;
+            font-size: 12.5px;
+            white-space: nowrap;
+          }
+          .l-hero-cta {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 320px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .l-hero-cta .btn-l {
+            width: 100%;
+            justify-content: center;
+          }
+          .l-cta-buttons {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 320px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .l-cta-buttons .btn-l {
+            width: 100%;
+            justify-content: center;
+          }
         }
       `}</style>
 
@@ -1893,7 +1933,7 @@ export default function LandingPage() {
             <div className="l-cta-card">
               <h2>Empieza a crear en 30 segundos</h2>
               <p>500 créditos gratis al registrarte. Sin tarjeta. Sin suscripción.</p>
-              <div style={{ position: "relative", display: "inline-flex", gap: 10 }}>
+              <div className="l-cta-buttons">
                 <Link href="/signup" className="btn-l btn-l-primary btn-l-lg">
                   Empezar gratis
                   <ArrowIcon />
