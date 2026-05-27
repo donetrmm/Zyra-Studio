@@ -19,7 +19,7 @@ export default async function AdminLayout({
       <div className="flex h-dvh overflow-hidden">
         <AdminSidebar />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
+          <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6">
             <div className="flex items-center gap-3">
               <AdminMobileMenu />
               <p className="text-[13.5px] font-medium text-muted-foreground">
