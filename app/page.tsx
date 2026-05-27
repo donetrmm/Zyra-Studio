@@ -44,7 +44,7 @@ export default function LandingPage() {
             Plataforma creativa con IA
           </div>
           <h1 className="mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
-            Crea contenido profesional con inteligencia artificial
+            Create Beyond Limits
           </h1>
           <p className="mt-6 max-w-xl text-balance text-[15px] leading-relaxed text-muted-foreground sm:text-[17px]">
             Genera imágenes, videos y audio de alta calidad en segundos.
