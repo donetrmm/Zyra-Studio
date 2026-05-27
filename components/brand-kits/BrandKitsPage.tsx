@@ -149,6 +149,7 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
         : await createBrandKitAction(payload);
       if (!res.ok) { toast.error(res.message || 'Error'); return; }
       toast.success(kit ? 'Kit actualizado' : 'Kit creado');
+      onClose();
       onSaved();
     });
   }

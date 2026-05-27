@@ -120,6 +120,7 @@ function CampaignEditor({ campaign, onClose, onSaved }: { campaign: CampaignRow 
         : await createCampaignAction(payload);
       if (!res.ok) { toast.error(res.message || 'Error'); return; }
       toast.success(campaign ? 'Campaña actualizada' : 'Campaña creada');
+      onClose();
       onSaved();
     });
   }
