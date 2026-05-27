@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { LiveCreditValue } from "@/components/layout/LiveCreditValue";
 import { requireWorkspace } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
+import { publicThumbnailUrl } from "@/lib/supabase/storage";
 
 export const metadata: Metadata = {
   title: "Inicio",
@@ -181,16 +182,24 @@ export default async function DashboardPage() {
               />
             ) : (
               <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {generations.map((g) => (
-                  <li
-                    key={g.id}
-                    className="aspect-square overflow-hidden rounded-md border border-border bg-muted text-xs text-muted-foreground"
-                  >
-                    <div className="flex h-full items-center justify-center px-2 text-center">
-                      {g.status === "done" ? g.model_id : g.status}
-                    </div>
-                  </li>
-                ))}
+                {generations.map((g) => {
+                  const thumb = g.thumbnail_url ? publicThumbnailUrl(g.thumbnail_url) : null;
+                  return (
+                    <li
+                      key={g.id}
+                      className="aspect-square overflow-hidden rounded-md border border-border bg-muted"
+                    >
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt={g.model_id ?? ''} className="size-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                          {g.status === "done" ? g.type : g.status}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>
