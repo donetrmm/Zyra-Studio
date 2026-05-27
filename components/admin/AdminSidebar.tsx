@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_SIDEBAR } from "@/lib/navigation";
 
@@ -15,8 +15,10 @@ export function AdminSidebar() {
         href="/admin"
         className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5 font-heading text-lg font-semibold tracking-tight"
       >
-        <ShieldCheck className="size-5 text-primary" aria-hidden />
-        Admin
+        <Sparkles className="size-5 text-primary" aria-hidden />
+        <span>Zyra</span>
+        <span className="text-muted-foreground/40">·</span>
+        <span className="text-[15px] font-normal text-muted-foreground">Admin</span>
       </Link>
       <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-4">
         {ADMIN_SIDEBAR.map((section, idx) => (
