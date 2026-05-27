@@ -24,6 +24,38 @@ type PricingRow = {
   is_active: boolean;
 };
 
+const API_COSTS_USD: Record<string, number> = {
+  "nano-banana|gemini-3-pro-image-preview|1k": 0.134,
+  "nano-banana|gemini-3-pro-image-preview|2k": 0.134,
+  "nano-banana|gemini-3-pro-image-preview|4k": 0.24,
+  "nano-banana|gemini-3.1-flash-image-preview|1k": 0.045,
+  "nano-banana|gemini-3.1-flash-image-preview|2k": 0.067,
+  "flux|flux-2-pro-preview|default": 0.03,
+  "kling|fal-ai/kling-video/v3/standard/text-to-video|per_second": 0.126,
+  "kling|fal-ai/kling-video/v3/standard/image-to-video|per_second": 0.126,
+  "kling|fal-ai/kling-video/v3/pro/text-to-video|per_second": 0.168,
+  "veo|veo-3.1-lite-generate-preview|1080p": 0.08,
+  "veo|veo-3.1-fast-generate-preview|1080p": 0.12,
+  "veo|veo-3.1-generate-preview|1080p": 0.40,
+  "elevenlabs|eleven_flash_v2_5|default": 0.05,
+  "elevenlabs|eleven_multilingual_v2|default": 0.10,
+  "elevenlabs|eleven_v3|default": 0.10,
+  "internal|prompt-enhance|default": 0.001,
+};
+
+function getApiCost(r: PricingRow): number | null {
+  const key = `${r.provider}|${r.model_id}|${r.variant}`;
+  return API_COSTS_USD[key] ?? null;
+}
+
+function getMargin(r: PricingRow): string | null {
+  const cost = getApiCost(r);
+  if (!cost || cost === 0) return null;
+  const creditValueUsd = 0.005;
+  const revenue = r.credits_cost * creditValueUsd;
+  return `${(revenue / cost).toFixed(1)}x`;
+}
+
 export default async function AdminPricingPage() {
   const supabase = createAdminClient();
   const { data } = await supabase
@@ -37,7 +69,6 @@ export default async function AdminPricingPage() {
 
   const rows = (data ?? []) as PricingRow[];
 
-  // Group by provider
   const grouped = new Map<string, PricingRow[]>();
   for (const row of rows) {
     const existing = grouped.get(row.provider) ?? [];
@@ -52,7 +83,10 @@ export default async function AdminPricingPage() {
           Precios
         </h1>
         <p className="text-[13px] text-muted-foreground">
-          Configuración de costos por modelo. Solo lectura.
+          Costos por modelo. Costo API en USD, créditos cobrados al usuario, y margen resultante.
+        </p>
+        <p className="text-[11px] text-muted-foreground/60">
+          1 crédito ≈ $0.005 USD · Margen objetivo: 3x
         </p>
       </header>
 
@@ -70,36 +104,53 @@ export default async function AdminPricingPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Model ID</TableHead>
-                    <TableHead>Variant</TableHead>
-                    <TableHead>Credits</TableHead>
-                    <TableHead>Unit Size</TableHead>
-                    <TableHead>Unit Label</TableHead>
+                    <TableHead>Modelo</TableHead>
+                    <TableHead>Variante</TableHead>
+                    <TableHead className="text-right">Costo API (USD)</TableHead>
+                    <TableHead className="text-right">Créditos</TableHead>
+                    <TableHead className="text-right">Ingreso (USD)</TableHead>
+                    <TableHead className="text-right">Margen</TableHead>
+                    <TableHead>Unidad</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((r) => (
-                    <TableRow
-                      key={r.id}
-                      className={r.is_active ? "" : "opacity-50"}
-                    >
-                      <TableCell className="text-xs font-medium">
-                        {r.model_id}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {r.variant}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-xs">
-                        {new Intl.NumberFormat("es-MX").format(r.credits_cost)}
-                      </TableCell>
-                      <TableCell className="tabular-nums text-xs text-muted-foreground">
-                        {r.unit_size ?? "--"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {r.unit_label ?? "--"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {items.map((r) => {
+                    const apiCost = getApiCost(r);
+                    const margin = getMargin(r);
+                    const revenue = r.credits_cost * 0.005;
+                    return (
+                      <TableRow
+                        key={r.id}
+                        className={r.is_active ? "" : "opacity-50"}
+                      >
+                        <TableCell className="text-xs font-medium">
+                          {r.model_id}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.variant}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                          {apiCost !== null ? `$${apiCost.toFixed(3)}` : "--"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
+                          {new Intl.NumberFormat("es-MX").format(r.credits_cost)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                          ${revenue.toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs">
+                          {margin ? (
+                            <span className={parseFloat(margin) >= 2.5 ? "text-emerald-400" : "text-amber-400"}>
+                              {margin}
+                            </span>
+                          ) : "--"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {r.unit_label ? `${r.unit_size ?? 1} ${r.unit_label}` : "por uso"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
