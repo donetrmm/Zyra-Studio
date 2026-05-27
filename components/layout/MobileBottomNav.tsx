@@ -49,13 +49,13 @@ export function MobileBottomNav() {
     <>
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 bottom-[52px] z-40 bg-background/60 backdrop-blur-sm lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
       {open && (
-        <div className="fixed bottom-[52px] left-0 right-0 z-50 border-t border-border bg-card px-4 pb-2 pt-3 lg:hidden">
+        <div className="absolute bottom-full left-0 right-0 z-50 border-t border-border bg-card px-4 pb-2 pt-3 lg:hidden">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Más secciones
@@ -94,7 +94,7 @@ export function MobileBottomNav() {
         </div>
       )}
 
-      <nav className="shrink-0 grid grid-cols-5 border-t border-border bg-background/95 lg:hidden">
+      <nav className="relative z-50 shrink-0 grid grid-cols-5 border-t border-border bg-background/95 lg:hidden">
         {MAIN_NAV.map((item) => {
           const Icon = item.icon;
           const active =
