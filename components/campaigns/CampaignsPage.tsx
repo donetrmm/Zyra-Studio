@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -21,6 +21,7 @@ type CampaignRow = {
 export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[] }) {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState(initial);
+  useEffect(() => { setCampaigns(initial); }, [initial]);
   const confirm = useConfirm();
   const [editing, setEditing] = useState<CampaignRow | 'new' | null>(null);
 

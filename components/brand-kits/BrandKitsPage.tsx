@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
+  useEffect(() => { setKits(initial); }, [initial]);
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
 
   return (

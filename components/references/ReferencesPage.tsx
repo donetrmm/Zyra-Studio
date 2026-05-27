@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
   const router = useRouter();
   const confirm = useConfirm();
   const [refs, setRefs] = useState(initial);
+  useEffect(() => { setRefs(initial); setSelected(new Set()); }, [initial]);
   const [uploading, setUploading] = useState(false);
   const [deleting, startDelete] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());

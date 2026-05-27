@@ -50,6 +50,7 @@ export function PresetsPage({
 }) {
   const [tab, setTab] = useState<'mine' | 'community'>('community');
   const [myPresets, setMyPresets] = useState(initialMy);
+  useEffect(() => { setMyPresets(initialMy); }, [initialMy]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>('all');
   const [preview, setPreview] = useState<PresetRow | null>(null);

@@ -21,6 +21,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [voices, setVoices] = useState(initial);
+  useEffect(() => { setVoices(initial); }, [initial]);
   const [showClone, setShowClone] = useState(false);
   const [tryingId, setTryingId] = useState<string | null>(null);
   const [tryText, setTryText] = useState('Hola, esta es mi voz clonada en Zyra Studio.');
