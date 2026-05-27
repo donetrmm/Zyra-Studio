@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { ShieldCheck, ShieldOff } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -98,6 +99,7 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
 }
 
 function ToggleAdminButton({ userId, email, currentRole }: { userId: string; email: string; currentRole: 'user' | 'admin' }) {
+  const router = useRouter();
   const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const isAdmin = currentRole === 'admin';
@@ -115,8 +117,12 @@ function ToggleAdminButton({ userId, email, currentRole }: { userId: string; ema
     if (!ok) return;
     startTransition(async () => {
       const res = await toggleAdminAction(userId, newRole);
-      if (res.ok) toast.success(isAdmin ? 'Admin removido' : 'Admin asignado');
-      else toast.error(res.error || 'Error');
+      if (res.ok) {
+        toast.success(isAdmin ? 'Admin removido' : 'Admin asignado');
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Error');
+      }
     });
   }
 
