@@ -96,10 +96,10 @@ export default async function AdminDashboard() {
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8">
       <header>
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+        <h1 className="font-heading text-[22px] font-semibold tracking-tight">
           Dashboard
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           Métricas globales del studio.
         </p>
       </header>
@@ -198,7 +198,7 @@ function MetricCard({
           {label}
         </p>
         <p
-          className={`mt-1 font-heading text-3xl font-semibold tabular-nums ${
+          className={`mt-1 font-heading text-[28px] font-semibold tabular-nums ${
             tone === "warning" ? "text-destructive" : ""
           }`}
         >

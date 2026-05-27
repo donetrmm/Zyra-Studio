@@ -13,11 +13,11 @@ export default async function AdminLayout({
   const user = await requireAdmin();
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex h-dvh overflow-hidden">
       <AdminSidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-          <p className="text-sm font-medium text-muted-foreground">
+          <p className="text-[13.5px] font-medium text-muted-foreground">
             Panel administrativo
           </p>
           <UserMenu
@@ -27,7 +27,7 @@ export default async function AdminLayout({
             isAdmin
           />
         </header>
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
         <Toaster richColors theme="dark" />
       </div>
     </div>

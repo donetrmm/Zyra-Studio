@@ -48,8 +48,8 @@ export default async function AdminPurchasesPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Compras</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-heading text-[22px] font-semibold tracking-tight">Compras</h1>
+        <p className="text-[13px] text-muted-foreground">
           Aprueba o rechaza compras pendientes.
         </p>
       </header>

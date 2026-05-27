@@ -55,10 +55,10 @@ export default async function AdminUsersPage({
     <div className="mx-auto w-full max-w-6xl space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+          <h1 className="font-heading text-[22px] font-semibold tracking-tight">
             Usuarios
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             {new Intl.NumberFormat("es-MX").format(total)} en total
           </p>
         </div>
