@@ -23,7 +23,8 @@ import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-r
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
-import { Bookmark, FolderKanban } from 'lucide-react';
+import { toggleFavoriteAction } from '@/server-actions/favorites';
+import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 
 export type LibraryGeneration = {
   id: string;
@@ -178,9 +179,11 @@ function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
 export function LibraryView({
   generations,
   workspaceName,
+  initialFavoriteIds = [],
 }: {
   generations: LibraryGeneration[];
   workspaceName: string;
+  initialFavoriteIds?: string[];
 }) {
   const [tab, setTab] = useState<Tab>('sessions');
   const [query, setQuery] = useState('');
@@ -188,6 +191,28 @@ export function LibraryView({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
+  const [favIds, setFavIds] = useState<Set<string>>(() => new Set(initialFavoriteIds));
+  const [showFavOnly, setShowFavOnly] = useState(false);
+
+  function handleToggleFav(id: string) {
+    const wasFav = favIds.has(id);
+    setFavIds((prev) => {
+      const next = new Set(prev);
+      if (wasFav) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    toggleFavoriteAction(id).then((res) => {
+      if (!res.ok) {
+        setFavIds((prev) => {
+          const next = new Set(prev);
+          if (wasFav) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+      }
+    });
+  }
 
   function toggleCompare(id: string) {
     setCompareIds((prev) => {
@@ -201,6 +226,9 @@ export function LibraryView({
   const filteredGens = useMemo(() => {
     const needle = query.trim().toLowerCase();
     let list = generations;
+    if (showFavOnly) {
+      list = list.filter((g) => favIds.has(g.id));
+    }
     if (needle) {
       list = list.filter(
         (g) =>
@@ -215,7 +243,7 @@ export function LibraryView({
       );
     }
     return list;
-  }, [generations, query, sort]);
+  }, [generations, query, sort, showFavOnly, favIds]);
 
   const sessions = useMemo(() => groupSessions(filteredGens, sort), [filteredGens, sort]);
   const active = useMemo(
@@ -235,15 +263,18 @@ export function LibraryView({
         totalImages={generations.length}
         totalSessions={sessions.length}
         workspaceName={workspaceName}
+        showFavOnly={showFavOnly}
+        setShowFavOnly={setShowFavOnly}
+        favCount={favIds.size}
       />
 
       <div className="flex min-h-0 flex-1">
         <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-4 pb-16 pt-1 sm:px-6">
           {tab === 'sessions' && (
-            <SessionsTab sessions={sessions} onOpen={setActiveId} />
+            <SessionsTab sessions={sessions} onOpen={setActiveId} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
           {tab === 'grid' && (
-            <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} />
+            <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
         </div>
 
@@ -259,6 +290,8 @@ export function LibraryView({
               allGenerations={generations}
               onClose={() => setActiveId(null)}
               onNavigate={setActiveId}
+              isFavorite={favIds.has(active.id)}
+              onToggleFav={handleToggleFav}
             />
           </>
         )}
@@ -346,6 +379,9 @@ function LibHeader({
   totalImages,
   totalSessions,
   workspaceName,
+  showFavOnly,
+  setShowFavOnly,
+  favCount,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
@@ -356,6 +392,9 @@ function LibHeader({
   totalImages: number;
   totalSessions: number;
   workspaceName: string;
+  showFavOnly: boolean;
+  setShowFavOnly: (v: boolean) => void;
+  favCount: number;
 }) {
   const sortLabel = sort === 'recent' ? 'recientes' : 'antiguos';
   return (
@@ -381,27 +420,42 @@ function LibHeader({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
-        <div className="inline-flex gap-0.5 rounded-[10px] border border-border bg-muted/30 p-[3px]">
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            const Ic = t.icon;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
-                  active
-                    ? 'border border-border bg-background text-foreground'
-                    : 'border border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <Ic className="size-3.5" aria-hidden />
-                {t.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex gap-0.5 rounded-[10px] border border-border bg-muted/30 p-[3px]">
+            {TABS.map((t) => {
+              const active = tab === t.id;
+              const Ic = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+                    active
+                      ? 'border border-border bg-background text-foreground'
+                      : 'border border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Ic className="size-3.5" aria-hidden />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowFavOnly(!showFavOnly)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+              showFavOnly
+                ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
+                : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Heart className={cn('size-3.5', showFavOnly && 'fill-rose-400')} aria-hidden />
+            {favCount > 0 && <span className="font-mono text-[11px]">{favCount}</span>}
+          </button>
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2 lg:max-w-[540px]">
@@ -440,9 +494,13 @@ function LibHeader({
 function SessionsTab({
   sessions,
   onOpen,
+  favIds,
+  onToggleFav,
 }: {
   sessions: Session[];
   onOpen: (id: string) => void;
+  favIds: Set<string>;
+  onToggleFav: (id: string) => void;
 }) {
   const buckets = useMemo(() => {
     const map = new Map<string, Session[]>();
@@ -465,7 +523,7 @@ function SessionsTab({
           <BucketHeader name={bucket} count={list.length} />
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {list.map((s) => (
-              <SessionCard key={s.id} session={s} onOpen={onOpen} />
+              <SessionCard key={s.id} session={s} onOpen={onOpen} favIds={favIds} onToggleFav={onToggleFav} />
             ))}
           </div>
         </section>
@@ -479,11 +537,15 @@ function GridTab({
   onOpen,
   compareIds,
   onToggleCompare,
+  favIds,
+  onToggleFav,
 }: {
   items: LibraryGeneration[];
   onOpen: (id: string) => void;
   compareIds: Set<string>;
   onToggleCompare: (id: string) => void;
+  favIds: Set<string>;
+  onToggleFav: (id: string) => void;
 }) {
   const buckets = useMemo(() => {
     const map = new Map<string, LibraryGeneration[]>();
@@ -506,7 +568,7 @@ function GridTab({
           <BucketHeader name={bucket} count={list.length} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {list.map((g) => (
-              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={compareIds.has(g.id)} onToggleCompare={() => onToggleCompare(g.id)} variantTag={g.batchKind ? batchLabel(g.batchKind) : undefined} />
+              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={compareIds.has(g.id)} onToggleCompare={() => onToggleCompare(g.id)} variantTag={g.batchKind ? batchLabel(g.batchKind) : undefined} isFavorite={favIds.has(g.id)} onToggleFav={() => onToggleFav(g.id)} />
             ))}
           </div>
         </section>
@@ -531,9 +593,13 @@ function BucketHeader({ name, count }: { name: string; count: number }) {
 function SessionCard({
   session,
   onOpen,
+  favIds,
+  onToggleFav,
 }: {
   session: Session;
   onOpen: (id: string) => void;
+  favIds: Set<string>;
+  onToggleFav: (id: string) => void;
 }) {
   const { head, latest, items } = session;
   return (
@@ -575,6 +641,8 @@ function SessionCard({
             onClick={() => onOpen(g.id)}
             variantTag={items.length > 1 ? `v${i + 1}` : undefined}
             compact
+            isFavorite={favIds.has(g.id)}
+            onToggleFav={() => onToggleFav(g.id)}
           />
         ))}
       </div>
@@ -589,6 +657,8 @@ function LibTile({
   compact,
   selected,
   onToggleCompare,
+  isFavorite,
+  onToggleFav,
 }: {
   gen: LibraryGeneration;
   onClick: () => void;
@@ -596,6 +666,8 @@ function LibTile({
   compact?: boolean;
   selected?: boolean;
   onToggleCompare?: () => void;
+  isFavorite?: boolean;
+  onToggleFav?: () => void;
 }) {
   const [hover, setHover] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -711,6 +783,17 @@ function LibTile({
         </div>
       )}
 
+      {(hover || isFavorite) && onToggleFav && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleFav(); }}
+          className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-background/70 backdrop-blur transition-colors hover:bg-background/90"
+          title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+        >
+          <Heart className={cn('size-3', isFavorite ? 'fill-rose-400 text-rose-400' : 'text-foreground')} aria-hidden />
+        </button>
+      )}
+
       {hover && gen.hasOutput && (
         <div className="absolute right-2 bottom-2 flex gap-1">
           <TileBtn onClick={handleDownload} title="Descargar" busy={downloading}>
@@ -766,11 +849,15 @@ function DetailAside({
   allGenerations,
   onClose,
   onNavigate,
+  isFavorite,
+  onToggleFav,
 }: {
   generation: LibraryGeneration;
   allGenerations: LibraryGeneration[];
   onClose: () => void;
   onNavigate: (id: string) => void;
+  isFavorite: boolean;
+  onToggleFav: (id: string) => void;
 }) {
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -966,6 +1053,19 @@ function DetailAside({
         )}
 
         <div className="mb-3.5 grid gap-1.5 grid-cols-1">
+          <button
+            type="button"
+            onClick={() => onToggleFav(generation.id)}
+            className={cn(
+              'inline-flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+              isFavorite
+                ? 'border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/15'
+                : 'border-border bg-muted/30 text-foreground hover:border-muted-foreground/30',
+            )}
+          >
+            <Heart className={cn('size-3.5', isFavorite && 'fill-rose-400')} aria-hidden />
+            {isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+          </button>
           <button
             type="button"
             onClick={handleDownload}

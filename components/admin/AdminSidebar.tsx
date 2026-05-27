@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_SIDEBAR } from "@/lib/navigation";
 
@@ -15,7 +14,8 @@ export function AdminSidebar() {
         href="/admin"
         className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5 font-heading text-lg font-semibold tracking-tight"
       >
-        <Sparkles className="size-5 text-primary" aria-hidden />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="" className="size-6" />
         <span>Zyra</span>
         <span className="text-muted-foreground/40">·</span>
         <span className="text-[15px] font-normal text-muted-foreground">Admin</span>

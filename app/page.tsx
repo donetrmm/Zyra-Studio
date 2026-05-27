@@ -94,12 +94,12 @@ function BentoWave() {
 /*  Animated chat for bento conversational card                        */
 /* ------------------------------------------------------------------ */
 const CHAT_FLOW = [
-  { role: "user" as const, text: "Mas cinematica, contraluz calido", seed: 0 },
-  { role: "bot" as const, text: "", seed: 1 },
-  { role: "user" as const, text: "Mas contraste en las sombras", seed: 0 },
-  { role: "bot" as const, text: "", seed: 5 },
-  { role: "user" as const, text: "Agrega texto: Zyra Studio", seed: 0 },
-  { role: "bot" as const, text: "", seed: 4 },
+  { role: "user" as const, text: "Más cinemática, contraluz cálido", img: "" },
+  { role: "bot" as const, text: "", img: "/landing/gen-2.jpg" },
+  { role: "user" as const, text: "Más contraste en las sombras", img: "" },
+  { role: "bot" as const, text: "", img: "/landing/gen-4.jpg" },
+  { role: "user" as const, text: "Agrega texto: Zyra Studio", img: "" },
+  { role: "bot" as const, text: "", img: "/landing/gen-1.jpg" },
 ];
 
 function AnimatedChat() {
@@ -142,13 +142,14 @@ function AnimatedChat() {
     <div ref={scrollRef} className="l-b4-chat l-b4-chat-animated" style={{ height: 160, overflowY: "hidden", maskImage: "linear-gradient(transparent 0px, black 40px, black 100%)", WebkitMaskImage: "linear-gradient(transparent 0px, black 40px, black 100%)" }}>
       {messages.map((m, i) => (
         <div
-          key={`${i}-${m.text || m.seed}`}
+          key={`${i}-${m.text || m.img}`}
           className={`l-b4-msg ${m.role === "user" ? "l-b4-msg-user" : "l-b4-msg-bot"}`}
           style={{ animation: "chatFadeIn 300ms ease-out" }}
         >
           {m.role === "bot" ? (
             <span className="img">
-              <GradientPlaceholder seed={m.seed} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={m.img} alt="" className="block w-full h-full object-cover" />
             </span>
           ) : (
             m.text
@@ -174,20 +175,17 @@ function AnimatedChat() {
 /* ------------------------------------------------------------------ */
 /*  SVG Icons                                                          */
 /* ------------------------------------------------------------------ */
-function ZyraLogo({ size = 16 }: { size?: number }) {
+function ZyraLogo({ size = 54 }: { size?: number }) {
   return (
-    <svg
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo.png"
+      alt=""
       width={size}
       height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 5h14L5 19h14" />
-    </svg>
+      className="block"
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -249,45 +247,6 @@ function CreditIcon() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Gradient placeholder component (for bento tiles etc.)              */
-/* ------------------------------------------------------------------ */
-function GradientPlaceholder({ seed }: { seed: number }) {
-  const palettes = [
-    ["#7c3aed", "#5b21b6", "#1A0F4A"],
-    ["#FFC4D6", "#7c3aed", "#2E1B5C"],
-    ["#a78bfa", "#5BD4FF", "#1E2A4E"],
-    ["#FFD58E", "#FF7AB6", "#3E1F4E"],
-    ["#5BD4FF", "#7c3aed", "#0F1A3C"],
-    ["#FF9270", "#7c3aed", "#2A1340"],
-  ];
-  const p = palettes[seed % palettes.length];
-  const gid = `gp${seed}`;
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      preserveAspectRatio="xMidYMid slice"
-      className="block w-full h-full"
-    >
-      <defs>
-        <radialGradient id={gid} cx="35%" cy="30%" r="80%">
-          <stop offset="0%" stopColor={p[0]} />
-          <stop offset="55%" stopColor={p[1]} />
-          <stop offset="100%" stopColor={p[2]} />
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill={`url(#${gid})`} />
-      <circle
-        cx={`${20 + ((seed * 13) % 60)}%`}
-        cy={`${15 + ((seed * 7) % 55)}%`}
-        r="22%"
-        fill={p[0]}
-        opacity="0.35"
-      />
-      <ellipse cx={`${50 + ((seed * 5) % 40)}%`} cy="75%" rx="60%" ry="28%" fill={p[2]} opacity="0.5" />
-    </svg>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  MAIN PAGE                                                          */
@@ -296,6 +255,17 @@ export default function LandingPage() {
   const typedText = useTypingAnimation(
     "Retrato editorial de una mujer, luz suave de ventana, pelicula 35mm, fondo gris calido"
   );
+
+  const landingImages = {
+    hero: '/landing/gen-4.jpg',
+    bento1a: '/landing/gen-2.jpg',
+    bento1b: '/landing/gen-3.jpg',
+    bento1c: '/landing/gen-4.jpg',
+    bento2: '/landing/gen-1.jpg',
+    chat1: '/landing/gen-2.jpg',
+    chat2: '/landing/gen-4.jpg',
+    chat3: '/landing/gen-1.jpg',
+  };
 
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -384,11 +354,8 @@ export default function LandingPage() {
           text-decoration: none;
         }
         .l-brand-mark {
-          width: 28px; height: 28px; border-radius: 8px;
-          background: linear-gradient(135deg, #7c3aed, #5b21b6);
-          display: grid; place-items: center;
-          box-shadow: 0 6px 20px -8px var(--accent-glow-l), inset 0 0 0 1px rgba(255,255,255,0.08);
-          color: #fff;
+          flex-shrink: 0;
+          line-height: 0;
         }
         .l-nav-links {
           display: flex; gap: 4px;
@@ -594,11 +561,13 @@ export default function LandingPage() {
           background: var(--bg-1);
         }
         .l-shot-rail .mark {
-          width: 30px; height: 30px;
+          width: 34px; height: 34px;
           border-radius: 9px;
-          background: linear-gradient(135deg, #7c3aed, #5b21b6);
           margin-bottom: 8px;
-          box-shadow: 0 4px 14px -6px var(--accent-glow-l);
+          overflow: hidden;
+        }
+        .l-shot-rail .mark img {
+          width: 100%; height: 100%; object-fit: contain;
         }
         .l-shot-rail .it {
           width: 34px; height: 34px;
@@ -1115,7 +1084,7 @@ export default function LandingPage() {
             linear-gradient(180deg, rgba(26,34,64,0.5) 0%, rgba(14,19,34,0.9) 100%);
         }
         .l-tier-pro::after {
-          content: "Mas popular";
+          content: "Más popular";
           position: absolute;
           top: -12px; left: 50%;
           transform: translateX(-50%);
@@ -1366,7 +1335,7 @@ export default function LandingPage() {
             </div>
             <div className="l-nav-cta">
               <Link href="/login" className="btn-l btn-l-ghost">
-                Iniciar sesion
+                Iniciar sesión
               </Link>
               <Link href="/signup" className="btn-l btn-l-primary">
                 Empezar gratis
@@ -1383,7 +1352,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="l-hero-sub">
-              Genera imagenes, videos y audio de alta calidad con los mejores modelos del mercado. Una sola herramienta para todo tu trabajo creativo — sin curva de aprendizaje.
+              Genera imágenes, videos y audio de alta calidad con los mejores modelos del mercado. Una sola herramienta para todo tu trabajo creativo — sin curva de aprendizaje.
             </p>
 
             <div className="l-hero-cta">
@@ -1397,7 +1366,7 @@ export default function LandingPage() {
             </div>
 
             <div className="mono" style={{ fontSize: 12, color: "var(--text-3)", marginTop: 16 }}>
-              500 creditos gratis al registrarte. Sin tarjeta de credito.
+              500 créditos gratis al registrarte. Sin tarjeta de crédito.
             </div>
           </div>
 
@@ -1407,7 +1376,10 @@ export default function LandingPage() {
               <div className="l-hero-shot-window">
                 {/* Sidebar rail */}
                 <div className="l-shot-rail">
-                  <div className="mark" />
+                  <div className="mark">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo.png" alt="" />
+                  </div>
                   <div className="it it-active" />
                   <div className="it" />
                   <div className="it" />
@@ -1425,7 +1397,7 @@ export default function LandingPage() {
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l3 3 3-3"/></svg>
                     </div>
                     <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8, background: "var(--accent-soft-l)", border: "1px solid var(--accent-rim-l)", fontSize: 11, color: "var(--text-2)", lineHeight: 1.4 }}>
-                      Calidad editorial. Edicion conversacional. Hasta 4K.
+                      Calidad editorial. Edición conversacional. Hasta 4K.
                     </div>
                   </div>
 
@@ -1495,7 +1467,8 @@ export default function LandingPage() {
                 {/* Preview — result + recent strip */}
                 <div className="l-shot-preview">
                   <div className="l-shot-img" style={{ gridColumn: "1 / -1", gridRow: "1 / -1", marginTop: 0, position: "relative" }}>
-                    <GradientPlaceholder seed={2} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={landingImages.hero} alt="Generación de ejemplo" className="block w-full h-full object-cover" />
                     <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div className="mono" style={{ fontSize: 10, color: "var(--text-2)", background: "rgba(9,9,11,0.7)", borderRadius: 6, padding: "3px 8px", backdropFilter: "blur(6px)", border: "1px solid var(--hairline)" }}>
                         Nano Banana Pro · 1:1 · 2K · -40 cr · 14s
@@ -1519,10 +1492,10 @@ export default function LandingPage() {
             <div className="l-sec-head">
               <span className="l-sec-eyebrow">Una herramienta</span>
               <h2>
-                Todo lo que necesitas para <em>crear mas rapido</em>
+                Todo lo que necesitas para <em>crear más rápido</em>
               </h2>
               <p>
-                Imagen, video y audio bajo una misma interfaz. Itera con prompts, edita en lenguaje natural y organiza por proyectos.
+                Imagen, video y audio bajo una misma interfaz. Itera con prompts, edita en lenguaje natural y organízalo por proyectos.
               </p>
             </div>
 
@@ -1530,20 +1503,23 @@ export default function LandingPage() {
               {/* Image generation */}
               <article className="l-b-card l-b-1">
                 <span className="l-b-tag">Imagen</span>
-                <h3>De prompt a imagen en segundos.</h3>
+                <h3>De prompt a imagen en segundos</h3>
                 <p>
-                  3 modelos, brand kit integrado, sin fondo automatico y prompt assistant con IA. Escribe lo que imaginas y Zyra lo crea.
+                  3 modelos, brand kit integrado, sin fondo automático y prompt assistant con IA. Escribe lo que imaginas y Zyra lo crea.
                 </p>
                 <div className="l-b-visual">
                   <div className="l-b1-stack">
                     <div className="l-b1-tile t1">
-                      <GradientPlaceholder seed={5} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={landingImages.bento1a} alt="" className="block w-full h-full object-cover" />
                     </div>
                     <div className="l-b1-tile t2">
-                      <GradientPlaceholder seed={2} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={landingImages.bento1b} alt="" className="block w-full h-full object-cover" />
                     </div>
                     <div className="l-b1-tile t3">
-                      <GradientPlaceholder seed={0} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={landingImages.bento1c} alt="" className="block w-full h-full object-cover" />
                     </div>
                   </div>
                 </div>
@@ -1552,7 +1528,7 @@ export default function LandingPage() {
               {/* Video */}
               <article className="l-b-card l-b-2">
                 <span className="l-b-tag">Video</span>
-                <h3>Clips cinematograficos en segundos.</h3>
+                <h3>Clips cinematográficos en segundos</h3>
                 <p>Kling 3.0 y Veo 3.1 con audio nativo integrado.</p>
                 <div className="l-b-visual">
                   <div style={{ width: "100%", position: "relative" }}>
@@ -1566,7 +1542,8 @@ export default function LandingPage() {
                         position: "relative",
                       }}
                     >
-                      <GradientPlaceholder seed={3} />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={landingImages.bento2} alt="" className="block w-full h-full object-cover" />
                       <div
                         style={{
                           position: "absolute",
@@ -1615,8 +1592,8 @@ export default function LandingPage() {
               {/* Audio */}
               <article className="l-b-card l-b-3">
                 <span className="l-b-tag">Audio</span>
-                <h3>Voces realistas en 8 idiomas.</h3>
-                <p>Genera narraciones a partir de texto en segundos.</p>
+                <h3>Voces realistas en 8 idiomas</h3>
+                <p>Genera narraciones a partir de texto en segundos</p>
                 <div className="l-b-visual">
                   <BentoWave />
                 </div>
@@ -1624,10 +1601,10 @@ export default function LandingPage() {
 
               {/* Conversational */}
               <article className="l-b-card l-b-4">
-                <span className="l-b-tag">Edicion conversacional</span>
-                <h3>Edita escribiendo lo que quieres cambiar.</h3>
+                <span className="l-b-tag">Edición conversacional</span>
+                <h3>Edita escribiendo lo que quieres cambiar</h3>
                 <p>
-                  «Mas cinematica», «sin fondo», «mas contraste» — Zyra entiende intencion, no parametros.
+                  «Más cinemática», «sin fondo», «más contraste» — Zyra entiende intención, no parámetros.
                 </p>
                 <div className="l-b-visual">
                   <AnimatedChat />
@@ -1644,8 +1621,9 @@ export default function LandingPage() {
               <span className="l-sec-eyebrow">Modelos</span>
               <h2>
                 Los mejores motores, <em>una sola cuenta</em>
+
               </h2>
-              <p>Pagas creditos segun el modelo. Zyra te sugiere el adecuado segun la tarea.</p>
+              <p>Pagas créditos según el modelo. Zyra te sugiere el adecuado según la tarea.</p>
             </div>
 
             <div className="l-models-grid">
@@ -1653,12 +1631,12 @@ export default function LandingPage() {
                 <div className="name">Imagen</div>
                 <div className="who">Nano Banana Pro · FLUX 2 Pro · Nano Flash</div>
                 <p className="desc">
-                  Tres modelos para cada necesidad: borradores rapidos, calidad editorial con edicion conversacional, o fotorrealismo de produccion.
+                  Tres modelos para cada necesidad: borradores rápidos, calidad editorial con edición conversacional, o fotorrealismo de producción.
                 </p>
                 <ul>
                   <li>
                     <CheckIcon />
-                    Hasta 4K de resolucion
+                    Hasta 4K de resolución
                   </li>
                   <li>
                     <CheckIcon />
@@ -1666,11 +1644,11 @@ export default function LandingPage() {
                   </li>
                   <li>
                     <CheckIcon />
-                    Sin fondo automatico (PNG)
+                    Sin fondo automático (PNG)
                   </li>
                   <li>
                     <CheckIcon />
-                    Edicion conversacional
+                    Edición conversacional
                   </li>
                 </ul>
                 <div className="meter">
@@ -1683,16 +1661,16 @@ export default function LandingPage() {
                 <div className="name">Video</div>
                 <div className="who">Kling 3.0 Standard/Pro · Veo 3.1 Fast/Standard/Lite</div>
                 <p className="desc">
-                  Genera clips cinematograficos con audio nativo. Duracion flexible, imagenes de referencia y estilos predefinidos.
+                  Genera clips cinematográficos con audio nativo. Duración flexible, imágenes de referencia y estilos predefinidos.
                 </p>
                 <ul>
                   <li>
                     <CheckIcon />
-                    Texto en imagen perfecto
+                    Audio nativo integrado
                   </li>
                   <li>
                     <CheckIcon />
-                    Edicion conversacional
+                    Edición conversacional
                   </li>
                   <li>
                     <CheckIcon />
@@ -1700,11 +1678,11 @@ export default function LandingPage() {
                   </li>
                   <li>
                     <CheckIcon />
-                    Audio nativo (Kling toggle, Veo siempre)
+                    Audio nativo (Kling opcional, Veo siempre)
                   </li>
                   <li>
                     <CheckIcon />
-                    Imagenes de referencia (inicio + final)
+                    Imágenes de referencia (inicio + final)
                   </li>
                 </ul>
                 <div className="meter">
@@ -1717,16 +1695,16 @@ export default function LandingPage() {
                 <div className="name">Audio</div>
                 <div className="who">ElevenLabs Multilingual v2 · Flash v2.5 · V3</div>
                 <p className="desc">
-                  Texto a voz en 8 idiomas con clonacion de voz. Tags expresivos, chunking automatico para textos largos.
+                  Texto a voz en 8 idiomas con clonación de voz. Tags expresivos, chunking automático para textos largos.
                 </p>
                 <ul>
                   <li>
                     <CheckIcon />
-                    Clonacion de voz (experimental, gratis)
+                    Clonación de voz (experimental, gratis)
                   </li>
                   <li>
                     <CheckIcon />
-                    Hasta 20.000 caracteres por generacion
+                    Hasta 20.000 caracteres por generación
                   </li>
                   <li>
                     <CheckIcon />
@@ -1748,9 +1726,9 @@ export default function LandingPage() {
             <div className="l-sec-head">
               <span className="l-sec-eyebrow">Creditos</span>
               <h2>
-                Paga solo por lo que <em>creas</em>
+                Paga solo por lo que <em>crees</em>
               </h2>
-              <p>500 creditos gratis al registrarte. Compra packs cuando los necesites.</p>
+              <p>500 créditos gratis al registrarte. Compra packs cuando los necesites.</p>
             </div>
 
             <div className="l-pricing-grid">
@@ -1759,9 +1737,9 @@ export default function LandingPage() {
                 <div className="tname">Registro</div>
                 <div className="price">
                   500
-                  <span className="per">creditos gratis</span>
+                  <span className="per">créditos gratis</span>
                 </div>
-                <div className="summary">Para explorar Zyra sin compromiso.</div>
+                <div className="summary">Para explorar Zyra sin compromiso</div>
                 <span className="credits">
                   <span className="ic">
                     <CreditIcon />
@@ -1779,7 +1757,7 @@ export default function LandingPage() {
                   </li>
                   <li>
                     <CheckIcon />
-                    Prompt assistant, brand kits, campanas
+                    Prompt assistant, brand kits, campañas
                   </li>
                 </ul>
                 <Link href="/signup" className="cta-btn">
@@ -1789,11 +1767,11 @@ export default function LandingPage() {
 
               {/* Pack recomendado */}
               <div className="l-tier l-tier-pro">
-                <div className="tname">Costos por generacion</div>
+                <div className="tname">Costos por generación</div>
                 <div className="price" style={{ fontSize: 28 }}>
                   Pago por uso
                 </div>
-                <div className="summary">Cada modelo consume creditos diferentes.</div>
+                <div className="summary">Cada modelo consume créditos diferentes.</div>
                 <span className="credits">
                   <span className="ic">
                     <CreditIcon />
@@ -1803,11 +1781,11 @@ export default function LandingPage() {
                 <ul>
                   <li>
                     <CheckIcon />
-                    Imagen: desde 20 cr (Flash) a 75 cr (Pro 4K)
+                    Imagen: desde 20 cr (Flash) hasta 75 cr (Pro 4K)
                   </li>
                   <li>
                     <CheckIcon />
-                    Video: 15-120 cr/s segun modelo
+                    Video: 15-120 cr/s según modelo
                   </li>
                   <li>
                     <CheckIcon />
@@ -1827,19 +1805,20 @@ export default function LandingPage() {
               <div className="l-tier">
                 <div className="tname">Todo incluido</div>
                 <div className="price" style={{ fontSize: 28 }}>
-                  Sin limites
+                  Sin límites
                 </div>
-                <div className="summary">Todas las features desde el dia uno.</div>
+                <div className="summary">Todas las features desde el día uno.</div>
                 <span className="credits">
                   <span className="ic">
                     <CreditIcon />
                   </span>
                   Sin planes ni suscripciones
+
                 </span>
                 <ul>
                   <li>
                     <CheckIcon />
-                    Clonacion de voz (gratis, experimental)
+                    Clonación de voz (gratis, experimental)
                   </li>
                   <li>
                     <CheckIcon />
@@ -1847,11 +1826,11 @@ export default function LandingPage() {
                   </li>
                   <li>
                     <CheckIcon />
-                    Edicion conversacional
+                    Edición conversacional
                   </li>
                   <li>
                     <CheckIcon />
-                    Biblioteca, campanas, referencias
+                    Biblioteca, campañas, referencias
                   </li>
                 </ul>
                 <Link href="/signup" className="cta-btn">
@@ -1867,43 +1846,43 @@ export default function LandingPage() {
           <div className="container-l">
             <div className="l-sec-head">
               <span className="l-sec-eyebrow">Preguntas</span>
-              <h2>Lo que mas nos preguntan</h2>
+              <h2>Lo que más nos preguntan</h2>
             </div>
             <div className="l-faq">
               <details className="l-faq-item" open>
-                <summary>Como funcionan los creditos?</summary>
+                <summary>¿Cómo funcionan los créditos?</summary>
                 <div className="l-faq-body">
-                  Cada generacion consume creditos segun el modelo y tipo. Imagenes desde 20 cr (Flash) hasta 75 cr (Pro 4K). Video desde 15 cr/s (Veo Lite) hasta 120 cr/s (Veo Standard). Audio desde 15 cr/1000 chars (Flash) hasta 30 cr (V3). Recibes 500 creditos gratis al registrarte.
+                  Cada generación consume créditos según el modelo y tipo. Imágenes desde 20 cr (Flash) hasta 75 cr (Pro 4K). Video desde 15 cr/s (Veo Lite) hasta 120 cr/s (Veo Standard). Audio desde 15 cr/1000 chars (Flash) hasta 30 cr (V3). Recibes 500 créditos gratis al registrarte.
                 </div>
               </details>
               <details className="l-faq-item">
-                <summary>Que modelos de imagen hay?</summary>
+                <summary>¿Qué modelos de imagen hay?</summary>
                 <div className="l-faq-body">
-                  Nano Banana Pro (editorial, edicion conversacional, 4K), Nano Flash (rapido, borradores), y FLUX 2 Pro (fotorrealismo de produccion). Puedes usar brand kits para inyectar tu identidad visual automaticamente.
+                  Nano Banana Pro (editorial, edición conversacional, 4K), Nano Flash (rápido, borradores), y FLUX 2 Pro (fotorrealismo de producción). Puedes usar brand kits para inyectar tu identidad visual automáticamente.
                 </div>
               </details>
               <details className="l-faq-item">
-                <summary>Que modelos de video incluye?</summary>
+                <summary>¿Qué modelos de video incluye?</summary>
                 <div className="l-faq-body">
-                  Kling 3.0 Standard y Pro (5-10s, audio nativo opcional, imagenes de referencia inicio+final) y Veo 3.1 Fast, Standard y Lite (4-8s, audio nativo siempre incluido, hasta 1080p).
+                  Kling 3.0 Standard y Pro (5-10s, audio nativo opcional, imágenes de referencia inicio+final) y Veo 3.1 Fast, Standard y Lite (4-8s, audio nativo siempre incluido, hasta 1080p).
                 </div>
               </details>
               <details className="l-faq-item">
-                <summary>Puedo clonar mi voz?</summary>
+                <summary>¿Puedo clonar mi voz?</summary>
                 <div className="l-faq-body">
-                  Si, la clonacion de voz esta disponible como feature experimental y gratuita. Sube 1-2 minutos de audio limpio y usa tu voz clonada en cualquier generacion de texto a voz.
+                  Sí, la clonación de voz está disponible como feature experimental y gratuita. Sube 1-2 minutos de audio limpio y usa tu voz clonada en cualquier generación de texto a voz.
                 </div>
               </details>
               <details className="l-faq-item">
-                <summary>Que son los presets comunitarios?</summary>
+                <summary>¿Qué son los presets comunitarios?</summary>
                 <div className="l-faq-body">
-                  Puedes guardar la configuracion de cualquier generacion como preset y publicarlo para que otros lo usen. Explora presets de la comunidad con imagen, modelo y prompt listos para generar.
+                  Puedes guardar la configuración de cualquier generación como preset y publicarlo para que otros lo usen. Explora presets de la comunidad con imagen, modelo y prompt listos para generar.
                 </div>
               </details>
               <details className="l-faq-item">
-                <summary>Como funciona el prompt assistant?</summary>
+                <summary>¿Cómo funciona el prompt assistant?</summary>
                 <div className="l-faq-body">
-                  Usa Gemini Flash para reescribir tu prompt optimizado para el modelo elegido. Funciona en imagen, video y audio con instrucciones especializadas para cada tipo.
+                  Usa Gemini Flash para reescribir tu prompt optimizado para el modelo elegido. Funciona en imagen, video y audio con instrucciones especializadas para cada tipo de contenido.
                 </div>
               </details>
             </div>
@@ -1915,14 +1894,14 @@ export default function LandingPage() {
           <div className="container-l">
             <div className="l-cta-card">
               <h2>Empieza a crear en 30 segundos</h2>
-              <p>500 creditos gratis al registrarte. Sin tarjeta. Sin suscripcion.</p>
+              <p>500 créditos gratis al registrarte. Sin tarjeta. Sin suscripción.</p>
               <div style={{ position: "relative", display: "inline-flex", gap: 10 }}>
                 <Link href="/signup" className="btn-l btn-l-primary btn-l-lg">
                   Empezar gratis
                   <ArrowIcon />
                 </Link>
                 <Link href="/login" className="btn-l btn-l-secondary btn-l-lg">
-                  Iniciar sesion
+                  Iniciar sesión
                 </Link>
               </div>
             </div>
@@ -1940,7 +1919,7 @@ export default function LandingPage() {
                   </span>
                   Zyra Studio
                 </Link>
-                <p>Plataforma creativa con IA. Imagen, video y audio para creadores.</p>
+                <p>Plataforma creativa con IA. Imagen, video y audio para creadores</p>
               </div>
               <div>
                 <h5>Producto</h5>
@@ -1955,7 +1934,7 @@ export default function LandingPage() {
                 <h5>Cuenta</h5>
                 <ul>
                   <li><Link href="/signup">Crear cuenta</Link></li>
-                  <li><Link href="/login">Iniciar sesion</Link></li>
+                  <li><Link href="/login">Iniciar sesión</Link></li>
                   <li><a href="#precios">Creditos</a></li>
                   <li><a href="#faq">Preguntas</a></li>
                 </ul>

@@ -9,17 +9,25 @@ export const metadata: Metadata = {
 };
 
 export default async function LibraryPage() {
-  const { workspace } = await requireWorkspace();
+  const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const generationsRes = await supabase
-    .from('generations')
-    .select(
-      'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id',
-    )
-    .eq('workspace_id', workspace.id)
-    .order('created_at', { ascending: false })
-    .limit(120);
+  const [generationsRes, favRes] = await Promise.all([
+    supabase
+      .from('generations')
+      .select(
+        'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id',
+      )
+      .eq('workspace_id', workspace.id)
+      .order('created_at', { ascending: false })
+      .limit(120),
+    supabase
+      .from('favorites')
+      .select('generation_id')
+      .eq('user_id', user.id),
+  ]);
+
+  const favoriteIds = (favRes.data ?? []).map((r) => r.generation_id as string);
 
   const generations: LibraryGeneration[] = (generationsRes.data ?? []).map((g) => {
     const params = (g.params ?? {}) as { aspect_ratio?: string };
@@ -47,6 +55,7 @@ export default async function LibraryPage() {
       <LibraryView
         generations={generations}
         workspaceName={workspace.name}
+        initialFavoriteIds={favoriteIds}
       />
     </div>
   );
