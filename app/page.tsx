@@ -1488,7 +1488,7 @@ export default function LandingPage() {
                   <div className="l-shot-generate">
                     <SparkleIcon />
                     Generar imagen
-                    <span className="cost">-90 cr</span>
+                    <span className="cost">-40 cr</span>
                   </div>
                 </div>
 
@@ -1498,7 +1498,7 @@ export default function LandingPage() {
                     <GradientPlaceholder seed={2} />
                     <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div className="mono" style={{ fontSize: 10, color: "var(--text-2)", background: "rgba(9,9,11,0.7)", borderRadius: 6, padding: "3px 8px", backdropFilter: "blur(6px)", border: "1px solid var(--hairline)" }}>
-                        Nano Banana Pro · 1:1 · 2K · -90 cr · 14s
+                        Nano Banana Pro · 1:1 · 2K · -40 cr · 14s
                       </div>
                       <div style={{ display: "flex", gap: 4 }}>
                         <div style={{ width: 28, height: 28, borderRadius: "999px", background: "rgba(9,9,11,0.6)", border: "1px solid var(--hairline-strong)", display: "grid", placeItems: "center" }}>
@@ -1675,7 +1675,7 @@ export default function LandingPage() {
                 </ul>
                 <div className="meter">
                   <span>~6-18 s</span>
-                  <span>30-120 cr</span>
+                  <span>20-75 cr</span>
                 </div>
               </div>
 
@@ -1709,7 +1709,7 @@ export default function LandingPage() {
                 </ul>
                 <div className="meter">
                   <span>5-10s Kling · 4-8s Veo</span>
-                  <span>40-300 cr/s</span>
+                  <span>15-120 cr/s</span>
                 </div>
               </div>
 
@@ -1735,7 +1735,7 @@ export default function LandingPage() {
                 </ul>
                 <div className="meter">
                   <span>~3-15 s</span>
-                  <span>70-350 cr/1000 chars</span>
+                  <span>15-30 cr/1000 chars</span>
                 </div>
               </div>
             </div>
@@ -1803,19 +1803,19 @@ export default function LandingPage() {
                 <ul>
                   <li>
                     <CheckIcon />
-                    Imagen: desde 30 cr (Flash) a 120 cr (Pro 4K)
+                    Imagen: desde 20 cr (Flash) a 75 cr (Pro 4K)
                   </li>
                   <li>
                     <CheckIcon />
-                    Video: 40-300 cr/s segun modelo
+                    Video: 15-120 cr/s segun modelo
                   </li>
                   <li>
                     <CheckIcon />
-                    Audio: 70-350 cr por 1000 caracteres
+                    Audio: 15-30 cr por 1000 caracteres
                   </li>
                   <li>
                     <CheckIcon />
-                    Prompt assistant: 5 cr por mejora
+                    Prompt assistant: 3 cr por mejora
                   </li>
                 </ul>
                 <Link href="/signup" className="cta-btn">
@@ -1873,7 +1873,7 @@ export default function LandingPage() {
               <details className="l-faq-item" open>
                 <summary>Como funcionan los creditos?</summary>
                 <div className="l-faq-body">
-                  Cada generacion consume creditos segun el modelo y tipo. Imagenes desde 30 cr (Flash) hasta 120 cr (Pro 4K). Video desde 40 cr/s (Kling Standard) hasta 300 cr/s (Veo Standard). Audio desde 70 cr/1000 chars (Flash) hasta 350 cr (V3). Recibes 500 creditos gratis al registrarte.
+                  Cada generacion consume creditos segun el modelo y tipo. Imagenes desde 20 cr (Flash) hasta 75 cr (Pro 4K). Video desde 15 cr/s (Veo Lite) hasta 120 cr/s (Veo Standard). Audio desde 15 cr/1000 chars (Flash) hasta 30 cr (V3). Recibes 500 creditos gratis al registrarte.
                 </div>
               </details>
               <details className="l-faq-item">

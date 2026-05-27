@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/dal";
 import {
   AdjustCreditsSchema,
@@ -47,5 +48,21 @@ export async function adjustCreditsAction(
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/audit");
+  return { ok: true };
+}
+
+export async function toggleAdminAction(
+  userId: string,
+  newRole: 'admin' | 'user',
+): Promise<{ ok: boolean; error?: string }> {
+  await requireAdmin();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('profiles')
+    .update({ role: newRole })
+    .eq('id', userId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath('/admin/users');
+  revalidatePath('/admin/audit');
   return { ok: true };
 }
