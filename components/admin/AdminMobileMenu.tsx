@@ -27,7 +27,7 @@ export function AdminMobileMenu() {
             className="fixed inset-0 z-50 bg-background/60 backdrop-blur-sm lg:hidden"
             onClick={() => setOpen(false)}
           />
-          <div className="fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card lg:hidden">
+          <div className="fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-background lg:hidden">
             <div className="flex h-16 items-center justify-between border-b border-border px-5">
               <div className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
                 <Sparkles className="size-5 text-primary" aria-hidden />
