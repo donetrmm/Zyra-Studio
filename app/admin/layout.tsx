@@ -1,6 +1,7 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { requireAdmin } from "@/lib/auth/dal";
 
 export default async function AdminLayout({
@@ -13,23 +14,25 @@ export default async function AdminLayout({
   const user = await requireAdmin();
 
   return (
-    <div className="flex h-dvh overflow-hidden">
-      <AdminSidebar />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-          <p className="text-[13.5px] font-medium text-muted-foreground">
-            Panel administrativo
-          </p>
-          <UserMenu
-            email={user.email}
-            fullName={user.fullName}
-            avatarUrl={user.avatarUrl}
-            isAdmin
-          />
-        </header>
-        <main className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
-        <Toaster richColors theme="dark" />
+    <ConfirmProvider>
+      <div className="flex h-dvh overflow-hidden">
+        <AdminSidebar />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
+            <p className="text-[13.5px] font-medium text-muted-foreground">
+              Panel administrativo
+            </p>
+            <UserMenu
+              email={user.email}
+              fullName={user.fullName}
+              avatarUrl={user.avatarUrl}
+              isAdmin
+            />
+          </header>
+          <main className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          <Toaster richColors theme="dark" />
+        </div>
       </div>
-    </div>
+    </ConfirmProvider>
   );
 }
