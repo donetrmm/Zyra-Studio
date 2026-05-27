@@ -105,7 +105,7 @@ export function PresetsPage({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar presets..."
-            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+            className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-[13px] text-foreground outline-none focus:border-primary/40"
           />
         </div>
         <div className="flex gap-1">
@@ -233,7 +233,7 @@ function PresetCard({
           type="button"
           onClick={handleUse}
           disabled={using}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/20"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {using ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
           Usar preset
@@ -243,7 +243,7 @@ function PresetCard({
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden />
           </button>
@@ -309,7 +309,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
         {/* Media */}
         <div className="relative bg-black">
           {loadingMedia ? (
@@ -368,7 +368,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
               type="button"
               onClick={handleUse}
               disabled={using}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {using ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
               Usar preset
@@ -378,7 +378,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
                 type="button"
                 onClick={handleDownload}
                 disabled={downloading}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                 Descargar

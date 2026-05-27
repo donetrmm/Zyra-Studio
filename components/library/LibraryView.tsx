@@ -304,7 +304,7 @@ function CompareModal({
 }) {
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">Comparador A/B</h2>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -970,7 +970,7 @@ function DetailAside({
             type="button"
             onClick={handleDownload}
             disabled={!outputUrl || downloading}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {downloading ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1117,7 +1117,7 @@ function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
         value={generation.campaignId ?? ''}
         onChange={(e) => handleChange(e.target.value)}
         disabled={assigning}
-        className="mt-1 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none disabled:opacity-50"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <option value="">Sin campaña</option>
         {campaigns.map((c) => (
@@ -1180,13 +1180,13 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nombre del preset"
-        className="mt-2 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/40"
+        className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       />
       <input
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Descripción (opcional)"
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-primary/40"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       />
       <label className="mt-2 flex items-center gap-2 text-[11.5px] text-muted-foreground">
         <input
@@ -1202,7 +1202,7 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
           type="button"
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11.5px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11.5px] font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving && <Loader2 className="size-3 animate-spin" />}
           {saving ? 'Guardando...' : 'Guardar'}

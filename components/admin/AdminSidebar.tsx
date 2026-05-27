@@ -18,7 +18,7 @@ export function AdminSidebar() {
         <ShieldCheck className="size-5 text-primary" aria-hidden />
         Admin
       </Link>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-4">
         {ADMIN_SIDEBAR.map((section, idx) => (
           <ul key={idx} className="space-y-0.5">
             {section.items.map((item) => {

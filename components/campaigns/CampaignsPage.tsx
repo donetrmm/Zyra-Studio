@@ -34,7 +34,7 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Plus className="size-4" aria-hidden />
           Nueva campaña
@@ -137,7 +137,7 @@ function CampaignEditor({ campaign, onClose, onSaved }: { campaign: CampaignRow 
           </div>
         </div>
         <div className="flex gap-2 pt-1">
-          <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60">
+          <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
             {saving && <Loader2 className="size-3.5 animate-spin" />}
             {saving ? 'Guardando...' : 'Guardar'}
           </button>

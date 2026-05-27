@@ -125,7 +125,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
       <select
         value={props.model}
         onChange={(e) => props.setModel(e.target.value as ModelKey)}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
         <optgroup label="Kling 3.0 (rápido)">
           <option value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</option>

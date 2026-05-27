@@ -142,7 +142,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
               <button
                 type="submit"
                 disabled={cloning}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {cloning && <Loader2 className="size-3.5 animate-spin" />}
                 {cloning ? 'Clonando...' : 'Clonar voz'}
@@ -181,7 +181,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 type="button"
                 onClick={submitTry}
                 disabled={trying || !tryText.trim()}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {trying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
                 {trying ? 'Generando...' : 'Generar'}
@@ -254,7 +254,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                   type="button"
                   onClick={() => handleDelete(v.id, v.name)}
                   disabled={deleting}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Trash2 className="size-3.5" aria-hidden />
                 </button>

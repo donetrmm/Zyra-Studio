@@ -146,7 +146,7 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
       onKeyDown={(e) => e.key === 'Escape' && onClose()}
     >
       <div
-        className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-border bg-card shadow-2xl"
+        className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative bg-black">
@@ -194,7 +194,7 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
               type="button"
               onClick={handleDownload}
               disabled={downloading}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-60"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
             >
               {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
               Descargar

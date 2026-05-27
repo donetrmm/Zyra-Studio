@@ -57,7 +57,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
       <select
         value={props.voiceId}
         onChange={(e) => props.setVoiceId(e.target.value)}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
         {OFFICIAL_VOICES.map((v) => (
           <option key={v.id} value={v.id}>
@@ -72,7 +72,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
       <select
         value={props.modelId}
         onChange={(e) => props.setModelId(e.target.value as (typeof TTS_MODELS)[number])}
-        className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
         <option value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</option>
         <option value="eleven_flash_v2_5">Flash v2.5 (rápido)</option>
@@ -87,7 +87,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           <select
             value={props.languageCode}
             onChange={(e) => props.setLanguageCode(e.target.value as (typeof TTS_LANGUAGES)[number])}
-            className="mt-1.5 rounded-md border border-border bg-background px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/40"
+            className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
           >
             {TTS_LANGUAGES.map((l) => (
               <option key={l} value={l}>

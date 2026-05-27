@@ -94,7 +94,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
           Subir imagen
@@ -117,7 +117,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre..."
-              className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+              className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-[13px] text-foreground outline-none focus:border-primary/40"
             />
           </div>
           <button
@@ -137,7 +137,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
             type="button"
             onClick={handleBulkDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1 text-[12px] font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1 text-[12px] font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {deleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
             Eliminar seleccionadas
@@ -199,7 +199,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                   type="button"
                   onClick={() => handleDelete(r.id, r.name)}
                   disabled={deleting}
-                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 hover:text-destructive"
+                  className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground opacity-0 backdrop-blur transition-all group-hover:opacity-100 hover:text-destructive disabled:cursor-not-allowed"
                 >
                   <Trash2 className="size-3" aria-hidden />
                 </button>
