@@ -449,13 +449,23 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         placeholder="Describe la escena que quieres animar..."
         className="scroll-thin mt-1.5 min-h-[100px] max-h-[180px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40 sm:max-h-[280px]"
       />
-      <EnhanceButton
-        prompt={props.prompt}
-        onAccept={props.setPrompt}
-        type="video"
-        cost={props.enhanceCost}
-        balance={props.balance}
-      />
+      <div className="mt-1 flex items-center justify-between">
+          <EnhanceButton
+            prompt={props.prompt}
+            onAccept={props.setPrompt}
+            type="video"
+            cost={props.enhanceCost}
+            balance={props.balance}
+          />
+          <span className={cn(
+            'font-mono text-[10.5px]',
+            props.prompt.length > (isVeo ? 1024 : 2000) * 0.9
+              ? 'text-amber-400'
+              : 'text-muted-foreground/50',
+          )}>
+            {props.prompt.length} / {isVeo ? '1.024' : '2.000'}
+          </span>
+        </div>
 
       {/* ── Costo ── */}
       <div className="mt-6 flex items-center justify-between text-[12.5px]">

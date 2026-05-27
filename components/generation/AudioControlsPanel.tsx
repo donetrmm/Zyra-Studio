@@ -121,8 +121,8 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           cost={props.enhanceCost}
           balance={props.balance}
         />
-        <span className="font-mono text-[10.5px] text-muted-foreground/70">
-          {props.text.length.toLocaleString('es-MX')} / 20 000
+        <span className={cn('font-mono text-[10.5px]', props.text.length > 18000 ? 'text-amber-400' : 'text-muted-foreground/70')}>
+          {props.text.length.toLocaleString('es-MX')} / 20.000
         </span>
       </div>
 

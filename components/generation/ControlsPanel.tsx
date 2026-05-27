@@ -477,8 +477,8 @@ function PromptArea({
           style={{ minHeight: 96, maxHeight: 280 }}
         />
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">
-          <div className="font-mono text-[10.5px] text-muted-foreground/70">
-            {value.length} / 8 000
+          <div className={cn('font-mono text-[10.5px]', value.length > 7200 ? 'text-amber-400' : 'text-muted-foreground/70')}>
+            {value.length.toLocaleString('es-MX')} / 8.000
           </div>
           <button
             type="button"
