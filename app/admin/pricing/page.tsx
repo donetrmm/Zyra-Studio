@@ -100,8 +100,8 @@ export default async function AdminPricingPage() {
             <h2 className="font-heading text-sm font-medium uppercase tracking-wider text-muted-foreground">
               {provider}
             </h2>
-            <div className="rounded-md border border-border">
-              <Table>
+            <div className="scroll-thin overflow-x-auto rounded-md border border-border">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Modelo</TableHead>

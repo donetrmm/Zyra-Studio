@@ -126,8 +126,8 @@ export default async function AdminGenerationsPage({
         ))}
       </nav>
 
-      <div className="rounded-md border border-border">
-        <Table>
+      <div className="scroll-thin overflow-x-auto rounded-md border border-border">
+        <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow>
               <TableHead>Usuario</TableHead>

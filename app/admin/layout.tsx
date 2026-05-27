@@ -1,4 +1,5 @@
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { AdminMobileMenu } from "@/components/admin/AdminMobileMenu";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
@@ -18,10 +19,13 @@ export default async function AdminLayout({
       <div className="flex h-dvh overflow-hidden">
         <AdminSidebar />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-            <p className="text-[13.5px] font-medium text-muted-foreground">
-              Panel de administración
-            </p>
+          <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
+            <div className="flex items-center gap-3">
+              <AdminMobileMenu />
+              <p className="text-[13.5px] font-medium text-muted-foreground">
+                Panel de administración
+              </p>
+            </div>
             <UserMenu
               email={user.email}
               fullName={user.fullName}
