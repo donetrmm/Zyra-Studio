@@ -19,11 +19,9 @@ export default async function AdminLayout({
         <AdminSidebar />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:px-6">
-            <div className="flex items-center gap-2 text-[13.5px] font-medium">
-              <span className="text-foreground">Zyra</span>
-              <span className="text-muted-foreground/40">·</span>
-              <span className="text-muted-foreground">Admin</span>
-            </div>
+            <p className="text-[13.5px] font-medium text-muted-foreground">
+              Panel de administración
+            </p>
             <UserMenu
               email={user.email}
               fullName={user.fullName}
