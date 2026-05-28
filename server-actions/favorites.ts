@@ -7,12 +7,17 @@ export async function toggleFavoriteAction(generationId: string) {
   const user = await requireUser();
   const supabase = await createClient();
 
-  const { data: existing } = await supabase
+  const { data: existing, error: selectError } = await supabase
     .from('favorites')
     .select('generation_id')
     .eq('user_id', user.id)
     .eq('generation_id', generationId)
     .maybeSingle();
+
+  if (selectError) {
+    console.error('[toggleFavorite] SELECT error:', selectError.message, selectError.code);
+    return { ok: false as const, message: selectError.message, favorited: false };
+  }
 
   if (existing) {
     const { error } = await supabase
@@ -20,14 +25,20 @@ export async function toggleFavoriteAction(generationId: string) {
       .delete()
       .eq('user_id', user.id)
       .eq('generation_id', generationId);
-    if (error) return { ok: false as const, message: error.message, favorited: true };
+    if (error) {
+      console.error('[toggleFavorite] DELETE error:', error.message, error.code);
+      return { ok: false as const, message: error.message, favorited: true };
+    }
     return { ok: true as const, favorited: false };
   }
 
   const { error } = await supabase
     .from('favorites')
     .insert({ user_id: user.id, generation_id: generationId });
-  if (error) return { ok: false as const, message: error.message, favorited: false };
+  if (error) {
+    console.error('[toggleFavorite] INSERT error:', error.message, error.code);
+    return { ok: false as const, message: error.message, favorited: false };
+  }
   return { ok: true as const, favorited: true };
 }
 

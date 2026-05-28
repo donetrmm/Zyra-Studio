@@ -202,16 +202,27 @@ export function LibraryView({
       else next.add(id);
       return next;
     });
-    toggleFavoriteAction(id).then((res) => {
-      if (!res.ok) {
+    toggleFavoriteAction(id)
+      .then((res) => {
+        if (!res.ok) {
+          toast.error(res.message || 'Error al actualizar favorito');
+          setFavIds((prev) => {
+            const next = new Set(prev);
+            if (wasFav) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }
+      })
+      .catch(() => {
+        toast.error('Error al actualizar favorito');
         setFavIds((prev) => {
           const next = new Set(prev);
           if (wasFav) next.add(id);
           else next.delete(id);
           return next;
         });
-      }
-    });
+      });
   }
 
   function toggleCompare(id: string) {
