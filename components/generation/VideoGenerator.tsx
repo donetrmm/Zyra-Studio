@@ -7,6 +7,7 @@ import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
 import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
+import { estimateVideoEta } from '@/lib/generation/video-meta';
 import type { SelectedCampaign } from './CampaignSelector';
 import { VideoControlsPanel, VIDEO_STYLES, type ModelKey, type ReferenceImage } from './VideoControlsPanel';
 import { VideoPreview } from './VideoPreview';
@@ -170,12 +171,23 @@ export function VideoGenerator(props: {
     />
   );
 
+  const previewEtaSeconds = estimateVideoEta(model, duration, veoDuration, veoResolution);
+
   const preview = (
     <VideoPreview
       generation={live}
       generationId={activeId}
       resolvedOutputUrl={resolvedOutputUrl}
       resolvedThumbnailUrl={resolvedThumbnailUrl}
+      model={model}
+      aspectRatio={aspectRatio}
+      etaSeconds={previewEtaSeconds}
+      prompt={prompt}
+      veoResolution={veoResolution}
+      veoDuration={veoDuration}
+      klingDuration={duration}
+      onRetry={handleGenerate}
+      canRetry={canGenerate}
     />
   );
 

@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/select';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
+import { Step, SectionHeading } from './Step';
+import { GenerateBar } from './GenerateBar';
+import { MODEL_LABEL, estimateVideoEta } from '@/lib/generation/video-meta';
 
 export type ModelKey =
   | 'fal-ai/kling-video/v3/standard/text-to-video'
@@ -46,7 +49,6 @@ export type VideoControlsProps = {
   setPrompt: (v: string) => void;
   model: ModelKey;
   setModel: (v: ModelKey) => void;
-  // Styles
   selectedStyles: string[];
   setSelectedStyles: (v: string[]) => void;
   // Kling
@@ -81,6 +83,10 @@ export function VideoControlsPanel(props: VideoControlsProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [useRefImages, setUseRefImages] = useState(false);
+
+  const isVeoStandard = props.model === 'veo-3.1-generate-preview';
+  const supportsImages = !isVeo || isVeoStandard;
+  const klingHasImage = !isVeo && props.referenceImages.length > 0;
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -129,12 +135,9 @@ export function VideoControlsPanel(props: VideoControlsProps) {
     const supportsImagesNext = !isVeoNext || isVeoStandardNext;
     const maxImagesNext = isVeoNext ? 1 : 2;
 
-    // Veo no soporta 1:1.
     if (isVeoNext && props.aspectRatio === '1:1') {
       props.setAspectRatio('16:9');
     }
-
-    // Veo Fast/Lite no aceptan referencias. Veo Standard solo una.
     if (!supportsImagesNext && props.referenceImages.length > 0) {
       props.referenceImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       props.setReferenceImages([]);
@@ -147,388 +150,382 @@ export function VideoControlsPanel(props: VideoControlsProps) {
     }
   }
 
+  const etaSeconds = estimateVideoEta(
+    props.model,
+    props.duration,
+    props.veoDuration,
+    props.veoResolution,
+  );
+
+  const hint = !props.prompt.trim()
+    ? 'Describe la escena para empezar.'
+    : null;
+
   return (
-    <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 px-4 py-[18px]">
-      <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
-        Crear video
-      </h2>
+    <div className="flex h-full min-h-0 flex-col border-r border-border bg-card/30">
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
+        <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
+          Crear video
+        </h2>
 
-      {/* ── Modelo ── */}
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Modelo
-      </label>
-      <Select value={props.model} onValueChange={(v) => handleModelChange(v as ModelKey)}>
-        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectLabel>Kling 3.0 (rápido)</SelectLabel>
-            <SelectItem value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</SelectItem>
-            <SelectItem value="fal-ai/kling-video/v3/pro/text-to-video">Kling 3.0 Pro</SelectItem>
-          </SelectGroup>
-          <SelectGroup>
-            <SelectLabel>Veo 3.1 (premium)</SelectLabel>
-            <SelectItem value="veo-3.1-fast-generate-preview">Veo Fast</SelectItem>
-            <SelectItem value="veo-3.1-generate-preview">Veo Standard</SelectItem>
-            <SelectItem value="veo-3.1-lite-generate-preview">Veo Lite</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        <Step index={1} title="Elige el modelo" subtitle="Kling es rápido y barato; Veo es premium">
+          <Select value={props.model} onValueChange={(v) => handleModelChange(v as ModelKey)}>
+            <SelectTrigger className="h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Kling 3.0 (rápido)</SelectLabel>
+                <SelectItem value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</SelectItem>
+                <SelectItem value="fal-ai/kling-video/v3/pro/text-to-video">Kling 3.0 Pro</SelectItem>
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>Veo 3.1 (premium)</SelectLabel>
+                <SelectItem value="veo-3.1-fast-generate-preview">Veo Fast</SelectItem>
+                <SelectItem value="veo-3.1-generate-preview">Veo Standard</SelectItem>
+                <SelectItem value="veo-3.1-lite-generate-preview">Veo Lite</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </Step>
 
-      {/* ── Duración ── */}
-      {isVeo ? (
-        <>
-          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Duración
-          </label>
-          <div className="mt-1.5 flex gap-2">
-            {([4, 6, 8] as const).map((d) => {
-              const locked = (props.veoResolution === '1080p' || props.referenceImages.length > 0) && d !== 8;
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => !locked && props.setVeoDuration(d)}
-                  title={locked ? '1080p o imagen requiere 8s' : undefined}
-                  className={cn(
-                    'flex-1 rounded-md border px-3 py-1.5 text-[12.5px] transition-colors',
-                    locked
-                      ? 'cursor-not-allowed border-border/50 text-muted-foreground/30'
-                      : props.veoDuration === d
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-                  )}
-                >
-                  {d}s
-                </button>
-              );
-            })}
-          </div>
-          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Resolución
-          </label>
-          <div className="mt-1.5 flex gap-2">
-            {(['720p', '1080p'] as const).map((r) => (
+        <Step index={2} title="Duración y calidad">
+          {isVeo ? (
+            <>
+              <SectionHeading>Duración</SectionHeading>
+              <div className="flex gap-2">
+                {([4, 6, 8] as const).map((d) => {
+                  const locked = (props.veoResolution === '1080p' || props.referenceImages.length > 0) && d !== 8;
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => !locked && props.setVeoDuration(d)}
+                      title={locked ? '1080p o imagen requiere 8s' : undefined}
+                      className={cn(
+                        'flex-1 rounded-md border px-3 py-1.5 text-[12.5px] transition-colors',
+                        locked
+                          ? 'cursor-not-allowed border-border/50 text-muted-foreground/30'
+                          : props.veoDuration === d
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                      )}
+                    >
+                      {d}s
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3.5">
+                <SectionHeading>Resolución</SectionHeading>
+                <div className="flex gap-2">
+                  {(['720p', '1080p'] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        props.setVeoResolution(r);
+                        if (r === '1080p') props.setVeoDuration(8);
+                      }}
+                      className={cn(
+                        'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
+                        props.veoResolution === r
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                      )}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+                  Duración
+                </div>
+                <span className="font-mono text-[12.5px] text-foreground">{props.duration}s</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={10}
+                step={1}
+                value={props.duration}
+                onChange={(e) => props.setDuration(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
+                <span>5s</span>
+                <span>10s</span>
+              </div>
+            </>
+          )}
+        </Step>
+
+        <Step
+          index={3}
+          title="Proporción"
+          subtitle={klingHasImage ? 'La define la imagen de referencia' : undefined}
+        >
+          <div className="flex gap-2">
+            {(isVeo ? (['16:9', '9:16'] as const) : (['16:9', '9:16', '1:1'] as const)).map((r) => (
               <button
                 key={r}
                 type="button"
-                onClick={() => {
-                  props.setVeoResolution(r);
-                  if (r === '1080p') props.setVeoDuration(8);
-                }}
+                onClick={() => !klingHasImage && props.setAspectRatio(r)}
                 className={cn(
-                  'flex-1 rounded-md border px-3 py-1.5 text-[12.5px]',
-                  props.veoResolution === r
-                    ? 'border-primary bg-primary/10 text-foreground'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                  'flex-1 rounded-md border px-3 py-1.5 text-[12.5px] transition-colors',
+                  klingHasImage
+                    ? 'cursor-not-allowed border-border/50 text-muted-foreground/30'
+                    : props.aspectRatio === r
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground/40',
                 )}
               >
                 {r}
               </button>
             ))}
           </div>
-        </>
-      ) : (
-        <>
-          <div className="mt-4 flex items-center justify-between">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Duración
-            </label>
-            <span className="font-mono text-[12.5px] text-foreground">{props.duration}s</span>
-          </div>
-          <input
-            type="range"
-            min={5}
-            max={10}
-            step={1}
-            value={props.duration}
-            onChange={(e) => props.setDuration(Number(e.target.value))}
-            className="mt-1.5 w-full accent-primary"
-          />
-          <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
-            <span>5s</span>
-            <span>10s</span>
-          </div>
-        </>
-      )}
+        </Step>
 
-      {/* ── Aspect ratio ── */}
-      {(() => {
-        const klingHasImage = !isVeo && props.referenceImages.length > 0;
-        return (
-          <>
-            <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Aspect ratio
-              {klingHasImage && (
-                <span className="ml-1 normal-case text-muted-foreground/50">(lo define la imagen)</span>
-              )}
-            </label>
-            <div className="mt-1.5 flex gap-2">
-              {(isVeo ? (['16:9', '9:16'] as const) : (['16:9', '9:16', '1:1'] as const)).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => !klingHasImage && props.setAspectRatio(r)}
-                  className={cn(
-                    'flex-1 rounded-md border px-3 py-1.5 text-[12.5px] transition-colors',
-                    klingHasImage
-                      ? 'cursor-not-allowed border-border/50 text-muted-foreground/30'
-                      : props.aspectRatio === r
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-                  )}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </>
-        );
-      })()}
-
-      {/* ── Imágenes de referencia (Kling: 2 imgs, Veo Standard: 1 img, Veo Fast/Lite: no soporta) ── */}
-      {(() => {
-        const isVeoStandard = props.model === 'veo-3.1-generate-preview';
-        const supportsImages = !isVeo || isVeoStandard;
-        if (!supportsImages) return null;
-        return (
-        <>
-      <button
-        type="button"
-        onClick={() => {
-          const next = !useRefImages;
-          setUseRefImages(next);
-          if (!next) {
-            props.referenceImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
-            props.setReferenceImages([]);
-          }
-          if (next && isVeo) {
-            props.setVeoResolution('1080p');
-            props.setVeoDuration(8);
-          }
-        }}
-        className={cn(
-          'mt-5 flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors',
-          useRefImages
-            ? 'border-primary/40 bg-primary/5 text-foreground'
-            : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-        )}
-      >
-        <ImagePlus className={cn('size-4', useRefImages && 'text-primary')} aria-hidden />
-        {isVeo ? 'Imagen de referencia' : 'Imágenes de referencia'}
-      </button>
-
-      {useRefImages && (
-        <div className="mt-2 space-y-2">
-          {isVeo && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 text-[11px] leading-relaxed text-amber-400">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              <span>Imagen de referencia fuerza resolución a 1080p y duración a 8s</span>
-            </div>
-          )}
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleFile(f);
-              if (fileRef.current) fileRef.current.value = '';
-            }}
-          />
-
-          {props.referenceImages.length > 0 ? (
-            <div className="flex gap-2">
-              {props.referenceImages.map((img, i) => (
-                <div key={img.storagePath} className="relative flex-1 overflow-hidden rounded-lg border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.previewUrl}
-                    alt={img.filename}
-                    className="h-24 w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeRef(i)}
-                    className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-background/80 text-foreground backdrop-blur transition-colors hover:bg-background"
-                    aria-label="Quitar imagen"
-                  >
-                    <X className="size-3" aria-hidden />
-                  </button>
-                  <div className="absolute bottom-1 left-1 rounded bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80 backdrop-blur">
-                    {!isVeo ? (i === 0 ? 'inicio' : 'final') : 'ref'}
-                  </div>
-                </div>
-              ))}
-              {props.referenceImages.length < maxImages && (
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="flex h-24 flex-1 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground/50 transition-colors hover:border-muted-foreground/40"
-                >
-                  {uploading ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                  ) : (
-                    <ImagePlus className="size-4" aria-hidden />
-                  )}
-                </button>
-              )}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-[12px] text-muted-foreground transition-colors hover:border-muted-foreground/40"
-            >
-              {uploading ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <ImagePlus className="size-4" aria-hidden />
-              )}
-              {uploading ? 'Subiendo...' : isVeo ? 'Subir imagen' : 'Subir imágenes (max 2)'}
-            </button>
-          )}
-
-          {props.referenceImages.length > 0 && (
-            <p className="px-1 text-[10px] text-muted-foreground/50">
-              {props.referenceImages.length === 1 ? 'Frame inicial' : 'Frame inicial + final'}
-            </p>
-          )}
-        </div>
-      )}
-        </>
-        );
-      })()}
-
-      {/* ── Audio ── */}
-      {isVeo ? (
-        <div className="mt-4 space-y-1.5">
-          <div className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[12.5px] text-foreground">
-            <Volume2 className="size-4 text-primary" aria-hidden />
-            Audio nativo incluido
-          </div>
-          <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">
-            Describe en el prompt lo que quieras escuchar: diálogos, efectos de sonido o ambiente. Ej: &quot;A man says hello while birds sing in the background&quot;
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 space-y-1.5">
-          <button
-            type="button"
-            onClick={() => props.setGenerateAudio(!props.generateAudio)}
-            className={cn(
-              'flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors',
-              props.generateAudio
-                ? 'border-primary/40 bg-primary/5 text-foreground'
-                : 'border-border text-muted-foreground hover:border-muted-foreground/40',
-            )}
+        {supportsImages && (
+          <Step
+            index={4}
+            title={isVeo ? 'Imagen de referencia' : 'Imágenes de referencia'}
+            subtitle={isVeo ? 'Opcional · 1 imagen guía la escena' : 'Opcional · frame inicial + final'}
           >
-            {props.generateAudio ? (
-              <Volume2 className="size-4 text-primary" aria-hidden />
-            ) : (
-              <VolumeOff className="size-4" aria-hidden />
-            )}
-            Audio nativo
-          </button>
-          {props.generateAudio && (
-            <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">
-              Describe en el prompt lo que quieras escuchar: diálogos, efectos de sonido o ambiente. Ej: &quot;A cat knocks a glass off a table, the glass shatters&quot;
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ── Campaña ── */}
-      <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
-
-      {/* ── Estilos ── */}
-      <label className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Estilo
-      </label>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {VIDEO_STYLES.map((s) => {
-          const active = props.selectedStyles.includes(s.id);
-          return (
             <button
-              key={s.id}
               type="button"
-              onClick={() =>
-                props.setSelectedStyles(
-                  active
-                    ? props.selectedStyles.filter((id) => id !== s.id)
-                    : [...props.selectedStyles, s.id],
-                )
-              }
+              onClick={() => {
+                const next = !useRefImages;
+                setUseRefImages(next);
+                if (!next) {
+                  props.referenceImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+                  props.setReferenceImages([]);
+                }
+                if (next && isVeo) {
+                  props.setVeoResolution('1080p');
+                  props.setVeoDuration(8);
+                }
+              }}
               className={cn(
-                'rounded-full border px-2.5 py-1 text-[11px] transition-colors',
-                active
-                  ? 'border-primary/50 bg-primary/10 text-foreground'
+                'flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors',
+                useRefImages
+                  ? 'border-primary/40 bg-primary/5 text-foreground'
                   : 'border-border text-muted-foreground hover:border-muted-foreground/40',
               )}
             >
-              {s.label}
+              <ImagePlus className={cn('size-4', useRefImages && 'text-primary')} aria-hidden />
+              {useRefImages ? 'Activado' : 'Activar referencias'}
             </button>
-          );
-        })}
-      </div>
 
-      {/* ── Prompt ── */}
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Prompt
-      </label>
-      <textarea
-        value={props.prompt}
-        onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
-        placeholder="Describe la escena que quieres animar..."
-        className="scroll-thin mt-1.5 min-h-[100px] max-h-[180px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40 sm:max-h-[280px]"
-      />
-      <div className="mt-1 flex items-center justify-between">
-          <EnhanceButton
-            prompt={props.prompt}
-            onAccept={props.setPrompt}
-            type="video"
-            cost={props.enhanceCost}
-            balance={props.balance}
-          />
-          <span className={cn(
-            'font-mono text-[10.5px]',
-            props.prompt.length > (isVeo ? 1024 : 2000) * 0.9
-              ? 'text-amber-400'
-              : 'text-muted-foreground/50',
-          )}>
-            {props.prompt.length} / {isVeo ? '1.024' : '2.000'}
-          </span>
-        </div>
+            {useRefImages && (
+              <div className="mt-2.5 space-y-2">
+                {isVeo && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 text-[11px] leading-relaxed text-amber-400">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span>Imagen de referencia fuerza resolución a 1080p y duración a 8s</span>
+                  </div>
+                )}
 
-      {/* ── Costo ── */}
-      <div className="mt-6 flex items-center justify-between text-[12.5px]">
-        <span className="text-muted-foreground">Costo</span>
-        <span className="font-mono text-foreground">-{props.cost} cr</span>
-      </div>
-      <div className="mt-1 flex items-center justify-between text-[11px]">
-        <span className="text-muted-foreground">Saldo</span>
-        <span className="font-mono text-muted-foreground">{props.balance} cr</span>
-      </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleFile(f);
+                    if (fileRef.current) fileRef.current.value = '';
+                  }}
+                />
 
-      <button
-        type="button"
-        onClick={props.onGenerate}
-        disabled={!props.canGenerate}
-        className={cn(
-          'mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
-          props.canGenerate
-            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-            : 'cursor-not-allowed bg-muted text-muted-foreground/60',
+                {props.referenceImages.length > 0 ? (
+                  <div className="flex gap-2">
+                    {props.referenceImages.map((img, i) => (
+                      <div key={img.storagePath} className="relative flex-1 overflow-hidden rounded-lg border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={img.previewUrl}
+                          alt={img.filename}
+                          className="h-24 w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeRef(i)}
+                          className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-background/80 text-foreground backdrop-blur transition-colors hover:bg-background"
+                          aria-label="Quitar imagen"
+                        >
+                          <X className="size-3" aria-hidden />
+                        </button>
+                        <div className="absolute bottom-1 left-1 rounded bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80 backdrop-blur">
+                          {!isVeo ? (i === 0 ? 'inicio' : 'final') : 'ref'}
+                        </div>
+                      </div>
+                    ))}
+                    {props.referenceImages.length < maxImages && (
+                      <button
+                        type="button"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                        className="flex h-24 flex-1 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground/50 transition-colors hover:border-muted-foreground/40"
+                      >
+                        {uploading ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden />
+                        ) : (
+                          <ImagePlus className="size-4" aria-hidden />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-[12px] text-muted-foreground transition-colors hover:border-muted-foreground/40"
+                  >
+                    {uploading ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <ImagePlus className="size-4" aria-hidden />
+                    )}
+                    {uploading ? 'Subiendo…' : isVeo ? 'Subir imagen' : 'Subir imágenes (max 2)'}
+                  </button>
+                )}
+
+                {props.referenceImages.length > 0 && (
+                  <p className="px-1 text-[10px] text-muted-foreground/50">
+                    {props.referenceImages.length === 1 ? 'Frame inicial' : 'Frame inicial + final'}
+                  </p>
+                )}
+              </div>
+            )}
+          </Step>
         )}
-      >
-        {props.pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-        Generar video
-      </button>
+
+        <Step index={5} title="Audio" subtitle={isVeo ? 'Incluido con Veo' : 'Opcional con Kling'}>
+          {isVeo ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[12.5px] text-foreground">
+                <Volume2 className="size-4 text-primary" aria-hidden />
+                Audio nativo incluido
+              </div>
+              <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">
+                Describe en el prompt lo que quieras escuchar: diálogos, efectos de sonido o ambiente.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => props.setGenerateAudio(!props.generateAudio)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors',
+                  props.generateAudio
+                    ? 'border-primary/40 bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                )}
+              >
+                {props.generateAudio ? (
+                  <Volume2 className="size-4 text-primary" aria-hidden />
+                ) : (
+                  <VolumeOff className="size-4" aria-hidden />
+                )}
+                Audio nativo
+              </button>
+              {props.generateAudio && (
+                <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">
+                  Describe en el prompt diálogos, efectos o ambiente.
+                </p>
+              )}
+            </div>
+          )}
+        </Step>
+
+        <Step index={6} title="Estilo" subtitle="Opcional · combinables">
+          <div className="flex flex-wrap gap-1.5">
+            {VIDEO_STYLES.map((s) => {
+              const active = props.selectedStyles.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() =>
+                    props.setSelectedStyles(
+                      active
+                        ? props.selectedStyles.filter((id) => id !== s.id)
+                        : [...props.selectedStyles, s.id],
+                    )
+                  }
+                  className={cn(
+                    'rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
+                    active
+                      ? 'border-primary/50 bg-primary/10 text-foreground'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                  )}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </Step>
+
+        <Step index={7} title="Campaña" subtitle="Opcional · agrupa generaciones">
+          <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
+        </Step>
+
+        <Step
+          index={8}
+          title="Prompt"
+          subtitle="Describe la escena"
+          hint={
+            <span
+              className={cn(
+                'font-mono text-[11px]',
+                props.prompt.length > (isVeo ? 1024 : 2000) * 0.9
+                  ? 'text-amber-400'
+                  : 'text-muted-foreground/70',
+              )}
+            >
+              {props.prompt.length} / {isVeo ? '1.024' : '2.000'}
+            </span>
+          }
+        >
+          <textarea
+            value={props.prompt}
+            onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
+            placeholder="Describe la escena que quieres animar…"
+            className="scroll-thin min-h-[110px] w-full max-h-[200px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus:border-primary/40 sm:max-h-[280px]"
+          />
+          <div className="mt-1.5">
+            <EnhanceButton
+              prompt={props.prompt}
+              onAccept={props.setPrompt}
+              type="video"
+              cost={props.enhanceCost}
+              balance={props.balance}
+            />
+          </div>
+        </Step>
+      </div>
+
+      <GenerateBar
+        modelLabel={MODEL_LABEL[props.model]}
+        cost={props.cost}
+        balance={props.balance}
+        etaSeconds={etaSeconds}
+        disabled={!props.canGenerate}
+        pending={props.pending}
+        onClick={props.onGenerate}
+        idleLabel="Generar video"
+        pendingLabel="Generando video…"
+        hint={hint}
+      />
     </div>
   );
 }

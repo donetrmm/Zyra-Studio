@@ -10,6 +10,9 @@ import { OFFICIAL_VOICES } from '@/lib/elevenlabs/official-voices';
 import { getVoicePreviewAction } from '@/server-actions/voices';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
+import { Step } from './Step';
+import { GenerateBar } from './GenerateBar';
+import { MODEL_LABEL, estimateAudioEta } from '@/lib/generation/audio-meta';
 
 export { OFFICIAL_VOICES };
 
@@ -43,141 +46,150 @@ export function AudioControlsPanel(props: AudioControlsProps) {
   const isEnglishOnly = selectedVoice?.lang === 'en';
   const canSelectLanguage = props.modelId === 'eleven_multilingual_v2' && !isEnglishOnly;
 
+  const etaSeconds = estimateAudioEta(props.text, props.modelId);
+  const hint = !props.text.trim()
+    ? 'Escribe el texto para empezar.'
+    : props.cost === 0
+      ? 'Selecciona un modelo válido.'
+      : null;
+
   return (
-    <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 px-4 py-[18px]">
-      <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
-        Texto a voz
-      </h2>
+    <div className="flex h-full min-h-0 flex-col border-r border-border bg-card/30">
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
+        <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
+          Crear audio
+        </h2>
 
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Voz
-      </label>
-      <Select value={props.voiceId} onValueChange={props.setVoiceId}>
-        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {OFFICIAL_VOICES.map((v) => (
-            <SelectItem key={v.id} value={v.id}>
-              {v.name} ({v.lang})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <VoicePreviewButton voiceId={props.voiceId} />
-
-      <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Modelo
-      </label>
-      <Select
-        value={props.modelId}
-        onValueChange={(v) => props.setModelId(v as (typeof TTS_MODELS)[number])}
-      >
-        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</SelectItem>
-          <SelectItem value="eleven_flash_v2_5">Flash v2.5 (rápido)</SelectItem>
-          <SelectItem value="eleven_v3">V3 (expresivo)</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {canSelectLanguage ? (
-        <>
-          <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Idioma
-          </label>
-          <Select
-            value={props.languageCode}
-            onValueChange={(v) => props.setLanguageCode(v as (typeof TTS_LANGUAGES)[number])}
-          >
-            <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+        <Step index={1} title="Elige la voz" subtitle="Catálogo oficial de ElevenLabs">
+          <Select value={props.voiceId} onValueChange={props.setVoiceId}>
+            <SelectTrigger className="h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TTS_LANGUAGES.map((l) => (
-                <SelectItem key={l} value={l}>
-                  {l}
+              {OFFICIAL_VOICES.map((v) => (
+                <SelectItem key={v.id} value={v.id}>
+                  {v.name} ({v.lang})
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </>
-      ) : (
-        <p className="mt-4 text-[11px] text-muted-foreground/50">
-          {isEnglishOnly ? 'Voz solo en inglés' : 'Idioma disponible con modelo Multilingual y voz multi'}
-        </p>
-      )}
+          <VoicePreviewButton voiceId={props.voiceId} />
+        </Step>
 
-      <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
+        <Step index={2} title="Modelo TTS" subtitle="Calidad vs velocidad">
+          <Select
+            value={props.modelId}
+            onValueChange={(v) => props.setModelId(v as (typeof TTS_MODELS)[number])}
+          >
+            <SelectTrigger className="h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</SelectItem>
+              <SelectItem value="eleven_flash_v2_5">Flash v2.5 (rápido)</SelectItem>
+              <SelectItem value="eleven_v3">V3 (expresivo)</SelectItem>
+            </SelectContent>
+          </Select>
+        </Step>
 
-      <label className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Texto
-      </label>
-      <textarea
-        value={props.text}
-        onChange={(e) => props.setText(e.target.value.slice(0, 20000))}
-        placeholder="Escribe el texto a sintetizar…"
-        className="scroll-thin mt-1.5 min-h-[140px] max-h-[280px] resize-y rounded-md border border-border bg-background p-3 text-[13.5px] text-foreground outline-none focus:border-primary/40"
-      />
-      <div className="mt-1 flex items-center justify-between">
-        <EnhanceButton
-          prompt={props.text}
-          onAccept={props.setText}
-          type="audio"
-          cost={props.enhanceCost}
-          balance={props.balance}
-        />
-        <span className={cn('font-mono text-[10.5px]', props.text.length > 18000 ? 'text-amber-400' : 'text-muted-foreground/70')}>
-          {props.text.length.toLocaleString('es-MX')} / 20.000
-        </span>
+        <Step index={3} title="Idioma">
+          {canSelectLanguage ? (
+            <Select
+              value={props.languageCode}
+              onValueChange={(v) => props.setLanguageCode(v as (typeof TTS_LANGUAGES)[number])}
+            >
+              <SelectTrigger className="h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TTS_LANGUAGES.map((l) => (
+                  <SelectItem key={l} value={l}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-[11.5px] leading-relaxed text-muted-foreground/70">
+              {isEnglishOnly
+                ? 'La voz seleccionada solo habla inglés.'
+                : 'Disponible con el modelo Multilingual v2 y una voz multi.'}
+            </p>
+          )}
+        </Step>
+
+        <Step index={4} title="Campaña" subtitle="Opcional · agrupa generaciones">
+          <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
+        </Step>
+
+        <Step
+          index={5}
+          title="Texto"
+          subtitle="Lo que sintetizaremos"
+          hint={
+            <span
+              className={cn(
+                'font-mono text-[11px]',
+                props.text.length > 18000 ? 'text-amber-400' : 'text-muted-foreground/70',
+              )}
+            >
+              {props.text.length.toLocaleString('es-MX')} / 20.000
+            </span>
+          }
+        >
+          <textarea
+            value={props.text}
+            onChange={(e) => props.setText(e.target.value.slice(0, 20000))}
+            placeholder="Escribe el texto a sintetizar…"
+            className="scroll-thin min-h-[140px] w-full max-h-[280px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus:border-primary/40"
+          />
+          <div className="mt-1.5">
+            <EnhanceButton
+              prompt={props.text}
+              onAccept={props.setText}
+              type="audio"
+              cost={props.enhanceCost}
+              balance={props.balance}
+            />
+          </div>
+        </Step>
+
+        <Step index={6} title="Afinado avanzado" subtitle="Calibra estabilidad y expresividad">
+          <SliderRow
+            label="Stability"
+            value={props.stability}
+            onChange={props.setStability}
+            hint="Consistencia tonal. Más bajo = la voz suena más expresiva y con más variación entre frases. Más alto = más estable y predecible, pero puede sonar monótona."
+          />
+          <SliderRow
+            label="Similarity Boost"
+            value={props.similarityBoost}
+            onChange={props.setSimilarityBoost}
+            hint="Qué tanto se apega al timbre de la voz original. Más alto = más fiel; valores muy altos pueden reforzar artefactos si la voz base tenía ruido."
+          />
+          {props.modelId === 'eleven_v3' && (
+            <SliderRow
+              label="Style"
+              value={props.style}
+              onChange={props.setStyle}
+              hint="Intensidad emocional añadida sobre la voz. Más alto = más dramático y expresivo, a costa de algo de consistencia. Solo aplica al modelo Eleven v3."
+            />
+          )}
+        </Step>
       </div>
 
-      <SliderRow
-        label="Stability"
-        value={props.stability}
-        onChange={props.setStability}
-        hint="Consistencia tonal. Más bajo = la voz suena más expresiva y con más variación entre frases. Más alto = más estable y predecible, pero puede sonar monótona."
-      />
-      <SliderRow
-        label="Similarity Boost"
-        value={props.similarityBoost}
-        onChange={props.setSimilarityBoost}
-        hint="Qué tanto se apega al timbre de la voz original. Más alto = más fiel; valores muy altos pueden reforzar artefactos si la voz base tenía ruido."
-      />
-      {props.modelId === 'eleven_v3' && (
-        <SliderRow
-          label="Style"
-          value={props.style}
-          onChange={props.setStyle}
-          hint="Intensidad emocional añadida sobre la voz. Más alto = más dramático y expresivo, a costa de algo de consistencia. Solo aplica al modelo Eleven v3."
-        />
-      )}
-
-      <div className="mt-6 flex items-center justify-between text-[12.5px]">
-        <span className="text-muted-foreground">Costo</span>
-        <span className="font-mono text-foreground">−{props.cost} cr</span>
-      </div>
-      <div className="mt-1 flex items-center justify-between text-[11px]">
-        <span className="text-muted-foreground">Saldo</span>
-        <span className="font-mono text-muted-foreground">{props.balance} cr</span>
-      </div>
-
-      <button
-        type="button"
-        onClick={props.onGenerate}
+      <GenerateBar
+        modelLabel={`${MODEL_LABEL[props.modelId]} · ${selectedVoice?.name ?? 'voz'}`}
+        cost={props.cost}
+        balance={props.balance}
+        etaSeconds={etaSeconds}
         disabled={!props.canGenerate}
-        className={cn(
-          'mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13.5px] font-medium transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none',
-          props.canGenerate
-            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-            : 'cursor-not-allowed bg-muted text-muted-foreground/60',
-        )}
-      >
-        {props.pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
-        Generar audio
-      </button>
+        pending={props.pending}
+        onClick={props.onGenerate}
+        idleLabel="Generar audio"
+        pendingLabel="Generando audio…"
+        hint={hint}
+      />
     </div>
   );
 }
@@ -265,8 +277,8 @@ function SliderRow({
   hint?: string;
 }) {
   return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between text-[11px]">
+    <div className="mt-3 first:mt-0">
+      <div className="flex items-center justify-between text-[11.5px]">
         <span className="flex items-center gap-1 text-muted-foreground">
           {label}
           {hint && (
