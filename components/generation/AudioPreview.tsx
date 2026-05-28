@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import {
-  Library,
   Loader2,
   Music4,
   RefreshCw,
@@ -17,11 +16,7 @@ import type { LiveGeneration } from './use-generation-status';
 import { WavePlayer } from './WavePlayer';
 import { OFFICIAL_VOICES } from '@/lib/elevenlabs/official-voices';
 import { MODEL_LABEL } from '@/lib/generation/audio-meta';
-import {
-  GhostBtn,
-  PreviewToolbar,
-  RotatingTips,
-} from './preview-shared';
+import { PreviewToolbar, RotatingTips } from './preview-shared';
 
 const ROTATING_TIPS = [
   'Procesando el texto',
@@ -77,13 +72,7 @@ export function AudioPreview(props: AudioPreviewProps) {
             canRetry={props.canRetry}
           />
         ) : ready ? (
-          <ResultState
-            url={props.resolvedOutputUrl!}
-            modelLabel={MODEL_LABEL[props.modelId]}
-            voiceName={voiceName}
-            promptText={props.prompt}
-            credits={props.generation.creditsCharged}
-          />
+          <WavePlayer src={props.resolvedOutputUrl!} />
         ) : (
           <PreparingState />
         )}
@@ -308,56 +297,3 @@ function ErrorState({
   );
 }
 
-function ResultState({
-  url,
-  modelLabel,
-  voiceName,
-  promptText,
-  credits,
-}: {
-  url: string;
-  modelLabel: string;
-  voiceName: string;
-  promptText: string;
-  credits: number | null;
-}) {
-  return (
-    // Grid en lugar de flex: garantiza altura explícita resoluble al card,
-    // independiente de la cadena de `h-full` que en mobile a veces no resuelve
-    // (TabsContent flex-1 → div h-full → AudioPreview h-full puede caer a 0).
-    // gridTemplateRows '1fr auto' da al card todo el espacio restante con piso
-    // de 260px y deja la metadata con su altura natural.
-    <div
-      className="grid h-full overflow-hidden p-3 sm:p-5"
-      style={{ gridTemplateRows: 'minmax(260px, 1fr) auto', rowGap: '1rem' }}
-    >
-      <div className="relative overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
-        {/* absolute inset-0 fuerza dimensiones explícitas al WavePlayer:
-            inset-0 = top/right/bottom/left = 0 sobre el card grid item, que
-            tiene altura concreta gracias al gridTemplateRows. El `h-full`
-            interno del WavePlayer ahora resuelve sin ambigüedad. */}
-        <div className="absolute inset-0">
-          <WavePlayer src={url} />
-        </div>
-        <div className="pointer-events-none absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/70 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur">
-          {modelLabel} · {voiceName}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="truncate text-[12.5px] text-foreground">{promptText}</div>
-          <div className="mt-1 flex flex-wrap gap-3.5 font-mono text-[11px] text-muted-foreground/80">
-            {credits !== null && <span>−{credits} cr.</span>}
-            <span>{promptText.length.toLocaleString('es-MX')} chars</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <GhostBtn href="/app/library">
-            <Library className="size-3.5" aria-hidden /> Biblioteca
-          </GhostBtn>
-        </div>
-      </div>
-    </div>
-  );
-}
