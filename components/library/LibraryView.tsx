@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   Check,
-  ChevronDown,
   Copy,
   Download,
   Image as ImageIcon,
@@ -25,6 +24,9 @@ import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const CAMPAIGN_NONE = '__none__';
 
 export type LibraryGeneration = {
   id: string;
@@ -482,20 +484,15 @@ function LibHeader({
               className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors focus:border-primary/40"
             />
           </div>
-          <div className="relative">
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              className="h-9 appearance-none rounded-lg border border-border bg-muted/30 pl-3 pr-8 text-[12.5px] text-foreground outline-none focus:border-primary/40"
-            >
-              <option value="recent">Más recientes</option>
-              <option value="old">Más antiguos</option>
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/70"
-              aria-hidden
-            />
-          </div>
+          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+            <SelectTrigger className="h-9 rounded-lg border-border bg-muted/30 px-3 text-[12.5px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Más recientes</SelectItem>
+              <SelectItem value="old">Más antiguos</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>
@@ -1224,17 +1221,21 @@ function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
         <FolderKanban className="size-3" aria-hidden />
         Campaña
       </label>
-      <select
-        value={generation.campaignId ?? ''}
-        onChange={(e) => handleChange(e.target.value)}
+      <Select
+        value={generation.campaignId ?? CAMPAIGN_NONE}
+        onValueChange={(v) => handleChange(v === CAMPAIGN_NONE ? '' : v)}
         disabled={assigning}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <option value="">Sin campaña</option>
-        {campaigns.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={CAMPAIGN_NONE}>Sin campaña</SelectItem>
+          {campaigns.map((c) => (
+            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

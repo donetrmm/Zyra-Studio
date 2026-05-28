@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
@@ -54,47 +55,56 @@ export function AudioControlsPanel(props: AudioControlsProps) {
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Voz
       </label>
-      <select
-        value={props.voiceId}
-        onChange={(e) => props.setVoiceId(e.target.value)}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
-      >
-        {OFFICIAL_VOICES.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name} ({v.lang})
-          </option>
-        ))}
-      </select>
+      <Select value={props.voiceId} onValueChange={props.setVoiceId}>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {OFFICIAL_VOICES.map((v) => (
+            <SelectItem key={v.id} value={v.id}>
+              {v.name} ({v.lang})
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Modelo
       </label>
-      <select
+      <Select
         value={props.modelId}
-        onChange={(e) => props.setModelId(e.target.value as (typeof TTS_MODELS)[number])}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+        onValueChange={(v) => props.setModelId(v as (typeof TTS_MODELS)[number])}
       >
-        <option value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</option>
-        <option value="eleven_flash_v2_5">Flash v2.5 (rápido)</option>
-        <option value="eleven_v3">V3 (expresivo)</option>
-      </select>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="eleven_multilingual_v2">Multilingual v2 (alta calidad)</SelectItem>
+          <SelectItem value="eleven_flash_v2_5">Flash v2.5 (rápido)</SelectItem>
+          <SelectItem value="eleven_v3">V3 (expresivo)</SelectItem>
+        </SelectContent>
+      </Select>
 
       {canSelectLanguage ? (
         <>
           <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Idioma
           </label>
-          <select
+          <Select
             value={props.languageCode}
-            onChange={(e) => props.setLanguageCode(e.target.value as (typeof TTS_LANGUAGES)[number])}
-            className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+            onValueChange={(v) => props.setLanguageCode(v as (typeof TTS_LANGUAGES)[number])}
           >
-            {TTS_LANGUAGES.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TTS_LANGUAGES.map((l) => (
+                <SelectItem key={l} value={l}>
+                  {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </>
       ) : (
         <p className="mt-4 text-[11px] text-muted-foreground/50">

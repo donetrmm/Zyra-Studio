@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react';
 import { FolderKanban } from 'lucide-react';
 import { listCampaignsAction } from '@/server-actions/campaigns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export type SelectedCampaign = { id: string; name: string } | null;
+
+const NONE = '__none__';
 
 export function CampaignSelector({
   value,
@@ -31,19 +34,24 @@ export function CampaignSelector({
         <FolderKanban className="size-3" aria-hidden />
         Campaña
       </label>
-      <select
-        value={value?.id ?? ''}
-        onChange={(e) => {
-          const c = campaigns.find((x) => x.id === e.target.value) ?? null;
+      <Select
+        value={value?.id ?? NONE}
+        onValueChange={(v) => {
+          if (v === NONE) return onChange(null);
+          const c = campaigns.find((x) => x.id === v) ?? null;
           onChange(c ? { id: c.id, name: c.name } : null);
         }}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
-        <option value="">Sin campaña</option>
-        {campaigns.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>Sin campaña</SelectItem>
+          {campaigns.map((c) => (
+            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

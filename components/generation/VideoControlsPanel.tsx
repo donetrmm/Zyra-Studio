@@ -5,6 +5,15 @@ import { AlertTriangle, ImagePlus, Loader2, Volume2, VolumeOff, X } from 'lucide
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { cn } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
@@ -122,21 +131,24 @@ export function VideoControlsPanel(props: VideoControlsProps) {
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Modelo
       </label>
-      <select
-        value={props.model}
-        onChange={(e) => props.setModel(e.target.value as ModelKey)}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
-      >
-        <optgroup label="Kling 3.0 (rápido)">
-          <option value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</option>
-          <option value="fal-ai/kling-video/v3/pro/text-to-video">Kling 3.0 Pro</option>
-        </optgroup>
-        <optgroup label="Veo 3.1 (premium)">
-          <option value="veo-3.1-fast-generate-preview">Veo Fast</option>
-          <option value="veo-3.1-generate-preview">Veo Standard</option>
-          <option value="veo-3.1-lite-generate-preview">Veo Lite</option>
-        </optgroup>
-      </select>
+      <Select value={props.model} onValueChange={(v) => props.setModel(v as ModelKey)}>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectLabel>Kling 3.0 (rápido)</SelectLabel>
+            <SelectItem value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</SelectItem>
+            <SelectItem value="fal-ai/kling-video/v3/pro/text-to-video">Kling 3.0 Pro</SelectItem>
+          </SelectGroup>
+          <SelectGroup>
+            <SelectLabel>Veo 3.1 (premium)</SelectLabel>
+            <SelectItem value="veo-3.1-fast-generate-preview">Veo Fast</SelectItem>
+            <SelectItem value="veo-3.1-generate-preview">Veo Standard</SelectItem>
+            <SelectItem value="veo-3.1-lite-generate-preview">Veo Lite</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
 
       {/* ── Duración ── */}
       {isVeo ? (

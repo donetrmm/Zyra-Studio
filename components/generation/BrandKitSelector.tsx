@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Palette } from 'lucide-react';
 import { listBrandKitsAction } from '@/server-actions/brand-kits';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+
+const NONE = '__none__';
 
 type BrandKitOption = {
   id: string;
@@ -40,19 +43,24 @@ export function BrandKitSelector({
       <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Brand Kit
       </label>
-      <select
-        value={value?.id ?? ''}
-        onChange={(e) => {
-          const kit = kits.find((k) => k.id === e.target.value) ?? null;
+      <Select
+        value={value?.id ?? NONE}
+        onValueChange={(v) => {
+          if (v === NONE) return onChange(null);
+          const kit = kits.find((k) => k.id === v) ?? null;
           onChange(kit);
         }}
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
       >
-        <option value="">Sin brand kit</option>
-        {kits.map((k) => (
-          <option key={k.id} value={k.id}>{k.name}</option>
-        ))}
-      </select>
+        <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE}>Sin brand kit</SelectItem>
+          {kits.map((k) => (
+            <SelectItem key={k.id} value={k.id}>{k.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {value && value.colors.length > 0 && (
         <div className="mt-1.5 flex items-center gap-1.5">
           <Palette className="size-3 text-muted-foreground/50" aria-hidden />
