@@ -25,6 +25,7 @@ import { assignCampaignAction, listCampaignsAction } from '@/server-actions/camp
 import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
 
 const CAMPAIGN_NONE = '__none__';
 
@@ -1385,26 +1386,13 @@ function LibEmptyState({ tab }: { tab: Tab }) {
       sub: 'Crea tu primera imagen para verla aquí.',
     },
   };
-  const Ic = cfg[tab].icon;
-
   return (
-    <div className="grid h-full min-h-[360px] place-items-center p-6">
-      <div className="max-w-[360px] text-center">
-        <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[18px] border border-border bg-muted/30 text-muted-foreground">
-          <Ic className="size-5" aria-hidden />
-        </div>
-        <h3 className="font-heading text-[16px] font-medium text-foreground">
-          {cfg[tab].title}
-        </h3>
-        <p className="mt-1.5 text-[13px] text-muted-foreground">{cfg[tab].sub}</p>
-        <Link
-          href="/app/create/image"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15"
-        >
-          <Sparkles className="size-3.5" aria-hidden /> Crear imagen
-        </Link>
-      </div>
-    </div>
+    <PageEmptyState
+      icon={cfg[tab].icon}
+      title={cfg[tab].title}
+      sub={cfg[tab].sub}
+      cta={{ href: '/app/create/image', label: 'Crear imagen', icon: Sparkles }}
+    />
   );
 }
 

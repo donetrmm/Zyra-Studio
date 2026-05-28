@@ -21,6 +21,7 @@ import { deletePresetAction, usePresetAction } from '@/server-actions/presets';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import { WavePlayer } from '@/components/generation/WavePlayer';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
 import { cn } from '@/lib/utils';
 
 type PresetRow = {
@@ -131,9 +132,21 @@ export function PresetsPage({
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <EmptyState
-          message={query ? 'Sin resultados' : 'No hay presets'}
-          sub={query ? 'Intenta con otro término' : tab === 'community' ? 'Publica uno desde la biblioteca' : 'Guarda una generación como preset'}
+        <PageEmptyState
+          icon={Sparkles}
+          title={query ? 'Sin resultados' : 'No hay presets'}
+          sub={
+            query
+              ? 'Intenta con otro término o limpia la búsqueda.'
+              : tab === 'community'
+                ? 'Aún no hay presets públicos. Publica uno tuyo desde la biblioteca para empezar.'
+                : 'Guarda una generación como preset desde la biblioteca para reutilizarla aquí.'
+          }
+          cta={
+            tab === 'mine'
+              ? { href: '/app/library', label: 'Ir a la biblioteca', icon: Sparkles }
+              : undefined
+          }
         />
       ) : (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -209,12 +222,12 @@ function PresetCard({
             <Icon className="size-8 text-muted-foreground/30" aria-hidden />
           </div>
         )}
-        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-background/70 px-2 py-0.5 text-[10px] font-medium text-foreground backdrop-blur">
+        <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-[11px] font-medium text-foreground backdrop-blur">
           <Icon className="size-3" aria-hidden />
           {label}
         </div>
         {preset.is_public && (
-          <div className="absolute right-2 top-2 rounded-full bg-primary/80 px-1.5 py-0.5 text-[9px] font-medium text-primary-foreground backdrop-blur">
+          <div className="absolute right-2 top-2 rounded-full bg-primary/80 px-2 py-0.5 text-[11px] font-medium text-primary-foreground backdrop-blur">
             Público
           </div>
         )}
@@ -224,20 +237,22 @@ function PresetCard({
       <div className="px-4 py-3">
         <h3 className="truncate text-[13.5px] font-medium text-foreground">{preset.name}</h3>
         {prompt && (
-          <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground/60">{prompt}</p>
+          <p className="mt-1 line-clamp-2 text-[11.5px] text-muted-foreground/70">{prompt}</p>
         )}
-        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground/50">
-          {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
-        </div>
+        {preset.uses_count > 0 && (
+          <div className="mt-1.5 font-mono text-[11px] text-muted-foreground/70">
+            {preset.uses_count} usos
+          </div>
+        )}
       </div>
 
-      {/* Actions */}
+      {/* Actions: PrimaryGhost style consistente con el resto de la app. */}
       <div className="flex gap-2 border-t border-border/30 p-3">
         <button
           type="button"
           onClick={handleUse}
           disabled={using}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {using ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
           Usar preset
@@ -247,7 +262,8 @@ function PresetCard({
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Eliminar preset"
+            className="inline-flex size-10 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Trash2 className="size-3.5" aria-hidden />
           </button>
@@ -343,11 +359,17 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-[16px] font-semibold text-foreground">{preset.name}</h2>
-              <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/60">
-                <span className="inline-flex items-center gap-1"><Icon className="size-3" />{label}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-muted-foreground/70">
+                <span className="inline-flex items-center gap-1">
+                  <Icon className="size-3" />
+                  {label}
+                </span>
                 {modelName && <span>{modelName}</span>}
                 {aspectRatio && <span>{aspectRatio}</span>}
-                {preset.is_public ? <Globe className="size-3" /> : <Lock className="size-3" />}
+                <span className="inline-flex items-center gap-1">
+                  {preset.is_public ? <Globe className="size-3" /> : <Lock className="size-3" />}
+                  {preset.is_public ? 'Público' : 'Privado'}
+                </span>
                 {preset.uses_count > 0 && <span>{preset.uses_count} usos</span>}
               </div>
             </div>
@@ -361,9 +383,11 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
           )}
 
           {prompt && (
-            <div className="mt-3 rounded-lg bg-muted/30 px-3 py-2">
-              <p className="text-[11px] font-medium text-muted-foreground/50">Prompt</p>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-foreground">{prompt}</p>
+            <div className="mt-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+                Prompt
+              </p>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-foreground">{prompt}</p>
             </div>
           )}
 
@@ -395,14 +419,3 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   );
 }
 
-function EmptyState({ message, sub }: { message: string; sub: string }) {
-  return (
-    <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
-      <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-        <Sparkles className="size-7" aria-hidden />
-      </div>
-      <p className="text-[14px] text-foreground/70">{message}</p>
-      <p className="max-w-xs text-[12.5px]">{sub}</p>
-    </div>
-  );
-}
