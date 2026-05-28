@@ -228,6 +228,12 @@ export function WavePlayer({ src }: { src: string }) {
   // Keyboard
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Si el foco está en un campo editable, las teclas pertenecen al editor,
+      // no al player. Evita que escribir un espacio en el prompt pause el audio.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
       if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
       if (e.code === 'ArrowLeft') skip(-5);
       if (e.code === 'ArrowRight') skip(5);
