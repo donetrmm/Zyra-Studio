@@ -51,9 +51,20 @@ export function AudioPreview(props: AudioPreviewProps) {
   const voice = OFFICIAL_VOICES.find((v) => v.id === props.voiceId);
   const voiceName = voice?.name ?? 'voz';
 
+  // Cuando hay audio listo, retornamos el WavePlayer DIRECTO sin ningún shell
+  // alrededor. El AudioGenerator pasa este componente a `<div className="h-full">`
+  // (mobile tabs) o `<div className="min-h-0 overflow-hidden">` (desktop grid),
+  // que son los wrappers donde el WavePlayer sabe medirse correctamente — el
+  // mismo patrón que tenía en la rama de fase 3 donde sí se veía en mobile.
+  // Cualquier wrapper extra (toolbar, flex chain, bg-card) rompe la cadena
+  // de h-full y el SVG del wave queda en 0×0.
+  if (ready) {
+    return <WavePlayer src={props.resolvedOutputUrl!} />;
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <PreviewToolbar ready={ready} />
+      <PreviewToolbar ready={false} />
       <div className="relative min-h-0 flex-1">
         {!props.generation ? (
           <EmptyState />
@@ -71,16 +82,6 @@ export function AudioPreview(props: AudioPreviewProps) {
             onRetry={props.onRetry}
             canRetry={props.canRetry}
           />
-        ) : ready ? (
-          // Replicamos LITERAL el patrón de PresetsPage PreviewModal donde el
-          // wave SÍ se ve en mobile: WavePlayer dentro de un <div bg-card p-4>
-          // sin altura ni flex constraints. El SVG del WavePlayer cae a su
-          // tamaño default (300×150) en ese contexto, lo que genera un wave
-          // compact pero visible — mejor que invisible. La presentación
-          // "fullscreen" la perdemos a cambio de funcionalidad confiable.
-          <div className="bg-card p-4">
-            <WavePlayer src={props.resolvedOutputUrl!} />
-          </div>
         ) : (
           <PreparingState />
         )}
