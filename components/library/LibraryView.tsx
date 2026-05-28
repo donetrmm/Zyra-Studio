@@ -954,7 +954,11 @@ function DetailAside({
         </button>
       </header>
 
-      <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-6 pt-4">
+      {/* En mobile la MobileBottomNav (~52px) tapa la parte baja del aside
+          porque ambos comparten z-50 y la nav viene después en el DOM.
+          Reservamos espacio extra abajo para que el contenido scrollable no
+          quede oculto detrás de la nav. En desktop volvemos a pb-6. */}
+      <div className="scroll-thin flex-1 overflow-y-auto px-4 pb-[88px] pt-4 lg:pb-6">
         {generation.type === 'audio' ? (
           <div className="mb-3.5 overflow-hidden rounded-[14px] border border-border bg-gradient-to-b from-primary/[0.06] to-muted/40">
             {loading ? (
