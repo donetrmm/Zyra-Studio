@@ -14,6 +14,13 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { downloadGenerationImage } from '@/lib/media-references/download-client';
 import { Lightbox } from './Lightbox';
+import {
+  GhostBtn,
+  PreviewToolbar,
+  PrimaryGhost,
+  aspectToRatio,
+  relativeTime,
+} from './preview-shared';
 import type { SessionItem } from './types';
 
 const ROTATING_TIPS = [
@@ -79,29 +86,6 @@ export function PreviewArea({
       </div>
     </div>
   );
-}
-
-function PreviewToolbar({ ready }: { ready: boolean }) {
-  return (
-    <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-5">
-      <div className="flex items-center gap-2">
-        <div className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground/80">
-          Vista previa
-        </div>
-        {ready && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] text-emerald-400">
-            <span className="size-[5px] rounded-full bg-emerald-400" />
-            Lista
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function aspectToRatio(aspect: string): number {
-  const [w, h] = aspect.split(':').map(Number);
-  return h > 0 ? w / h : 1;
 }
 
 function EmptyState() {
@@ -433,72 +417,6 @@ function ResultState({
   );
 }
 
-function GhostBtn({
-  children,
-  href,
-  onClick,
-  disabled,
-  title,
-}: {
-  children: React.ReactNode;
-  href?: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  title?: string;
-}) {
-  const base =
-    'inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors';
-  const className = cn(
-    base,
-    disabled
-      ? 'cursor-not-allowed opacity-50'
-      : 'hover:border-muted-foreground/30',
-  );
-  if (href) {
-    return (
-      <a href={href} className={className} title={title}>
-        {children}
-      </a>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PrimaryGhost({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  const className = cn(
-    'inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors',
-    disabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-primary/15',
-  );
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      {children}
-    </button>
-  );
-}
-
 export function SafetyErrorState({ refunded }: { refunded: number }) {
   return (
     <div className="grid h-full place-items-center p-8">
@@ -521,11 +439,3 @@ export function SafetyErrorState({ refunded }: { refunded: number }) {
   );
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return `hace ${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `hace ${m}m`;
-  return `hace ${Math.floor(m / 60)}h`;
-}

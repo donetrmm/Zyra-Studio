@@ -7,6 +7,7 @@ import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
+import { estimateAudioEta } from '@/lib/generation/audio-meta';
 import type { SelectedCampaign } from './CampaignSelector';
 import { AudioControlsPanel, OFFICIAL_VOICES } from './AudioControlsPanel';
 import { AudioPreview } from './AudioPreview';
@@ -123,7 +124,21 @@ export function AudioGenerator(props: {
     />
   );
 
-  const preview = <AudioPreview generation={live} generationId={activeId} resolvedOutputUrl={resolvedOutputUrl} />;
+  const previewEtaSeconds = estimateAudioEta(text, modelId);
+
+  const preview = (
+    <AudioPreview
+      generation={live}
+      generationId={activeId}
+      resolvedOutputUrl={resolvedOutputUrl}
+      modelId={modelId}
+      voiceId={voiceId}
+      prompt={text}
+      etaSeconds={previewEtaSeconds}
+      onRetry={handleGenerate}
+      canRetry={canGenerate}
+    />
+  );
 
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
