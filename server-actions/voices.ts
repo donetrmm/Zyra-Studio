@@ -3,12 +3,18 @@
 import 'server-only';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { requireWorkspace } from '@/lib/auth/dal';
+import { requireUser, requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { cloneVoice, deleteVoice, tts } from '@/lib/providers/elevenlabs';
+import { cloneVoice, deleteVoice, getVoicePreview, tts } from '@/lib/providers/elevenlabs';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
+
+// Cache module-level del preview_url por voiceId. Sobrevive entre invocaciones
+// que reusan la instancia (Fluid Compute). Si la instancia se mata, otra
+// invocación refresca; cuesta una sola llamada a ElevenLabs.
+const previewCache = new Map<string, { url: string | null; expiresAt: number }>();
+const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
 
 const CloneSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -109,6 +115,28 @@ export async function deleteVoiceAction(
 
   revalidatePath('/app/voices');
   return { ok: true, data: { deleted: true } };
+}
+
+export async function getVoicePreviewAction(
+  voiceId: string,
+): Promise<Result<{ previewUrl: string | null }>> {
+  await requireUser();
+  if (!/^[A-Za-z0-9_-]+$/.test(voiceId) || voiceId.length > 64) {
+    return { ok: false, error: 'validation_error', message: 'voiceId inválido' };
+  }
+
+  const cached = previewCache.get(voiceId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { ok: true, data: { previewUrl: cached.url } };
+  }
+
+  try {
+    const { previewUrl } = await getVoicePreview(voiceId);
+    previewCache.set(voiceId, { url: previewUrl, expiresAt: Date.now() + PREVIEW_TTL_MS });
+    return { ok: true, data: { previewUrl } };
+  } catch (err) {
+    return { ok: false, error: 'provider_error', message: (err as Error).message };
+  }
 }
 
 export async function tryVoiceAction(params: {
