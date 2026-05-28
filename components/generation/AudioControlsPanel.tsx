@@ -5,18 +5,12 @@ import { Loader2, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { OFFICIAL_VOICES } from '@/lib/elevenlabs/official-voices';
 import { getVoicePreviewAction } from '@/server-actions/voices';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
-export const OFFICIAL_VOICES = [
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', lang: 'en' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella', lang: 'en' },
-  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', lang: 'en' },
-  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', lang: 'multi' },
-  { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', lang: 'multi' },
-  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', lang: 'multi' },
-] as const;
+export { OFFICIAL_VOICES };
 
 export type AudioControlsProps = {
   text: string;
