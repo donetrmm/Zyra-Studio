@@ -323,18 +323,22 @@ function ResultState({
 }) {
   return (
     <div className="flex h-full flex-col overflow-hidden p-3 sm:p-5">
-      {/* WavePlayer en card con misma presencia que video/imagen */}
-      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
-        <div className="absolute inset-0">
-          <WavePlayer src={url} />
-        </div>
+      {/* WavePlayer en card con misma presencia que video/imagen.
+          - flex flex-col + min-h-[260px]: garantiza que en mobile el card no
+            se comprima tanto que el SVG del wave quede en 0×0 (el animation
+            loop usa getBoundingClientRect y omite el frame si W o H son 0).
+          - WavePlayer es flex child directo (sin wrapper absolute) para que
+            su `flex h-full flex-col` interno reciba altura correctamente. */}
+      <div className="relative flex min-h-[260px] flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-card shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6)]">
+        <WavePlayer src={url} />
         <div className="pointer-events-none absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/70 px-2.5 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur">
           {modelLabel} · {voiceName}
         </div>
       </div>
 
-      {/* Metadata + biblioteca. Descargar vive dentro del WavePlayer. */}
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Metadata + biblioteca. Descargar vive dentro del WavePlayer.
+          shrink-0 evita que esta fila le robe altura al card en mobile. */}
+      <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="truncate text-[12.5px] text-foreground">{promptText}</div>
           <div className="mt-1 flex flex-wrap gap-3.5 font-mono text-[11px] text-muted-foreground/80">
