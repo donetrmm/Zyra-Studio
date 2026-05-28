@@ -158,11 +158,11 @@ export function AudioGenerator(props: {
             <TabsTrigger value="controls">Controles</TabsTrigger>
             <TabsTrigger value="preview">Vista previa</TabsTrigger>
           </TabsList>
-          <TabsContent value="controls" className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {controls}
+          <TabsContent value="controls" className="mt-3 flex-1 overflow-hidden">
+            <div className="h-full">{controls}</div>
           </TabsContent>
-          <TabsContent value="preview" className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-            {preview}
+          <TabsContent value="preview" className="mt-3 flex-1 overflow-hidden">
+            <div className="h-full">{preview}</div>
           </TabsContent>
         </Tabs>
       </div>
