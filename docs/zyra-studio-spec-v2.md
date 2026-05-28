@@ -323,6 +323,12 @@ create table credit_purchases (
   notes text,
   created_at timestamptz default now(),
   constraint pack_catalog_match check (
+    -- catálogo actual
+    (pack_id = 'starter' and credits =    500 and price_mxn =   49) or
+    (pack_id = 'creator' and credits =   2000 and price_mxn =  179) or
+    (pack_id = 'pro'     and credits =   5000 and price_mxn =  399) or
+    (pack_id = 'studio'  and credits =  15000 and price_mxn =  999) or
+    -- catálogo legacy (preserva filas históricas; ver 018_pack_catalog_rebalance.sql)
     (pack_id = 'starter' and credits =   2000 and price_mxn =   99) or
     (pack_id = 'creator' and credits =  10000 and price_mxn =  399) or
     (pack_id = 'pro'     and credits =  50000 and price_mxn = 1499) or
