@@ -5,7 +5,7 @@ import { Info, Loader2, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { OFFICIAL_VOICES } from '@/lib/elevenlabs/official-voices';
 import { getVoicePreviewAction } from '@/server-actions/voices';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
@@ -134,28 +134,26 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         </span>
       </div>
 
-      <TooltipProvider delayDuration={150}>
+      <SliderRow
+        label="Stability"
+        value={props.stability}
+        onChange={props.setStability}
+        hint="Consistencia tonal. Más bajo = la voz suena más expresiva y con más variación entre frases. Más alto = más estable y predecible, pero puede sonar monótona."
+      />
+      <SliderRow
+        label="Similarity Boost"
+        value={props.similarityBoost}
+        onChange={props.setSimilarityBoost}
+        hint="Qué tanto se apega al timbre de la voz original. Más alto = más fiel; valores muy altos pueden reforzar artefactos si la voz base tenía ruido."
+      />
+      {props.modelId === 'eleven_v3' && (
         <SliderRow
-          label="Stability"
-          value={props.stability}
-          onChange={props.setStability}
-          hint="Consistencia tonal. Más bajo = la voz suena más expresiva y con más variación entre frases. Más alto = más estable y predecible, pero puede sonar monótona."
+          label="Style"
+          value={props.style}
+          onChange={props.setStyle}
+          hint="Intensidad emocional añadida sobre la voz. Más alto = más dramático y expresivo, a costa de algo de consistencia. Solo aplica al modelo Eleven v3."
         />
-        <SliderRow
-          label="Similarity Boost"
-          value={props.similarityBoost}
-          onChange={props.setSimilarityBoost}
-          hint="Qué tanto se apega al timbre de la voz original. Más alto = más fiel; valores muy altos pueden reforzar artefactos si la voz base tenía ruido."
-        />
-        {props.modelId === 'eleven_v3' && (
-          <SliderRow
-            label="Style"
-            value={props.style}
-            onChange={props.setStyle}
-            hint="Intensidad emocional añadida sobre la voz. Más alto = más dramático y expresivo, a costa de algo de consistencia. Solo aplica al modelo Eleven v3."
-          />
-        )}
-      </TooltipProvider>
+      )}
 
       <div className="mt-6 flex items-center justify-between text-[12.5px]">
         <span className="text-muted-foreground">Costo</span>
@@ -272,8 +270,8 @@ function SliderRow({
         <span className="flex items-center gap-1 text-muted-foreground">
           {label}
           {hint && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Popover>
+              <PopoverTrigger asChild>
                 <button
                   type="button"
                   aria-label={`Información sobre ${label}`}
@@ -281,11 +279,11 @@ function SliderRow({
                 >
                   <Info className="size-3" aria-hidden />
                 </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[260px] text-[11px] leading-relaxed">
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-[260px] p-2.5 text-[11px] leading-relaxed">
                 {hint}
-              </TooltipContent>
-            </Tooltip>
+              </PopoverContent>
+            </Popover>
           )}
         </span>
         <span className="font-mono text-muted-foreground">{value.toFixed(2)}</span>
