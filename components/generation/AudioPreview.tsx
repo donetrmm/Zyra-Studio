@@ -72,7 +72,14 @@ export function AudioPreview(props: AudioPreviewProps) {
             canRetry={props.canRetry}
           />
         ) : ready ? (
-          <WavePlayer src={props.resolvedOutputUrl!} />
+          // Wrapper con altura propia (no depende de la cadena h-full/flex-1
+          // del padre, que en mobile a veces no resuelve y deja el SVG en 0×0).
+          // En desktop h-full toma toda la columna; en mobile el min-h asegura
+          // al menos 360px para que el wave stage (flex-1 interno) tenga
+          // dimensiones que getBoundingClientRect() pueda medir.
+          <div className="h-full min-h-[360px]">
+            <WavePlayer src={props.resolvedOutputUrl!} />
+          </div>
         ) : (
           <PreparingState />
         )}
