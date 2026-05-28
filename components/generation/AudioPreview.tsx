@@ -72,14 +72,13 @@ export function AudioPreview(props: AudioPreviewProps) {
             canRetry={props.canRetry}
           />
         ) : ready ? (
-          // Wrapper con altura EXPLÍCITA (no solo min-h). Razón: el WavePlayer
-          // interno usa `flex h-full flex-col` y su SVG `h-full w-full` mide
-          // con getBoundingClientRect(). `height: 100%` en CSS sólo resuelve
-          // cuando el parent tiene `height` explícito; `min-height` no cuenta.
-          // En desktop la cadena de h-full del shell funciona (lg:h-full toma
-          // toda la columna del grid). En mobile la cadena puede romperse, así
-          // que damos altura explícita en dvh con piso de 340px.
-          <div className="h-[55dvh] min-h-[340px] lg:h-full lg:min-h-0">
+          // Replicamos LITERAL el patrón de PresetsPage PreviewModal donde el
+          // wave SÍ se ve en mobile: WavePlayer dentro de un <div bg-card p-4>
+          // sin altura ni flex constraints. El SVG del WavePlayer cae a su
+          // tamaño default (300×150) en ese contexto, lo que genera un wave
+          // compact pero visible — mejor que invisible. La presentación
+          // "fullscreen" la perdemos a cambio de funcionalidad confiable.
+          <div className="bg-card p-4">
             <WavePlayer src={props.resolvedOutputUrl!} />
           </div>
         ) : (
