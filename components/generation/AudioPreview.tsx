@@ -72,12 +72,14 @@ export function AudioPreview(props: AudioPreviewProps) {
             canRetry={props.canRetry}
           />
         ) : ready ? (
-          // Wrapper con altura propia (no depende de la cadena h-full/flex-1
-          // del padre, que en mobile a veces no resuelve y deja el SVG en 0×0).
-          // En desktop h-full toma toda la columna; en mobile el min-h asegura
-          // al menos 360px para que el wave stage (flex-1 interno) tenga
-          // dimensiones que getBoundingClientRect() pueda medir.
-          <div className="h-full min-h-[360px]">
+          // Wrapper con altura EXPLÍCITA (no solo min-h). Razón: el WavePlayer
+          // interno usa `flex h-full flex-col` y su SVG `h-full w-full` mide
+          // con getBoundingClientRect(). `height: 100%` en CSS sólo resuelve
+          // cuando el parent tiene `height` explícito; `min-height` no cuenta.
+          // En desktop la cadena de h-full del shell funciona (lg:h-full toma
+          // toda la columna del grid). En mobile la cadena puede romperse, así
+          // que damos altura explícita en dvh con piso de 340px.
+          <div className="h-[55dvh] min-h-[340px] lg:h-full lg:min-h-0">
             <WavePlayer src={props.resolvedOutputUrl!} />
           </div>
         ) : (
