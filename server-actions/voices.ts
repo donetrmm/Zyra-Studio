@@ -6,9 +6,16 @@ import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { cloneVoice, deleteVoice, tts } from '@/lib/providers/elevenlabs';
+import { cloneVoice, deleteVoice, getVoicePreview, tts } from '@/lib/providers/elevenlabs';
+import { OFFICIAL_VOICE_IDS } from '@/lib/elevenlabs/official-voices';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
+
+// Cache module-level del preview_url por voiceId. Sobrevive entre invocaciones
+// que reusan la instancia (Fluid Compute). Si la instancia se mata, otra
+// invocación refresca; cuesta una sola llamada a ElevenLabs.
+const previewCache = new Map<string, { url: string | null; expiresAt: number }>();
+const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
 
 const CloneSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -109,6 +116,47 @@ export async function deleteVoiceAction(
 
   revalidatePath('/app/voices');
   return { ok: true, data: { deleted: true } };
+}
+
+export async function getVoicePreviewAction(
+  voiceId: string,
+): Promise<Result<{ previewUrl: string | null }>> {
+  const { user } = await requireWorkspace();
+  if (!/^[A-Za-z0-9_-]+$/.test(voiceId) || voiceId.length > 64) {
+    return { ok: false, error: 'validation_error', message: 'voiceId inválido' };
+  }
+
+  // El voiceId debe pertenecer al catálogo oficial o ser una voz clonada del
+  // user. Evita que se use esta acción como proxy genérico contra ElevenLabs
+  // o para enumerar previews de clones ajenos.
+  const isOfficial = OFFICIAL_VOICE_IDS.has(voiceId);
+  if (!isOfficial) {
+    const supabase = await createClient();
+    const { data: owned } = await supabase
+      .from('voice_clones')
+      .select('id')
+      .eq('elevenlabs_voice_id', voiceId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!owned) {
+      return { ok: false, error: 'not_found', message: 'Voz no encontrada' };
+    }
+  }
+
+  // Las URLs de preview son las mismas para todos (CDN pública de ElevenLabs),
+  // así que el cache se puede compartir entre usuarios sin riesgo de leak.
+  const cached = previewCache.get(voiceId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { ok: true, data: { previewUrl: cached.url } };
+  }
+
+  try {
+    const { previewUrl } = await getVoicePreview(voiceId);
+    previewCache.set(voiceId, { url: previewUrl, expiresAt: Date.now() + PREVIEW_TTL_MS });
+    return { ok: true, data: { previewUrl } };
+  } catch (err) {
+    return { ok: false, error: 'provider_error', message: (err as Error).message };
+  }
 }
 
 export async function tryVoiceAction(params: {

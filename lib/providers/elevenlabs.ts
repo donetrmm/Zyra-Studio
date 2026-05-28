@@ -169,6 +169,25 @@ export async function cloneVoice(params: {
   return { voiceId: data.voice_id };
 }
 
+// Obtiene metadata de una voz (incluye preview_url). preview_url es un MP3
+// corto servido desde la CDN pública de ElevenLabs, apto para reproducir
+// directo desde el navegador.
+export async function getVoicePreview(voiceId: string): Promise<{
+  previewUrl: string | null;
+  name: string | null;
+}> {
+  const apiKey = getApiKey();
+  const res = await fetch(`${BASE_URL}/v1/voices/${voiceId}`, {
+    headers: { 'xi-api-key': apiKey },
+  });
+  if (res.status === 404) return { previewUrl: null, name: null };
+  if (!res.ok) {
+    throw new ProviderError(`ElevenLabs get voice ${res.status}`, 'unknown', false);
+  }
+  const data = (await res.json()) as { name?: string; preview_url?: string };
+  return { previewUrl: data.preview_url ?? null, name: data.name ?? null };
+}
+
 export async function deleteVoice(voiceId: string): Promise<void> {
   const apiKey = getApiKey();
   const res = await fetch(`${BASE_URL}/v1/voices/${voiceId}`, {

@@ -1,20 +1,17 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Info, Loader2, Play, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TTS_LANGUAGES, TTS_MODELS } from '@/lib/schemas/audio';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { OFFICIAL_VOICES } from '@/lib/elevenlabs/official-voices';
+import { getVoicePreviewAction } from '@/server-actions/voices';
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 
-export const OFFICIAL_VOICES = [
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', lang: 'en' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella', lang: 'en' },
-  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', lang: 'en' },
-  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', lang: 'multi' },
-  { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', lang: 'multi' },
-  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', lang: 'multi' },
-] as const;
+export { OFFICIAL_VOICES };
 
 export type AudioControlsProps = {
   text: string;
@@ -67,6 +64,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
           ))}
         </SelectContent>
       </Select>
+      <VoicePreviewButton voiceId={props.voiceId} />
 
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Modelo
@@ -136,10 +134,25 @@ export function AudioControlsPanel(props: AudioControlsProps) {
         </span>
       </div>
 
-      <SliderRow label="Stability" value={props.stability} onChange={props.setStability} />
-      <SliderRow label="Similarity Boost" value={props.similarityBoost} onChange={props.setSimilarityBoost} />
+      <SliderRow
+        label="Stability"
+        value={props.stability}
+        onChange={props.setStability}
+        hint="Consistencia tonal. Más bajo = la voz suena más expresiva y con más variación entre frases. Más alto = más estable y predecible, pero puede sonar monótona."
+      />
+      <SliderRow
+        label="Similarity Boost"
+        value={props.similarityBoost}
+        onChange={props.setSimilarityBoost}
+        hint="Qué tanto se apega al timbre de la voz original. Más alto = más fiel; valores muy altos pueden reforzar artefactos si la voz base tenía ruido."
+      />
       {props.modelId === 'eleven_v3' && (
-        <SliderRow label="Style" value={props.style} onChange={props.setStyle} />
+        <SliderRow
+          label="Style"
+          value={props.style}
+          onChange={props.setStyle}
+          hint="Intensidad emocional añadida sobre la voz. Más alto = más dramático y expresivo, a costa de algo de consistencia. Solo aplica al modelo Eleven v3."
+        />
       )}
 
       <div className="mt-6 flex items-center justify-between text-[12.5px]">
@@ -169,19 +182,110 @@ export function AudioControlsPanel(props: AudioControlsProps) {
   );
 }
 
+// Cache de preview URLs en cliente — sobrevive al unmount del componente
+// mientras la pestaña esté abierta. Las URLs son CDN pública de ElevenLabs.
+const previewUrlCache = new Map<string, string | null>();
+
+function VoicePreviewButton({ voiceId }: { voiceId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Al cambiar de voz, parar el audio actual y volver a idle.
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setState('idle');
+  }, [voiceId]);
+
+  async function handleClick() {
+    if (state === 'loading') return;
+    if (state === 'playing') {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setState('idle');
+      return;
+    }
+
+    let url = previewUrlCache.get(voiceId);
+    if (url === undefined) {
+      setState('loading');
+      const res = await getVoicePreviewAction(voiceId);
+      url = res.ok ? res.data.previewUrl : null;
+      previewUrlCache.set(voiceId, url);
+    }
+    if (!url) {
+      setState('idle');
+      return;
+    }
+
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    const reset = () => {
+      audioRef.current = null;
+      setState('idle');
+    };
+    audio.onended = reset;
+    audio.onerror = reset;
+    setState('playing');
+    audio.play().catch(reset);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={state === 'loading'}
+      className={cn(
+        'mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-muted-foreground/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60',
+      )}
+    >
+      {state === 'loading' ? (
+        <Loader2 className="size-3 animate-spin" aria-hidden />
+      ) : state === 'playing' ? (
+        <Square className="size-3" aria-hidden />
+      ) : (
+        <Play className="size-3" aria-hidden />
+      )}
+      {state === 'playing' ? 'Detener' : 'Escuchar muestra'}
+    </button>
+  );
+}
+
 function SliderRow({
   label,
   value,
   onChange,
+  hint,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
+  hint?: string;
 }) {
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between text-[11px]">
-        <span className="text-muted-foreground">{label}</span>
+        <span className="flex items-center gap-1 text-muted-foreground">
+          {label}
+          {hint && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Información sobre ${label}`}
+                  className="grid size-4 place-items-center rounded-full text-muted-foreground/50 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+                >
+                  <Info className="size-3" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-[260px] p-2.5 text-[11px] leading-relaxed">
+                {hint}
+              </PopoverContent>
+            </Popover>
+          )}
+        </span>
         <span className="font-mono text-muted-foreground">{value.toFixed(2)}</span>
       </div>
       <input
