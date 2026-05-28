@@ -121,6 +121,32 @@ export function VideoControlsPanel(props: VideoControlsProps) {
     props.setReferenceImages(props.referenceImages.filter((_, i) => i !== index));
   }
 
+  function handleModelChange(next: ModelKey) {
+    props.setModel(next);
+
+    const isVeoNext = next.startsWith('veo-');
+    const isVeoStandardNext = next === 'veo-3.1-generate-preview';
+    const supportsImagesNext = !isVeoNext || isVeoStandardNext;
+    const maxImagesNext = isVeoNext ? 1 : 2;
+
+    // Veo no soporta 1:1.
+    if (isVeoNext && props.aspectRatio === '1:1') {
+      props.setAspectRatio('16:9');
+    }
+
+    // Veo Fast/Lite no aceptan referencias. Veo Standard solo una.
+    if (!supportsImagesNext && props.referenceImages.length > 0) {
+      props.referenceImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      props.setReferenceImages([]);
+      setUseRefImages(false);
+    } else if (props.referenceImages.length > maxImagesNext) {
+      const kept = props.referenceImages.slice(0, maxImagesNext);
+      const dropped = props.referenceImages.slice(maxImagesNext);
+      dropped.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      props.setReferenceImages(kept);
+    }
+  }
+
   return (
     <div className="scroll-thin flex h-full flex-col overflow-y-auto border-r border-border bg-card/30 px-4 py-[18px]">
       <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
@@ -131,7 +157,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
       <label className="mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Modelo
       </label>
-      <Select value={props.model} onValueChange={(v) => props.setModel(v as ModelKey)}>
+      <Select value={props.model} onValueChange={(v) => handleModelChange(v as ModelKey)}>
         <SelectTrigger className="mt-1.5 h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
           <SelectValue />
         </SelectTrigger>
