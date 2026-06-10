@@ -204,7 +204,7 @@ Seedance 2.0 en fal.ai (consultado junio 2026, por segundo generado, audio inclu
 | Standard | 720p | $0.3034 | ≈ $3.03 |
 | Standard | 1080p | $0.682 | ≈ $6.82 |
 | Fast | 720p | $0.2419 | ≈ $2.42 |
-| Fast | 480p | disponible, más barato (sin precio publicado en la página) | — |
+| Fast | 480p | ~$0.114 (medido en smoke test) | ≈ $1.14 |
 
 - **Modo draft**: Fast 480p para explorar; **render final**: Standard 720p (1080p solo para
   hero pieces). El selector de modelo (V1 §7) decide según etapa del pipeline.

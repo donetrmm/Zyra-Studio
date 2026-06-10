@@ -52,7 +52,7 @@ llegan al cliente). El `seed` real vuelve en metadata de la generación.
 | Standard 720p | $0.3034 | ≈ $3.03 |
 | Standard 1080p | $0.682 | ≈ $6.82 |
 | Fast 720p | $0.2419 | ≈ $2.42 |
-| Fast 480p | no publicado (menor que fast 720p) | confirmar en smoke test |
+| Fast 480p | ~$0.114 (medido en smoke test, 2026-06-10: $0.91 por 2 clips de 4 s) | ≈ $1.14 |
 
 Créditos en `model_pricing` (024): 45/80/100/220 cr/s según tier — ver comentario de la
 migración para el cálculo del margen.
