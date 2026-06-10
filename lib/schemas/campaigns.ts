@@ -58,21 +58,35 @@ export const SubmitSeedanceSchema = z
   });
 
 // ============ Campañas ============
+// El workspace NUNCA viene del cliente: la server action lo lee de la sesión
+// (requireWorkspace). Lo mismo aplica a user_id.
 
-export const CreateCampaignSchema = z.object({
-  workspaceId: z.string().uuid(),
+export const CreateCampaignStudioSchema = z.object({
   name: z.string().trim().min(1).max(120),
   goal: z.enum(['awareness', 'conversion', 'mixed']).default('mixed'),
   market: z.string().trim().max(80).optional(),
+  brandKitId: z.string().uuid(),
   dateStart: z.coerce.date().optional(),
   dateEnd: z.coerce.date().optional(),
-  // referencia de producto: path de imagen subida o URL pública de la tienda
-  productReferencePath: z.string().optional(),
-  productUrl: z.string().url().optional(),
+});
+
+export const GeneratePlanSchema = z.object({
+  campaignId: z.string().uuid(),
+  // Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
+  totalItems: z.number().int().min(2).max(30),
+});
+
+export const ApproveBatchSchema = z.object({
+  campaignId: z.string().uuid(),
+  formatId: z.string().uuid(),
+  mode: z.enum(['sample', 'full']),
+});
+
+export const RequestFinalSchema = z.object({
+  itemId: z.string().uuid(),
 });
 
 export const CampaignItemSchema = z.object({
-  campaignId: z.string().uuid(),
   formatId: z.string().uuid().optional(),
   templateId: z.string().uuid().optional(),
   modelSlug: z.enum(SEEDANCE_MODELS),
@@ -94,7 +108,6 @@ export const UpdateCampaignItemSchema = CampaignItemSchema.partial().extend({
 // ============ Plantillas vivas ============
 
 export const CreateTemplateSchema = z.object({
-  workspaceId: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
   sourceGenerationId: z.string().uuid(),
   formatId: z.string().uuid().optional(),
@@ -105,7 +118,6 @@ export const CreateTemplateSchema = z.object({
 // ============ Formatos custom ============
 
 export const CreateFormatSchema = z.object({
-  workspaceId: z.string().uuid(),
   slug: z
     .string()
     .trim()
@@ -123,7 +135,7 @@ export const CreateFormatSchema = z.object({
 });
 
 export type SubmitSeedanceInput = z.infer<typeof SubmitSeedanceSchema>;
-export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>;
+export type CreateCampaignStudioInput = z.infer<typeof CreateCampaignStudioSchema>;
 export type CampaignItemInput = z.infer<typeof CampaignItemSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
 export type CreateFormatInput = z.infer<typeof CreateFormatSchema>;

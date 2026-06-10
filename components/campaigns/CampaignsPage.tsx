@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { FolderKanban, Loader2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCampaignAction, updateCampaignAction, deleteCampaignAction } from '@/server-actions/campaigns';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -34,14 +34,23 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
             Organiza tus generaciones por campaña o proyecto. Agrupa contenido por contexto para mantener orden.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditing('new')}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <Plus className="size-4" aria-hidden />
-          Nueva campaña
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setEditing('new')}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3.5 py-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Plus className="size-4" aria-hidden />
+            Carpeta
+          </button>
+          <Link
+            href="/app/campaigns/new"
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Sparkles className="size-4" aria-hidden />
+            Nueva campaña
+          </Link>
+        </div>
       </div>
 
       {editing && (
