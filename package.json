@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:seedance": "node --env-file=.env.local scripts/smoke-seedance.mjs"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",
