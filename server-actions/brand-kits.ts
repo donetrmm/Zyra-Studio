@@ -91,6 +91,53 @@ export async function updateBrandKitAction(
   return { ok: true, data: { updated: true } };
 }
 
+const SetImagesSchema = z.object({
+  productImageIds: z.array(z.string().uuid()).max(4),
+  packagingImageIds: z.array(z.string().uuid()).max(2),
+});
+
+// Imágenes de producto/empaque del kit (V2 §4.4): los ids apuntan a
+// media_references del workspace — se valida ownership de cada uno.
+export async function setBrandKitImagesAction(
+  id: string,
+  input: unknown,
+): Promise<Result<{ updated: true }>> {
+  const parsed = SetImagesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: parsed.error.message };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const allIds = [...parsed.data.productImageIds, ...parsed.data.packagingImageIds];
+  if (allIds.length > 0) {
+    const { data: refs } = await supabase
+      .from('media_references')
+      .select('id, workspace_id, type')
+      .in('id', allIds);
+    const valid = new Set(
+      (refs ?? [])
+        .filter((r) => r.workspace_id === workspace.id && r.type === 'image')
+        .map((r) => r.id as string),
+    );
+    if (allIds.some((rid) => !valid.has(rid))) {
+      return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
+    }
+  }
+
+  const { error } = await supabase
+    .from('brand_kits')
+    .update({
+      product_image_ids: parsed.data.productImageIds,
+      packaging_image_ids: parsed.data.packagingImageIds,
+    })
+    .eq('id', id)
+    .eq('workspace_id', workspace.id);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath('/app/brand-kits');
+  return { ok: true, data: { updated: true } };
+}
+
 export async function deleteBrandKitAction(
   id: string,
 ): Promise<Result<{ deleted: true }>> {

@@ -180,7 +180,10 @@ export function CampaignStudioWizard({
           {!hasCharacters && (
             <p className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-[12px] text-muted-foreground">
               Sin personajes en el Cast, el plan omite los formatos con presentador (Voz Cercana, A Pie de
-              Calle). Puedes crear personajes en Brand Kits → Cast.
+              Calle).{' '}
+              <Link href="/app/cast" className="text-primary hover:underline">
+                Crear personaje en Cast
+              </Link>
             </p>
           )}
 
