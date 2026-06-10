@@ -4,9 +4,10 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction } from '@/server-actions/brand-kits';
+import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
+import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -17,10 +18,12 @@ type BrandKit = {
   logo_url: string | null;
   tone_description: string | null;
   style_guidelines: string | null;
+  product_image_ids: string[];
+  packaging_image_ids: string[];
   created_at: string;
 };
 
-export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
+export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; previews: Record<string, string> }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
@@ -49,6 +52,7 @@ export function BrandKitsPage({ kits: initial }: { kits: BrandKit[] }) {
       {editing && (
         <BrandKitEditor
           kit={editing === 'new' ? null : editing}
+          previews={previews}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />
@@ -115,6 +119,9 @@ function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => 
       {kit.tone_description && (
         <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
       )}
+      <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+        {kit.product_image_ids.length} img producto · {kit.packaging_image_ids.length} empaque
+      </p>
       </div>
       <div className="flex gap-2 border-t border-border/30 p-3">
         <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
@@ -128,12 +135,18 @@ function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => 
   );
 }
 
-function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClose: () => void; onSaved: () => void }) {
+function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(kit?.name ?? '');
   const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#7c3aed' }]);
   const [fonts, setFonts] = useState(kit?.fonts?.join(', ') ?? '');
   const [tone, setTone] = useState(kit?.tone_description ?? '');
   const [guidelines, setGuidelines] = useState(kit?.style_guidelines ?? '');
+  const [productImages, setProductImages] = useState<RefImage[]>(
+    (kit?.product_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
+  );
+  const [packagingImages, setPackagingImages] = useState<RefImage[]>(
+    (kit?.packaging_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
+  );
   const [saving, startSave] = useTransition();
 
   function handleSave() {
@@ -149,6 +162,12 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
         ? await updateBrandKitAction(kit.id, payload)
         : await createBrandKitAction(payload);
       if (!res.ok) { toast.error(res.message || 'Error'); return; }
+      const kitId = kit ? kit.id : (res as { ok: true; data: { id: string } }).data.id;
+      const imgRes = await setBrandKitImagesAction(kitId, {
+        productImageIds: productImages.map((i) => i.id),
+        packagingImageIds: packagingImages.map((i) => i.id),
+      });
+      if (!imgRes.ok) { toast.error(imgRes.message || 'No se pudieron guardar las imágenes'); return; }
       toast.success(kit ? 'Kit actualizado' : 'Kit creado');
       onClose();
       onSaved();
@@ -162,6 +181,22 @@ function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClo
       </div>
       <div className="space-y-3 p-5">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+
+        <ReferenceImagesUploader
+          label="Imágenes de producto"
+          hint="2-4 ángulos (frontal, perfil, detalle, logo) con fondo simple. Son la base de la fidelidad en campañas."
+          images={productImages}
+          onChange={setProductImages}
+          max={4}
+        />
+
+        <ReferenceImagesUploader
+          label="Empaque"
+          hint="Para el formato de unboxing (El Descubrimiento). Opcional."
+          images={packagingImages}
+          onChange={setPackagingImages}
+          max={2}
+        />
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paleta de colores</label>
