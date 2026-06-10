@@ -30,7 +30,7 @@ export type GenerationRow = {
   user_id: string;
   workspace_id: string;
   type: 'video' | 'image' | 'audio';
-  provider: 'veo' | 'kling' | 'elevenlabs' | 'nano-banana' | 'flux';
+  provider: 'veo' | 'kling' | 'elevenlabs' | 'nano-banana' | 'flux' | 'seedance';
   model_id: string;
   prompt: string | null;
   params: Record<string, unknown>;
