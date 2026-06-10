@@ -1,0 +1,94 @@
+// Contrato del Prompt Director (specs/v2/02-prompt-director.md, tarea 1).
+// El director es ENSAMBLAJE DETERMINISTA: convierte brief + formato + Brand Kit
+// + referencias en dirección de producción por modelo. No llama a ninguna API
+// (el pulido LLM opcional vive aparte en lib/providers/prompt-enhancer.ts).
+
+export type ReferenceRole =
+  | 'product'        // fidelidad absoluta del producto
+  | 'packaging'      // empaque (El Descubrimiento)
+  | 'character'      // hoja maestra / ángulos del Cast
+  | 'environment'    // entorno o escena de referencia
+  | 'style'          // dirección estética
+  | 'camera_motion'  // video: replicar cámara/ritmo (plantillas vivas)
+  | 'audio_rhythm'   // audio: mood y beats
+  | 'start_frame';   // image2video: fotograma inicial
+
+export type ReferenceKind = 'image' | 'video' | 'audio';
+
+export type CompiledReference = {
+  // Path en el bucket references/brand-assets; el handler lo firma al encolar.
+  storagePath: string;
+  kind: ReferenceKind;
+  role: ReferenceRole;
+  // Qué parte usar y qué excluir ("solo rostro y peinado, no la ropa").
+  scope?: string;
+};
+
+// Dirección de un formato Zyra (fila de la tabla `formats`, no hardcodear).
+export type FormatDirection = {
+  slug: string;
+  name: string;
+  register: string;
+  cameraStyle: string;
+  pacing: string;
+  requiredRefs: Array<'product' | 'character' | 'packaging'>;
+  defaultDurationS: number;
+  defaultAudio: boolean;
+};
+
+export type ProductInventory = {
+  name: string;
+  // Solo lo que el Brand Kit / brief declara. NUNCA inventar atributos.
+  category?: string;
+  visualDetails?: string;   // "frosted glass bottle, gold pump, navy label"
+  palette?: string[];
+  variants?: string[];
+  imagePaths: string[];        // multi-ángulo del Brand Kit
+  packagingImagePaths?: string[];
+};
+
+export type CharacterInventory = {
+  name: string;
+  // Apariencia, vestuario y manera de actuar. Sin marcadores de edad
+  // (inventory.ts los detecta y limpia).
+  description: string;
+  masterImagePath: string;
+  angleImagePaths?: string[];
+};
+
+export type DirectorContext = {
+  format?: FormatDirection;
+  product?: ProductInventory;
+  character?: CharacterInventory;
+  // Escena elegida (de scene_library o libre). fragment va al prompt.
+  scene?: { name?: string; fragment: string };
+  // Plantilla viva: video ganador como referencia de estructura/cámara/ritmo.
+  templateVideoPath?: string;
+  audioRefPath?: string;
+};
+
+export type CompileRequest = {
+  modelSlug: string;
+  // La acción de la escena (del plan de campaña). El director la enmarca,
+  // no la reescribe.
+  scenePrompt: string;
+  durationS?: number;
+  aspectRatio?: string;
+  resolution?: string;
+  generateAudio?: boolean;
+  seed?: number;
+};
+
+export type CompiledPrompt = {
+  modelSlug: string;
+  prompt: string;
+  // Params listos para el job (el orquestador los mapea al handler).
+  params: Record<string, unknown>;
+  // Ordenadas: el orden define la numeración @Image1.. en Seedance.
+  references: CompiledReference[];
+  warnings: string[];
+};
+
+export type CompileResult =
+  | { ok: true; compiled: CompiledPrompt }
+  | { ok: false; errors: string[]; warnings: string[] };
