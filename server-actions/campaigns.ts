@@ -9,6 +9,7 @@ import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { analyzeProductBrief } from '@/lib/campaigns/brief';
 import { buildPlan, type PlannerFormat } from '@/lib/campaigns/planner';
+import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
 import { enqueueBatch } from '@/lib/campaigns/orchestrator';
 import { enqueueJob } from '@/lib/jobs/queue';
@@ -206,7 +207,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, date_start, date_end, status')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -265,10 +266,14 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     fragment: s.prompt_fragment as string,
   }));
 
+  const goal = (['awareness', 'conversion', 'mixed'].includes(campaign.goal as string)
+    ? campaign.goal
+    : 'mixed') as 'awareness' | 'conversion' | 'mixed';
   const items = buildPlan({
     totalItems: parsed.data.totalItems,
     category: (brief.category as never) ?? 'other',
     productName: brief.productName,
+    goal,
     formats,
     scenes,
     characters,
@@ -308,6 +313,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
       audio: i.audio,
       character_id: i.characterId,
       scene_prompt: i.scenePrompt,
+      caption: i.caption,
       scheduled_date: i.scheduledDate,
       status: 'planned',
     })),
@@ -337,7 +343,16 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     .single();
   const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
   if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
-  if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
+
+  // Caption y fecha son metadatos de publicación: editables en cualquier
+  // estado. Los campos de producción solo antes de encolar.
+  const touchesProduction =
+    parsed.data.scenePrompt !== undefined ||
+    parsed.data.scene !== undefined ||
+    parsed.data.durationS !== undefined ||
+    parsed.data.aspectRatio !== undefined ||
+    parsed.data.characterId !== undefined;
+  if (touchesProduction && !['planned', 'skipped', 'failed'].includes(item.status as string)) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
 
@@ -351,7 +366,7 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     patch.scheduled_date = parsed.data.scheduledDate.toISOString().slice(0, 10);
   }
   if (parsed.data.caption !== undefined) patch.caption = parsed.data.caption;
-  patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
+  if (touchesProduction) patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
 
   const { error } = await supabase.from('campaign_items').update(patch).eq('id', parsed.data.itemId);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
@@ -672,6 +687,28 @@ export async function generateSeriesAction(
     return { ok: false, error: 'not_found', message: 'La campaña de origen ya no existe' };
   }
 
+  // Para los captions de la serie: producto y objetivo de la campaña de origen.
+  const { data: campaignRow } = await supabase
+    .from('campaigns')
+    .select('goal, product_brief')
+    .eq('id', campaignId)
+    .single();
+  const seriesProduct =
+    ((campaignRow?.product_brief as { productName?: string } | null)?.productName ?? '').trim() ||
+    'el producto';
+  const seriesGoal = (['awareness', 'conversion', 'mixed'].includes(campaignRow?.goal as string)
+    ? campaignRow?.goal
+    : 'mixed') as 'awareness' | 'conversion' | 'mixed';
+  let seriesFormatSlug = '';
+  if (template.format_id) {
+    const { data: fmt } = await supabase
+      .from('formats')
+      .select('slug')
+      .eq('id', template.format_id as string)
+      .single();
+    seriesFormatSlug = (fmt?.slug as string) ?? '';
+  }
+
   // La serie se programa DESPUÉS del último creativo del calendario existente
   // (no encima de él): continúa la campaña, no la pisa.
   const { data: lastItem } = await supabase
@@ -717,7 +754,7 @@ export async function generateSeriesAction(
   if (items.length === 0) return { ok: false, error: 'validation_error', message: 'Sin escenas para rotar' };
 
   const { error: insertErr } = await supabase.from('campaign_items').insert(
-    items.map((i) => ({
+    items.map((i, idx) => ({
       campaign_id: campaignId,
       format_id: i.formatId,
       template_id: i.templateId,
@@ -728,6 +765,12 @@ export async function generateSeriesAction(
       audio: i.audio,
       character_id: i.characterId,
       scene_prompt: i.scenePrompt,
+      caption: buildCaption({
+        productName: seriesProduct,
+        formatSlug: seriesFormatSlug,
+        goal: seriesGoal,
+        index: idx,
+      }),
       scheduled_date: i.scheduledDate,
       status: 'planned',
     })),

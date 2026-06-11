@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPlan, type PlannerInput } from './planner';
+import { buildCaption, productHashtag } from './captions';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
 import { buildSeries, buildTemplateParams } from './distill';
 import type { PricingRow } from '@/lib/credits/types';
@@ -30,6 +31,7 @@ function plannerInput(overrides: Partial<PlannerInput> = {}): PlannerInput {
     totalItems: 12,
     category: 'beverage',
     productName: 'Lumen Sparkling Water',
+    goal: 'mixed',
     formats: FORMATS,
     scenes: [
       { name: 'Cocina', fragment: 'a sunlit home kitchen' },
@@ -279,5 +281,48 @@ describe('distill', () => {
       startDate: new Date(),
     });
     expect(items).toHaveLength(0);
+  });
+});
+
+// ============ Captions ============
+
+describe('buildCaption', () => {
+  it('arma gancho + CTA + hashtags y rota por index', () => {
+    const a = buildCaption({ productName: 'Lumen', formatSlug: 'voz-cercana', goal: 'conversion', index: 0 });
+    const b = buildCaption({ productName: 'Lumen', formatSlug: 'voz-cercana', goal: 'conversion', index: 1 });
+    expect(a).toContain('Lumen');
+    expect(a).toContain('#lumen');
+    expect(a).toContain('link en bio');
+    expect(a).not.toBe(b); // gancho/CTA rotan dentro del formato
+  });
+
+  it('CTA depende del objetivo', () => {
+    const conv = buildCaption({ productName: 'Lumen', formatSlug: 'el-icono', goal: 'conversion', index: 0 });
+    const awar = buildCaption({ productName: 'Lumen', formatSlug: 'el-icono', goal: 'awareness', index: 0 });
+    expect(conv).toContain('Disponible ahora');
+    expect(awar).not.toContain('Disponible ahora');
+  });
+
+  it('formato desconocido usa ganchos genéricos sin romper', () => {
+    const c = buildCaption({ productName: 'Lumen', formatSlug: 'mi-formato-custom', goal: 'mixed', index: 0 });
+    expect(c).toContain('Lumen');
+    expect(c.length).toBeGreaterThan(10);
+    expect(c.length).toBeLessThanOrEqual(2200);
+  });
+
+  it('productHashtag normaliza acentos y símbolos', () => {
+    expect(productHashtag('Café Olla 3000')).toBe('#cafeolla3000');
+    expect(productHashtag('!!!')).toBe('');
+  });
+});
+
+describe('buildPlan captions', () => {
+  it('todo item del plan lleva caption con el producto', () => {
+    const items = buildPlan(plannerInput());
+    expect(items.length).toBeGreaterThan(0);
+    for (const i of items) {
+      expect(i.caption).toBeTruthy();
+      expect(i.caption).toContain('Lumen');
+    }
   });
 });

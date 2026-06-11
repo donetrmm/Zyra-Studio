@@ -37,6 +37,7 @@ export type StudioItem = {
   aspectRatio: string | null;
   scene: string | null;
   scenePrompt: string;
+  caption: string | null;
   characterName: string | null;
   scheduledDate: string | null;
   status: string;
@@ -311,6 +312,11 @@ function PlanTable({
                   <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
                 )}
                 <p className="line-clamp-2 text-muted-foreground/80">{item.scenePrompt}</p>
+                {item.caption && (
+                  <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+                    Caption: {item.caption}
+                  </p>
+                )}
                 {item.warnings.length > 0 && (
                   <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{item.warnings[0]}</p>
                 )}
@@ -826,6 +832,7 @@ function EditItemDialog({
   onSaved: (patch: Partial<StudioItem>) => void;
 }) {
   const [scenePrompt, setScenePrompt] = useState(item.scenePrompt);
+  const [caption, setCaption] = useState(item.caption ?? '');
   const [scheduledDate, setScheduledDate] = useState(item.scheduledDate ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -834,6 +841,7 @@ function EditItemDialog({
     const res = await updateCampaignItemAction({
       itemId: item.id,
       scenePrompt,
+      caption,
       ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
     });
     setSaving(false);
@@ -841,7 +849,7 @@ function EditItemDialog({
       toast.error(res.message ?? 'No se pudo guardar');
       return;
     }
-    onSaved({ scenePrompt, scheduledDate: scheduledDate || item.scheduledDate });
+    onSaved({ scenePrompt, caption: caption || null, scheduledDate: scheduledDate || item.scheduledDate });
   }
 
   return (
@@ -873,6 +881,19 @@ function EditItemDialog({
           rows={4}
           maxLength={4000}
           className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+        />
+
+        <label htmlFor="edit-caption" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+          Caption de publicación
+        </label>
+        <textarea
+          id="edit-caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          rows={2}
+          maxLength={2200}
+          placeholder="Texto que acompaña al post; va al export, nunca dentro del video"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
         />
 
         <label htmlFor="edit-date" className="mt-3 block text-[12.5px] font-medium text-foreground/80">

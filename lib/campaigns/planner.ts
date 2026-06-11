@@ -3,6 +3,7 @@
 // La server action persiste y el Prompt Director valida/compila al encolar.
 
 import type { ProductCategory } from './brief';
+import { buildCaption, type CaptionGoal } from './captions';
 
 export type PlannerFormat = {
   id: string;
@@ -20,6 +21,7 @@ export type PlannerInput = {
   totalItems: number;
   category: ProductCategory;
   productName: string;
+  goal: CaptionGoal;
   formats: PlannerFormat[];
   scenes: PlannerScene[];
   characters: PlannerCharacter[];
@@ -41,6 +43,7 @@ export type PlanItemDraft = {
   audio: boolean;
   characterId: string | null;
   scenePrompt: string;
+  caption: string;          // metadato de publicación (gancho + CTA + tags)
   scheduledDate: string;    // YYYY-MM-DD
 };
 
@@ -165,6 +168,12 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         audio: format.defaultAudio,
         characterId: character?.id ?? null,
         scenePrompt: seed({ product: input.productName, scene: scene.fragment }),
+        caption: buildCaption({
+          productName: input.productName,
+          formatSlug: format.slug,
+          goal: input.goal,
+          index: i,
+        }),
         scheduledDate: '', // se asigna abajo, intercalado
       });
     }
