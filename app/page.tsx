@@ -49,9 +49,9 @@ function BentoWave() {
       ctx!.clearRect(0, 0, W, H);
 
       const grad = ctx!.createLinearGradient(0, 0, W, 0);
-      grad.addColorStop(0, "rgba(139,92,246,0)");
-      grad.addColorStop(0.5, "rgba(167,139,250,1)");
-      grad.addColorStop(1, "rgba(124,58,237,0)");
+      grad.addColorStop(0, "rgba(0,198,255,0)");
+      grad.addColorStop(0.5, "rgba(51,183,255,1)");
+      grad.addColorStop(1, "rgba(0,159,255,0)");
 
       ctx!.beginPath();
       const N = 48;
@@ -71,7 +71,7 @@ function BentoWave() {
       ctx!.strokeStyle = grad;
       ctx!.lineWidth = 2;
       ctx!.lineCap = "round";
-      ctx!.shadowColor = "rgba(124,58,237,0.6)";
+      ctx!.shadowColor = "rgba(0,159,255,0.6)";
       ctx!.shadowBlur = 6;
       ctx!.stroke();
       ctx!.shadowBlur = 0;
@@ -99,7 +99,7 @@ const CHAT_FLOW = [
   { role: "bot" as const, text: "", img: "/landing/gen-2.jpg" },
   { role: "user" as const, text: "Más contraste en las sombras", img: "" },
   { role: "bot" as const, text: "", img: "/landing/gen-4.jpg" },
-  { role: "user" as const, text: "Agrega texto: Zyra Studio", img: "" },
+  { role: "user" as const, text: "Agrega texto: 1to1 Studio", img: "" },
   { role: "bot" as const, text: "", img: "/landing/gen-1.jpg" },
 ];
 
@@ -176,7 +176,7 @@ function AnimatedChat() {
 /* ------------------------------------------------------------------ */
 /*  SVG Icons                                                          */
 /* ------------------------------------------------------------------ */
-function ZyraLogo({ height = 40 }: { height?: number }) {
+function BrandLogo({ height = 40 }: { height?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -282,9 +282,9 @@ export default function LandingPage() {
           <div className="container-l l-nav-row">
             <Link href="/" className="l-brand">
               <span className="l-brand-mark">
-                <ZyraLogo />
+                <BrandLogo />
               </span>
-              Zyra
+              1to1 Studio
             </Link>
             <div className="l-nav-links">
               <a href="#producto">Producto</a>
@@ -464,7 +464,7 @@ export default function LandingPage() {
                 <span className="l-b-tag">Imagen</span>
                 <h3>De prompt a imagen en segundos</h3>
                 <p>
-                  3 modelos, brand kit integrado, sin fondo automático y prompt assistant con IA. Escribe lo que imaginas y Zyra lo crea.
+                  3 modelos, brand kit integrado, sin fondo automático y prompt assistant con IA. Escribe lo que imaginas y 1to1 lo crea.
                 </p>
                 <div className="l-b-visual">
                   <div className="l-b1-stack">
@@ -563,7 +563,7 @@ export default function LandingPage() {
                 <span className="l-b-tag">Edición conversacional</span>
                 <h3>Edita escribiendo lo que quieres cambiar</h3>
                 <p>
-                  «Más cinemática», «sin fondo», «más contraste» — Zyra entiende intención, no parámetros.
+                  «Más cinemática», «sin fondo», «más contraste» — 1to1 entiende intención, no parámetros.
                 </p>
                 <div className="l-b-visual">
                   <AnimatedChat />
@@ -582,7 +582,7 @@ export default function LandingPage() {
                 Los mejores motores, <em>una sola cuenta</em>
 
               </h2>
-              <p>Pagas créditos según el modelo. Zyra te sugiere el adecuado según la tarea.</p>
+              <p>Pagas créditos según el modelo. 1to1 te sugiere el adecuado según la tarea.</p>
             </div>
 
             <div className="l-models-grid">
@@ -698,7 +698,7 @@ export default function LandingPage() {
                   500
                   <span className="per">créditos gratis</span>
                 </div>
-                <div className="summary">Para explorar Zyra sin compromiso</div>
+                <div className="summary">Para explorar 1to1 sin compromiso</div>
                 <span className="credits">
                   <span className="ic">
                     <CreditIcon />
@@ -874,9 +874,9 @@ export default function LandingPage() {
               <div className="l-foot-brand">
                 <Link href="/" className="l-brand">
                   <span className="l-brand-mark">
-                    <ZyraLogo />
+                    <BrandLogo />
                   </span>
-                  Zyra Studio
+                  1to1 Studio
                 </Link>
                 <p>Plataforma creativa con IA. Imagen, video y audio para creadores</p>
               </div>
@@ -900,7 +900,7 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="l-foot-bottom">
-              <span>2026 Zyra Studio</span>
+              <span>2026 1to1 Studio</span>
               <div className="links">
                 <a href="#faq">FAQ</a>
                 <a href="#precios">Precios</a>

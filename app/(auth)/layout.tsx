@@ -11,7 +11,7 @@ export default function AuthLayout({
         href="/"
         className="mb-10 text-sm font-medium uppercase tracking-[0.25em] text-muted-foreground transition-colors hover:text-foreground"
       >
-        Zyra Studio
+        1to1 Studio
       </Link>
       <div className="w-full max-w-sm">{children}</div>
     </div>

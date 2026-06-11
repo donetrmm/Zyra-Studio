@@ -142,7 +142,7 @@ export function WavePlayer({ src }: { src: string }) {
     if (downloading) return;
     setDownloading(true);
     try {
-      await downloadGenerationImage(src, 'zyra-audio');
+      await downloadGenerationImage(src, '1to1-audio');
     } catch (e) {
       toast.error(`No se pudo descargar${e instanceof Error ? `: ${e.message}` : ''}`);
     } finally {
@@ -268,7 +268,7 @@ export function WavePlayer({ src }: { src: string }) {
             playing ? 'opacity-100' : 'opacity-0',
           )}
           style={{
-            background: 'radial-gradient(70% 40% at 50% 50%, rgba(123,97,255,0.18), transparent 70%)',
+            background: 'radial-gradient(70% 40% at 50% 50%, rgba(0,159,255,0.18), transparent 70%)',
             filter: 'blur(20px)',
             animation: playing ? 'zyra-glow-breathe 4s ease-in-out infinite' : 'none',
           }}
@@ -280,13 +280,13 @@ export function WavePlayer({ src }: { src: string }) {
               <stop offset="0%" stopColor="#9985FF" stopOpacity={0.15} />
               <stop offset="15%" stopColor="#9985FF" stopOpacity={1} />
               <stop offset="50%" stopColor="#B9A7FF" stopOpacity={1} />
-              <stop offset="85%" stopColor="#7B61FF" stopOpacity={1} />
-              <stop offset="100%" stopColor="#7B61FF" stopOpacity={0.15} />
+              <stop offset="85%" stopColor="#009FFF" stopOpacity={1} />
+              <stop offset="100%" stopColor="#009FFF" stopOpacity={0.15} />
             </linearGradient>
             <linearGradient id="echoGrad" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%" stopColor="#7B61FF" stopOpacity={0} />
-              <stop offset="50%" stopColor="#7B61FF" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#7B61FF" stopOpacity={0} />
+              <stop offset="0%" stopColor="#009FFF" stopOpacity={0} />
+              <stop offset="50%" stopColor="#009FFF" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="#009FFF" stopOpacity={0} />
             </linearGradient>
           </defs>
           <path ref={echo2Ref} fill="none" stroke="url(#echoGrad)" strokeWidth={1.0} strokeLinecap="round" opacity={playing ? 0.18 : 0} style={{ transition: 'opacity 360ms' }} />
@@ -300,7 +300,7 @@ export function WavePlayer({ src }: { src: string }) {
             strokeLinejoin="round"
             opacity={playing ? 1 : 0.55}
             style={{
-              filter: 'drop-shadow(0 0 10px rgba(123,97,255,0.55)) drop-shadow(0 0 30px rgba(123,97,255,0.25))',
+              filter: 'drop-shadow(0 0 10px rgba(0,159,255,0.55)) drop-shadow(0 0 30px rgba(0,159,255,0.25))',
               transition: 'opacity 360ms',
             }}
           />
@@ -331,7 +331,7 @@ export function WavePlayer({ src }: { src: string }) {
             style={{
               width: '0%',
               background: 'linear-gradient(90deg, var(--primary), #B9A7FF)',
-              boxShadow: '0 0 10px rgba(123,97,255,0.45)',
+              boxShadow: '0 0 10px rgba(0,159,255,0.45)',
             }}
           />
           <div
@@ -343,7 +343,7 @@ export function WavePlayer({ src }: { src: string }) {
               height: 12,
               borderRadius: '999px',
               background: '#B9A7FF',
-              boxShadow: '0 0 0 4px rgba(123,97,255,0.18), 0 0 14px rgba(123,97,255,0.45)',
+              boxShadow: '0 0 0 4px rgba(0,159,255,0.18), 0 0 14px rgba(0,159,255,0.45)',
             }}
           />
         </div>
@@ -358,7 +358,7 @@ export function WavePlayer({ src }: { src: string }) {
               className={cn(
                 'size-1.5 rounded-full',
                 playing
-                  ? 'animate-[zyra-blink_1.4s_ease-in-out_infinite] bg-primary shadow-[0_0_8px_rgba(123,97,255,0.45)]'
+                  ? 'animate-[zyra-blink_1.4s_ease-in-out_infinite] bg-primary shadow-[0_0_8px_rgba(0,159,255,0.45)]'
                   : 'bg-muted-foreground/40',
               )}
             />

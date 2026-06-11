@@ -326,7 +326,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
     if (!url) return;
     setDownloading(true);
     try {
-      await downloadFile(url, `zyra-preset`);
+      await downloadFile(url, `1to1-preset`);
     } catch {
       toast.error('No se pudo descargar');
     } finally {

@@ -124,7 +124,7 @@ export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[]
 function CampaignEditor({ campaign, onClose, onSaved }: { campaign: CampaignRow | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(campaign?.name ?? '');
   const [description, setDescription] = useState(campaign?.description ?? '');
-  const [color, setColor] = useState(campaign?.color ?? '#7c3aed');
+  const [color, setColor] = useState(campaign?.color ?? '#009fff');
   const [saving, startSave] = useTransition();
 
   function handleSave() {

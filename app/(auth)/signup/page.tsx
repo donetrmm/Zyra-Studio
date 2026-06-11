@@ -12,7 +12,7 @@ export default function SignupPage() {
   return (
     <AuthCard
       title="Empieza a crear"
-      description="500 créditos de bienvenida para que pruebes Zyra Studio."
+      description="500 créditos de bienvenida para que pruebes 1to1 Studio."
       footer={
         <>
           ¿Ya tienes cuenta?{" "}

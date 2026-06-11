@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Zyra Studio",
-    template: "%s · Zyra Studio",
+    default: "1to1 Studio",
+    template: "%s · 1to1 Studio",
   },
   description:
     "Plataforma creativa impulsada por IA para generar video, imagen y voz.",

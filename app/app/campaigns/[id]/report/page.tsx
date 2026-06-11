@@ -118,7 +118,7 @@ export default async function CampaignReportPage({
           </div>
 
           <div className="mt-6 space-y-2.5">
-            <Bar label="Zyra Studio (real)" value={report.spentUsd} width={bar(report.spentUsd)} accent />
+            <Bar label="1to1 Studio (real)" value={report.spentUsd} width={bar(report.spentUsd)} accent />
             <Bar label="Tradicional · low" value={report.traditional.low} width={bar(report.traditional.low)} />
             <Bar label="Tradicional · mid" value={report.traditional.mid} width={bar(report.traditional.mid)} />
             <Bar label="Tradicional · high" value={report.traditional.high} width={bar(report.traditional.high)} />

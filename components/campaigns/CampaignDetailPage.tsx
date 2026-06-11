@@ -129,7 +129,7 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
     if (!outputUrl) return;
     setDownloading(true);
     try {
-      await downloadFile(outputUrl, 'zyra-generation');
+      await downloadFile(outputUrl, '1to1-generation');
     } catch {
       toast.error('No se pudo descargar');
     } finally {

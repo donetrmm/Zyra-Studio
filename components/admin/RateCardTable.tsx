@@ -76,7 +76,7 @@ export function RateCardTable({ rows: initial }: { rows: RateCardRow[] }) {
                   type="checkbox"
                   checked={row.active}
                   onChange={(e) => patch(row.id, 'active', e.target.checked)}
-                  className="accent-[#7c3aed]"
+                  className="accent-[#009fff]"
                 />
               </td>
               <td className="px-3 py-2 text-right">

@@ -4,7 +4,7 @@ Este archivo se carga automáticamente en cada sesión de Claude Code y orienta 
 
 ## Qué es esto
 
-Zyra Studio es una plataforma creativa con IA (video, imagen, voz) construida para una presentación. Stack: **Next.js 15 (App Router) + Supabase + Upstash QStash + Vercel Hobby**, todo en plan free. El detalle completo está en `docs/zyra-studio-spec.md` y el plan de ejecución día por día en `specs/01-fundacion.md` … `specs/05-polish-demo.md`.
+1to1 Studio (antes Zyra Studio) es una plataforma creativa con IA (video, imagen, voz) construida para una presentación. Stack: **Next.js 15 (App Router) + Supabase + Upstash QStash + Vercel Hobby**, todo en plan free. El detalle completo está en `docs/zyra-studio-spec.md` y el plan de ejecución día por día en `specs/01-fundacion.md` … `specs/05-polish-demo.md`.
 
 ## Antes de tocar código
 
@@ -25,7 +25,7 @@ Estas no se discuten ni se rediseñan sin pedir confirmación explícita al usua
 ## Convenciones rápidas
 
 - **No emojis en código ni UI** (sí en commits internos si quieres). El sistema visual es minimalista premium.
-- **Dark mode por defecto**, paleta zinc-950 base + acento `#7c3aed`.
+- **Dark mode por defecto**, paleta zinc-950 base + acento `#009fff` (azul del logo 1to1; `#0072e6` cuando el fondo lleva texto blanco, por contraste AA).
 - **Componentes shadcn primero**; solo escribir desde cero cuando no exista.
 - **Server Components por default**, `'use client'` solo si hay state/effects.
 - **Server Actions para toda mutación**, validación con zod schema en `lib/schemas/`.

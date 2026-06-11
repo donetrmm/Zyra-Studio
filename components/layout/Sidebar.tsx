@@ -37,7 +37,7 @@ function Brand() {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="" className="h-7 w-auto" />
-      Zyra Studio
+      1to1 Studio
     </Link>
   );
 }

@@ -32,7 +32,7 @@ export function AdminMobileMenu() {
               <div className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo.png" alt="" className="h-7 w-auto" />
-                <span>Zyra</span>
+                <span>1to1</span>
                 <span className="text-muted-foreground/40">·</span>
                 <span className="text-[14px] font-normal text-muted-foreground">Admin</span>
               </div>

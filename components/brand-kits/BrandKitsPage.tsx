@@ -142,7 +142,7 @@ function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => 
 
 function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(kit?.name ?? '');
-  const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#7c3aed' }]);
+  const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#009fff' }]);
   const [fonts, setFonts] = useState(kit?.fonts?.join(', ') ?? '');
   const [tone, setTone] = useState(kit?.tone_description ?? '');
   const [guidelines, setGuidelines] = useState(kit?.style_guidelines ?? '');
@@ -220,7 +220,7 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
                       setColors(next);
                     }}
                     maxLength={7}
-                    placeholder="#7c3aed"
+                    placeholder="#009fff"
                     className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40"
                   />
                 </div>

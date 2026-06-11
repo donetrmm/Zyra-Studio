@@ -214,7 +214,7 @@ function ConvMessage({
     if (!item.outputUrl || downloading) return;
     setDownloading(true);
     try {
-      await downloadGenerationImage(item.outputUrl, `zyra-${item.id.slice(0, 8)}`);
+      await downloadGenerationImage(item.outputUrl, `1to1-${item.id.slice(0, 8)}`);
     } catch (e) {
       toast.error(
         `No se pudo descargar la imagen${e instanceof Error ? `: ${e.message}` : ''}`,
@@ -241,7 +241,7 @@ function ConvMessage({
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-baseline gap-2">
-            <span className="text-[12px] font-medium text-foreground">Zyra</span>
+            <span className="text-[12px] font-medium text-foreground">1to1</span>
             <span className="font-mono text-[10px] text-muted-foreground/80">
               {t} · −{item.credits} cr.
             </span>
@@ -332,7 +332,7 @@ function PendingBubble() {
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-baseline gap-2">
-          <span className="text-[12px] font-medium text-foreground">Zyra</span>
+          <span className="text-[12px] font-medium text-foreground">1to1</span>
           <span className="font-mono text-[10px] text-muted-foreground/80">
             Aplicando cambio…
           </span>

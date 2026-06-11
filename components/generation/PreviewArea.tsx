@@ -265,7 +265,7 @@ function ResultState({
     if (!result.outputUrl) return;
     setDownloading(true);
     try {
-      await downloadGenerationImage(result.outputUrl, `zyra-${result.id.slice(0, 8)}`);
+      await downloadGenerationImage(result.outputUrl, `1to1-${result.id.slice(0, 8)}`);
     } catch (e) {
       toast.error(
         `No se pudo descargar la imagen${e instanceof Error ? `: ${e.message}` : ''}`,

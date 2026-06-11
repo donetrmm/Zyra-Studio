@@ -303,7 +303,7 @@ export function CalendarView({
                     title={`${item.formatName}: ${item.scenePrompt}`}
                     className={`cursor-grab truncate rounded-md border px-1.5 py-0.5 text-[10px] active:cursor-grabbing ${
                       item.status === 'final_ready'
-                        ? 'border-violet-300/40 text-violet-300'
+                        ? 'border-sky-300/40 text-sky-300'
                         : item.status === 'draft_ready'
                           ? 'border-emerald-400/30 text-emerald-400/90'
                           : 'border-border text-muted-foreground'

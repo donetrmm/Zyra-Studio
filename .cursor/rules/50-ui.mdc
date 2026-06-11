@@ -9,7 +9,7 @@ alwaysApply: false
 ## Identidad visual
 
 - **Dark mode por defecto.** El light mode es opcional, no prioritario.
-- Paleta: base `zinc-950`, acento `#7c3aed` (violeta eléctrico), bordes `zinc-800`.
+- Paleta: base `zinc-950`, acento `#009fff` (azul eléctrico del logo 1to1; `#0072e6` para fondos con texto blanco, AA), bordes `zinc-800`.
 - Tipografía: Inter (UI) + Geist (display para títulos grandes).
 - Espaciado generoso, sombras suaves, transitions 150–250ms.
 - **Sin emojis** en strings de UI bajo ninguna circunstancia. Usar `lucide-react` para iconos.

@@ -697,7 +697,7 @@ function LibTile({
       const res = await fetch(`/api/generations/${gen.id}`, { cache: 'no-store' });
       const data = (await res.json()) as { outputUrl?: string };
       if (!data.outputUrl) throw new Error('sin output');
-      await downloadGenerationFile(data.outputUrl, `zyra-${gen.id.slice(0, 8)}`);
+      await downloadGenerationFile(data.outputUrl, `1to1-${gen.id.slice(0, 8)}`);
     } catch {
       toast.error('No se pudo descargar.');
     } finally {
@@ -917,7 +917,7 @@ function DetailAside({
     if (!outputUrl || downloading) return;
     setDownloading(true);
     try {
-      await downloadGenerationFile(outputUrl, `zyra-${generation.id.slice(0, 8)}`);
+      await downloadGenerationFile(outputUrl, `1to1-${generation.id.slice(0, 8)}`);
     } catch {
       toast.error('No se pudo descargar.');
     } finally {
@@ -1518,7 +1518,7 @@ function MiniAudioPlayer({ src }: { src: string }) {
                 height: 10,
                 borderRadius: '999px',
                 background: 'var(--primary)',
-                boxShadow: '0 0 6px rgba(123,97,255,0.5)',
+                boxShadow: '0 0 6px rgba(0,159,255,0.5)',
               }}
             />
           </div>

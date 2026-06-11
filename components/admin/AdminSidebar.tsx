@@ -16,7 +16,7 @@ export function AdminSidebar() {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="" className="h-7 w-auto" />
-        <span>Zyra</span>
+        <span>1to1</span>
         <span className="text-muted-foreground/40">·</span>
         <span className="text-[15px] font-normal text-muted-foreground">Admin</span>
       </Link>

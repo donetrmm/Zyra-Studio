@@ -322,7 +322,7 @@ function ResultState({
     if (!url) return;
     setDownloading(true);
     try {
-      await downloadGenerationImage(url, 'zyra-video');
+      await downloadGenerationImage(url, '1to1-video');
     } catch (e) {
       toast.error(`No se pudo descargar${e instanceof Error ? `: ${e.message}` : ''}`);
     } finally {

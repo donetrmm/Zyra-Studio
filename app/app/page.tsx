@@ -125,7 +125,7 @@ export default async function DashboardPage() {
                       <span className="flex items-center gap-2">
                         <span
                           className="inline-block size-2 rounded-full"
-                          style={{ background: c.color ?? "#7c3aed" }}
+                          style={{ background: c.color ?? "#009fff" }}
                           aria-hidden
                         />
                         {c.name}

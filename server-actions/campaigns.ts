@@ -56,7 +56,7 @@ export async function createCampaignAction(input: unknown): Promise<Result<{ id:
       workspace_id: workspace.id,
       name: parsed.data.name,
       description: parsed.data.description ?? null,
-      color: parsed.data.color ?? '#7c3aed',
+      color: parsed.data.color ?? '#009fff',
     })
     .select('id')
     .single();

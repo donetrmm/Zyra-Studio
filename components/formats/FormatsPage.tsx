@@ -103,7 +103,7 @@ export function FormatsPage({ formats }: { formats: FormatRowUi[] }) {
       )}
 
       <h2 className="mt-8 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Formatos Zyra
+        Formatos 1to1
       </h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {system.map((f) => (

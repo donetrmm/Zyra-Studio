@@ -51,7 +51,7 @@ const MODEL_META: Record<
   auto: {
     label: 'Auto',
     sub: 'Recomendado',
-    desc: 'Zyra elige el mejor modelo según tu prompt.',
+    desc: '1to1 elige el mejor modelo según tu prompt.',
   },
   'nano-pro': {
     label: 'Nano Banana Pro',

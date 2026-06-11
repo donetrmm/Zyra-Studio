@@ -155,7 +155,7 @@ export async function fetchProductPageText(rawUrl: string): Promise<string> {
       res = await fetch(current.toString(), {
         signal: controller.signal,
         redirect: 'manual',
-        headers: { 'User-Agent': 'ZyraStudio/1.0 (product brief)' },
+        headers: { 'User-Agent': '1to1Studio/1.0 (product brief)' },
       });
       if (res.status >= 300 && res.status < 400) {
         const location = res.headers.get('location');

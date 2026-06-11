@@ -75,8 +75,8 @@ const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean
   sample: { label: 'muestra…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
   queued: { label: 'generando…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
   draft_ready: { label: 'draft listo', tone: 'text-emerald-400/90 border-emerald-400/30' },
-  approved: { label: 'render final…', tone: 'text-violet-400/90 border-violet-400/30', live: true },
-  final_ready: { label: 'final listo', tone: 'text-violet-300 border-violet-300/40' },
+  approved: { label: 'render final…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
+  final_ready: { label: 'final listo', tone: 'text-sky-300 border-sky-300/40' },
   failed: { label: 'falló', tone: 'text-red-400/90 border-red-400/30' },
   skipped: { label: 'bloqueado', tone: 'text-amber-400/90 border-amber-400/30' },
 };
@@ -546,7 +546,7 @@ function ProductionView({
                       type="button"
                       disabled={busy !== null}
                       onClick={() => handleFinal(d.id)}
-                      className="shrink-0 rounded-lg border border-violet-400/40 px-2.5 py-1 text-[11.5px] text-violet-300 transition-colors hover:bg-violet-400/10 disabled:opacity-40"
+                      className="shrink-0 rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
                     >
                       {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar final 720p'}
                     </button>
@@ -691,7 +691,7 @@ function TemplatesView({ templates }: { templates: StudioTemplate[] }) {
             type="checkbox"
             checked={rotateCharacters}
             onChange={(e) => setRotateCharacters(e.target.checked)}
-            className="accent-[#7c3aed]"
+            className="accent-[#009fff]"
           />
           Rotar personajes del Cast
         </label>
