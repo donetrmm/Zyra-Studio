@@ -17,11 +17,16 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import {
   ApproveBatchSchema,
   CreateCampaignStudioSchema,
+  CreateVariantSchema,
+  DistillTemplateSchema,
   GeneratePlanSchema,
+  GenerateSeriesSchema,
   RequestFinalSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
+import { buildSeries, buildTemplateParams, type TemplateFixedParams, type TemplateSlots } from '@/lib/campaigns/distill';
+import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -392,7 +397,7 @@ export async function approveBatchAction(
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, scene_prompt, status')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, scene_prompt, status')
     .eq('campaign_id', campaign.id)
     .eq('format_id', parsed.data.formatId)
     .order('created_at');
@@ -533,6 +538,329 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
       await failGeneration(user.id, generationId, reserved ? cost : 0, `final_enqueue: ${message}`);
     } catch (failErr) {
       console.error('[request_final:fail_generation]', {
+        generationId,
+        error: message,
+        failError: (failErr as Error)?.message,
+      });
+    }
+    return { ok: false, error: 'internal_error', message };
+  }
+}
+
+// ============================================================
+// Fase D: plantillas vivas y variantes (specs/v2/04)
+// ============================================================
+
+// Destila un creativo ganador en plantilla viva: el video queda como
+// referencia de estructura (@Video1 en la serie); producto, escena y
+// personaje son slots rotables.
+export async function distillTemplateAction(
+  input: unknown,
+): Promise<Result<{ templateId: string }>> {
+  const parsed = DistillTemplateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { user, workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('id, workspace_id, type, provider, model_id, status, output_url, params, campaign_id')
+    .eq('id', parsed.data.generationId)
+    .single();
+  if (!gen || gen.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+  if (gen.type !== 'video' || gen.status !== 'done' || !gen.output_url) {
+    return { ok: false, error: 'validation_error', message: 'La generación no es un video terminado' };
+  }
+
+  // El item de campaña del ganador aporta formato y slots.
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select('id, format_id, scene, scene_prompt, character_id, audio')
+    .eq('generation_id', gen.id)
+    .maybeSingle();
+  if (!item) {
+    return { ok: false, error: 'not_found', message: 'El video no pertenece a un item de campaña' };
+  }
+
+  const { data: campaign } = gen.campaign_id
+    ? await supabase.from('campaigns').select('product_brief').eq('id', gen.campaign_id as string).single()
+    : { data: null };
+  const productName =
+    ((campaign?.product_brief ?? {}) as { productName?: string }).productName ?? 'the product';
+
+  let templateVideoPath: string;
+  try {
+    templateVideoPath = await copyOutputVideoToReferences({
+      workspaceId: workspace.id,
+      userId: user.id,
+      outputPath: gen.output_url as string,
+      label: 'template',
+    });
+  } catch (e) {
+    return { ok: false, error: 'internal_error', message: (e as Error).message };
+  }
+
+  const genParams = (gen.params ?? {}) as Record<string, unknown>;
+  const fixed = buildTemplateParams({
+    modelSlug: gen.model_id as string,
+    durationS: (genParams.duration as number | null) ?? null,
+    aspectRatio: (genParams.aspectRatio as string | null) ?? null,
+    resolution: (genParams.resolution as string | null) ?? null,
+    audio: (genParams.generateAudio as boolean | undefined) ?? (item.audio as boolean) ?? true,
+    templateVideoPath,
+  });
+  const slots: TemplateSlots = {
+    scenePrompt: item.scene_prompt as string,
+    scene: (item.scene as string | null) ?? null,
+    characterId: (item.character_id as string | null) ?? null,
+    productName,
+  };
+
+  const { data: inserted, error } = await supabase
+    .from('creative_templates')
+    .insert({
+      workspace_id: workspace.id,
+      name: parsed.data.name,
+      source_generation_id: gen.id,
+      format_id: item.format_id,
+      fixed_params: fixed,
+      slots,
+    })
+    .select('id')
+    .single();
+  if (error || !inserted) return { ok: false, error: 'internal_error', message: error?.message };
+
+  if (gen.campaign_id) revalidatePath(`/app/campaigns/${gen.campaign_id}`);
+  return { ok: true, data: { templateId: inserted.id as string } };
+}
+
+// Genera una serie desde la plantilla: N items nuevos en la campaña de origen
+// rotando escena (y opcionalmente personaje); estructura fija vía @Video1.
+// Pasan por el flujo normal de lotes/compuertas.
+export async function generateSeriesAction(
+  input: unknown,
+): Promise<Result<{ items: number; campaignId: string }>> {
+  const parsed = GenerateSeriesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: template } = await supabase
+    .from('creative_templates')
+    .select('id, workspace_id, format_id, fixed_params, slots, uses_count, source_generation_id')
+    .eq('id', parsed.data.templateId)
+    .single();
+  if (!template || template.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+
+  const fixed = template.fixed_params as TemplateFixedParams;
+  const slots = template.slots as TemplateSlots;
+  if (!fixed?.templateVideoPath || !slots?.scenePrompt) {
+    return { ok: false, error: 'validation_error', message: 'Plantilla incompleta' };
+  }
+
+  // Campaña destino: la de origen del ganador.
+  const { data: sourceGen } = await supabase
+    .from('generations')
+    .select('campaign_id')
+    .eq('id', template.source_generation_id as string)
+    .single();
+  const campaignId = (sourceGen?.campaign_id as string | null) ?? null;
+  if (!campaignId) {
+    return { ok: false, error: 'not_found', message: 'La campaña de origen ya no existe' };
+  }
+
+  const [{ data: sceneRows }, { data: characterRows }] = await Promise.all([
+    supabase.from('scene_library').select('name, prompt_fragment').eq('type', 'escena'),
+    supabase
+      .from('characters')
+      .select('id, name, master_image_id, reference_image_ids')
+      .eq('workspace_id', workspace.id),
+  ]);
+  const characters = (characterRows ?? [])
+    .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
+    .map((c) => ({ id: c.id as string, name: c.name as string }));
+
+  const items = buildSeries({
+    templateId: template.id as string,
+    formatId: (template.format_id as string | null) ?? null,
+    fixed,
+    slots,
+    count: parsed.data.count,
+    scenes: (sceneRows ?? []).map((s) => ({
+      name: s.name as string,
+      fragment: s.prompt_fragment as string,
+    })),
+    characters,
+    rotateCharacters: parsed.data.rotateCharacters,
+    startDate: new Date(),
+  });
+  if (items.length === 0) return { ok: false, error: 'validation_error', message: 'Sin escenas para rotar' };
+
+  const { error: insertErr } = await supabase.from('campaign_items').insert(
+    items.map((i) => ({
+      campaign_id: campaignId,
+      format_id: i.formatId,
+      template_id: i.templateId,
+      model_slug: i.modelSlug,
+      duration_s: i.durationS,
+      aspect_ratio: i.aspectRatio,
+      scene: i.scene,
+      audio: i.audio,
+      character_id: i.characterId,
+      scene_prompt: i.scenePrompt,
+      scheduled_date: i.scheduledDate,
+      status: 'planned',
+    })),
+  );
+  if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
+
+  await supabase
+    .from('creative_templates')
+    .update({ uses_count: ((template.uses_count as number) ?? 0) + 1 })
+    .eq('id', template.id);
+
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, data: { items: items.length, campaignId } };
+}
+
+// Variante dirigida sobre un video terminado: extender la acción o reemplazar
+// al personaje conservando todo lo demás (edición de video de Seedance).
+export async function createVariantAction(
+  input: unknown,
+): Promise<Result<{ generationId: string }>> {
+  const parsed = CreateVariantSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { user, workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('id, workspace_id, type, status, output_url, params, model_id, campaign_id')
+    .eq('id', parsed.data.generationId)
+    .single();
+  if (!gen || gen.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+  if (gen.type !== 'video' || gen.status !== 'done' || !gen.output_url) {
+    return { ok: false, error: 'validation_error', message: 'La generación no es un video terminado' };
+  }
+  const genParams = (gen.params ?? {}) as Record<string, unknown>;
+  const sourceResolution = ((genParams.resolution as string) ?? '720p') as '480p' | '720p' | '1080p';
+  const sourceDuration = (genParams.duration as number | undefined) ?? 8;
+
+  let videoRefPath: string;
+  try {
+    videoRefPath = await copyOutputVideoToReferences({
+      workspaceId: workspace.id,
+      userId: user.id,
+      outputPath: gen.output_url as string,
+      label: 'variant',
+    });
+  } catch (e) {
+    return { ok: false, error: 'internal_error', message: (e as Error).message };
+  }
+
+  let prompt: string;
+  let durationS: number;
+  const imagePaths: string[] = [];
+
+  if (parsed.data.mode === 'extend') {
+    // Regla de las guías: duración de salida = LA EXTENSIÓN, no el total.
+    durationS = parsed.data.extendSeconds ?? 5;
+    const continuation = parsed.data.continuation?.trim()
+      ? ` ${parsed.data.continuation.trim().replace(/\.?$/, '.')}`
+      : '';
+    prompt =
+      `Extend @Video1 by ${durationS} seconds.${continuation} ` +
+      'Continue the motion smoothly from the last frame with no cuts: same camera angle, lighting, ' +
+      'pacing and subject appearance. No on-screen text, no captions, no watermarks.';
+  } else {
+    // replace_character
+    const { data: character } = await supabase
+      .from('characters')
+      .select('id, workspace_id, name, master_image_id, reference_image_ids')
+      .eq('id', parsed.data.characterId as string)
+      .single();
+    if (!character || character.workspace_id !== workspace.id) {
+      return { ok: false, error: 'not_found', message: 'Personaje no encontrado' };
+    }
+    const masterId =
+      (character.master_image_id as string | null) ??
+      ((character.reference_image_ids as string[]) ?? [])[0];
+    if (!masterId) {
+      return { ok: false, error: 'validation_error', message: 'El personaje no tiene hoja maestra' };
+    }
+    const { data: refRow } = await supabase
+      .from('media_references')
+      .select('storage_url, workspace_id')
+      .eq('id', masterId)
+      .single();
+    if (!refRow?.storage_url || refRow.workspace_id !== workspace.id) {
+      return { ok: false, error: 'not_found', message: 'Hoja maestra no encontrada' };
+    }
+    imagePaths.push(refRow.storage_url as string);
+    durationS = Math.min(15, Math.max(4, sourceDuration));
+    prompt =
+      'In @Video1, replace the presenter with the person in @Image1 — exact appearance from the ' +
+      'reference: same face, same hair, same build. Replicate the original actions, gestures, ' +
+      'expressions and timing frame by frame. Keep the scene, lighting and camera movements ' +
+      'unchanged. No on-screen text, no captions, no watermarks.';
+  }
+
+  const modelSlug = 'bytedance/seedance-2.0/reference-to-video';
+  const variantResolution = sourceResolution === '1080p' ? '720p' : sourceResolution;
+  const pricing = await loadPricing();
+  const cost = seedanceCostPerItem(pricing, modelSlug, variantResolution, durationS);
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('generations')
+    .insert({
+      user_id: user.id,
+      workspace_id: workspace.id,
+      type: 'video',
+      provider: 'seedance',
+      model_id: modelSlug,
+      prompt,
+      params: {
+        operation: 'reference2video',
+        aspectRatio: (genParams.aspectRatio as string) ?? '9:16',
+        resolution: variantResolution,
+        duration: durationS,
+        generateAudio: (genParams.generateAudio as boolean | undefined) ?? true,
+        referenceImagePaths: imagePaths,
+        referenceVideoPaths: [videoRefPath],
+        referenceAudioPaths: [],
+      },
+      reference_ids: [],
+      status: 'queued',
+      credits_estimated: cost,
+      campaign_id: gen.campaign_id,
+      parent_generation_id: gen.id,
+      timeout_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insertErr || !inserted) {
+    return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
+  }
+  const generationId = inserted.id as string;
+
+  let reserved = false;
+  try {
+    reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      return { ok: false, error: 'insufficient_credits' };
+    }
+    await enqueueJob({ generationId, action: 'submit' });
+    if (gen.campaign_id) revalidatePath(`/app/campaigns/${gen.campaign_id}`);
+    revalidatePath('/app/library');
+    return { ok: true, data: { generationId } };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'unknown';
+    try {
+      await failGeneration(user.id, generationId, reserved ? cost : 0, `variant_enqueue: ${message}`);
+    } catch (failErr) {
+      console.error('[create_variant:fail_generation]', {
         generationId,
         error: message,
         failError: (failErr as Error)?.message,

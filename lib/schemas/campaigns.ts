@@ -86,6 +86,38 @@ export const RequestFinalSchema = z.object({
   itemId: z.string().uuid(),
 });
 
+// ============ Fase D: plantillas vivas y variantes ============
+
+export const DistillTemplateSchema = z.object({
+  generationId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+});
+
+export const GenerateSeriesSchema = z.object({
+  templateId: z.string().uuid(),
+  count: z.number().int().min(2).max(8),
+  rotateCharacters: z.boolean().default(false),
+});
+
+export const CreateVariantSchema = z
+  .object({
+    generationId: z.string().uuid(),
+    mode: z.enum(['extend', 'replace_character']),
+    // extend: cuántos segundos y qué pasa en la continuación
+    extendSeconds: z.number().int().min(4).max(8).optional(),
+    continuation: z.string().trim().max(500).optional(),
+    // replace_character: el nuevo personaje del Cast
+    characterId: z.string().uuid().optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.mode === 'extend' && !val.extendSeconds) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'extend requiere extendSeconds' });
+    }
+    if (val.mode === 'replace_character' && !val.characterId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'replace_character requiere characterId' });
+    }
+  });
+
 export const CampaignItemSchema = z.object({
   formatId: z.string().uuid().optional(),
   templateId: z.string().uuid().optional(),

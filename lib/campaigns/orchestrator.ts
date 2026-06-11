@@ -18,6 +18,7 @@ type ItemRow = {
   id: string;
   campaign_id: string;
   format_id: string | null;
+  template_id: string | null;
   model_slug: string;
   duration_s: number | null;
   aspect_ratio: string | null;
@@ -138,6 +139,7 @@ function directorContextFor(
   item: ItemRow,
   format: FormatRow | null,
   ctx: CampaignContext,
+  templateVideoPath?: string,
 ): DirectorContext {
   const character = item.character_id ? ctx.characters.get(item.character_id) : undefined;
   return {
@@ -159,7 +161,28 @@ function directorContextFor(
         }
       : undefined,
     scene: item.scene ? { fragment: item.scene } : undefined,
+    // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
+    templateVideoPath,
   };
+}
+
+// Carga los paths de video de las plantillas usadas por los items de la serie.
+async function loadTemplateVideoPaths(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  items: ItemRow[],
+): Promise<Map<string, string>> {
+  const templateIds = [...new Set(items.map((i) => i.template_id).filter((t): t is string => !!t))];
+  const map = new Map<string, string>();
+  if (templateIds.length === 0) return map;
+  const { data } = await supabase
+    .from('creative_templates')
+    .select('id, fixed_params')
+    .in('id', templateIds);
+  for (const row of data ?? []) {
+    const fixed = (row.fixed_params ?? {}) as { templateVideoPath?: string };
+    if (fixed.templateVideoPath) map.set(row.id as string, fixed.templateVideoPath);
+  }
+  return map;
 }
 
 export type BatchResult = {
@@ -208,6 +231,7 @@ export async function enqueueBatch(params: {
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
   const pricing = await loadPricing();
   const supabase = await createClient();
+  const templateVideos = await loadTemplateVideoPaths(supabase, selected);
   const itemStatus = mode === 'sample' ? 'sample' : 'queued';
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
@@ -224,7 +248,12 @@ export async function enqueueBatch(params: {
         aspectRatio: item.aspect_ratio ?? undefined,
         generateAudio: item.audio,
       },
-      directorContextFor(item, format, ctx),
+      directorContextFor(
+        item,
+        format,
+        ctx,
+        item.template_id ? templateVideos.get(item.template_id) : undefined,
+      ),
     );
 
     if (!compiled.ok) {
