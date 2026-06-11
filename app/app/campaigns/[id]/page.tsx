@@ -2,7 +2,11 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { publicThumbnailUrl } from '@/lib/supabase/storage';
 import { CampaignDetailPage } from '@/components/campaigns/CampaignDetailPage';
-import { CampaignStudioView, type StudioItem } from '@/components/campaigns/CampaignStudioView';
+import {
+  CampaignStudioView,
+  type StudioItem,
+  type StudioTemplate,
+} from '@/components/campaigns/CampaignStudioView';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -29,15 +33,21 @@ export default async function CampaignDetailRoute({
 
   // Campaña Studio (V2): tiene brief de producto → vista de plan/producción.
   if (brief?.productName) {
-    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }] = await Promise.all([
-      supabase
-        .from('campaign_items')
-        .select('id, format_id, duration_s, aspect_ratio, scene, scene_prompt, character_id, scheduled_date, status, warnings')
-        .eq('campaign_id', id)
-        .order('scheduled_date'),
-      supabase.from('formats').select('id, name'),
-      supabase.from('characters').select('id, name').eq('workspace_id', workspace.id),
-    ]);
+    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }] =
+      await Promise.all([
+        supabase
+          .from('campaign_items')
+          .select('id, format_id, duration_s, aspect_ratio, scene, scene_prompt, character_id, scheduled_date, status, warnings, generation_id')
+          .eq('campaign_id', id)
+          .order('scheduled_date'),
+        supabase.from('formats').select('id, name'),
+        supabase.from('characters').select('id, name').eq('workspace_id', workspace.id),
+        supabase
+          .from('creative_templates')
+          .select('id, name, format_id, uses_count')
+          .eq('workspace_id', workspace.id)
+          .order('created_at', { ascending: false }),
+      ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
     const characterNames = new Map((characterRows ?? []).map((c) => [c.id as string, c.name as string]));
@@ -54,6 +64,19 @@ export default async function CampaignDetailRoute({
       scheduledDate: (r.scheduled_date as string | null) ?? null,
       status: r.status as string,
       warnings: (r.warnings as string[]) ?? [],
+      generationId: (r.generation_id as string | null) ?? null,
+    }));
+
+    const templates: StudioTemplate[] = (templateRows ?? []).map((t) => ({
+      id: t.id as string,
+      name: t.name as string,
+      formatName: t.format_id ? (formatNames.get(t.format_id as string) ?? 'Formato') : 'Formato',
+      usesCount: (t.uses_count as number) ?? 0,
+    }));
+
+    const characterOptions = (characterRows ?? []).map((c) => ({
+      id: c.id as string,
+      name: c.name as string,
     }));
 
     return (
@@ -68,6 +91,8 @@ export default async function CampaignDetailRoute({
           creditsEstimated: (campaign.credits_estimated as number | null) ?? null,
         }}
         initialItems={items}
+        templates={templates}
+        characterOptions={characterOptions}
       />
     );
   }

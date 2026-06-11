@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPlan, type PlannerInput } from './planner';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
+import { buildSeries, buildTemplateParams } from './distill';
 import type { PricingRow } from '@/lib/credits/types';
 
 // ============ Fixtures ============
@@ -179,5 +180,104 @@ describe('estimate', () => {
     expect(() =>
       seedanceCostPerItem(PRICING, 'bytedance/seedance-2.0/fast/reference-to-video', '1080p', 8),
     ).toThrow(/pricing no encontrado/);
+  });
+});
+
+// ============ Plantillas vivas (Fase D) ============
+
+describe('distill', () => {
+  const fixed = buildTemplateParams({
+    modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+    durationS: 9,
+    aspectRatio: '9:16',
+    resolution: '720p',
+    audio: true,
+    templateVideoPath: 'ws1/u1/template-abc.mp4',
+  });
+
+  it('buildTemplateParams aplica defaults sin pisar valores', () => {
+    expect(fixed.durationS).toBe(9);
+    expect(fixed.templateVideoPath).toBe('ws1/u1/template-abc.mp4');
+    const withDefaults = buildTemplateParams({
+      modelSlug: 'm',
+      durationS: null,
+      aspectRatio: null,
+      resolution: null,
+      audio: false,
+      templateVideoPath: 'p.mp4',
+    });
+    expect(withDefaults.durationS).toBe(8);
+    expect(withDefaults.aspectRatio).toBe('9:16');
+    expect(withDefaults.resolution).toBe('720p');
+  });
+
+  const slots = {
+    scenePrompt: 'She lifts the can and smiles',
+    scene: 'a sunlit home kitchen',
+    characterId: 'char-1',
+    productName: 'Lumen',
+  };
+  const scenes = [
+    { name: 'Cocina', fragment: 'a sunlit home kitchen' },
+    { name: 'Calle', fragment: 'a busy urban sidewalk' },
+    { name: 'Azotea', fragment: 'a city rooftop at dusk' },
+  ];
+
+  it('buildSeries excluye la escena original y conserva la accion', () => {
+    const items = buildSeries({
+      templateId: 'tpl-1',
+      formatId: 'fmt-0',
+      fixed,
+      slots,
+      count: 4,
+      scenes,
+      characters: [],
+      rotateCharacters: false,
+      startDate: new Date('2026-07-01'),
+    });
+    expect(items).toHaveLength(4);
+    for (const item of items) {
+      expect(item.scene).not.toBe('a sunlit home kitchen');
+      expect(item.scenePrompt).toBe(slots.scenePrompt);
+      expect(item.templateId).toBe('tpl-1');
+      expect(item.characterId).toBe('char-1'); // sin rotacion conserva el original
+      expect(item.durationS).toBe(9);
+    }
+    expect(items[0].scheduledDate).toBe('2026-07-01');
+    expect(items[3].scheduledDate).toBe('2026-07-04');
+  });
+
+  it('buildSeries rota personajes cuando se pide', () => {
+    const items = buildSeries({
+      templateId: 'tpl-1',
+      formatId: 'fmt-0',
+      fixed,
+      slots,
+      count: 4,
+      scenes,
+      characters: [
+        { id: 'char-1', name: 'Maya' },
+        { id: 'char-2', name: 'Leo' },
+      ],
+      rotateCharacters: true,
+      startDate: new Date('2026-07-01'),
+    });
+    const used = new Set(items.map((i) => i.characterId));
+    expect(used).toEqual(new Set(['char-1', 'char-2']));
+  });
+
+  it('buildSeries sin escenas devuelve vacio', () => {
+    const items = buildSeries({
+      templateId: 'tpl-1',
+      formatId: null,
+      fixed,
+      slots,
+      count: 3,
+      scenes: [],
+      characters: [],
+      rotateCharacters: false,
+      startDate: new Date(),
+    });
+    expect(items).toHaveLength(0);
   });
 });

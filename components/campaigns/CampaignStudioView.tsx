@@ -7,7 +7,10 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
   approveBatchAction,
+  createVariantAction,
   deleteCampaignItemAction,
+  distillTemplateAction,
+  generateSeriesAction,
   requestFinalAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
@@ -24,7 +27,17 @@ export type StudioItem = {
   scheduledDate: string | null;
   status: string;
   warnings: string[];
+  generationId: string | null;
 };
+
+export type StudioTemplate = {
+  id: string;
+  name: string;
+  formatName: string;
+  usesCount: number;
+};
+
+export type StudioCharacterOption = { id: string; name: string };
 
 export type StudioCampaign = {
   id: string;
@@ -60,12 +73,16 @@ function StatusBadge({ status }: { status: string }) {
 export function CampaignStudioView({
   campaign,
   initialItems,
+  templates,
+  characterOptions,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
+  templates: StudioTemplate[];
+  characterOptions: StudioCharacterOption[];
 }) {
   const [items, setItems] = useState(initialItems);
-  const [tab, setTab] = useState<'plan' | 'produccion'>('plan');
+  const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
 
   // Realtime: progreso de producción sin polling (patrón del repo con setAuth).
@@ -75,10 +92,17 @@ export function CampaignStudioView({
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'campaign_items', filter: `campaign_id=eq.${campaign.id}` },
       (payload) => {
-        const r = payload.new as { id: string; status: string; warnings?: string[] };
+        const r = payload.new as { id: string; status: string; warnings?: string[]; generation_id?: string | null };
         setItems((prev) =>
           prev.map((it) =>
-            it.id === r.id ? { ...it, status: r.status, warnings: (r.warnings as string[]) ?? it.warnings } : it,
+            it.id === r.id
+              ? {
+                  ...it,
+                  status: r.status,
+                  warnings: (r.warnings as string[]) ?? it.warnings,
+                  generationId: r.generation_id ?? it.generationId,
+                }
+              : it,
           ),
         );
       },
@@ -128,7 +152,7 @@ export function CampaignStudioView({
           </p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
-          {(['plan', 'produccion'] as const).map((t) => (
+          {(['plan', 'produccion', 'plantillas'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -137,7 +161,7 @@ export function CampaignStudioView({
                 tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'plan' ? 'Plan' : 'Producción'}
+              {t === 'plan' ? 'Plan' : t === 'produccion' ? 'Producción' : `Plantillas (${templates.length})`}
             </button>
           ))}
         </div>
@@ -145,8 +169,10 @@ export function CampaignStudioView({
 
       {tab === 'plan' ? (
         <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
+      ) : tab === 'produccion' ? (
+        <ProductionView campaignId={campaign.id} groups={byFormat} characterOptions={characterOptions} />
       ) : (
-        <ProductionView campaignId={campaign.id} groups={byFormat} />
+        <TemplatesView templates={templates} />
       )}
 
       {editing && (
@@ -254,11 +280,15 @@ function PlanTable({
 function ProductionView({
   campaignId,
   groups,
+  characterOptions,
 }: {
   campaignId: string;
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
+  characterOptions: StudioCharacterOption[];
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [distilling, setDistilling] = useState<StudioItem | null>(null);
+  const [varianting, setVarianting] = useState<StudioItem | null>(null);
 
   async function handleBatch(formatId: string, mode: 'sample' | 'full') {
     setBusy(`${formatId}:${mode}`);
@@ -294,7 +324,8 @@ function ProductionView({
         const pending = group.items.filter((i) => ['planned', 'failed'].includes(i.status)).length;
         const generating = group.items.filter((i) => ['sample', 'queued', 'approved'].includes(i.status)).length;
         const drafts = group.items.filter((i) => i.status === 'draft_ready');
-        const finals = group.items.filter((i) => i.status === 'final_ready').length;
+        const finalItems = group.items.filter((i) => i.status === 'final_ready');
+        const finals = finalItems.length;
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -359,6 +390,34 @@ function ProductionView({
                 ))}
               </div>
             )}
+
+            {finalItems.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
+                {finalItems.map((f) => (
+                  <div key={f.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">{f.scenePrompt}</p>
+                    <span className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={!f.generationId}
+                        onClick={() => setDistilling(f)}
+                        className="rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      >
+                        Convertir en plantilla
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!f.generationId}
+                        onClick={() => setVarianting(f)}
+                        className="rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      >
+                        Variante
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
@@ -366,6 +425,320 @@ function ProductionView({
         Los lotes se encolan escalonados (20 s entre videos). Los resultados aparecen en la pestaña de la
         campaña en la biblioteca; el draft se genera en 480p y el final aprobado en 720p con el mismo seed.
       </p>
+
+      {distilling?.generationId && (
+        <DistillDialog
+          item={distilling}
+          onClose={() => setDistilling(null)}
+        />
+      )}
+      {varianting?.generationId && (
+        <VariantDialog
+          item={varianting}
+          characterOptions={characterOptions}
+          onClose={() => setVarianting(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function TemplatesView({ templates }: { templates: StudioTemplate[] }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [count, setCount] = useState(3);
+  const [rotateCharacters, setRotateCharacters] = useState(false);
+
+  async function handleSeries(templateId: string) {
+    setBusy(templateId);
+    const res = await generateSeriesAction({ templateId, count, rotateCharacters });
+    setBusy(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo generar la serie');
+      return;
+    }
+    toast.success(`Serie creada: ${res.data.items} items en el plan — apruébalos desde Producción`);
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="mt-10 flex flex-col items-center gap-2 text-center text-muted-foreground/60">
+        <p className="text-[14px] text-foreground/70">Sin plantillas todavía</p>
+        <p className="max-w-md text-[12.5px]">
+          Cuando un creativo final te funcione, conviértelo en plantilla desde Producción: su estructura,
+          cámara y ritmo quedan fijos y puedes generar series rotando escena y personaje.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/50 p-3 text-[12.5px]">
+        <span className="text-muted-foreground">Tamaño de la serie:</span>
+        {[2, 3, 4, 6].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setCount(n)}
+            className={`rounded-md border px-2.5 py-1 transition-colors ${
+              count === n
+                ? 'border-primary/60 bg-primary/10 text-foreground'
+                : 'border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+        <label className="ml-2 inline-flex items-center gap-2 text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={rotateCharacters}
+            onChange={(e) => setRotateCharacters(e.target.checked)}
+            className="accent-[#7c3aed]"
+          />
+          Rotar personajes del Cast
+        </label>
+      </div>
+
+      <div className="space-y-2">
+        {templates.map((t) => (
+          <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/50 p-4">
+            <div className="min-w-0">
+              <p className="truncate text-[13.5px] font-medium text-foreground">{t.name}</p>
+              <p className="text-[11.5px] text-muted-foreground/60">
+                {t.formatName} · usada {t.usesCount} {t.usesCount === 1 ? 'vez' : 'veces'}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => handleSeries(t.id)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity disabled:opacity-40"
+            >
+              {busy === t.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
+              Generar serie ({count})
+            </button>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11.5px] text-muted-foreground/50">
+        La serie copia la estructura, cámara y ritmo del video ganador (entra como referencia @Video1) y
+        rota la escena{rotateCharacters ? ' y el personaje' : ''}. Los items nuevos aparecen en el plan
+        como planificados y se generan desde Producción con las compuertas normales.
+      </p>
+    </div>
+  );
+}
+
+function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => void }) {
+  const [name, setName] = useState(`${item.formatName} ganador`);
+  const [saving, setSaving] = useState(false);
+
+  async function handleDistill() {
+    if (!item.generationId) return;
+    setSaving(true);
+    const res = await distillTemplateAction({ generationId: item.generationId, name: name.trim() });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo crear la plantilla');
+      return;
+    }
+    toast.success('Plantilla creada — está en la pestaña Plantillas');
+    onClose();
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground">Convertir en plantilla</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+            <X className="size-4.5" aria-hidden />
+          </button>
+        </div>
+        <p className="mt-2 text-[12.5px] text-muted-foreground">
+          La estructura, cámara, ritmo y estilo de este video quedan fijos; producto, escena y personaje
+          serán rotables al generar series.
+        </p>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={120}
+          placeholder="Nombre de la plantilla"
+          className="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleDistill}
+            disabled={saving || name.trim().length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            Crear plantilla
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VariantDialog({
+  item,
+  characterOptions,
+  onClose,
+}: {
+  item: StudioItem;
+  characterOptions: StudioCharacterOption[];
+  onClose: () => void;
+}) {
+  const [mode, setMode] = useState<'extend' | 'replace_character'>('extend');
+  const [extendSeconds, setExtendSeconds] = useState(5);
+  const [continuation, setContinuation] = useState('');
+  const [characterId, setCharacterId] = useState(characterOptions[0]?.id ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const canSubmit = mode === 'extend' ? true : characterId.length > 0;
+
+  async function handleCreate() {
+    if (!item.generationId) return;
+    setSaving(true);
+    const res = await createVariantAction({
+      generationId: item.generationId,
+      mode,
+      ...(mode === 'extend'
+        ? { extendSeconds, continuation: continuation.trim() || undefined }
+        : { characterId }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error === 'insufficient_credits' ? 'Créditos insuficientes' : res.message ?? 'No se pudo encolar la variante');
+      return;
+    }
+    toast.success('Variante en cola — aparecerá en la biblioteca de la campaña');
+    onClose();
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground">Variante dirigida</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+            <X className="size-4.5" aria-hidden />
+          </button>
+        </div>
+
+        <div className="mt-4 flex gap-1 rounded-lg border border-border bg-background p-0.5">
+          {(
+            [
+              { value: 'extend', label: 'Extender clip' },
+              { value: 'replace_character', label: 'Cambiar personaje' },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMode(m.value)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+                mode === m.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'extend' ? (
+          <div className="mt-4 space-y-3">
+            <div>
+              <span className="text-[12.5px] font-medium text-foreground/80">Segundos a extender</span>
+              <div className="mt-1.5 flex gap-2">
+                {[4, 5, 6, 8].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setExtendSeconds(s)}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors ${
+                      extendSeconds === s
+                        ? 'border-primary/60 bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    +{s}s
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label htmlFor="variant-cont" className="text-[12.5px] font-medium text-foreground/80">
+                Qué pasa en la continuación (opcional)
+              </label>
+              <textarea
+                id="variant-cont"
+                value={continuation}
+                onChange={(e) => setContinuation(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="She sets the can down and looks back to camera with a smile"
+                className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <label htmlFor="variant-char" className="text-[12.5px] font-medium text-foreground/80">
+              Nuevo personaje (acciones, escena y cámara se conservan)
+            </label>
+            {characterOptions.length === 0 ? (
+              <p className="mt-1.5 text-[12px] text-amber-400/80">No hay personajes en el Cast.</p>
+            ) : (
+              <select
+                id="variant-char"
+                value={characterId}
+                onChange={(e) => setCharacterId(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+              >
+                {characterOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={saving || !canSubmit}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            Encolar variante
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
