@@ -123,7 +123,12 @@
        propósito ("@Image1 es el producto, empaque exacto") → genera.
 4. [ ] **Frame inicial**: con solo 1-2 imágenes subidas, activar "Usar como frame inicial"
        → genera vía image-to-video.
-5. [ ] **Verificar**: costo mostrado = duración × tarifa del tier/resolución; el video llega
+5. [ ] **Brand Kit y Cast**: en "Referencias multimodales", el chip del Brand Kit agrega sus
+       imágenes de producto/empaque como @referencias (badge con origen en el thumbnail) y el
+       chip de cada personaje agrega su hoja maestra; "Citar en prompt" inserta la frase
+       "@ImageN es … " lista para usar; quitar el chip retira sus imágenes. Sin kits/cast se
+       muestran links a crearlos.
+6. [ ] **Verificar**: costo mostrado = duración × tarifa del tier/resolución; el video llega
        con audio; la generación aparece en la librería.
 
 ## Diagnóstico cuando algo falla
