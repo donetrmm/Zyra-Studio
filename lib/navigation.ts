@@ -1,5 +1,6 @@
 import {
   Banknote,
+  Clapperboard,
   Home,
   ImageIcon,
   Video,
@@ -58,6 +59,7 @@ export const APP_SIDEBAR: NavSection[] = [
       { label: "Referencias", href: "/app/references", icon: Files },
       { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
       { label: "Cast", href: "/app/cast", icon: Users },
+      { label: "Formatos", href: "/app/formats", icon: Clapperboard },
       { label: "Voces", href: "/app/voices", icon: Mic, badge: "Beta" },
       { label: "Presets", href: "/app/presets", icon: Sparkles },
     ],

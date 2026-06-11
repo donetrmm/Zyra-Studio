@@ -316,6 +316,24 @@ describe('buildCaption', () => {
   });
 });
 
+describe('buildPlan formatos custom', () => {
+  it('un formato custom del workspace entra al mix con semillas genéricas', () => {
+    const custom = {
+      id: 'fmt-custom',
+      slug: 'mi-formato',
+      name: 'Mi Formato',
+      requiredRefs: ['product'],
+      defaultDurationS: 6,
+      defaultAudio: true,
+    };
+    const items = buildPlan(plannerInput({ formats: [...FORMATS, custom], totalItems: 14 }));
+    const ofCustom = items.filter((i) => i.formatSlug === 'mi-formato');
+    expect(ofCustom.length).toBeGreaterThan(0);
+    expect(ofCustom[0].scenePrompt).toContain('Lumen');
+    expect(ofCustom[0].caption).toBeTruthy();
+  });
+});
+
 describe('buildPlan captions', () => {
   it('todo item del plan lleva caption con el producto', () => {
     const items = buildPlan(plannerInput());

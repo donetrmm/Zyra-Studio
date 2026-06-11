@@ -129,9 +129,11 @@ function isoDate(d: Date): string {
 
 export function buildPlan(input: PlannerInput): PlanItemDraft[] {
   const relevantSlugs = CATEGORY_MIX[input.category] ?? CATEGORY_MIX.other;
+  // Candidatos: formatos del mix de la categoría + formatos custom del usuario
+  // (slug sin semillas propias → usa las genéricas). El catálogo es del
+  // usuario, no de la plataforma (doc V2 §3).
   const candidates = input.formats
-    .filter((f) => relevantSlugs.includes(f.slug) || !CONCEPT_SEEDS[f.slug]) // formatos custom siempre candidatos
-    .filter((f) => relevantSlugs.includes(f.slug))
+    .filter((f) => relevantSlugs.includes(f.slug) || !CONCEPT_SEEDS[f.slug])
     .filter((f) => formatFitsRefs(f, input.available));
 
   if (candidates.length === 0 || input.totalItems < 1) return [];
