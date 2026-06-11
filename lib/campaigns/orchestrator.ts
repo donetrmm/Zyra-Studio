@@ -48,6 +48,8 @@ export type CampaignContext = {
   productImagePaths: string[];
   packagingImagePaths: string[];
   characters: Map<string, { name: string; description: string; masterImagePath: string }>;
+  // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
+  language: 'es' | 'en';
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -72,7 +74,11 @@ async function resolvePaths(
 
 export async function loadCampaignContext(
   workspaceId: string,
-  campaign: { brand_kit_id: string | null; product_brief: Record<string, unknown> | null },
+  campaign: {
+    brand_kit_id: string | null;
+    product_brief: Record<string, unknown> | null;
+    language?: string | null;
+  },
   characterIds: string[],
 ): Promise<CampaignContext> {
   const supabase = await createClient();
@@ -132,6 +138,7 @@ export async function loadCampaignContext(
     productImagePaths,
     packagingImagePaths,
     characters,
+    language: campaign.language === 'en' ? 'en' : 'es',
   };
 }
 
@@ -163,6 +170,7 @@ function directorContextFor(
     scene: item.scene ? { fragment: item.scene } : undefined,
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,
+    language: ctx.language,
   };
 }
 
@@ -200,6 +208,7 @@ export async function enqueueBatch(params: {
     id: string;
     brand_kit_id: string | null;
     product_brief: Record<string, unknown> | null;
+    language?: string | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;

@@ -16,6 +16,13 @@ import type {
 const NEGATIVE_CLAUSE =
   'No on-screen text, no captions, no subtitles, no watermarks, no rendered logos or typography. No real identifiable faces.';
 
+// El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
+// genera los diálogos en inglés. Exportada: la reusan las variantes.
+export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
+  es: 'All spoken dialogue and any voice-over must be in Spanish, with a neutral Latin American accent.',
+  en: 'All spoken dialogue and any voice-over must be in English.',
+};
+
 // Construye las referencias EN ORDEN (la posición define @Image1.., @Video1..).
 // Prioridad ante el tope de 12: producto > empaque > personaje > cámara > audio
 // (tier list de la guía Morphic §8).
@@ -132,6 +139,9 @@ export function compileSeedance(
   const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
   if (generateAudio && !ctx.audioRefPath) {
     sections.push('Audio: natural diegetic sound that matches the scene; no music unless the register calls for it.');
+  }
+  if (generateAudio) {
+    sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
   }
 
   sections.push(NEGATIVE_CLAUSE);

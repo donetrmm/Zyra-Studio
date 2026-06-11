@@ -69,6 +69,8 @@ export const CreateCampaignStudioSchema = z.object({
   brandKitId: z.string().uuid(),
   // Página del producto: su texto enriquece la auto-detección del brief.
   productUrl: z.string().trim().url().max(500).optional(),
+  // Idioma del diálogo hablado de los videos (el prompt va en inglés siempre).
+  language: z.enum(['es', 'en']).default('es'),
   dateStart: z.coerce.date().optional(),
   dateEnd: z.coerce.date().optional(),
 });
