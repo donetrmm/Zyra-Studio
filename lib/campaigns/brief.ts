@@ -51,6 +51,97 @@ const GeminiResponseSchema = z.object({
     .min(1),
 });
 
+// Fetch server-side de la URL del producto (specs/v2/03 tarea 2): el texto de
+// la página (título, descripción, claims, tono) se pasa como extraContext al
+// análisis del brief. Guardas: solo http(s), sin hosts internos (SSRF),
+// timeout 10s, respuesta acotada.
+const URL_TIMEOUT_MS = 10_000;
+const URL_MAX_BYTES = 1_500_000;
+const URL_TEXT_CAP = 4000;
+
+function isBlockedHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  // IPs literales privadas/loopback/link-local (IPv4) y loopback IPv6.
+  if (h === '::1' || h === '[::1]') return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+  }
+  return false;
+}
+
+export function htmlToText(html: string): string {
+  // Título + meta description primero: suelen concentrar nombre y claims.
+  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '';
+  const metaDesc =
+    /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i.exec(html)?.[1] ??
+    /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i.exec(html)?.[1] ??
+    '';
+  const ogDesc =
+    /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i.exec(html)?.[1] ?? '';
+  const body = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return [title.trim(), metaDesc.trim(), ogDesc.trim(), body]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, URL_TEXT_CAP);
+}
+
+export async function fetchProductPageText(rawUrl: string): Promise<string> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw new ProviderError('URL de producto inválida', 'unknown', false);
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new ProviderError('Solo URLs http(s)', 'unknown', false);
+  }
+  if (isBlockedHost(url.hostname)) {
+    throw new ProviderError('URL no permitida', 'unknown', false);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), URL_TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'ZyraStudio/1.0 (product brief)' },
+    });
+    if (!res.ok) {
+      throw new ProviderError(`La página respondió ${res.status}`, 'server', false);
+    }
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+      throw new ProviderError('La URL no es una página de producto (HTML)', 'unknown', false);
+    }
+    const raw = await res.text();
+    const html = raw.length > URL_MAX_BYTES ? raw.slice(0, URL_MAX_BYTES) : raw;
+    const text = htmlToText(html);
+    if (!text) throw new ProviderError('La página no tiene texto legible', 'unknown', false);
+    return text;
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    if ((e as Error).name === 'AbortError') {
+      throw new ProviderError('La página tardó demasiado en responder', 'timeout', false);
+    }
+    throw new ProviderError(`No se pudo leer la URL: ${(e as Error).message}`, 'unknown', false);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function analyzeProductBrief(input: {
   imageBuffer: Buffer;
   mimeType: string;

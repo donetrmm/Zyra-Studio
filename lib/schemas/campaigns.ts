@@ -67,6 +67,8 @@ export const CreateCampaignStudioSchema = z.object({
   goal: z.enum(['awareness', 'conversion', 'mixed']).default('mixed'),
   market: z.string().trim().max(80).optional(),
   brandKitId: z.string().uuid(),
+  // Página del producto: su texto enriquece la auto-detección del brief.
+  productUrl: z.string().trim().url().max(500).optional(),
   dateStart: z.coerce.date().optional(),
   dateEnd: z.coerce.date().optional(),
 });

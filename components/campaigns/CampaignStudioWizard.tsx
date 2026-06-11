@@ -32,6 +32,7 @@ export function CampaignStudioWizard({
   const router = useRouter();
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
+  const [productUrl, setProductUrl] = useState('');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
   const [totalItems, setTotalItems] = useState(12);
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +45,12 @@ export function CampaignStudioWizard({
     if (!canSubmit) return;
     setSubmitting(true);
     setStep('brief');
-    const created = await createCampaignStudioAction({ name: name.trim(), goal, brandKitId });
+    const created = await createCampaignStudioAction({
+      name: name.trim(),
+      goal,
+      brandKitId,
+      ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
+    });
     if (!created.ok) {
       setSubmitting(false);
       setStep('idle');
@@ -134,6 +140,24 @@ export function CampaignStudioWizard({
                 Este kit no tiene imágenes de producto; el brief se analizará con sus referencias generales.
               </p>
             )}
+          </div>
+
+          <div>
+            <label htmlFor="campaign-url" className="text-[12.5px] font-medium text-foreground/80">
+              URL del producto <span className="text-muted-foreground/50">(opcional)</span>
+            </label>
+            <input
+              id="campaign-url"
+              type="url"
+              value={productUrl}
+              onChange={(e) => setProductUrl(e.target.value)}
+              placeholder="https://mitienda.com/producto"
+              maxLength={500}
+              className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-[13.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-primary/50"
+            />
+            <p className="mt-1 text-[11.5px] text-muted-foreground/60">
+              El texto de la página (nombre, descripción, tono) enriquece el análisis del producto.
+            </p>
           </div>
 
           <div>

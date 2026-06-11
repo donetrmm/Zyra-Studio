@@ -7,7 +7,7 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
-import { analyzeProductBrief } from '@/lib/campaigns/brief';
+import { analyzeProductBrief, fetchProductPageText } from '@/lib/campaigns/brief';
 import { buildPlan, type PlannerFormat } from '@/lib/campaigns/planner';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
@@ -164,10 +164,21 @@ export async function createCampaignStudioAction(
     return { ok: false, error: 'not_found', message: 'Imagen de producto no encontrada' };
   }
 
+  // URL del producto (opcional): su texto entra como contexto del análisis.
+  // Falla dura: si la URL no sirve, el usuario debe corregirla o quitarla.
+  let extraContext: string | undefined;
+  if (parsed.data.productUrl) {
+    try {
+      extraContext = await fetchProductPageText(parsed.data.productUrl);
+    } catch (e) {
+      return { ok: false, error: 'validation_error', message: `URL del producto: ${(e as Error).message}` };
+    }
+  }
+
   let brief;
   try {
     const { buffer, mimeType } = await downloadReferenceBuffer(refRow.storage_url as string);
-    brief = await analyzeProductBrief({ imageBuffer: buffer, mimeType });
+    brief = await analyzeProductBrief({ imageBuffer: buffer, mimeType, extraContext });
   } catch (e) {
     return { ok: false, error: 'provider_error', message: (e as Error).message };
   }
