@@ -16,6 +16,7 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
+  AddCampaignItemSchema,
   ApproveBatchSchema,
   CreateCampaignStudioSchema,
   CreateVariantSchema,
@@ -401,6 +402,116 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   if (error) return { ok: false, error: 'internal_error', message: error.message };
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
   return { ok: true, data: { updated: true } };
+}
+
+// Agrega un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
+export async function addCampaignItemAction(input: unknown): Promise<
+  Result<{
+    id: string;
+    aspectRatio: string;
+    durationS: number;
+    caption: string;
+    scheduledDate: string | null;
+  }>
+> {
+  const parsed = AddCampaignItemSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, workspace_id, goal, product_brief')
+    .eq('id', parsed.data.campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  const { data: format } = await supabase
+    .from('formats')
+    .select('id, slug, default_duration_s, default_audio')
+    .eq('id', parsed.data.formatId)
+    .single();
+  if (!format) return { ok: false, error: 'not_found', message: 'Formato no encontrado' };
+
+  const productName =
+    ((campaign.product_brief as { productName?: string } | null)?.productName ?? '').trim() ||
+    'el producto';
+  const goal = (['awareness', 'conversion', 'mixed'].includes(campaign.goal as string)
+    ? campaign.goal
+    : 'mixed') as 'awareness' | 'conversion' | 'mixed';
+
+  const durationS = parsed.data.durationS ?? (format.default_duration_s as number) ?? 8;
+  const aspectRatio = (format.slug as string) === 'gran-pantalla' ? '16:9' : '9:16';
+  const caption = buildCaption({
+    productName,
+    formatSlug: format.slug as string,
+    goal,
+    index: 0,
+  });
+  const scheduledDate = parsed.data.scheduledDate
+    ? parsed.data.scheduledDate.toISOString().slice(0, 10)
+    : null;
+
+  const { data: inserted, error } = await supabase
+    .from('campaign_items')
+    .insert({
+      campaign_id: campaign.id,
+      format_id: format.id,
+      model_slug: DRAFT_MODEL,
+      duration_s: durationS,
+      aspect_ratio: aspectRatio,
+      scene: parsed.data.scene ?? null,
+      audio: (format.default_audio as boolean) ?? true,
+      character_id: parsed.data.characterId ?? null,
+      scene_prompt: parsed.data.scenePrompt,
+      caption,
+      scheduled_date: scheduledDate,
+      status: 'planned',
+    })
+    .select('id')
+    .single();
+  if (error || !inserted) return { ok: false, error: 'internal_error', message: error?.message };
+
+  revalidatePath(`/app/campaigns/${campaign.id}`);
+  return {
+    ok: true,
+    data: { id: inserted.id as string, aspectRatio, durationS, caption, scheduledDate },
+  };
+}
+
+// Rehacer muestra (specs/v2/03 tarea 1: redoSamples): regresa los drafts del
+// formato a 'planned' para editarlos o volver a tirar la muestra. Los videos
+// ya generados quedan en la librería; rehacer cobra créditos de nuevo.
+export async function redoSamplesAction(
+  campaignId: string,
+  formatId: string,
+): Promise<Result<{ reset: number }>> {
+  if (!z.string().uuid().safeParse(campaignId).success || !z.string().uuid().safeParse(formatId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, workspace_id')
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  const { data: rows, error } = await supabase
+    .from('campaign_items')
+    .update({ status: 'planned', generation_id: null })
+    .eq('campaign_id', campaignId)
+    .eq('format_id', formatId)
+    .eq('status', 'draft_ready')
+    .select('id');
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, data: { reset: rows?.length ?? 0 } };
 }
 
 export async function deleteCampaignItemAction(itemId: string): Promise<Result<{ deleted: true }>> {

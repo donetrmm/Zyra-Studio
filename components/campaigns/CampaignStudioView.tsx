@@ -18,17 +18,20 @@ import {
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
+  addCampaignItemAction,
   approveBatchAction,
   createVariantAction,
   deleteCampaignItemAction,
   distillTemplateAction,
   exportCampaignCsvAction,
   generateSeriesAction,
+  redoSamplesAction,
   requestFinalAction,
   toggleWinnerAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
+import { insufficientCreditsToast } from './credits-toast';
 
 export type StudioItem = {
   id: string;
@@ -88,20 +91,25 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+export type StudioFormatOption = { id: string; name: string };
+
 export function CampaignStudioView({
   campaign,
   initialItems,
   templates,
   characterOptions,
+  formatOptions,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
   templates: StudioTemplate[];
   characterOptions: StudioCharacterOption[];
+  formatOptions: StudioFormatOption[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
+  const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   async function handleExport() {
@@ -228,7 +236,19 @@ export function CampaignStudioView({
       </div>
 
       {tab === 'plan' ? (
-        <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
+        <>
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Pencil className="size-3.5" aria-hidden />
+              Agregar creativo
+            </button>
+          </div>
+          <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
+        </>
       ) : tab === 'produccion' ? (
         <ProductionView
           campaignId={campaign.id}
@@ -236,6 +256,15 @@ export function CampaignStudioView({
           characterOptions={characterOptions}
           onWinner={(id, isWinner) =>
             setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isWinner } : i)))
+          }
+          onSamplesReset={(formatId) =>
+            setItems((prev) =>
+              prev.map((i) =>
+                i.formatId === formatId && i.status === 'draft_ready'
+                  ? { ...i, status: 'planned', generationId: null }
+                  : i,
+              ),
+            )
           }
         />
       ) : tab === 'plantillas' ? (
@@ -252,10 +281,24 @@ export function CampaignStudioView({
       {editing && (
         <EditItemDialog
           item={editing}
+          characterOptions={characterOptions}
           onClose={() => setEditing(null)}
           onSaved={(patch) => {
             setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...patch, status: 'planned' } : i)));
             setEditing(null);
+          }}
+        />
+      )}
+
+      {adding && (
+        <AddItemDialog
+          campaignId={campaign.id}
+          formatOptions={formatOptions}
+          characterOptions={characterOptions}
+          onClose={() => setAdding(false)}
+          onAdded={(item) => {
+            setItems((prev) => [...prev, item]);
+            setAdding(false);
           }}
         />
       )}
@@ -369,11 +412,13 @@ function ProductionView({
   groups,
   characterOptions,
   onWinner,
+  onSamplesReset,
 }: {
   campaignId: string;
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
   characterOptions: StudioCharacterOption[];
   onWinner: (itemId: string, isWinner: boolean) => void;
+  onSamplesReset: (formatId: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [distilling, setDistilling] = useState<StudioItem | null>(null);
@@ -400,9 +445,8 @@ function ProductionView({
     const res = await approveBatchAction({ campaignId, formatId, mode });
     setBusy(null);
     if (!res.ok) {
-      toast.error(
-        res.error === 'insufficient_credits' ? 'Créditos insuficientes para el lote' : res.message ?? 'No se pudo encolar',
-      );
+      if (res.error === 'insufficient_credits') insufficientCreditsToast('Créditos insuficientes para el lote');
+      else toast.error(res.message ?? 'No se pudo encolar');
       return;
     }
     toast.success(
@@ -417,10 +461,25 @@ function ProductionView({
     const res = await requestFinalAction({ itemId });
     setBusy(null);
     if (!res.ok) {
-      toast.error(res.error === 'insufficient_credits' ? 'Créditos insuficientes' : res.message ?? 'No se pudo encolar el final');
+      if (res.error === 'insufficient_credits') insufficientCreditsToast();
+      else toast.error(res.message ?? 'No se pudo encolar el final');
       return;
     }
     toast.success('Render final en cola (720p, mismo seed)');
+  }
+
+  async function handleRedoSamples(formatId: string) {
+    setBusy(`${formatId}:redo`);
+    const res = await redoSamplesAction(campaignId, formatId);
+    setBusy(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo rehacer la muestra');
+      return;
+    }
+    onSamplesReset(formatId);
+    toast.success(
+      `${res.data.reset} drafts regresaron al plan: edítalos o vuelve a tirar la muestra (cobra créditos de nuevo)`,
+    );
   }
 
   return (
@@ -493,6 +552,16 @@ function ProductionView({
                     </button>
                   </div>
                 ))}
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => handleRedoSamples(group.formatId)}
+                  className="mt-1 text-[11px] text-muted-foreground/60 underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
+                >
+                  {busy === `${group.formatId}:redo`
+                    ? 'Regresando drafts…'
+                    : 'La muestra no convence: regresar drafts al plan'}
+                </button>
               </div>
             )}
 
@@ -768,7 +837,8 @@ function VariantDialog({
     });
     setSaving(false);
     if (!res.ok) {
-      toast.error(res.error === 'insufficient_credits' ? 'Créditos insuficientes' : res.message ?? 'No se pudo encolar la variante');
+      if (res.error === 'insufficient_credits') insufficientCreditsToast();
+      else toast.error(res.message ?? 'No se pudo encolar la variante');
       return;
     }
     toast.success('Variante en cola — aparecerá en la biblioteca de la campaña');
@@ -954,14 +1024,20 @@ function VariantDialog({
 
 function EditItemDialog({
   item,
+  characterOptions,
   onClose,
   onSaved,
 }: {
   item: StudioItem;
+  characterOptions: StudioCharacterOption[];
   onClose: () => void;
   onSaved: (patch: Partial<StudioItem>) => void;
 }) {
   const [scenePrompt, setScenePrompt] = useState(item.scenePrompt);
+  const [scene, setScene] = useState(item.scene ?? '');
+  const [characterId, setCharacterId] = useState(
+    characterOptions.find((c) => c.name === item.characterName)?.id ?? '',
+  );
   const [caption, setCaption] = useState(item.caption ?? '');
   const [scheduledDate, setScheduledDate] = useState(item.scheduledDate ?? '');
   const [saving, setSaving] = useState(false);
@@ -971,6 +1047,8 @@ function EditItemDialog({
     const res = await updateCampaignItemAction({
       itemId: item.id,
       scenePrompt,
+      scene: scene.trim() || undefined,
+      ...(characterId ? { characterId } : {}),
       caption,
       ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
     });
@@ -979,7 +1057,15 @@ function EditItemDialog({
       toast.error(res.message ?? 'No se pudo guardar');
       return;
     }
-    onSaved({ scenePrompt, caption: caption || null, scheduledDate: scheduledDate || item.scheduledDate });
+    onSaved({
+      scenePrompt,
+      scene: scene.trim() || item.scene,
+      characterName: characterId
+        ? (characterOptions.find((c) => c.id === characterId)?.name ?? item.characterName)
+        : item.characterName,
+      caption: caption || null,
+      scheduledDate: scheduledDate || item.scheduledDate,
+    });
   }
 
   return (
@@ -1012,6 +1098,40 @@ function EditItemDialog({
           maxLength={4000}
           className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
         />
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="edit-scene" className="block text-[12.5px] font-medium text-foreground/80">
+              Escena (fragmento de contexto)
+            </label>
+            <input
+              id="edit-scene"
+              value={scene}
+              onChange={(e) => setScene(e.target.value)}
+              maxLength={200}
+              placeholder="a sunlit home kitchen"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+            />
+          </div>
+          <div>
+            <label htmlFor="edit-character" className="block text-[12.5px] font-medium text-foreground/80">
+              Personaje
+            </label>
+            <select
+              id="edit-character"
+              value={characterId}
+              onChange={(e) => setCharacterId(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+            >
+              <option value="">Sin cambio / sin personaje</option>
+              {characterOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         <label htmlFor="edit-caption" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
           Caption de publicación
@@ -1053,6 +1173,182 @@ function EditItemDialog({
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddItemDialog({
+  campaignId,
+  formatOptions,
+  characterOptions,
+  onClose,
+  onAdded,
+}: {
+  campaignId: string;
+  formatOptions: StudioFormatOption[];
+  characterOptions: StudioCharacterOption[];
+  onClose: () => void;
+  onAdded: (item: StudioItem) => void;
+}) {
+  const [formatId, setFormatId] = useState(formatOptions[0]?.id ?? '');
+  const [scenePrompt, setScenePrompt] = useState('');
+  const [scene, setScene] = useState('');
+  const [characterId, setCharacterId] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const canSubmit = formatId.length > 0 && scenePrompt.trim().length > 0 && !saving;
+
+  async function handleAdd() {
+    if (!canSubmit) return;
+    setSaving(true);
+    const res = await addCampaignItemAction({
+      campaignId,
+      formatId,
+      scenePrompt: scenePrompt.trim(),
+      scene: scene.trim() || undefined,
+      ...(characterId ? { characterId } : {}),
+      ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo agregar el creativo');
+      return;
+    }
+    onAdded({
+      id: res.data.id,
+      formatId,
+      formatName: formatOptions.find((f) => f.id === formatId)?.name ?? 'Formato',
+      templateId: null,
+      durationS: res.data.durationS,
+      aspectRatio: res.data.aspectRatio,
+      scene: scene.trim() || null,
+      scenePrompt: scenePrompt.trim(),
+      caption: res.data.caption,
+      characterName: characterId
+        ? (characterOptions.find((c) => c.id === characterId)?.name ?? null)
+        : null,
+      scheduledDate: res.data.scheduledDate,
+      status: 'planned',
+      warnings: [],
+      generationId: null,
+      isWinner: false,
+    });
+    toast.success('Creativo agregado al plan');
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      <div
+        className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <h2 className="text-[15px] font-semibold text-foreground">Agregar creativo al plan</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
+            <X className="size-4.5" aria-hidden />
+          </button>
+        </div>
+
+        <label htmlFor="add-format" className="mt-4 block text-[12.5px] font-medium text-foreground/80">
+          Formato
+        </label>
+        <select
+          id="add-format"
+          value={formatId}
+          onChange={(e) => setFormatId(e.target.value)}
+          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+        >
+          {formatOptions.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+
+        <label htmlFor="add-prompt" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+          Acción de la escena
+        </label>
+        <textarea
+          id="add-prompt"
+          value={scenePrompt}
+          onChange={(e) => setScenePrompt(e.target.value)}
+          rows={3}
+          maxLength={4000}
+          placeholder="The presenter lifts the product into frame and shares a one-sentence take"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+        />
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="add-scene" className="block text-[12.5px] font-medium text-foreground/80">
+              Escena (opcional)
+            </label>
+            <input
+              id="add-scene"
+              value={scene}
+              onChange={(e) => setScene(e.target.value)}
+              maxLength={200}
+              placeholder="a sunlit home kitchen"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+            />
+          </div>
+          <div>
+            <label htmlFor="add-character" className="block text-[12.5px] font-medium text-foreground/80">
+              Personaje (opcional)
+            </label>
+            <select
+              id="add-character"
+              value={characterId}
+              onChange={(e) => setCharacterId(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+            >
+              <option value="">Sin personaje</option>
+              {characterOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <label htmlFor="add-date" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+          Fecha programada (opcional)
+        </label>
+        <input
+          id="add-date"
+          type="date"
+          value={scheduledDate}
+          onChange={(e) => setScheduledDate(e.target.value)}
+          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+        />
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!canSubmit}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            Agregar
           </button>
         </div>
       </div>

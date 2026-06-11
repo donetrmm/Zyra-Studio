@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { buildImagePackAction, updateItemScheduleAction } from '@/server-actions/campaigns';
 import { submitGenerationAction } from '@/server-actions/generations';
 import type { StudioItem } from './CampaignStudioView';
+import { insufficientCreditsToast } from './credits-toast';
 
 // ============ Pack de imágenes (specs/v2/05 tarea 5) ============
 // El server arma los prompts (FLUX + escenas ganadoras); el cliente genera
@@ -14,6 +15,11 @@ import type { StudioItem } from './CampaignStudioView';
 export function ImagePackCard({ campaignId }: { campaignId: string }) {
   const [count, setCount] = useState<4 | 6 | 8>(4);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [generated, setGenerated] = useState<Array<{ id: string; aspectRatio: string }>>([]);
+  const [refineText, setRefineText] = useState(
+    'Ajusta el fondo: más limpio y consistente con la marca. Mantén el producto y la composición idénticos.',
+  );
+  const [refining, setRefining] = useState<{ done: number; total: number } | null>(null);
 
   async function handlePack() {
     const plan = await buildImagePackAction(campaignId, count);
@@ -23,6 +29,8 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
     }
     const { specs, references } = plan.data;
     setProgress({ done: 0, total: specs.length });
+    setGenerated([]);
+    const created: Array<{ id: string; aspectRatio: string }> = [];
     let ok = 0;
     for (let i = 0; i < specs.length; i++) {
       const spec = specs[i];
@@ -37,15 +45,51 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
         photoreal: true,
         campaignId,
       });
-      if (res.ok) ok += 1;
-      else if (res.error === 'insufficient_credits') {
-        toast.error('Créditos insuficientes; pack detenido');
+      if (res.ok) {
+        ok += 1;
+        created.push({ id: res.data.generationId, aspectRatio: spec.aspectRatio });
+      } else if (res.error === 'insufficient_credits') {
+        insufficientCreditsToast('Créditos insuficientes; pack detenido');
         break;
       }
       setProgress({ done: i + 1, total: specs.length });
     }
     setProgress(null);
+    setGenerated(created);
     if (ok > 0) toast.success(`Pack listo: ${ok} imágenes en la librería de la campaña`);
+  }
+
+  // Refinamiento con Nano Banana (specs/v2/05 tarea 5): edición conversacional
+  // sobre cada imagen del pack — un cambio por iteración, todo lo demás igual.
+  async function handleRefine() {
+    if (!generated.length || !refineText.trim()) return;
+    setRefining({ done: 0, total: generated.length });
+    let ok = 0;
+    for (let i = 0; i < generated.length; i++) {
+      const g = generated[i];
+      const res = await submitGenerationAction({
+        provider: 'nano-banana',
+        model: 'gemini-3-pro-image-preview',
+        variant: '1k',
+        prompt: refineText.trim(),
+        aspectRatio: g.aspectRatio,
+        references: [],
+        conversational: true,
+        parentGenerationId: g.id,
+        campaignId,
+      });
+      if (res.ok) ok += 1;
+      else if (res.error === 'insufficient_credits') {
+        insufficientCreditsToast('Créditos insuficientes; refinado detenido');
+        break;
+      }
+      setRefining({ done: i + 1, total: generated.length });
+    }
+    setRefining(null);
+    if (ok > 0) {
+      toast.success(`${ok} imágenes refinadas en la librería de la campaña`);
+      setGenerated([]);
+    }
   }
 
   return (
@@ -99,6 +143,41 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
           </button>
         </div>
       </div>
+
+      {generated.length > 0 && !progress && (
+        <div className="mt-3 border-t border-border/50 pt-3">
+          <p className="text-[12.5px] font-medium text-foreground">
+            Refinar con Nano Banana <span className="text-muted-foreground/60">({generated.length} imágenes)</span>
+          </p>
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground/60">
+            Un cambio por iteración: describe el ajuste y se aplica a cada imagen del pack conservando
+            todo lo demás.
+          </p>
+          <textarea
+            value={refineText}
+            onChange={(e) => setRefineText(e.target.value)}
+            rows={2}
+            maxLength={500}
+            aria-label="Instrucción de refinamiento"
+            className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary/50"
+          />
+          <button
+            type="button"
+            disabled={refining !== null || !refineText.trim()}
+            onClick={handleRefine}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:opacity-40"
+          >
+            {refining ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                {refining.done}/{refining.total}
+              </>
+            ) : (
+              'Refinar el pack'
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

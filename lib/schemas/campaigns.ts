@@ -157,6 +157,18 @@ export const UpdateCampaignItemSchema = CampaignItemSchema.partial().extend({
   itemId: z.string().uuid(),
 });
 
+// Agregar un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
+// El modelo y el caption los decide el server (tier draft + caption generado).
+export const AddCampaignItemSchema = z.object({
+  campaignId: z.string().uuid(),
+  formatId: z.string().uuid(),
+  scenePrompt: z.string().trim().min(1).max(4000),
+  scene: z.string().trim().max(200).optional(),
+  characterId: z.string().uuid().optional(),
+  durationS: z.number().int().min(4).max(15).optional(),
+  scheduledDate: z.coerce.date().optional(),
+});
+
 // ============ Plantillas vivas ============
 
 export const CreateTemplateSchema = z.object({
