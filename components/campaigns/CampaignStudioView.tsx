@@ -561,6 +561,9 @@ function ProductionView({
         <VariantDialog
           item={varianting}
           characterOptions={characterOptions}
+          bridgeOptions={groups
+            .flatMap((g) => g.items)
+            .filter((i) => i.status === 'final_ready' && i.generationId && i.id !== varianting.id)}
           onClose={() => setVarianting(null)}
         />
       )}
@@ -717,22 +720,37 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
   );
 }
 
+type VariantMode = 'extend' | 'replace_character' | 'change_action' | 'bridge';
+
 function VariantDialog({
   item,
   characterOptions,
+  bridgeOptions,
   onClose,
 }: {
   item: StudioItem;
   characterOptions: StudioCharacterOption[];
+  // Otros finales de la campaña: destinos posibles de la escena puente.
+  bridgeOptions: StudioItem[];
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<'extend' | 'replace_character'>('extend');
+  const [mode, setMode] = useState<VariantMode>('extend');
   const [extendSeconds, setExtendSeconds] = useState(5);
   const [continuation, setContinuation] = useState('');
   const [characterId, setCharacterId] = useState(characterOptions[0]?.id ?? '');
+  const [newAction, setNewAction] = useState('');
+  const [targetId, setTargetId] = useState(bridgeOptions[0]?.generationId ?? '');
+  const [bridgeSeconds, setBridgeSeconds] = useState(5);
   const [saving, setSaving] = useState(false);
 
-  const canSubmit = mode === 'extend' ? true : characterId.length > 0;
+  const canSubmit =
+    mode === 'extend'
+      ? true
+      : mode === 'replace_character'
+        ? characterId.length > 0
+        : mode === 'change_action'
+          ? newAction.trim().length > 0
+          : targetId.length > 0;
 
   async function handleCreate() {
     if (!item.generationId) return;
@@ -742,7 +760,11 @@ function VariantDialog({
       mode,
       ...(mode === 'extend'
         ? { extendSeconds, continuation: continuation.trim() || undefined }
-        : { characterId }),
+        : mode === 'replace_character'
+          ? { characterId }
+          : mode === 'change_action'
+            ? { newAction: newAction.trim() }
+            : { targetGenerationId: targetId, bridgeSeconds }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -769,18 +791,20 @@ function VariantDialog({
           </button>
         </div>
 
-        <div className="mt-4 flex gap-1 rounded-lg border border-border bg-background p-0.5">
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-0.5">
           {(
             [
               { value: 'extend', label: 'Extender clip' },
               { value: 'replace_character', label: 'Cambiar personaje' },
+              { value: 'change_action', label: 'Cambiar acción' },
+              { value: 'bridge', label: 'Escena puente' },
             ] as const
           ).map((m) => (
             <button
               key={m.value}
               type="button"
               onClick={() => setMode(m.value)}
-              className={`flex-1 rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
                 mode === m.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -825,7 +849,7 @@ function VariantDialog({
               />
             </div>
           </div>
-        ) : (
+        ) : mode === 'replace_character' ? (
           <div className="mt-4">
             <label htmlFor="variant-char" className="text-[12.5px] font-medium text-foreground/80">
               Nuevo personaje (acciones, escena y cámara se conservan)
@@ -846,6 +870,66 @@ function VariantDialog({
                 ))}
               </select>
             )}
+          </div>
+        ) : mode === 'change_action' ? (
+          <div className="mt-4">
+            <label htmlFor="variant-action" className="text-[12.5px] font-medium text-foreground/80">
+              Nueva acción o desenlace (sujeto, escena y cámara se conservan)
+            </label>
+            <textarea
+              id="variant-action"
+              value={newAction}
+              onChange={(e) => setNewAction(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="She opens the can, takes a sip and raises it toward the camera"
+              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+            />
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <div>
+              <label htmlFor="variant-bridge" className="text-[12.5px] font-medium text-foreground/80">
+                Clip destino (el puente conecta el final de este clip con su inicio)
+              </label>
+              {bridgeOptions.length === 0 ? (
+                <p className="mt-1.5 text-[12px] text-amber-400/80">
+                  Necesitas otro final terminado en la campaña para conectar.
+                </p>
+              ) : (
+                <select
+                  id="variant-bridge"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+                >
+                  {bridgeOptions.map((b) => (
+                    <option key={b.id} value={b.generationId ?? ''}>
+                      {b.formatName} · {b.scenePrompt.slice(0, 60)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <span className="text-[12.5px] font-medium text-foreground/80">Duración del puente</span>
+              <div className="mt-1.5 flex gap-2">
+                {[4, 5, 6, 8].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setBridgeSeconds(s)}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors ${
+                      bridgeSeconds === s
+                        ? 'border-primary/60 bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {s}s
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
