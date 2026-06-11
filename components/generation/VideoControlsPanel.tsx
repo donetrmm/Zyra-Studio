@@ -19,6 +19,11 @@ import { EnhanceButton } from './EnhanceButton';
 import { Step, SectionHeading } from './Step';
 import { GenerateBar } from './GenerateBar';
 import { SeedanceRefsPanel, type SeedanceRef } from './SeedanceRefsPanel';
+import {
+  SeedanceBrandCastPanel,
+  type BrandKitOption,
+  type CastOption,
+} from './SeedanceBrandCastPanel';
 import { MODEL_LABEL, estimateVideoEta } from '@/lib/generation/video-meta';
 
 export type ModelKey =
@@ -80,6 +85,8 @@ export type VideoControlsProps = {
   setSeedanceRefs: (v: SeedanceRef[]) => void;
   seedanceStartFrame: boolean;
   setSeedanceStartFrame: (v: boolean) => void;
+  brandKits: BrandKitOption[];
+  cast: CastOption[];
   // Reference images
   referenceImages: ReferenceImage[];
   setReferenceImages: (v: ReferenceImage[]) => void;
@@ -414,9 +421,24 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           <Step
             index={4}
             title="Referencias multimodales"
-            subtitle="Opcional · hasta 9 imágenes + 3 videos + 3 audios"
+            subtitle="Opcional · Brand Kit, Cast o archivos propios (9 img + 3 video + 3 audio)"
           >
-            <SeedanceRefsPanel refs={props.seedanceRefs} setRefs={props.setSeedanceRefs} />
+            <SeedanceBrandCastPanel
+              brandKits={props.brandKits}
+              cast={props.cast}
+              refs={props.seedanceRefs}
+              setRefs={props.setSeedanceRefs}
+            />
+            <div className="mt-3">
+              <SeedanceRefsPanel
+                refs={props.seedanceRefs}
+                setRefs={props.setSeedanceRefs}
+                onCite={(text) => {
+                  const next = props.prompt.trim() ? `${props.prompt.trimEnd()} ${text}` : text;
+                  props.setPrompt(next.slice(0, 4000));
+                }}
+              />
+            </div>
             {props.seedanceRefs.length > 0 &&
               props.seedanceRefs[0].kind === 'image' &&
               props.seedanceRefs.every((r) => r.kind === 'image') &&
