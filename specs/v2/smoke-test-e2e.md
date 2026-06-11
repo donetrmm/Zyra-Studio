@@ -66,6 +66,9 @@
        "draft listo".
 4. [ ] Revisar los drafts en la librería de la campaña: producto fiel a las referencias,
        personaje consistente entre clips, sin texto renderizado en pantalla.
+   - [ ] (Nuevo) **El diálogo/voz se escucha en español** (o en el idioma elegido en el
+         wizard). Campañas creadas antes del fix de idioma siguen generando en inglés:
+         crear campaña nueva para validar.
 5. [ ] (Nuevo) **Rehacer muestra**: "La muestra no convence: regresar drafts al plan" →
        los drafts vuelven a `planned`; editarlos y volver a tirar muestra cobra de nuevo.
 6. [ ] (Nuevo) **CTA de compra**: con balance insuficiente, el toast de bloqueo trae el
