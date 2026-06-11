@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPlan, type PlannerInput } from './planner';
 import { buildCaption, productHashtag } from './captions';
+import { htmlToText } from './brief';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
 import { buildSeries, buildTemplateParams } from './distill';
 import type { PricingRow } from '@/lib/credits/types';
@@ -313,6 +314,26 @@ describe('buildCaption', () => {
   it('productHashtag normaliza acentos y símbolos', () => {
     expect(productHashtag('Café Olla 3000')).toBe('#cafeolla3000');
     expect(productHashtag('!!!')).toBe('');
+  });
+});
+
+describe('htmlToText', () => {
+  it('extrae título, meta description y texto sin scripts ni tags', () => {
+    const html = `<html><head><title>Agua Lumen 600ml</title>
+      <meta name="description" content="Agua mineral con gas, botella de vidrio">
+      <style>.x{color:red}</style><script>alert(1)</script></head>
+      <body><h1>Lumen</h1><p>Burbujas finas, origen volcánico.</p></body></html>`;
+    const text = htmlToText(html);
+    expect(text).toContain('Agua Lumen 600ml');
+    expect(text).toContain('botella de vidrio');
+    expect(text).toContain('origen volcánico');
+    expect(text).not.toContain('alert');
+    expect(text).not.toContain('<h1>');
+  });
+
+  it('acota la salida a 4000 caracteres', () => {
+    const text = htmlToText(`<body>${'palabra '.repeat(2000)}</body>`);
+    expect(text.length).toBeLessThanOrEqual(4000);
   });
 });
 
