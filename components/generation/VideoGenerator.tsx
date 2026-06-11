@@ -127,7 +127,11 @@ export function VideoGenerator(props: {
           : seedanceRefs.length > 0
             ? 'reference'
             : 'text';
-        const seed = seedanceSeed.trim() === '' ? undefined : Number(seedanceSeed);
+        const seedRaw = seedanceSeed.trim() === '' ? undefined : Number(seedanceSeed);
+        const seed =
+          seedRaw !== undefined && Number.isInteger(seedRaw) && seedRaw >= 0 && seedRaw <= 2147483647
+            ? seedRaw
+            : undefined;
         const res = await submitVideoGenerationAction({
           kind: 'seedance' as const,
           model: seedanceSlug(model, operation),
@@ -136,7 +140,7 @@ export function VideoGenerator(props: {
           resolution: seedanceResolution,
           duration: seedanceDuration,
           generateAudio,
-          ...(seed !== undefined && Number.isInteger(seed) ? { seed } : {}),
+          ...(seed !== undefined ? { seed } : {}),
           ...(useStartFrame
             ? {
                 referenceStoragePath: images[0],
