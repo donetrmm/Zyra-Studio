@@ -286,11 +286,22 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                 <SectionHeading>Seed (opcional)</SectionHeading>
                 <input
                   type="number"
+                  min={0}
+                  max={2147483647}
+                  step={1}
                   value={props.seedanceSeed}
-                  onChange={(e) => props.setSeedanceSeed(e.target.value)}
+                  onChange={(e) => {
+                    // Solo enteros no negativos (es lo que acepta el modelo).
+                    const v = e.target.value.replace(/[^\d]/g, '');
+                    props.setSeedanceSeed(v);
+                  }}
                   placeholder="Fija la composición para iterar"
                   className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus:border-primary/40"
                 />
+                <p className="mt-1 px-0.5 text-[10.5px] text-muted-foreground/60">
+                  Mismo seed + mismo prompt = misma composición. Vacío = aleatorio (se guarda en la
+                  generación para reusarlo).
+                </p>
               </div>
             </>
           ) : isVeo ? (

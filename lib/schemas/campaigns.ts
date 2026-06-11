@@ -29,7 +29,8 @@ export const SubmitSeedanceSchema = z
     resolution: z.enum(SEEDANCE_RESOLUTIONS).default('720p'),
     duration: z.number().int().min(4).max(15).optional(), // undefined → auto
     generateAudio: z.boolean().default(true),
-    seed: z.number().int().optional(),
+    // Entero no negativo de 32 bits: es lo que acepta fal; negativo → 422.
+    seed: z.number().int().min(0).max(2147483647).optional(),
     referenceStoragePath: z.string().optional(),          // image2video: frame inicial
     endReferenceStoragePath: z.string().optional(),
     referenceImagePaths: z.array(z.string()).max(9).optional(),
