@@ -19,6 +19,7 @@ export type StudioItem = {
   id: string;
   formatId: string | null;
   formatName: string;
+  templateId: string | null;
   durationS: number | null;
   aspectRatio: string | null;
   scene: string | null;
@@ -234,11 +235,19 @@ function PlanTable({
               </td>
               <td className="whitespace-nowrap px-3 py-2.5 text-foreground/90">
                 {item.formatName}
+                {item.templateId && (
+                  <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
+                    serie
+                  </span>
+                )}
                 {item.characterName && (
                   <span className="ml-1.5 text-[11px] text-muted-foreground/60">· {item.characterName}</span>
                 )}
               </td>
               <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
+                {item.scene && (
+                  <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
+                )}
                 <p className="line-clamp-2 text-muted-foreground/80">{item.scenePrompt}</p>
                 {item.warnings.length > 0 && (
                   <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{item.warnings[0]}</p>
