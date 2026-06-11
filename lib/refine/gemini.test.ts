@@ -28,4 +28,21 @@ describe('requestRefineTurn', () => {
     process.env.GEMINI_API_KEY = 'test';
     await expect(requestRefineTurn({ system: 's', history: [] })).rejects.toThrow();
   });
+
+  it('marca rate limit como reintentable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429 }) as Response));
+    process.env.GEMINI_API_KEY = 'test';
+    await expect(requestRefineTurn({ system: 's', history: [] })).rejects.toMatchObject({
+      code: 'rate_limit',
+      retryable: true,
+    });
+  });
+
+  it('clasifica 403 como error de auth', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 403 }) as Response));
+    process.env.GEMINI_API_KEY = 'test';
+    await expect(requestRefineTurn({ system: 's', history: [] })).rejects.toMatchObject({
+      code: 'auth',
+    });
+  });
 });

@@ -36,12 +36,13 @@ describe('clampStage', () => {
 
 describe('validateDraft', () => {
   it('marca error si falta la escena', () => {
-    const res = validateDraft(emptyDraft(null), { format: FORMAT, hasCharacter: false });
+    const res = validateDraft(emptyDraft(null), { format: FORMAT });
     expect(res.errors.length).toBeGreaterThan(0);
   });
   it('advierte cuando el formato exige referencias y no hay', () => {
     const d = { ...emptyDraft(null), scenePrompt: 'persona muestra el producto y sonríe' };
-    const res = validateDraft(d, { format: FORMAT, hasCharacter: false });
+    const res = validateDraft(d, { format: FORMAT });
+    expect(res.errors).toHaveLength(0);
     expect(res.warnings.join(' ')).toMatch(/referencia/i);
   });
 });

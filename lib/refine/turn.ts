@@ -23,11 +23,19 @@ export function clampStage(current: Stage, proposed: Stage, userTurns: number): 
 
 export function validateDraft(
   draft: RefineDraft,
-  ctx: { format: FormatDirection | null; hasCharacter: boolean },
+  ctx: { format: FormatDirection | null },
 ): { errors: string[]; warnings: string[] } {
+  // El formato entra al validador base para que use defaultDurationS en la
+  // regla de complejidad (regla 2). Sus required_refs, en cambio, serían
+  // errores bloqueantes — en fase de borrador las refs faltantes son
+  // advertencia (etapa refs), no bloqueo. Se eliminan del array de errores.
+  const REF_ERROR_PREFIXES = ['product: el formato', 'character: el formato', 'packaging: el formato'];
   const base = validate(
     { modelSlug: 'seedance-2.0', scenePrompt: draft.scenePrompt, durationS: draft.durationS ?? undefined },
     { format: ctx.format ?? undefined, scene: draft.scene ? { name: draft.scene, fragment: draft.scenePrompt } : undefined },
+  );
+  const errors = base.errors.filter(
+    (e) => !REF_ERROR_PREFIXES.some((prefix) => e.startsWith(prefix)),
   );
   const warnings = [...base.warnings];
   const required = ctx.format?.requiredRefs ?? [];
@@ -37,5 +45,5 @@ export function validateDraft(
   if (required.includes('character') && !draft.characterId) {
     warnings.push('Este formato lleva presentador: sin persona del Cast, la identidad cambia en cada generación.');
   }
-  return { errors: base.errors, warnings };
+  return { errors, warnings };
 }
