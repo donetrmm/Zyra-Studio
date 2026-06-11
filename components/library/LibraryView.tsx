@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   Image as ImageIcon,
+  ImagePlus,
   Library,
   Loader2,
   Music,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-references/download-client';
+import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
@@ -679,6 +681,7 @@ function LibTile({
 }) {
   const [hover, setHover] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [addingRef, startAddRef] = useTransition();
 
   // En modo compact (dentro de SessionCard) usamos aspect cuadrado para evitar
   // que las cards se vuelvan enormes con aspect ratios como 16:9.
@@ -700,6 +703,21 @@ function LibTile({
     } finally {
       setDownloading(false);
     }
+  }
+
+  // Solo imágenes: copia el output al bucket de referencias para reusarlo
+  // como referencia en futuras generaciones.
+  function handleUseAsRef(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (addingRef) return;
+    startAddRef(async () => {
+      const res = await addGenerationAsReferenceAction({ generationId: gen.id });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como referencia');
+        return;
+      }
+      toast.success('Agregada a tus referencias');
+    });
   }
 
   return (
@@ -790,6 +808,11 @@ function LibTile({
 
       {hover && gen.hasOutput && (
         <div className="absolute right-2 bottom-2 flex gap-1">
+          {gen.type === 'image' && (
+            <TileBtn onClick={handleUseAsRef} title="Usar como referencia" busy={addingRef}>
+              <ImagePlus className="size-3" aria-hidden />
+            </TileBtn>
+          )}
           <TileBtn onClick={handleDownload} title="Descargar" busy={downloading}>
             <Download className="size-3" aria-hidden />
           </TileBtn>
@@ -856,6 +879,7 @@ function DetailAside({
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [addingRef, startAddRef] = useTransition();
 
   useEffect(() => {
     // Componente se remonta con key={generation.id} cuando cambia la selección,
@@ -899,6 +923,20 @@ function DetailAside({
     } finally {
       setDownloading(false);
     }
+  }
+
+  // Solo imágenes: copia el output al bucket de referencias para reusarlo
+  // como referencia en futuras generaciones.
+  function handleUseAsRef() {
+    if (addingRef) return;
+    startAddRef(async () => {
+      const res = await addGenerationAsReferenceAction({ generationId: generation.id });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como referencia');
+        return;
+      }
+      toast.success('Agregada a tus referencias');
+    });
   }
 
   async function handleCopyPrompt() {
@@ -1064,6 +1102,21 @@ function DetailAside({
             )}{' '}
             Descargar
           </button>
+          {generation.type === 'image' && generation.status === 'done' && (
+            <button
+              type="button"
+              onClick={handleUseAsRef}
+              disabled={addingRef}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:border-muted-foreground/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {addingRef ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <ImagePlus className="size-3.5" aria-hidden />
+              )}{' '}
+              Usar como referencia
+            </button>
+          )}
           {generation.status === 'done' && generation.prompt && (
             <SavePresetButton generation={generation} />
           )}
