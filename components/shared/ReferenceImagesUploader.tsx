@@ -7,6 +7,21 @@ import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 
 export type RefImage = { id: string; previewUrl: string | null };
 
+// Resolución mínima de una referencia (guía Morphic §9): por debajo de esto
+// la fidelidad de producto/personaje en el modelo de video se degrada.
+const MIN_DIMENSION = 512;
+
+async function shortestSide(file: File): Promise<number | null> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const side = Math.min(bmp.width, bmp.height);
+    bmp.close();
+    return side;
+  } catch {
+    return null; // formato ilegible: lo valida el upload normal
+  }
+}
+
 // Uploader compartido (Brand Kit producto/empaque, hoja maestra del Cast).
 // Sube al bucket references vía el flujo estándar (signed URL + registro en
 // media_references) y devuelve los ids para guardarlos en el recurso padre.
@@ -34,6 +49,13 @@ export function ReferenceImagesUploader({
     setUploading(true);
     const added: RefImage[] = [];
     for (const file of selected) {
+      const side = await shortestSide(file);
+      if (side !== null && side < MIN_DIMENSION) {
+        toast.error(
+          `"${file.name}": resolución muy baja (${side}px). Mínimo ${MIN_DIMENSION}px por lado para que la referencia sea fiel.`,
+        );
+        continue;
+      }
       const res = await uploadReferenceFile(file);
       if (!res.ok) {
         toast.error(res.message);

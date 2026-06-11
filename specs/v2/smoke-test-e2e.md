@@ -14,7 +14,7 @@
 - [ ] `.env.local` completo: `FAL_KEY`, `GEMINI_API_KEY`, `QSTASH_TOKEN`, `NEXT_PUBLIC_APP_URL`
       apuntando a una URL alcanzable por QStash (deploy o túnel; localhost NO funciona para el worker).
 - [ ] Balance de créditos ≥ 6,000 (visible en el topbar; si falta, admin → ajustar créditos).
-- [ ] Migraciones 019-027 aplicadas (ya están en el proyecto Supabase).
+- [ ] Migraciones 019-028 aplicadas (ya están en el proyecto Supabase).
 - [ ] Assets de prueba listos: 2-3 imágenes de producto + 1 hoja maestra de personaje
       (prompts para generarlos con otra IA: ver conversación "marca LUMEN" o usar cualquier
       producto con empaque consistente; la hoja maestra debe ser frontal, neutra, NO persona real).
@@ -28,20 +28,34 @@
 3. [ ] (Opcional) Subir **empaque** — habilita el formato El Descubrimiento.
 4. [ ] Guardar. **Verificar**: la card muestra el conteo de imágenes.
 
-## 2. Cast ✅ validado
+## 2. Cast ✅ validado (generador IA ⏳)
 
 1. [ ] `Cast → Nuevo personaje`: nombre + **hoja maestra** (obligatoria) + descripción sin edad.
 2. [ ] Guardar. **Verificar**: la card muestra el avatar.
    Sin personaje, el plan omite Voz Cercana y A Pie de Calle (esperado, no es bug).
+3. [ ] **Generador IA**: escribir solo la descripción → "Generar con IA" → ~15s →
+       **Verificar**: la hoja maestra se llena con un retrato frontal neutro acorde a la
+       descripción; guardar el personaje y usarlo en una campaña.
+4. [ ] **Validación de resolución**: intentar subir una imagen <512px por lado →
+       **Verificar**: se rechaza con mensaje claro.
 
-## 3. Campaña y plan ✅ validado
+## 3. Campaña y plan ✅ validado (URL, captions y addItem ⏳)
 
 1. [ ] `Campañas → Nueva campaña`: nombre, Brand Kit, objetivo, volumen **6**.
+   - [ ] (Nuevo) **URL del producto**: pegar la URL de una página real → el brief detecta
+         nombre/tono coherentes con la página. Una URL inválida bloquea con mensaje claro.
 2. [ ] "Analizar producto y armar plan" → **Verificar**:
    - Toast con N creativos y créditos estimados.
    - El plan muestra formatos coherentes con la categoría detectada.
    - Escenas variadas, fechas repartidas en ~30 días, personaje solo en formatos UGC.
-3. [ ] Editar un item (prompt + fecha) y guardar. **Verificar**: el cambio persiste.
+   - [ ] (Nuevo) Cada fila muestra **"Caption: …"** (gancho + CTA según objetivo + hashtags).
+3. [ ] Editar un item y guardar. **Verificar**: el cambio persiste. El editor ahora incluye
+       **escena, personaje y caption** además de prompt y fecha.
+4. [ ] (Nuevo) **"Agregar creativo"** en el Plan: elegir formato + acción → aparece como
+       `planned` con caption generado.
+5. [ ] (Nuevo) **Formatos custom**: `Formatos → Nuevo formato` (con "requiere producto") →
+       crear campaña nueva → **Verificar**: el formato custom aparece en el plan con las
+       semillas genéricas.
 
 ## 4. Producción — muestra y lote ✅ validado
 
@@ -52,6 +66,10 @@
        "draft listo".
 4. [ ] Revisar los drafts en la librería de la campaña: producto fiel a las referencias,
        personaje consistente entre clips, sin texto renderizado en pantalla.
+5. [ ] (Nuevo) **Rehacer muestra**: "La muestra no convence: regresar drafts al plan" →
+       los drafts vuelven a `planned`; editarlos y volver a tirar muestra cobra de nuevo.
+6. [ ] (Nuevo) **CTA de compra**: con balance insuficiente, el toast de bloqueo trae el
+       botón "Comprar créditos" que lleva a Billing.
 
 ## 5. Draft → final ✅ validado
 
@@ -87,6 +105,13 @@
    **Verificar**: toast; al terminar, en la librería hay un clip de ~4s que continúa el
    movimiento del original (mismo encuadre y luz).
 2. [ ] (Opcional) **"Variante" → Cambiar personaje**: mismas acciones y cámara, cara nueva.
+3. [ ] (Nuevo) **"Variante" → Cambiar acción**: describir otra acción/desenlace →
+   **Verificar**: mismo sujeto, escenario y cámara con la acción nueva.
+4. [ ] (Nuevo) **"Variante" → Escena puente** (requiere 2 finales): elegir clip destino →
+   **Verificar**: el clip generado arranca donde termina el origen y cierra empatando el
+   inicio del destino (continuidad de sujeto/luz/cámara).
+5. [ ] (Nuevo) **Marcar ganador**: en un final, botón "Marcar ganador" → queda en ámbar.
+   En la **siguiente campaña**, el plan da más items a ese formato (doble peso en el mix).
 
 ## 8. Entrega (Fase E) ⏳ pendiente
 
@@ -103,6 +128,10 @@
    **Verificar**: progreso 1/4…4/4 (cada imagen tarda ~10-20 s); al terminar, 4 imágenes en
    la librería de la campaña — posts 1:1 con las escenas de los videos, banner 16:9 con
    espacio vacío para copy, still de producto. Producto fiel en todas.
+6. [ ] (Nuevo) **Refinar el pack**: al terminar aparece el bloque "Refinar con Nano Banana";
+   dejar la instrucción default (ajustar fondo) → "Refinar el pack" → **Verificar**: N
+   ediciones nuevas en la librería con el producto idéntico y el fondo ajustado.
+7. [ ] **CSV**: la columna caption va llena para todos los items del plan.
 
 ## 9. Admin (Fase E) ⏳ pendiente
 
