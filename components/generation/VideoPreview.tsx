@@ -44,7 +44,7 @@ export type VideoPreviewProps = {
   resolvedOutputUrl: string | null;
   resolvedThumbnailUrl: string | null;
   model: ModelKey;
-  aspectRatio: '16:9' | '9:16' | '1:1';
+  aspectRatio: '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9';
   etaSeconds: number;
   prompt: string;
   veoResolution: '720p' | '1080p';

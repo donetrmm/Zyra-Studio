@@ -72,17 +72,33 @@ export const CreateMediaReferenceSchema = z.object({
   sizeBytes: z.number().int().nonnegative().optional(),
 });
 
-export const GetUploadUrlSchema = z.object({
-  filename: z.string().min(1).max(180),
-  mimeType: z
-    .string()
-    .regex(/^image\/(jpeg|png|webp|gif|bmp|tiff)$/i, 'mimeType inválido'),
-  sizeBytes: z
-    .number()
-    .int()
-    .positive()
-    .max(10 * 1024 * 1024, 'Tamaño máximo 10 MB'),
-});
+// Límites por tipo. Video/audio existen por las referencias multimodales de
+// Seedance 2.0 (videos <50 MB, audios <15 MB — docs/modelos/06-seedance-2.md).
+const UPLOAD_LIMITS: Array<{ re: RegExp; maxBytes: number }> = [
+  { re: /^image\/(jpeg|png|webp|gif|bmp|tiff)$/i, maxBytes: 10 * 1024 * 1024 },
+  { re: /^video\/(mp4|quicktime)$/i, maxBytes: 50 * 1024 * 1024 },
+  { re: /^audio\/(mpeg|mp3|wav|x-wav)$/i, maxBytes: 15 * 1024 * 1024 },
+];
+
+export const GetUploadUrlSchema = z
+  .object({
+    filename: z.string().min(1).max(180),
+    mimeType: z.string().max(80),
+    sizeBytes: z.number().int().positive(),
+  })
+  .superRefine((val, ctx) => {
+    const limit = UPLOAD_LIMITS.find((l) => l.re.test(val.mimeType));
+    if (!limit) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'mimeType inválido' });
+      return;
+    }
+    if (val.sizeBytes > limit.maxBytes) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Tamaño máximo ${Math.round(limit.maxBytes / 1024 / 1024)} MB para ${val.mimeType}`,
+      });
+    }
+  });
 
 const ASPECT_RATIO_DIMENSIONS: Record<string, [number, number]> = {
   '1:1': [1, 1],

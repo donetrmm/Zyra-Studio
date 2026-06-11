@@ -112,6 +112,20 @@
 
 ---
 
+## 10. Creador manual de video con Seedance ⏳ pendiente
+
+1. [ ] `Crear → Video`: Seedance 2.0 aparece como modelo default, con duración 4-15s,
+       resolución por tier (Fast: 480p/720p; Standard: +1080p), 6 proporciones, audio nativo
+       y seed opcional.
+2. [ ] **t2v**: prompt simple sin referencias → genera (Fast 480p 4s es lo más barato).
+3. [ ] **Multi-referencia (@)**: subir 1-2 imágenes (y opcionalmente un mp4 corto o un mp3)
+       → los chips muestran @Image1, @Video1, @Audio1; citar al menos una en el prompt con
+       propósito ("@Image1 es el producto, empaque exacto") → genera.
+4. [ ] **Frame inicial**: con solo 1-2 imágenes subidas, activar "Usar como frame inicial"
+       → genera vía image-to-video.
+5. [ ] **Verificar**: costo mostrado = duración × tarifa del tier/resolución; el video llega
+       con audio; la generación aparece en la librería.
+
 ## Diagnóstico cuando algo falla
 
 | Síntoma | Dónde mirar |
