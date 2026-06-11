@@ -27,6 +27,9 @@ import {
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { buildSeries, buildTemplateParams, type TemplateFixedParams, type TemplateSlots } from '@/lib/campaigns/distill';
 import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
+import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
+import { signedOutputUrl } from '@/lib/supabase/storage';
+import { compile } from '@/lib/prompt-director';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -885,4 +888,226 @@ export async function createVariantAction(
     }
     return { ok: false, error: 'internal_error', message };
   }
+}
+
+// ============================================================
+// Fase E: entrega y reporte (specs/v2/05)
+// ============================================================
+
+// Reprogramar la fecha de publicación de un item desde el calendario.
+// Solo toca la fecha: permitido en cualquier estado (la fecha es de
+// publicación, no de generación).
+export async function updateItemScheduleAction(
+  itemId: string,
+  dateIso: string,
+): Promise<Result<{ updated: true }>> {
+  if (!z.string().uuid().safeParse(itemId).success || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select('id, campaign_id, campaigns!inner(workspace_id)')
+    .eq('id', itemId)
+    .single();
+  const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
+  if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ scheduled_date: dateIso })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath(`/app/campaigns/${item.campaign_id}`);
+  return { ok: true, data: { updated: true } };
+}
+
+// Export del calendario a CSV: fecha, formato, escena, caption y URL firmada
+// del archivo (expira; el export es para publicar hoy, no para archivar).
+export async function exportCampaignCsvAction(
+  campaignId: string,
+): Promise<Result<{ csv: string; filename: string }>> {
+  if (!z.string().uuid().safeParse(campaignId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, name, workspace_id')
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  const [{ data: itemRows }, { data: formatRows }] = await Promise.all([
+    supabase
+      .from('campaign_items')
+      .select('format_id, scene, scene_prompt, duration_s, aspect_ratio, status, caption, scheduled_date, generation_id')
+      .eq('campaign_id', campaignId)
+      .order('scheduled_date'),
+    supabase.from('formats').select('id, name'),
+  ]);
+  const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
+
+  // URLs firmadas solo para items con video listo.
+  const genIds = (itemRows ?? [])
+    .filter((r) => ['draft_ready', 'final_ready'].includes(r.status as string) && r.generation_id)
+    .map((r) => r.generation_id as string);
+  const urlByGen = new Map<string, string>();
+  if (genIds.length) {
+    const { data: gens } = await supabase
+      .from('generations')
+      .select('id, output_url, status')
+      .in('id', genIds);
+    await Promise.all(
+      (gens ?? [])
+        .filter((g) => g.status === 'done' && g.output_url)
+        .map(async (g) => {
+          try {
+            urlByGen.set(g.id as string, await signedOutputUrl(g.output_url as string));
+          } catch {
+            // sin URL: la celda queda vacía
+          }
+        }),
+    );
+  }
+
+  const rows: CsvRow[] = (itemRows ?? []).map((r) => ({
+    date: (r.scheduled_date as string | null) ?? '',
+    format: r.format_id ? (formatNames.get(r.format_id as string) ?? '') : '',
+    scene: (r.scene as string | null) ?? '',
+    durationS: (r.duration_s as number | null) ?? null,
+    aspectRatio: (r.aspect_ratio as string | null) ?? '',
+    status: r.status as string,
+    caption: (r.caption as string | null) ?? '',
+    fileUrl: r.generation_id ? (urlByGen.get(r.generation_id as string) ?? '') : '',
+  }));
+
+  const slug = (campaign.name as string).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+  return {
+    ok: true,
+    data: { csv: buildCampaignCsv(rows), filename: `${slug || 'campana'}-calendario.csv` },
+  };
+}
+
+// Pack de imágenes complementario (specs/v2/05 tarea 5): compila prompts FLUX
+// desde las escenas ganadoras. El cliente genera cada imagen con el flujo
+// normal de imagen (submitGenerationAction), una por llamada — cada una se
+// cobra y aparece en la librería de la campaña.
+export async function buildImagePackAction(
+  campaignId: string,
+  count: number,
+): Promise<
+  Result<{
+    specs: Array<{ prompt: string; aspectRatio: '1:1' | '16:9'; kind: string }>;
+    references: Array<{ id: string; storagePath: string }>;
+  }>
+> {
+  if (!z.string().uuid().safeParse(campaignId).success || ![4, 6, 8].includes(count)) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, workspace_id, brand_kit_id, product_brief')
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+  const brief = (campaign.product_brief ?? {}) as {
+    productName?: string;
+    visualDetails?: string;
+    palette?: string[];
+  };
+  if (!brief.productName) return { ok: false, error: 'validation_error', message: 'Campaña sin brief' };
+
+  // Escenas ganadoras: finales primero, drafts como fallback.
+  const { data: itemRows } = await supabase
+    .from('campaign_items')
+    .select('scene, status')
+    .eq('campaign_id', campaignId)
+    .in('status', ['final_ready', 'draft_ready'])
+    .order('status'); // draft_ready < final_ready alfabéticamente; ambas sirven
+  const scenes = [...new Set((itemRows ?? []).map((r) => r.scene as string | null).filter((s): s is string => !!s))];
+  if (scenes.length === 0) {
+    return { ok: false, error: 'validation_error', message: 'Genera al menos un video antes del pack' };
+  }
+
+  // Referencias de producto del Brand Kit (FLUX acepta hasta 8; usamos 3).
+  let references: Array<{ id: string; storagePath: string }> = [];
+  if (campaign.brand_kit_id) {
+    const { data: kit } = await supabase
+      .from('brand_kits')
+      .select('product_image_ids, reference_image_ids')
+      .eq('id', campaign.brand_kit_id as string)
+      .single();
+    const ids = (((kit?.product_image_ids as string[]) ?? []).length
+      ? ((kit?.product_image_ids as string[]) ?? [])
+      : ((kit?.reference_image_ids as string[]) ?? [])
+    ).slice(0, 3);
+    if (ids.length) {
+      const { data: refs } = await supabase
+        .from('media_references')
+        .select('id, storage_url, workspace_id')
+        .in('id', ids);
+      references = (refs ?? [])
+        .filter((r) => r.workspace_id === workspace.id && r.storage_url)
+        .map((r) => ({ id: r.id as string, storagePath: r.storage_url as string }));
+    }
+  }
+
+  const product = {
+    name: brief.productName,
+    visualDetails: brief.visualDetails,
+    palette: brief.palette,
+    imagePaths: references.map((r) => r.storagePath),
+  };
+
+  // Mix del pack: mitad posts 1:1 (escenas ganadoras), cuarto banners 16:9
+  // (espacio limpio para copy — el texto va en post, no quemado), cuarto
+  // stills de producto sin personas.
+  const specs: Array<{ prompt: string; aspectRatio: '1:1' | '16:9'; kind: string }> = [];
+  const posts = Math.ceil(count / 2);
+  const banners = Math.ceil(count / 4);
+  const stills = count - posts - banners;
+
+  const pushSpec = (scenePrompt: string, sceneFragment: string | undefined, aspectRatio: '1:1' | '16:9', kind: string) => {
+    const compiled = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt, aspectRatio },
+      { product, scene: sceneFragment ? { fragment: sceneFragment } : undefined },
+    );
+    if (compiled.ok) specs.push({ prompt: compiled.compiled.prompt, aspectRatio, kind });
+  };
+
+  for (let i = 0; i < posts; i++) {
+    pushSpec(
+      `Lifestyle still of the ${brief.productName} as the natural focus of the scene, social-media ready, no people in frame unless implied by context`,
+      scenes[i % scenes.length],
+      '1:1',
+      'post',
+    );
+  }
+  for (let i = 0; i < banners; i++) {
+    pushSpec(
+      `Hero banner composition of the ${brief.productName}: product on one third of the frame, generous clean negative space on the other side for campaign copy, premium minimal styling`,
+      undefined,
+      '16:9',
+      'banner',
+    );
+  }
+  for (let i = 0; i < stills; i++) {
+    pushSpec(
+      `Studio product still of the ${brief.productName} on a simple textured surface, no people, label facing the camera, subtle props that suggest the product context`,
+      undefined,
+      '1:1',
+      'still',
+    );
+  }
+
+  if (specs.length === 0) return { ok: false, error: 'internal_error', message: 'No se pudieron compilar los prompts' };
+  return { ok: true, data: { specs, references } };
 }

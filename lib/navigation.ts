@@ -1,4 +1,5 @@
 import {
+  Banknote,
   Home,
   ImageIcon,
   Video,
@@ -85,6 +86,7 @@ export const ADMIN_SIDEBAR: NavSection[] = [
       { label: "Generaciones", href: "/admin/generations", icon: Layers },
       { label: "Compras", href: "/admin/purchases", icon: Receipt },
       { label: "Precios", href: "/admin/pricing", icon: Tag },
+      { label: "Rate card", href: "/admin/rate-card", icon: Banknote },
       { label: "Auditoría", href: "/admin/audit", icon: History },
     ],
   },

@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CalendarDays, Clapperboard, Loader2, Pencil, Play, Trash2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Clapperboard,
+  Download,
+  FileBarChart,
+  Loader2,
+  Pencil,
+  Play,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -10,10 +21,12 @@ import {
   createVariantAction,
   deleteCampaignItemAction,
   distillTemplateAction,
+  exportCampaignCsvAction,
   generateSeriesAction,
   requestFinalAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
+import { CalendarView, ImagePackCard } from './CampaignCalendar';
 
 export type StudioItem = {
   id: string;
@@ -83,8 +96,26 @@ export function CampaignStudioView({
   characterOptions: StudioCharacterOption[];
 }) {
   const [items, setItems] = useState(initialItems);
-  const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas'>('plan');
+  const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    const res = await exportCampaignCsvAction(campaign.id);
+    setExporting(false);
+    if (!res.ok) {
+      toast.error('No se pudo exportar');
+      return;
+    }
+    const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = res.data.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // Realtime: progreso de producción sin polling (patrón del repo con setAuth).
   useEffect(() => {
@@ -152,19 +183,43 @@ export function CampaignStudioView({
             {campaign.creditsEstimated ? ` · ~${campaign.creditsEstimated} cr (draft)` : ''}
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
-          {(['plan', 'produccion', 'plantillas'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
-                tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t === 'plan' ? 'Plan' : t === 'produccion' ? 'Producción' : `Plantillas (${templates.length})`}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Download className="size-3.5" aria-hidden />}
+            CSV
+          </button>
+          <Link
+            href={`/app/campaigns/${campaign.id}/report`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <FileBarChart className="size-3.5" aria-hidden />
+            Reporte
+          </Link>
+          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
+            {(['plan', 'produccion', 'plantillas', 'calendario'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+                  tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {t === 'plan'
+                  ? 'Plan'
+                  : t === 'produccion'
+                    ? 'Producción'
+                    : t === 'plantillas'
+                      ? `Plantillas (${templates.length})`
+                      : 'Calendario'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -172,8 +227,15 @@ export function CampaignStudioView({
         <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
       ) : tab === 'produccion' ? (
         <ProductionView campaignId={campaign.id} groups={byFormat} characterOptions={characterOptions} />
-      ) : (
+      ) : tab === 'plantillas' ? (
         <TemplatesView templates={templates} />
+      ) : (
+        <CalendarView
+          items={items}
+          onReschedule={(itemId, date) =>
+            setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, scheduledDate: date } : i)))
+          }
+        />
       )}
 
       {editing && (
@@ -430,6 +492,8 @@ function ProductionView({
           </div>
         );
       })}
+      <ImagePackCard campaignId={campaignId} />
+
       <p className="text-[11.5px] text-muted-foreground/50">
         Los lotes se encolan escalonados (20 s entre videos). Los resultados aparecen en la pestaña de la
         campaña en la biblioteca; el draft se genera en 480p y el final aprobado en 720p con el mismo seed.
