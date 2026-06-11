@@ -31,6 +31,8 @@ import {
   type SubmitKlingInput,
   type SubmitVeoInput,
 } from '@/lib/schemas/video';
+import { SubmitSeedanceSchema, type SubmitSeedanceInput } from '@/lib/schemas/campaigns';
+import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
@@ -483,9 +485,135 @@ function estimateVeoCost(
   return durationSeconds * Number(row.credits_cost);
 }
 
+// Seedance 2.0 va aparte: SubmitSeedanceSchema usa superRefine y no puede
+// entrar al discriminatedUnion de SubmitVideoSchema.
+async function submitSeedanceGeneration(
+  data: SubmitSeedanceInput,
+): Promise<Result<{ generationId: string }>> {
+  const { user, workspace } = await requireWorkspace();
+
+  // Toda referencia debe vivir bajo el prefijo del workspace (mismo check que Kling).
+  const allPaths = [
+    data.referenceStoragePath,
+    data.endReferenceStoragePath,
+    ...(data.referenceImagePaths ?? []),
+    ...(data.referenceVideoPaths ?? []),
+    ...(data.referenceAudioPaths ?? []),
+  ].filter((p): p is string => !!p);
+  for (const p of allPaths) {
+    if (!p.startsWith(`${workspace.id}/`)) {
+      return { ok: false, error: 'forbidden', message: 'Referencia no pertenece al workspace' };
+    }
+  }
+
+  const hasMultiRefs =
+    (data.referenceImagePaths?.length ?? 0) +
+      (data.referenceVideoPaths?.length ?? 0) +
+      (data.referenceAudioPaths?.length ?? 0) >
+    0;
+  const operation = hasMultiRefs
+    ? 'reference2video'
+    : data.referenceStoragePath
+      ? 'image2video'
+      : 'text2video';
+  // El slug debe coincidir con la operación (un slug por endpoint en fal).
+  const expectedOp = data.model.includes('reference-to-video')
+    ? 'reference2video'
+    : data.model.includes('image-to-video')
+      ? 'image2video'
+      : 'text2video';
+  if (operation !== expectedOp) {
+    return { ok: false, error: 'validation_error', message: `El modelo ${data.model} no coincide con las referencias enviadas` };
+  }
+
+  const pricing = await loadPricing();
+  const durationS = data.duration ?? 8; // 'auto' se cobra como 8s estimado; el ajuste real va en confirm
+  let cost: number;
+  try {
+    cost = seedanceCostPerItem(pricing, data.model, data.resolution, durationS);
+  } catch (e) {
+    return { ok: false, error: 'internal_error', message: (e as Error).message };
+  }
+
+  const supabase = await createClient();
+  const { data: inserted, error: insertErr } = await supabase
+    .from('generations')
+    .insert({
+      user_id: user.id,
+      workspace_id: workspace.id,
+      type: 'video',
+      provider: 'seedance',
+      model_id: data.model,
+      prompt: data.prompt,
+      params: {
+        operation,
+        aspectRatio: data.aspectRatio,
+        resolution: data.resolution,
+        ...(data.duration !== undefined ? { duration: data.duration } : {}),
+        generateAudio: data.generateAudio,
+        ...(data.seed !== undefined ? { seed: data.seed } : {}),
+        referenceStoragePath: data.referenceStoragePath,
+        endReferenceStoragePath: data.endReferenceStoragePath,
+        referenceImagePaths: data.referenceImagePaths ?? [],
+        referenceVideoPaths: data.referenceVideoPaths ?? [],
+        referenceAudioPaths: data.referenceAudioPaths ?? [],
+      },
+      reference_ids: [],
+      status: 'queued',
+      credits_estimated: cost,
+      campaign_id: data.campaignId ?? null,
+      timeout_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insertErr || !inserted) {
+    return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
+  }
+  const generationId = inserted.id as string;
+
+  let reserved = false;
+  try {
+    reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      return { ok: false, error: 'insufficient_credits' };
+    }
+    await enqueueJob({ generationId, action: 'submit' });
+    revalidatePath('/app/library');
+    return { ok: true, data: { generationId } };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'unknown';
+    const refundAmount = reserved ? cost : 0;
+    try {
+      await failGeneration(user.id, generationId, refundAmount, `queue_failed: ${message}`);
+    } catch (failErr) {
+      console.error('[fail_generation:seedance]', {
+        userId: user.id,
+        generationId,
+        cost: refundAmount,
+        originalError: message,
+        failError: (failErr as Error)?.message,
+      });
+    }
+    return {
+      ok: false,
+      error: message.includes('429') ? 'provider_error' : 'internal_error',
+      message,
+    };
+  }
+}
+
 export async function submitVideoGenerationAction(
   input: unknown,
 ): Promise<Result<{ generationId: string }>> {
+  if ((input as { kind?: string } | null)?.kind === 'seedance') {
+    const parsedSeedance = SubmitSeedanceSchema.safeParse(input);
+    if (!parsedSeedance.success) {
+      return { ok: false, error: 'validation_error', message: parsedSeedance.error.message };
+    }
+    return submitSeedanceGeneration(parsedSeedance.data);
+  }
   const parsed = SubmitVideoSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: 'validation_error', message: parsed.error.message };

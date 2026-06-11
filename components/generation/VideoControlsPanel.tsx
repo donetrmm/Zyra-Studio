@@ -18,6 +18,7 @@ import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 import { Step, SectionHeading } from './Step';
 import { GenerateBar } from './GenerateBar';
+import { SeedanceRefsPanel, type SeedanceRef } from './SeedanceRefsPanel';
 import { MODEL_LABEL, estimateVideoEta } from '@/lib/generation/video-meta';
 
 export type ModelKey =
@@ -25,7 +26,14 @@ export type ModelKey =
   | 'fal-ai/kling-video/v3/pro/text-to-video'
   | 'veo-3.1-fast-generate-preview'
   | 'veo-3.1-generate-preview'
-  | 'veo-3.1-lite-generate-preview';
+  | 'veo-3.1-lite-generate-preview'
+  // Claves de UI: el slug real de fal se arma al enviar según la operación
+  // (text/image/reference-to-video) — un slug por endpoint.
+  | 'seedance-2.0'
+  | 'seedance-2.0-fast';
+
+export type VideoAspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9';
+export type SeedanceResolutionUi = '480p' | '720p' | '1080p';
 
 export type ReferenceImage = {
   storagePath: string;
@@ -61,12 +69,23 @@ export type VideoControlsProps = {
   setVeoDuration: (v: 4 | 6 | 8) => void;
   veoResolution: '720p' | '1080p';
   setVeoResolution: (v: '720p' | '1080p') => void;
+  // Seedance
+  seedanceDuration: number;
+  setSeedanceDuration: (v: number) => void;
+  seedanceResolution: SeedanceResolutionUi;
+  setSeedanceResolution: (v: SeedanceResolutionUi) => void;
+  seedanceSeed: string;
+  setSeedanceSeed: (v: string) => void;
+  seedanceRefs: SeedanceRef[];
+  setSeedanceRefs: (v: SeedanceRef[]) => void;
+  seedanceStartFrame: boolean;
+  setSeedanceStartFrame: (v: boolean) => void;
   // Reference images
   referenceImages: ReferenceImage[];
   setReferenceImages: (v: ReferenceImage[]) => void;
   // Common
-  aspectRatio: '16:9' | '9:16' | '1:1';
-  setAspectRatio: (v: '16:9' | '9:16' | '1:1') => void;
+  aspectRatio: VideoAspectRatio;
+  setAspectRatio: (v: VideoAspectRatio) => void;
   campaign: SelectedCampaign;
   setCampaign: (v: SelectedCampaign) => void;
   cost: number;
@@ -79,14 +98,18 @@ export type VideoControlsProps = {
 
 export function VideoControlsPanel(props: VideoControlsProps) {
   const isVeo = props.model.startsWith('veo-');
+  const isSeedance = props.model.startsWith('seedance');
+  const isKling = !isVeo && !isSeedance;
   const maxImages = isVeo ? 1 : 2;
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [useRefImages, setUseRefImages] = useState(false);
 
   const isVeoStandard = props.model === 'veo-3.1-generate-preview';
-  const supportsImages = !isVeo || isVeoStandard;
-  const klingHasImage = !isVeo && props.referenceImages.length > 0;
+  const supportsImages = isKling || isVeoStandard;
+  const klingHasImage = isKling && props.referenceImages.length > 0;
+  const seedanceRatios: VideoAspectRatio[] = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'];
+  const seedanceMaxRes: SeedanceResolutionUi = props.model === 'seedance-2.0-fast' ? '720p' : '1080p';
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -131,12 +154,25 @@ export function VideoControlsPanel(props: VideoControlsProps) {
     props.setModel(next);
 
     const isVeoNext = next.startsWith('veo-');
+    const isSeedanceNext = next.startsWith('seedance');
     const isVeoStandardNext = next === 'veo-3.1-generate-preview';
-    const supportsImagesNext = !isVeoNext || isVeoStandardNext;
+    const supportsImagesNext = (!isVeoNext && !isSeedanceNext) || isVeoStandardNext;
     const maxImagesNext = isVeoNext ? 1 : 2;
 
-    if (isVeoNext && props.aspectRatio === '1:1') {
+    // Clamp de ratio según lo que soporta cada modelo.
+    if (isVeoNext && props.aspectRatio !== '16:9' && props.aspectRatio !== '9:16') {
       props.setAspectRatio('16:9');
+    }
+    if (!isVeoNext && !isSeedanceNext && !['16:9', '9:16', '1:1'].includes(props.aspectRatio)) {
+      props.setAspectRatio('16:9');
+    }
+    // Seedance fast no soporta 1080p.
+    if (next === 'seedance-2.0-fast' && props.seedanceResolution === '1080p') {
+      props.setSeedanceResolution('720p');
+    }
+    if (!isSeedanceNext && props.seedanceRefs.length > 0) {
+      props.seedanceRefs.forEach((r) => URL.revokeObjectURL(r.previewUrl));
+      props.setSeedanceRefs([]);
     }
     if (!supportsImagesNext && props.referenceImages.length > 0) {
       props.referenceImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
@@ -155,6 +191,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
     props.duration,
     props.veoDuration,
     props.veoResolution,
+    props.seedanceDuration,
   );
 
   const hint = !props.prompt.trim()
@@ -168,12 +205,17 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           Crear video
         </h2>
 
-        <Step index={1} title="Elige el modelo" subtitle="Kling es rápido y barato; Veo es premium">
+        <Step index={1} title="Elige el modelo" subtitle="Seedance es multimodal; Kling rápido; Veo premium">
           <Select value={props.model} onValueChange={(v) => handleModelChange(v as ModelKey)}>
             <SelectTrigger className="h-auto w-full rounded-md border-border bg-background px-3 py-2 text-[13px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Seedance 2.0 (multimodal, audio nativo)</SelectLabel>
+                <SelectItem value="seedance-2.0">Seedance 2.0</SelectItem>
+                <SelectItem value="seedance-2.0-fast">Seedance 2.0 Fast (draft)</SelectItem>
+              </SelectGroup>
               <SelectGroup>
                 <SelectLabel>Kling 3.0 (rápido)</SelectLabel>
                 <SelectItem value="fal-ai/kling-video/v3/standard/text-to-video">Kling 3.0 Standard</SelectItem>
@@ -190,7 +232,68 @@ export function VideoControlsPanel(props: VideoControlsProps) {
         </Step>
 
         <Step index={2} title="Duración y calidad">
-          {isVeo ? (
+          {isSeedance ? (
+            <>
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+                  Duración
+                </div>
+                <span className="font-mono text-[12.5px] text-foreground">{props.seedanceDuration}s</span>
+              </div>
+              <input
+                type="range"
+                min={4}
+                max={15}
+                step={1}
+                value={props.seedanceDuration}
+                onChange={(e) => props.setSeedanceDuration(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
+                <span>4s</span>
+                <span>15s</span>
+              </div>
+              <p className="mt-1 px-0.5 text-[10.5px] text-muted-foreground/60">
+                Una idea ≈ 4s; para varias acciones usa más duración o divide en clips.
+              </p>
+              <div className="mt-3.5">
+                <SectionHeading>Resolución</SectionHeading>
+                <div className="flex gap-2">
+                  {(['480p', '720p', '1080p'] as const).map((r) => {
+                    const locked = r === '1080p' && seedanceMaxRes !== '1080p';
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => !locked && props.setSeedanceResolution(r)}
+                        title={locked ? 'Fast llega a 720p; usa Seedance 2.0 para 1080p' : undefined}
+                        className={cn(
+                          'flex-1 rounded-md border px-3 py-1.5 text-[12.5px] transition-colors',
+                          locked
+                            ? 'cursor-not-allowed border-border/50 text-muted-foreground/30'
+                            : props.seedanceResolution === r
+                              ? 'border-primary bg-primary/10 text-foreground'
+                              : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                        )}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="mt-3.5">
+                <SectionHeading>Seed (opcional)</SectionHeading>
+                <input
+                  type="number"
+                  value={props.seedanceSeed}
+                  onChange={(e) => props.setSeedanceSeed(e.target.value)}
+                  placeholder="Fija la composición para iterar"
+                  className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus:border-primary/40"
+                />
+              </div>
+            </>
+          ) : isVeo ? (
             <>
               <SectionHeading>Duración</SectionHeading>
               <div className="flex gap-2">
@@ -270,8 +373,13 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           title="Proporción"
           subtitle={klingHasImage ? 'La define la imagen de referencia' : undefined}
         >
-          <div className="flex gap-2">
-            {(isVeo ? (['16:9', '9:16'] as const) : (['16:9', '9:16', '1:1'] as const)).map((r) => (
+          <div className={cn('gap-2', isSeedance ? 'grid grid-cols-3' : 'flex')}>
+            {(isSeedance
+              ? seedanceRatios
+              : isVeo
+                ? (['16:9', '9:16'] as VideoAspectRatio[])
+                : (['16:9', '9:16', '1:1'] as VideoAspectRatio[])
+            ).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -290,6 +398,38 @@ export function VideoControlsPanel(props: VideoControlsProps) {
             ))}
           </div>
         </Step>
+
+        {isSeedance && (
+          <Step
+            index={4}
+            title="Referencias multimodales"
+            subtitle="Opcional · hasta 9 imágenes + 3 videos + 3 audios"
+          >
+            <SeedanceRefsPanel refs={props.seedanceRefs} setRefs={props.setSeedanceRefs} />
+            {props.seedanceRefs.length > 0 &&
+              props.seedanceRefs[0].kind === 'image' &&
+              props.seedanceRefs.every((r) => r.kind === 'image') &&
+              props.seedanceRefs.length <= 2 && (
+                <button
+                  type="button"
+                  onClick={() => props.setSeedanceStartFrame(!props.seedanceStartFrame)}
+                  className={cn(
+                    'mt-2 flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12px] transition-colors',
+                    props.seedanceStartFrame
+                      ? 'border-primary/40 bg-primary/5 text-foreground'
+                      : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                  )}
+                >
+                  <ImagePlus className={cn('size-4', props.seedanceStartFrame && 'text-primary')} aria-hidden />
+                  {props.seedanceStartFrame
+                    ? props.seedanceRefs.length === 2
+                      ? 'Frame inicial + final (image-to-video)'
+                      : 'Usar como frame inicial (image-to-video)'
+                    : 'Usar como frames inicial/final en vez de @referencias'}
+                </button>
+              )}
+          </Step>
+        )}
 
         {supportsImages && (
           <Step
@@ -407,8 +547,38 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           </Step>
         )}
 
-        <Step index={5} title="Audio" subtitle={isVeo ? 'Incluido con Veo' : 'Opcional con Kling'}>
-          {isVeo ? (
+        <Step
+          index={5}
+          title="Audio"
+          subtitle={isSeedance ? 'Nativo estéreo, sin costo extra' : isVeo ? 'Incluido con Veo' : 'Opcional con Kling'}
+        >
+          {isSeedance ? (
+            <div className="space-y-1.5">
+              <button
+                type="button"
+                onClick={() => props.setGenerateAudio(!props.generateAudio)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-[12.5px] transition-colors',
+                  props.generateAudio
+                    ? 'border-primary/40 bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/40',
+                )}
+              >
+                {props.generateAudio ? (
+                  <Volume2 className="size-4 text-primary" aria-hidden />
+                ) : (
+                  <VolumeOff className="size-4" aria-hidden />
+                )}
+                Audio nativo estéreo
+              </button>
+              {props.generateAudio && (
+                <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/70">
+                  Describe qué se oye y cuándo: diálogos entre comillas, efectos, ambiente. También puedes
+                  subir un audio de referencia (@Audio1) para el ritmo.
+                </p>
+              )}
+            </div>
+          ) : isVeo ? (
             <div className="space-y-1.5">
               <div className="flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[12.5px] text-foreground">
                 <Volume2 className="size-4 text-primary" aria-hidden />
@@ -487,18 +657,18 @@ export function VideoControlsPanel(props: VideoControlsProps) {
             <span
               className={cn(
                 'font-mono text-[11px]',
-                props.prompt.length > (isVeo ? 1024 : 2000) * 0.9
+                props.prompt.length > (isSeedance ? 4000 : isVeo ? 1024 : 2000) * 0.9
                   ? 'text-amber-400'
                   : 'text-muted-foreground/70',
               )}
             >
-              {props.prompt.length} / {isVeo ? '1.024' : '2.000'}
+              {props.prompt.length} / {isSeedance ? '4.000' : isVeo ? '1.024' : '2.000'}
             </span>
           }
         >
           <textarea
             value={props.prompt}
-            onChange={(e) => props.setPrompt(e.target.value.slice(0, isVeo ? 1024 : 2000))}
+            onChange={(e) => props.setPrompt(e.target.value.slice(0, isSeedance ? 4000 : isVeo ? 1024 : 2000))}
             placeholder="Describe la escena que quieres animar…"
             className="scroll-thin min-h-[110px] w-full max-h-[200px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus:border-primary/40 sm:max-h-[280px]"
           />

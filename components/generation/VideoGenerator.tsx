@@ -9,15 +9,38 @@ import type { PricingRow } from '@/lib/credits/types';
 import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
 import { estimateVideoEta } from '@/lib/generation/video-meta';
 import type { SelectedCampaign } from './CampaignSelector';
-import { VideoControlsPanel, VIDEO_STYLES, type ModelKey, type ReferenceImage } from './VideoControlsPanel';
+import {
+  VideoControlsPanel,
+  VIDEO_STYLES,
+  type ModelKey,
+  type ReferenceImage,
+  type SeedanceResolutionUi,
+  type VideoAspectRatio,
+} from './VideoControlsPanel';
+import type { SeedanceRef } from './SeedanceRefsPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
+
+// Slug real de fal según tier + operación (un slug por endpoint).
+function seedanceSlug(model: ModelKey, operation: 'text' | 'image' | 'reference'): string {
+  const base = model === 'seedance-2.0-fast' ? 'bytedance/seedance-2.0/fast' : 'bytedance/seedance-2.0';
+  return `${base}/${operation}-to-video`;
+}
 
 function calcCost(
   pricing: PricingRow[],
   model: ModelKey,
   durationSeconds: number,
+  seedanceResolution: SeedanceResolutionUi,
 ): number {
+  if (model.startsWith('seedance')) {
+    // Mismo precio por segundo para t2v/i2v/r2v dentro del tier (migración 024).
+    const slug = seedanceSlug(model, 'reference');
+    const row = pricing.find(
+      (p) => p.provider === 'seedance' && p.model_id === slug && p.variant === `per_second_${seedanceResolution}`,
+    );
+    return row ? durationSeconds * Number(row.credits_cost) : 0;
+  }
   if (model.startsWith('veo-')) {
     const row = pricing.find(
       (p) => p.provider === 'veo' && p.model_id === model && p.variant === '1080p',
@@ -37,15 +60,18 @@ export function VideoGenerator(props: {
   initialPrompt?: string;
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
-  const [model, setModel] = useState<ModelKey>(
-    'fal-ai/kling-video/v3/standard/text-to-video',
-  );
+  const [model, setModel] = useState<ModelKey>('seedance-2.0');
   const [prompt, setPrompt] = useState(props.initialPrompt ?? '');
   const [duration, setDuration] = useState(5);
-  const [generateAudio, setGenerateAudio] = useState(false);
+  const [generateAudio, setGenerateAudio] = useState(true);
   const [veoDuration, setVeoDuration] = useState<4 | 6 | 8>(8);
   const [veoResolution, setVeoResolution] = useState<'720p' | '1080p'>('720p');
-  const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
+  const [seedanceDuration, setSeedanceDuration] = useState(8);
+  const [seedanceResolution, setSeedanceResolution] = useState<SeedanceResolutionUi>('720p');
+  const [seedanceSeed, setSeedanceSeed] = useState('');
+  const [seedanceRefs, setSeedanceRefs] = useState<SeedanceRef[]>([]);
+  const [seedanceStartFrame, setSeedanceStartFrame] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<VideoAspectRatio>('16:9');
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([]);
   const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
   const [campaign, setCampaign] = useState<SelectedCampaign>(null);
@@ -63,9 +89,13 @@ export function VideoGenerator(props: {
   }, [model, veoResolution, referenceImages.length]);
 
   const cost = useMemo(() => {
-    const dur = model.startsWith('veo-') ? veoDuration : duration;
-    return calcCost(props.pricing, model, dur);
-  }, [props.pricing, model, duration, veoDuration]);
+    const dur = model.startsWith('seedance')
+      ? seedanceDuration
+      : model.startsWith('veo-')
+        ? veoDuration
+        : duration;
+    return calcCost(props.pricing, model, dur, seedanceResolution);
+  }, [props.pricing, model, duration, veoDuration, seedanceDuration, seedanceResolution]);
   const enhanceCost = useMemo(() => {
     const row = props.pricing.find(
       (p) => p.provider === 'internal' && p.model_id === 'prompt-enhance',
@@ -81,16 +111,64 @@ export function VideoGenerator(props: {
         .map((id) => VIDEO_STYLES.find((s) => s.id === id)?.suffix)
         .filter(Boolean)
         .join(', ');
-      const maxLen = model.startsWith('veo-') ? 1024 : 2000;
+      const isSeedance = model.startsWith('seedance');
+      const maxLen = isSeedance ? 4000 : model.startsWith('veo-') ? 1024 : 2000;
       const raw = styleSuffix ? `${prompt.trimEnd()}, ${styleSuffix}` : prompt;
       const finalPrompt = raw.slice(0, maxLen);
+
+      if (isSeedance) {
+        const images = seedanceRefs.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+        const videos = seedanceRefs.filter((r) => r.kind === 'video').map((r) => r.storagePath);
+        const audios = seedanceRefs.filter((r) => r.kind === 'audio').map((r) => r.storagePath);
+        const useStartFrame =
+          seedanceStartFrame && images.length > 0 && images.length <= 2 && videos.length === 0 && audios.length === 0;
+        const operation = useStartFrame
+          ? 'image'
+          : seedanceRefs.length > 0
+            ? 'reference'
+            : 'text';
+        const seed = seedanceSeed.trim() === '' ? undefined : Number(seedanceSeed);
+        const res = await submitVideoGenerationAction({
+          kind: 'seedance' as const,
+          model: seedanceSlug(model, operation),
+          prompt: finalPrompt,
+          aspectRatio,
+          resolution: seedanceResolution,
+          duration: seedanceDuration,
+          generateAudio,
+          ...(seed !== undefined && Number.isInteger(seed) ? { seed } : {}),
+          ...(useStartFrame
+            ? {
+                referenceStoragePath: images[0],
+                ...(images[1] ? { endReferenceStoragePath: images[1] } : {}),
+              }
+            : {
+                referenceImagePaths: images,
+                referenceVideoPaths: videos,
+                referenceAudioPaths: audios,
+              }),
+          campaignId: campaign?.id,
+        });
+        if (!res.ok) {
+          toast.error(
+            res.error === 'insufficient_credits'
+              ? 'Créditos insuficientes'
+              : res.message || 'No se pudo enviar el job',
+          );
+          return;
+        }
+        setActiveId(res.data.generationId);
+        setResolvedOutputUrl(null);
+        setResolvedThumbnailUrl(null);
+        return;
+      }
 
       const input = model.startsWith('veo-')
         ? {
             kind: 'veo' as const,
             model: model as (typeof VEO_MODELS)[number],
             prompt: finalPrompt,
-            aspectRatio: (aspectRatio === '1:1' ? '16:9' : aspectRatio) as '16:9' | '9:16',
+            aspectRatio: (aspectRatio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16',
             resolution: veoResolution,
             durationSeconds: veoDuration,
             referenceStoragePath: referenceImages[0]?.storagePath,
@@ -100,7 +178,9 @@ export function VideoGenerator(props: {
             kind: 'kling' as const,
             model: model as (typeof KLING_T2V_MODELS)[number],
             prompt: finalPrompt,
-            aspectRatio,
+            aspectRatio: (['16:9', '9:16', '1:1'].includes(aspectRatio)
+              ? aspectRatio
+              : '16:9') as '16:9' | '9:16' | '1:1',
             duration,
             cfgScale: 0.5,
             generateAudio,
@@ -156,6 +236,16 @@ export function VideoGenerator(props: {
       setVeoDuration={setVeoDuration}
       veoResolution={veoResolution}
       setVeoResolution={setVeoResolution}
+      seedanceDuration={seedanceDuration}
+      setSeedanceDuration={setSeedanceDuration}
+      seedanceResolution={seedanceResolution}
+      setSeedanceResolution={setSeedanceResolution}
+      seedanceSeed={seedanceSeed}
+      setSeedanceSeed={setSeedanceSeed}
+      seedanceRefs={seedanceRefs}
+      setSeedanceRefs={setSeedanceRefs}
+      seedanceStartFrame={seedanceStartFrame}
+      setSeedanceStartFrame={setSeedanceStartFrame}
       referenceImages={referenceImages}
       setReferenceImages={setReferenceImages}
       aspectRatio={aspectRatio}
@@ -171,7 +261,7 @@ export function VideoGenerator(props: {
     />
   );
 
-  const previewEtaSeconds = estimateVideoEta(model, duration, veoDuration, veoResolution);
+  const previewEtaSeconds = estimateVideoEta(model, duration, veoDuration, veoResolution, seedanceDuration);
 
   const preview = (
     <VideoPreview
