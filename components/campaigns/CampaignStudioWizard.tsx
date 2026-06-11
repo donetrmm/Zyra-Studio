@@ -32,6 +32,7 @@ export function CampaignStudioWizard({
   const router = useRouter();
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
+  const [language, setLanguage] = useState<'es' | 'en'>('es');
   const [productUrl, setProductUrl] = useState('');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
   const [totalItems, setTotalItems] = useState(12);
@@ -48,6 +49,7 @@ export function CampaignStudioWizard({
     const created = await createCampaignStudioAction({
       name: name.trim(),
       goal,
+      language,
       brandKitId,
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
     });
@@ -176,6 +178,34 @@ export function CampaignStudioWizard({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <span className="text-[12.5px] font-medium text-foreground/80">Idioma hablado</span>
+            <div className="mt-1.5 flex gap-2">
+              {(
+                [
+                  { value: 'es', label: 'Español' },
+                  { value: 'en', label: 'English' },
+                ] as const
+              ).map((l) => (
+                <button
+                  key={l.value}
+                  type="button"
+                  onClick={() => setLanguage(l.value)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                    language === l.value
+                      ? 'border-primary/60 bg-primary/10 text-foreground'
+                      : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+              Idioma de los diálogos y voz en off de los videos; el caption sale en español.
+            </p>
           </div>
 
           <div>

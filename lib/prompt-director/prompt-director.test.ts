@@ -84,6 +84,29 @@ describe('compile seedance', () => {
     expect(params.generateAudio).toBe(true);
   });
 
+  it('el diálogo hablado va en español por default y en inglés si la campaña lo pide', () => {
+    const req = {
+      modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+      scenePrompt: 'She shares a one-sentence take to camera',
+      durationS: 6,
+    };
+    const es = compile(req, fullContext());
+    expect(es.ok).toBe(true);
+    if (es.ok) expect(es.compiled.prompt).toContain('must be in Spanish');
+
+    const en = compile(req, { ...fullContext(), language: 'en' as const });
+    expect(en.ok).toBe(true);
+    if (en.ok) {
+      expect(en.compiled.prompt).toContain('must be in English');
+      expect(en.compiled.prompt).not.toContain('must be in Spanish');
+    }
+
+    // Sin audio no hay diálogo que dirigir.
+    const silent = compile({ ...req, generateAudio: false }, fullContext());
+    expect(silent.ok).toBe(true);
+    if (silent.ok) expect(silent.compiled.prompt).not.toContain('must be in Spanish');
+  });
+
   it('plantilla viva entra como @Video1 con rol camera_motion', () => {
     const ctx = { ...fullContext(), templateVideoPath: 'references/ws1/winner.mp4' };
     const res = compile(

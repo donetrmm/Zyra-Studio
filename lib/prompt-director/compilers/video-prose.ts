@@ -6,6 +6,7 @@
 
 import { describeProduct } from '../inventory';
 import { directionFor } from '../format-director';
+import { DIALOGUE_LANGUAGE } from './seedance';
 import type { CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxChars: number): string {
@@ -17,6 +18,9 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
     const d = directionFor(ctx.format);
     const direction = [d.framing, d.pacing].filter(Boolean).join(' ');
     if (direction) sections.push(direction);
+  }
+  if (req.generateAudio ?? ctx.format?.defaultAudio ?? true) {
+    sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
   }
   sections.push('No on-screen text, captions or watermarks.');
 

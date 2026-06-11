@@ -32,6 +32,7 @@ import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
 import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
 import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile } from '@/lib/prompt-director';
+import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -194,6 +195,7 @@ export async function createCampaignStudioAction(
       workspace_id: workspace.id,
       name: parsed.data.name,
       goal: parsed.data.goal,
+      language: parsed.data.language,
       market: parsed.data.market ?? brief.market,
       brand_kit_id: kit.id,
       product_brief: brief,
@@ -547,7 +549,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief')
+    .select('id, workspace_id, brand_kit_id, product_brief, language')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -589,6 +591,7 @@ export async function approveBatchAction(
       id: campaign.id as string,
       brand_kit_id: campaign.brand_kit_id as string | null,
       product_brief: campaign.product_brief as Record<string, unknown> | null,
+      language: campaign.language as string | null,
     },
     items: itemRows as never,
     formats: formatsMap,
@@ -982,6 +985,17 @@ export async function createVariantAction(
   const sourceResolution = ((genParams.resolution as string) ?? '720p') as '480p' | '720p' | '1080p';
   const sourceDuration = (genParams.duration as number | undefined) ?? 8;
 
+  // Idioma del diálogo de la campaña de origen (migración 029); default es.
+  let variantLanguage: 'es' | 'en' = 'es';
+  if (gen.campaign_id) {
+    const { data: langRow } = await supabase
+      .from('campaigns')
+      .select('language')
+      .eq('id', gen.campaign_id as string)
+      .single();
+    if (langRow?.language === 'en') variantLanguage = 'en';
+  }
+
   let videoRefPath: string;
   try {
     videoRefPath = await copyOutputVideoToReferences({
@@ -1082,6 +1096,9 @@ export async function createVariantAction(
       'expressions and timing frame by frame. Keep the scene, lighting and camera movements ' +
       'unchanged. No on-screen text, no captions, no watermarks.';
   }
+
+  // El audio se conserva/regenera: el diálogo debe seguir en el idioma de la campaña.
+  prompt = `${prompt} ${DIALOGUE_LANGUAGE[variantLanguage]}`;
 
   const modelSlug = 'bytedance/seedance-2.0/reference-to-video';
   const variantResolution = sourceResolution === '1080p' ? '720p' : sourceResolution;
