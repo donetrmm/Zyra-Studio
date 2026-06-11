@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Loader2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, updateCharacterAction } from '@/server-actions/cast';
+import { submitGenerationAction } from '@/server-actions/generations';
+import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 
@@ -19,9 +21,11 @@ export type CastCharacter = {
 export function CastPage({
   characters,
   previews,
+  fluxCost,
 }: {
   characters: CastCharacter[];
   previews: Record<string, string>;
+  fluxCost: number;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -51,6 +55,7 @@ export function CastPage({
         <CharacterEditor
           character={editing === 'new' ? null : editing}
           previews={previews}
+          fluxCost={fluxCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />
@@ -113,14 +118,28 @@ export function CastPage({
   );
 }
 
+// Prompt de hoja maestra (doc V2 §4.4 + spec D tarea 2): retrato frontal
+// neutro de una persona ficticia, luz pareja — los criterios de calidad de
+// referencia que el Prompt Director espera. Concreto, sin slop.
+function buildMasterPrompt(description: string): string {
+  return (
+    `Frontal head-and-shoulders portrait of a fictional person: ${description}. ` +
+    'Neutral relaxed expression, looking straight at the camera, soft even studio lighting, ' +
+    'plain light gray seamless background, sharp focus on the face, natural skin texture, ' +
+    'no text, no watermark.'
+  );
+}
+
 function CharacterEditor({
   character,
   previews,
+  fluxCost,
   onClose,
   onSaved,
 }: {
   character: CastCharacter | null;
   previews: Record<string, string>;
+  fluxCost: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -135,8 +154,45 @@ function CharacterEditor({
     (character?.angle_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
   const [saving, startSave] = useTransition();
+  const [generating, setGenerating] = useState(false);
 
   const canSave = name.trim().length > 0 && masterImages.length === 1;
+  const canGenerate = description.trim().length >= 10 && !generating;
+
+  async function handleGenerateMaster() {
+    if (!canGenerate) return;
+    setGenerating(true);
+    try {
+      const res = await submitGenerationAction({
+        provider: 'flux' as const,
+        model: 'flux-2-pro-preview' as const,
+        variant: 'default' as const,
+        prompt: buildMasterPrompt(description.trim()),
+        aspectRatio: '3:4' as const,
+        megapixels: 2 as const,
+        photoreal: true,
+        references: [],
+      });
+      if (!res.ok) {
+        toast.error(
+          res.error === 'insufficient_credits'
+            ? 'Créditos insuficientes para generar la hoja maestra'
+            : res.message || 'No se pudo generar',
+        );
+        return;
+      }
+      // El retrato se copia al bucket de referencias y queda como media_reference.
+      const ref = await addGenerationAsReferenceAction({ generationId: res.data.generationId });
+      if (!ref.ok) {
+        toast.error(ref.message || 'Se generó la imagen pero no se pudo fijar como hoja maestra; búscala en la librería');
+        return;
+      }
+      setMasterImages([{ id: ref.data.id, previewUrl: ref.data.previewUrl || null }]);
+      toast.success('Hoja maestra generada; revisa que represente al personaje y guarda');
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   function handleSave() {
     startSave(async () => {
@@ -170,22 +226,6 @@ function CharacterEditor({
           className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
         />
 
-        <ReferenceImagesUploader
-          label="Hoja maestra (obligatoria)"
-          hint="Foto frontal, expresión neutra, buena luz, alta resolución. Sin rostros de personas reales."
-          images={masterImages}
-          onChange={(imgs) => setMasterImages(imgs.slice(-1))}
-          max={1}
-        />
-
-        <ReferenceImagesUploader
-          label="Ángulos adicionales"
-          hint="Perfil y 3/4, opcionales — mejoran la consistencia."
-          images={angleImages}
-          onChange={setAngleImages}
-          max={2}
-        />
-
         <div>
           <label htmlFor="cast-desc" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Descripción
@@ -200,6 +240,49 @@ function CharacterEditor({
             className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
           />
         </div>
+
+        <ReferenceImagesUploader
+          label="Hoja maestra (obligatoria)"
+          hint="Foto frontal, expresión neutra, buena luz, alta resolución. Sin rostros de personas reales."
+          images={masterImages}
+          onChange={(imgs) => setMasterImages(imgs.slice(-1))}
+          max={1}
+        />
+
+        <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            Sin foto que puedas usar? Genera la hoja maestra con IA a partir de la descripción —
+            el personaje será 100% ficticio, lo que evita el bloqueo de rostros reales del modelo de video.
+          </p>
+          <button
+            type="button"
+            onClick={handleGenerateMaster}
+            disabled={!canGenerate}
+            title={
+              description.trim().length < 10
+                ? 'Escribe primero la descripción del personaje'
+                : undefined
+            }
+            className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {generating ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5 text-primary" aria-hidden />
+            )}
+            {generating
+              ? 'Generando retrato…'
+              : `Generar con IA${fluxCost > 0 ? ` · ${fluxCost} cr` : ''}`}
+          </button>
+        </div>
+
+        <ReferenceImagesUploader
+          label="Ángulos adicionales"
+          hint="Perfil y 3/4, opcionales — mejoran la consistencia."
+          images={angleImages}
+          onChange={setAngleImages}
+          max={2}
+        />
 
         <div className="flex gap-2">
           <button

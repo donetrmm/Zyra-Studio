@@ -1,6 +1,8 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { loadPricing } from '@/lib/credits/pricing';
+import { estimateCredits } from '@/lib/credits/estimator';
 import { CastPage, type CastCharacter } from '@/components/cast/CastPage';
 
 export const dynamic = 'force-dynamic';
@@ -48,5 +50,19 @@ export default async function CastRoute() {
     );
   }
 
-  return <CastPage characters={characters} previews={previews} />;
+  // Costo del generador de hoja maestra (FLUX 2MP) para mostrarlo en el botón.
+  let fluxCost = 0;
+  try {
+    const pricing = await loadPricing();
+    fluxCost = estimateCredits(pricing, {
+      provider: 'flux',
+      model: 'flux-2-pro-preview',
+      variant: 'default',
+      params: { megapixels: 2, references: 0 },
+    }).total;
+  } catch {
+    // sin fila de pricing: el botón se muestra sin costo
+  }
+
+  return <CastPage characters={characters} previews={previews} fluxCost={fluxCost} />;
 }
