@@ -669,6 +669,23 @@ export async function generateSeriesAction(
     return { ok: false, error: 'not_found', message: 'La campaña de origen ya no existe' };
   }
 
+  // La serie se programa DESPUÉS del último creativo del calendario existente
+  // (no encima de él): continúa la campaña, no la pisa.
+  const { data: lastItem } = await supabase
+    .from('campaign_items')
+    .select('scheduled_date')
+    .eq('campaign_id', campaignId)
+    .not('scheduled_date', 'is', null)
+    .order('scheduled_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const today = new Date();
+  const lastDate = lastItem?.scheduled_date ? new Date(`${lastItem.scheduled_date}T12:00:00`) : null;
+  const seriesStart =
+    lastDate && lastDate.getTime() > today.getTime()
+      ? new Date(lastDate.getTime() + 24 * 60 * 60 * 1000)
+      : today;
+
   const [{ data: sceneRows }, { data: characterRows }] = await Promise.all([
     supabase.from('scene_library').select('name, prompt_fragment').eq('type', 'escena'),
     supabase
@@ -692,7 +709,7 @@ export async function generateSeriesAction(
     })),
     characters,
     rotateCharacters: parsed.data.rotateCharacters,
-    startDate: new Date(),
+    startDate: seriesStart,
   });
   if (items.length === 0) return { ok: false, error: 'validation_error', message: 'Sin escenas para rotar' };
 
