@@ -4,6 +4,7 @@
 // el refinado (cuando la conversación se sale del catálogo).
 // Patrón Gemini: fetch directo + responseMimeType JSON (como lib/campaigns/brief.ts).
 
+import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 
@@ -79,6 +80,9 @@ export async function matchIdeas(input: {
     }),
   });
   if (res.status === 429) throw new ProviderError('Rate limit Gemini', 'rate_limit', true);
+  if (res.status === 401 || res.status === 403) {
+    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new ProviderError(`Gemini matcher ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);

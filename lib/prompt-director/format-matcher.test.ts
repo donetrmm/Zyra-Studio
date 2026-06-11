@@ -53,7 +53,16 @@ describe('matchIdeas', () => {
   it('rechaza JSON que no cumple el schema', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({ matches: [{ bogus: true }] })));
     process.env.GEMINI_API_KEY = 'test';
-    await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toThrow();
+    await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toThrow(/schema/i);
+  });
+
+  it('marca rate limit como reintentable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429 }) as Response));
+    process.env.GEMINI_API_KEY = 'test';
+    await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toMatchObject({
+      code: 'rate_limit',
+      retryable: true,
+    });
   });
 
   it('descarta formatId que no existe en la lista', async () => {
