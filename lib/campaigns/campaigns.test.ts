@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPlan, type PlannerInput } from './planner';
 import { buildCaption, productHashtag } from './captions';
-import { htmlToText } from './brief';
+import { htmlToText, isPrivateIp } from './brief';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
 import { buildSeries, buildTemplateParams } from './distill';
 import type { PricingRow } from '@/lib/credits/types';
@@ -314,6 +314,34 @@ describe('buildCaption', () => {
   it('productHashtag normaliza acentos y símbolos', () => {
     expect(productHashtag('Café Olla 3000')).toBe('#cafeolla3000');
     expect(productHashtag('!!!')).toBe('');
+  });
+});
+
+describe('isPrivateIp (guarda SSRF del brief por URL)', () => {
+  it('bloquea loopback, privadas, link-local, ULA y mapeadas', () => {
+    const blocked = [
+      '127.0.0.1',
+      '10.1.2.3',
+      '172.16.0.1',
+      '172.31.255.255',
+      '192.168.1.1',
+      '169.254.169.254',
+      '0.0.0.0',
+      '::1',
+      '::',
+      'fc00::1',
+      'fd12:3456::1',
+      'fe80::1',
+      '::ffff:127.0.0.1',
+      '::ffff:10.0.0.5',
+      'no-es-ip',
+    ];
+    for (const ip of blocked) expect(isPrivateIp(ip), ip).toBe(true);
+  });
+
+  it('permite IPs públicas', () => {
+    const allowed = ['8.8.8.8', '172.15.0.1', '172.32.0.1', '104.18.32.1', '2606:4700::1111'];
+    for (const ip of allowed) expect(isPrivateIp(ip), ip).toBe(false);
   });
 });
 

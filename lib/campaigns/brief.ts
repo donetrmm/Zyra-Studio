@@ -1,4 +1,5 @@
 import 'server-only';
+import { lookup } from 'node:dns/promises';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 
@@ -53,26 +54,57 @@ const GeminiResponseSchema = z.object({
 
 // Fetch server-side de la URL del producto (specs/v2/03 tarea 2): el texto de
 // la página (título, descripción, claims, tono) se pasa como extraContext al
-// análisis del brief. Guardas: solo http(s), sin hosts internos (SSRF),
-// timeout 10s, respuesta acotada.
+// análisis del brief. Guardas anti-SSRF: solo http(s), hostname Y todas sus
+// IPs resueltas fuera de rangos internos, redirecciones manuales re-validadas
+// hop a hop, timeout 10s, respuesta acotada.
+// Riesgo residual documentado: DNS rebinding entre lookup y connect (mitigarlo
+// requiere un agent con lookup propio que fije la IP; fuera de alcance demo).
 const URL_TIMEOUT_MS = 10_000;
 const URL_MAX_BYTES = 1_500_000;
 const URL_TEXT_CAP = 4000;
+const URL_MAX_REDIRECTS = 5;
 
-function isBlockedHost(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
-  // IPs literales privadas/loopback/link-local (IPv4) y loopback IPv6.
-  if (h === '::1' || h === '[::1]') return true;
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
-  if (ipv4) {
-    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
-    if (a === 127 || a === 10 || a === 0) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 169 && b === 254) return true;
+export function isPrivateIp(address: string): boolean {
+  const ip = address.toLowerCase();
+  if (ip.includes(':')) {
+    // IPv6: loopback, unspecified, ULA fc00::/7, link-local fe80::/10.
+    if (ip === '::1' || ip === '::') return true;
+    if (ip.startsWith('fc') || ip.startsWith('fd')) return true;
+    if (/^fe[89ab]/.test(ip)) return true;
+    const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(ip);
+    if (mapped) return isPrivateIp(mapped[1]);
+    return false;
   }
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return true; // forma ilegible: bloquear por precaución
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  if (a === 127 || a === 10 || a === 0) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
   return false;
+}
+
+// Valida nombre + resolución DNS: un dominio público puede apuntar su A/AAAA
+// a una IP interna; se rechaza si CUALQUIER dirección resuelta es privada.
+async function assertPublicHost(hostname: string): Promise<void> {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) {
+    throw new ProviderError('URL no permitida', 'unknown', false);
+  }
+  if (/^[\d.]+$/.test(h) || h.includes(':')) {
+    if (isPrivateIp(h)) throw new ProviderError('URL no permitida', 'unknown', false);
+    return;
+  }
+  let addrs: Array<{ address: string }>;
+  try {
+    addrs = await lookup(h, { all: true });
+  } catch {
+    throw new ProviderError('No se pudo resolver el host de la URL', 'unknown', false);
+  }
+  if (addrs.length === 0 || addrs.some((a) => isPrivateIp(a.address))) {
+    throw new ProviderError('URL no permitida', 'unknown', false);
+  }
 }
 
 export function htmlToText(html: string): string {
@@ -97,28 +129,53 @@ export function htmlToText(html: string): string {
     .slice(0, URL_TEXT_CAP);
 }
 
-export async function fetchProductPageText(rawUrl: string): Promise<string> {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new ProviderError('URL de producto inválida', 'unknown', false);
-  }
+function assertHttpProtocol(url: URL): void {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new ProviderError('Solo URLs http(s)', 'unknown', false);
   }
-  if (isBlockedHost(url.hostname)) {
-    throw new ProviderError('URL no permitida', 'unknown', false);
+}
+
+export async function fetchProductPageText(rawUrl: string): Promise<string> {
+  let current: URL;
+  try {
+    current = new URL(rawUrl);
+  } catch {
+    throw new ProviderError('URL de producto inválida', 'unknown', false);
   }
+  assertHttpProtocol(current);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), URL_TIMEOUT_MS);
   try {
-    const res = await fetch(url.toString(), {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': 'ZyraStudio/1.0 (product brief)' },
-    });
+    // Redirecciones manuales: cada hop se re-valida (protocolo + host + DNS)
+    // para que un destino público no redirija a un host interno.
+    let res: Response | undefined;
+    for (let hop = 0; hop <= URL_MAX_REDIRECTS; hop++) {
+      await assertPublicHost(current.hostname);
+      res = await fetch(current.toString(), {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: { 'User-Agent': 'ZyraStudio/1.0 (product brief)' },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('location');
+        if (!location) throw new ProviderError('Redirección sin destino', 'unknown', false);
+        if (hop === URL_MAX_REDIRECTS) {
+          throw new ProviderError('Demasiadas redirecciones', 'unknown', false);
+        }
+        let next: URL;
+        try {
+          next = new URL(location, current);
+        } catch {
+          throw new ProviderError('Redirección a una URL inválida', 'unknown', false);
+        }
+        assertHttpProtocol(next);
+        current = next;
+        continue;
+      }
+      break;
+    }
+    if (!res) throw new ProviderError('Sin respuesta de la página', 'unknown', false);
     if (!res.ok) {
       throw new ProviderError(`La página respondió ${res.status}`, 'server', false);
     }
