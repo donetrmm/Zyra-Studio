@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SHOTS, shotBySlug } from './catalog';
 
+// Sincronizar con el seed de formatos (023_v2_seed_formats.sql).
 const SYSTEM_FORMAT_SLUGS = [
   'voz-cercana', 'a-pie-de-calle', 'manos-a-la-obra', 'el-descubrimiento',
   'antes-y-despues', 'susurro', 'el-icono', 'gran-pantalla', 'mundo-imposible',

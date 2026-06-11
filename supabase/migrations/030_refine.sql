@@ -6,7 +6,7 @@
 
 alter table campaign_items
   add column if not exists shot text,
-  add column if not exists reference_ids uuid[] not null default '{}';
+  add column if not exists reference_ids uuid[] not null default '{}'; -- media_references elegidas en el refinado (mismos assets que generations.reference_ids)
 
 insert into model_pricing (provider, model_id, variant, credits_cost, unit_size, unit_label) values
   ('internal', 'refine-session', 'default', 8, null, null)
