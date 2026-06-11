@@ -37,7 +37,7 @@ export default async function CampaignDetailRoute({
       await Promise.all([
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, character_id, scheduled_date, status, warnings, generation_id')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, scheduled_date, status, warnings, generation_id')
           .eq('campaign_id', id)
           .order('scheduled_date'),
         supabase.from('formats').select('id, name'),
@@ -61,6 +61,7 @@ export default async function CampaignDetailRoute({
       aspectRatio: (r.aspect_ratio as string | null) ?? null,
       scene: (r.scene as string | null) ?? null,
       scenePrompt: r.scene_prompt as string,
+      caption: (r.caption as string | null) ?? null,
       characterName: r.character_id ? (characterNames.get(r.character_id as string) ?? null) : null,
       scheduledDate: (r.scheduled_date as string | null) ?? null,
       status: r.status as string,
