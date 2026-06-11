@@ -6,7 +6,7 @@
 
 import { describeProduct } from '../inventory';
 import { directionFor } from '../format-director';
-import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
+import type { CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxChars: number): string {
   const sections: string[] = [];

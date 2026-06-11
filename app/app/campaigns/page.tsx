@@ -27,9 +27,13 @@ export default async function CampaignsRoute() {
   }
 
   const campaigns = (campaignsRes.data ?? []).map((c) => ({
-    ...c,
+    id: c.id as string,
+    name: c.name as string,
+    description: (c.description as string | null) ?? null,
+    color: c.color as string,
+    created_at: c.created_at as string,
     generationCount: countMap.get(c.id as string) ?? 0,
   }));
 
-  return <CampaignsPage campaigns={campaigns as any} />;
+  return <CampaignsPage campaigns={campaigns} />;
 }

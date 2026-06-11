@@ -85,11 +85,15 @@ export function VideoGenerator(props: {
 
   const live = useGenerationStatus(activeId);
 
-  useEffect(() => {
-    if (model.startsWith('veo-') && (veoResolution === '1080p' || referenceImages.length > 0)) {
-      setVeoDuration(8);
-    }
-  }, [model, veoResolution, referenceImages.length]);
+  // 1080p o imagen de referencia fuerzan 8s en Veo (ajuste de estado durante
+  // render, no en effect — react.dev/learn/you-might-not-need-an-effect).
+  if (
+    model.startsWith('veo-') &&
+    (veoResolution === '1080p' || referenceImages.length > 0) &&
+    veoDuration !== 8
+  ) {
+    setVeoDuration(8);
+  }
 
   const cost = useMemo(() => {
     const dur = model.startsWith('seedance')

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,14 +23,18 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
   const router = useRouter();
   const confirm = useConfirm();
   const [refs, setRefs] = useState(initial);
-  useEffect(() => {
-    setRefs(initial);
-    setSelected(new Set());
-  }, [initial]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [deleting, startDelete] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Re-sincroniza tras router.refresh(): ajuste de estado durante render,
+  // no en effect (react.dev/learn/you-might-not-need-an-effect).
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (prevInitial !== initial) {
+    setPrevInitial(initial);
+    setRefs(initial);
+    setSelected(new Set());
+  }
   const [query, setQuery] = useState('');
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);

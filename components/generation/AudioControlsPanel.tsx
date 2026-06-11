@@ -202,13 +202,21 @@ function VoicePreviewButton({ voiceId }: { voiceId: string }) {
   const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle');
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Al cambiar de voz, parar el audio actual y volver a idle.
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+  // Al cambiar de voz, volver a idle (ajuste de estado durante render).
+  const [prevVoiceId, setPrevVoiceId] = useState(voiceId);
+  if (prevVoiceId !== voiceId) {
+    setPrevVoiceId(voiceId);
     setState('idle');
+  }
+
+  // Parar el audio en curso al cambiar de voz o desmontar (sistema externo).
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, [voiceId]);
 
   async function handleClick() {

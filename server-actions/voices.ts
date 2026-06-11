@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { cloneVoice, deleteVoice, getVoicePreview, tts } from '@/lib/providers/elevenlabs';
 import { OFFICIAL_VOICE_IDS } from '@/lib/elevenlabs/official-voices';
 
