@@ -277,6 +277,23 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     fragment: s.prompt_fragment as string,
   }));
 
+  // Aprendizaje: formatos con creativos ganadores o plantillas destiladas en
+  // el workspace reciben doble peso en el mix de esta campaña.
+  const [{ data: winnerRows }, { data: templateRows }] = await Promise.all([
+    supabase
+      .from('campaign_items')
+      .select('format_id, campaigns!inner(workspace_id)')
+      .eq('is_winner', true)
+      .eq('campaigns.workspace_id', workspace.id),
+    supabase.from('creative_templates').select('format_id').eq('workspace_id', workspace.id),
+  ]);
+  const winningFormatIds = new Set(
+    [...(winnerRows ?? []), ...(templateRows ?? [])]
+      .map((r) => r.format_id as string | null)
+      .filter((id): id is string => !!id),
+  );
+  const winningSlugs = formats.filter((f) => winningFormatIds.has(f.id)).map((f) => f.slug);
+
   const goal = (['awareness', 'conversion', 'mixed'].includes(campaign.goal as string)
     ? campaign.goal
     : 'mixed') as 'awareness' | 'conversion' | 'mixed';
@@ -289,6 +306,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     scenes,
     characters,
     available,
+    winningSlugs,
     dateStart: campaign.date_start ? new Date(campaign.date_start as string) : new Date(),
     dateEnd: campaign.date_end
       ? new Date(campaign.date_end as string)
@@ -659,8 +677,41 @@ export async function distillTemplateAction(
     .single();
   if (error || !inserted) return { ok: false, error: 'internal_error', message: error?.message };
 
+  // Destilar es la señal de ganador más fuerte: marca el item para el
+  // ciclo de aprendizaje (el mix de la siguiente campaña lo pondera).
+  await supabase.from('campaign_items').update({ is_winner: true }).eq('id', item.id);
+
   if (gen.campaign_id) revalidatePath(`/app/campaigns/${gen.campaign_id}`);
   return { ok: true, data: { templateId: inserted.id as string } };
+}
+
+// Marca o desmarca un creativo final como ganador (doc V2 §4.1 etapa 5).
+export async function toggleWinnerAction(itemId: string): Promise<Result<{ isWinner: boolean }>> {
+  if (!z.string().uuid().safeParse(itemId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select('id, campaign_id, status, is_winner, campaigns!inner(workspace_id)')
+    .eq('id', itemId)
+    .single();
+  const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
+  if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
+  if (item.status !== 'final_ready') {
+    return { ok: false, error: 'validation_error', message: 'Solo los finales pueden marcarse como ganadores' };
+  }
+
+  const next = !(item.is_winner as boolean);
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ is_winner: next })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath(`/app/campaigns/${item.campaign_id}`);
+  return { ok: true, data: { isWinner: next } };
 }
 
 // Genera una serie desde la plantilla: N items nuevos en la campaña de origen

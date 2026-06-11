@@ -12,6 +12,7 @@ import {
   Pencil,
   Play,
   Trash2,
+  Trophy,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import {
   exportCampaignCsvAction,
   generateSeriesAction,
   requestFinalAction,
+  toggleWinnerAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
@@ -43,6 +45,7 @@ export type StudioItem = {
   status: string;
   warnings: string[];
   generationId: string | null;
+  isWinner: boolean;
 };
 
 export type StudioTemplate = {
@@ -227,7 +230,14 @@ export function CampaignStudioView({
       {tab === 'plan' ? (
         <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
       ) : tab === 'produccion' ? (
-        <ProductionView campaignId={campaign.id} groups={byFormat} characterOptions={characterOptions} />
+        <ProductionView
+          campaignId={campaign.id}
+          groups={byFormat}
+          characterOptions={characterOptions}
+          onWinner={(id, isWinner) =>
+            setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isWinner } : i)))
+          }
+        />
       ) : tab === 'plantillas' ? (
         <TemplatesView templates={templates} />
       ) : (
@@ -358,14 +368,32 @@ function ProductionView({
   campaignId,
   groups,
   characterOptions,
+  onWinner,
 }: {
   campaignId: string;
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
   characterOptions: StudioCharacterOption[];
+  onWinner: (itemId: string, isWinner: boolean) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [distilling, setDistilling] = useState<StudioItem | null>(null);
   const [varianting, setVarianting] = useState<StudioItem | null>(null);
+
+  async function handleWinner(item: StudioItem) {
+    setBusy(`winner:${item.id}`);
+    const res = await toggleWinnerAction(item.id);
+    setBusy(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo marcar el ganador');
+      return;
+    }
+    onWinner(item.id, res.data.isWinner);
+    toast.success(
+      res.data.isWinner
+        ? 'Ganador marcado: el mix de tus próximas campañas prioriza este formato'
+        : 'Ganador desmarcado',
+    );
+  }
 
   async function handleBatch(formatId: string, mode: 'sample' | 'full') {
     setBusy(`${formatId}:${mode}`);
@@ -474,6 +502,24 @@ function ProductionView({
                   <div key={f.id} className="flex items-center justify-between gap-3 text-[12.5px]">
                     <p className="line-clamp-1 flex-1 text-muted-foreground/80">{f.scenePrompt}</p>
                     <span className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => handleWinner(f)}
+                        title={
+                          f.isWinner
+                            ? 'Quitar la marca de ganador'
+                            : 'Marcar como ganador: prioriza este formato en próximas campañas'
+                        }
+                        className={
+                          f.isWinner
+                            ? 'inline-flex items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1 text-[11.5px] text-amber-300 transition-colors hover:bg-amber-400/15 disabled:opacity-40'
+                            : 'inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40'
+                        }
+                      >
+                        <Trophy className="size-3" aria-hidden />
+                        {f.isWinner ? 'Ganador' : 'Marcar ganador'}
+                      </button>
                       <button
                         type="button"
                         disabled={!f.generationId}

@@ -37,7 +37,7 @@ export default async function CampaignDetailRoute({
       await Promise.all([
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, scheduled_date, status, warnings, generation_id')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, scheduled_date, status, warnings, generation_id, is_winner')
           .eq('campaign_id', id)
           .order('scheduled_date'),
         supabase.from('formats').select('id, name'),
@@ -67,6 +67,7 @@ export default async function CampaignDetailRoute({
       status: r.status as string,
       warnings: (r.warnings as string[]) ?? [],
       generationId: (r.generation_id as string | null) ?? null,
+      isWinner: (r.is_winner as boolean) ?? false,
     }));
 
     const templates: StudioTemplate[] = (templateRows ?? []).map((t) => ({
