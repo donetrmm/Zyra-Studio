@@ -355,6 +355,26 @@ describe('buildPlan formatos custom', () => {
   });
 });
 
+describe('buildPlan aprendizaje', () => {
+  it('un formato con ganadores recibe doble peso en el reparto', () => {
+    // beverage viable sin packaging: 6 formatos. Pesos: el-icono 2, resto 1 → 7.
+    // 14 items: el-icono 14*2/7 = 4; los demás 14*1/7 = 2.
+    const items = buildPlan(plannerInput({ totalItems: 14, winningSlugs: ['el-icono'] }));
+    const byFormat = new Map<string, number>();
+    for (const i of items) byFormat.set(i.formatSlug, (byFormat.get(i.formatSlug) ?? 0) + 1);
+    expect(items).toHaveLength(14);
+    expect(byFormat.get('el-icono')).toBe(4);
+    expect(byFormat.get('voz-cercana')).toBe(2);
+  });
+
+  it('sin ganadores el reparto queda parejo (comportamiento original)', () => {
+    const items = buildPlan(plannerInput({ totalItems: 12 }));
+    const byFormat = new Map<string, number>();
+    for (const i of items) byFormat.set(i.formatSlug, (byFormat.get(i.formatSlug) ?? 0) + 1);
+    for (const count of byFormat.values()) expect(count).toBe(2);
+  });
+});
+
 describe('buildPlan captions', () => {
   it('todo item del plan lleva caption con el producto', () => {
     const items = buildPlan(plannerInput());

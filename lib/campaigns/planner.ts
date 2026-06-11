@@ -28,6 +28,9 @@ export type PlannerInput = {
   // Qué referencias existen en el Brand Kit/Cast: el plan nunca propone un
   // formato cuyos required_refs no se pueden cumplir (evita items bloqueados).
   available: { product: boolean; packaging: boolean; character: boolean };
+  // Ciclo de aprendizaje (doc V2 §4.1 etapa 5): slugs de formatos con
+  // creativos ganadores o plantillas destiladas — reciben doble peso en el mix.
+  winningSlugs?: string[];
   dateStart: Date;
   dateEnd: Date;
   draftModelSlug: string;
@@ -138,14 +141,28 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
 
   if (candidates.length === 0 || input.totalItems < 1) return [];
 
-  // Reparto parejo con resto a los primeros formatos.
-  const per = Math.floor(input.totalItems / candidates.length);
-  const remainder = input.totalItems % candidates.length;
+  // Reparto proporcional al peso: formato con ganadores pesa doble (el
+  // aprendizaje sesga el mix, no lo monopoliza). Sin ganadores, todos pesan 1
+  // y el reparto queda parejo con resto a los primeros — igual que antes.
+  const winning = new Set(input.winningSlugs ?? []);
+  const weights = candidates.map((f) => (winning.has(f.slug) ? 2 : 1));
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const raw = weights.map((w) => (input.totalItems * w) / totalWeight);
+  const counts = raw.map(Math.floor);
+  let rest = input.totalItems - counts.reduce((a, b) => a + b, 0);
+  const byFraction = raw
+    .map((r, idx) => ({ idx, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac || a.idx - b.idx);
+  for (const { idx } of byFraction) {
+    if (rest <= 0) break;
+    counts[idx] += 1;
+    rest -= 1;
+  }
 
   // Construcción por formato, variando escena y semilla para no repetir
   // escena+concepto dentro del mismo formato.
   const itemsByFormat: PlanItemDraft[][] = candidates.map((format, fIdx) => {
-    const count = per + (fIdx < remainder ? 1 : 0);
+    const count = counts[fIdx];
     const seeds = CONCEPT_SEEDS[format.slug] ?? GENERIC_SEEDS;
     const needsCharacter = format.requiredRefs.includes('character');
     const items: PlanItemDraft[] = [];
