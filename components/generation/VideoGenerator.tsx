@@ -18,6 +18,7 @@ import {
   type VideoAspectRatio,
 } from './VideoControlsPanel';
 import type { SeedanceRef } from './SeedanceRefsPanel';
+import type { BrandKitOption, CastOption } from './SeedanceBrandCastPanel';
 import { VideoPreview } from './VideoPreview';
 import { useGenerationStatus } from './use-generation-status';
 
@@ -58,6 +59,8 @@ export function VideoGenerator(props: {
   initialBalance: number;
   pricing: PricingRow[];
   initialPrompt?: string;
+  brandKits: BrandKitOption[];
+  cast: CastOption[];
 }) {
   const balance = useLiveBalance(props.userId, props.initialBalance);
   const [model, setModel] = useState<ModelKey>('seedance-2.0');
@@ -250,6 +253,8 @@ export function VideoGenerator(props: {
       setSeedanceRefs={setSeedanceRefs}
       seedanceStartFrame={seedanceStartFrame}
       setSeedanceStartFrame={setSeedanceStartFrame}
+      brandKits={props.brandKits}
+      cast={props.cast}
       referenceImages={referenceImages}
       setReferenceImages={setReferenceImages}
       aspectRatio={aspectRatio}

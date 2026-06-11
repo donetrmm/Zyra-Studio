@@ -18,6 +18,10 @@ export type SeedanceRef = {
   storagePath: string;
   previewUrl: string;
   filename: string;
+  // Origen del activo cuando no es una subida manual: Brand Kit o Cast.
+  // sourceLabel se muestra en el thumbnail y en la fila "citar en prompt".
+  source?: 'brand' | 'cast';
+  sourceLabel?: string;
 };
 
 const MAX_PER_KIND: Record<ReferenceKind, number> = { image: 9, video: 3, audio: 3 };
@@ -30,14 +34,28 @@ export function seedanceRefLabel(refs: SeedanceRef[], index: number): string {
   return `${prefix}${nOfKind}`;
 }
 
+// Frase lista para pegar en el prompt: cada referencia debe citarse con un
+// propósito declarado (regla Seedance: ref sin propósito = error más común).
+function citeText(refs: SeedanceRef[], index: number): string {
+  const ref = refs[index];
+  const label = seedanceRefLabel(refs, index);
+  const subject = (ref.sourceLabel ?? ref.filename).split(' · ')[0];
+  if (ref.source === 'cast') return `${label} es ${subject}; mantén su identidad exacta.`;
+  if (ref.source === 'brand') return `${label} es el ${subject}; respeta su diseño exacto.`;
+  return `${label} es ${subject}.`;
+}
+
 export function SeedanceRefsPanel({
   refs,
   setRefs,
   disabled,
+  onCite,
 }: {
   refs: SeedanceRef[];
   setRefs: (v: SeedanceRef[]) => void;
   disabled?: boolean;
+  // Inserta una cita "@ImageN es …" en el prompt (refs de Brand Kit / Cast).
+  onCite?: (text: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -119,11 +137,40 @@ export function SeedanceRefsPanel({
               >
                 <X className="size-2.5" aria-hidden />
               </button>
-              <div className="absolute bottom-1 left-1 rounded bg-background/75 px-1 py-0.5 font-mono text-[9px] text-foreground/90 backdrop-blur">
-                {seedanceRefLabel(refs, i)}
+              <div className="absolute bottom-1 left-1 flex max-w-[calc(100%-8px)] items-center gap-1 rounded bg-background/75 px-1 py-0.5 backdrop-blur">
+                <span className="font-mono text-[9px] text-foreground/90">{seedanceRefLabel(refs, i)}</span>
+                {ref.sourceLabel && (
+                  <span className="truncate text-[8.5px] text-primary/90">{ref.sourceLabel}</span>
+                )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {onCite && refs.some((r) => r.sourceLabel) && (
+        <div className="space-y-1">
+          {refs.map((ref, i) =>
+            ref.sourceLabel ? (
+              <div
+                key={ref.storagePath}
+                className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1"
+              >
+                <span className="truncate text-[11px] text-muted-foreground">
+                  <span className="font-mono text-foreground/90">{seedanceRefLabel(refs, i)}</span>
+                  {' — '}
+                  {ref.sourceLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onCite(citeText(refs, i))}
+                  className="shrink-0 text-[10.5px] text-primary/80 transition-colors hover:text-primary"
+                >
+                  Citar en prompt
+                </button>
+              </div>
+            ) : null,
+          )}
         </div>
       )}
 
