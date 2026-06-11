@@ -59,7 +59,7 @@ export async function createBrandKitAction(
   if (error || !data) {
     return { ok: false, error: 'internal_error', message: error?.message ?? 'insert failed' };
   }
-  revalidatePath('/app/brand-kits');
+  revalidatePath('/app/brand/kits');
   return { ok: true, data: { id: data.id as string } };
 }
 
@@ -87,7 +87,7 @@ export async function updateBrandKitAction(
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };
   }
-  revalidatePath('/app/brand-kits');
+  revalidatePath('/app/brand/kits');
   return { ok: true, data: { updated: true } };
 }
 
@@ -134,7 +134,7 @@ export async function setBrandKitImagesAction(
     .eq('id', id)
     .eq('workspace_id', workspace.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
-  revalidatePath('/app/brand-kits');
+  revalidatePath('/app/brand/kits');
   return { ok: true, data: { updated: true } };
 }
 
@@ -151,6 +151,6 @@ export async function deleteBrandKitAction(
   if (error) {
     return { ok: false, error: 'internal_error', message: error.message };
   }
-  revalidatePath('/app/brand-kits');
+  revalidatePath('/app/brand/kits');
   return { ok: true, data: { deleted: true } };
 }

@@ -3,6 +3,7 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { publicThumbnailUrl } from '@/lib/supabase/storage';
 import { LibraryView, type LibraryGeneration } from '@/components/library/LibraryView';
+import type { Collection } from '@/components/library/CollectionsTab';
 
 export const metadata: Metadata = {
   title: 'Biblioteca',
@@ -12,7 +13,7 @@ export default async function LibraryPage() {
   const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const [generationsRes, favRes] = await Promise.all([
+  const [generationsRes, favRes, collectionsRes, countsRes] = await Promise.all([
     supabase
       .from('generations')
       .select(
@@ -25,6 +26,19 @@ export default async function LibraryPage() {
       .from('favorites')
       .select('generation_id')
       .eq('user_id', user.id),
+    // Colecciones: campañas-carpeta V1 (sin brief de producto), absorbidas
+    // por la Biblioteca (specs/v2/06 §4.3).
+    supabase
+      .from('campaigns')
+      .select('id, name, description, color, created_at')
+      .eq('workspace_id', workspace.id)
+      .is('product_brief', null)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('generations')
+      .select('campaign_id')
+      .eq('workspace_id', workspace.id)
+      .not('campaign_id', 'is', null),
   ]);
 
   const favoriteIds = (favRes.data ?? []).map((r) => r.generation_id as string);
@@ -50,12 +64,27 @@ export default async function LibraryPage() {
     };
   });
 
+  const countByCampaign = new Map<string, number>();
+  for (const r of countsRes.data ?? []) {
+    const cid = r.campaign_id as string;
+    countByCampaign.set(cid, (countByCampaign.get(cid) ?? 0) + 1);
+  }
+  const collections: Collection[] = (collectionsRes.data ?? []).map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    description: (c.description as string | null) ?? null,
+    color: (c.color as string) ?? '#009fff',
+    created_at: c.created_at as string,
+    generationCount: countByCampaign.get(c.id as string) ?? 0,
+  }));
+
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">
       <LibraryView
         generations={generations}
         workspaceName={workspace.name}
         initialFavoriteIds={favoriteIds}
+        collections={collections}
       />
     </div>
   );

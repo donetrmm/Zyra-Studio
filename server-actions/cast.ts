@@ -61,7 +61,7 @@ export async function createCharacterAction(input: unknown): Promise<Result<{ id
     .select('id')
     .single();
   if (error || !data) return { ok: false, error: 'internal_error', message: error?.message };
-  revalidatePath('/app/cast');
+  revalidatePath('/app/brand/cast');
   return { ok: true, data: { id: data.id as string } };
 }
 
@@ -88,7 +88,7 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
     .eq('id', id)
     .eq('workspace_id', workspace.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
-  revalidatePath('/app/cast');
+  revalidatePath('/app/brand/cast');
   return { ok: true, data: { updated: true } };
 }
 
@@ -102,6 +102,6 @@ export async function deleteCharacterAction(id: string): Promise<Result<{ delete
     .eq('id', id)
     .eq('workspace_id', workspace.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
-  revalidatePath('/app/cast');
+  revalidatePath('/app/brand/cast');
   return { ok: true, data: { deleted: true } };
 }

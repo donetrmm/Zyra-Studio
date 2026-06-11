@@ -34,7 +34,7 @@ export async function savePresetAction(input: unknown): Promise<Result<{ id: str
     .select('id')
     .single();
   if (error || !data) return { ok: false, error: 'internal_error', message: error?.message };
-  revalidatePath('/app/presets');
+  revalidatePath('/app/create/presets');
   return { ok: true, data: { id: data.id as string } };
 }
 
@@ -47,7 +47,7 @@ export async function deletePresetAction(id: string): Promise<Result<{ deleted: 
     .eq('id', id)
     .eq('user_id', user.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
-  revalidatePath('/app/presets');
+  revalidatePath('/app/create/presets');
   return { ok: true, data: { deleted: true } };
 }
 

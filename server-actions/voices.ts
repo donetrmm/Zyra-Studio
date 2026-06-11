@@ -71,7 +71,7 @@ export async function cloneVoiceAction(
       return { ok: false, error: 'internal_error', message: error?.message ?? 'insert failed' };
     }
 
-    revalidatePath('/app/voices');
+    revalidatePath('/app/brand/voices');
     return { ok: true, data: { id: row.id as string } };
   } catch (err) {
     return { ok: false, error: 'provider_error', message: (err as Error).message };
@@ -113,7 +113,7 @@ export async function deleteVoiceAction(
     return { ok: false, error: 'internal_error', message: error.message };
   }
 
-  revalidatePath('/app/voices');
+  revalidatePath('/app/brand/voices');
   return { ok: true, data: { deleted: true } };
 }
 

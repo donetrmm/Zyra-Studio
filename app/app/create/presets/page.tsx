@@ -1,6 +1,7 @@
 import { requireUser } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { PresetsPage } from '@/components/presets/PresetsPage';
+import { CreateModeTabs } from '@/components/generation/CreateModeTabs';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +24,13 @@ export default async function PresetsRoute() {
   ]);
 
   return (
-    <PresetsPage
-      userId={user.id}
-      myPresets={myRes.data ?? []}
-      publicPresets={publicRes.data ?? []}
-    />
+    <div>
+      <CreateModeTabs className="mb-6 max-w-md" />
+      <PresetsPage
+        userId={user.id}
+        myPresets={myRes.data ?? []}
+        publicPresets={publicRes.data ?? []}
+      />
+    </div>
   );
 }

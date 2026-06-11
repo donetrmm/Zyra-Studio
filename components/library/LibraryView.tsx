@@ -23,6 +23,7 @@ import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-r
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
+import { CollectionsTab, type Collection } from './CollectionsTab';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -49,12 +50,13 @@ export type LibraryGeneration = {
 };
 
 
-type Tab = 'sessions' | 'grid';
+type Tab = 'sessions' | 'grid' | 'collections';
 type SortKey = 'recent' | 'old';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> }[] = [
   { id: 'sessions', label: 'Sesiones', icon: Library },
   { id: 'grid', label: 'Cuadrícula', icon: ImageIcon },
+  { id: 'collections', label: 'Colecciones', icon: FolderKanban },
 ];
 
 const MODEL_LABEL: Record<string, string> = {
@@ -184,10 +186,12 @@ export function LibraryView({
   generations,
   workspaceName,
   initialFavoriteIds = [],
+  collections = [],
 }: {
   generations: LibraryGeneration[];
   workspaceName: string;
   initialFavoriteIds?: string[];
+  collections?: Collection[];
 }) {
   const [tab, setTab] = useState<Tab>('sessions');
   const [query, setQuery] = useState('');
@@ -291,6 +295,7 @@ export function LibraryView({
           {tab === 'grid' && (
             <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
+          {tab === 'collections' && <CollectionsTab collections={collections} />}
         </div>
 
         {active && (
@@ -1240,7 +1245,7 @@ function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
   function handleChange(campaignId: string) {
     startAssign(async () => {
       const res = await assignCampaignAction(generation.id, campaignId || null);
-      if (res.ok) toast.success(campaignId ? 'Asignado a campaña' : 'Campaña removida');
+      if (res.ok) toast.success(campaignId ? 'Asignado a la colección' : 'Colección removida');
       else toast.error(res.message || 'Error');
     });
   }
@@ -1249,7 +1254,7 @@ function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
     <div className="mt-3">
       <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <FolderKanban className="size-3" aria-hidden />
-        Campaña
+        Colección
       </label>
       <Select
         value={generation.campaignId ?? CAMPAIGN_NONE}
@@ -1260,7 +1265,7 @@ function CampaignAssigner({ generation }: { generation: LibraryGeneration }) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={CAMPAIGN_NONE}>Sin campaña</SelectItem>
+          <SelectItem value={CAMPAIGN_NONE}>Sin colección</SelectItem>
           {campaigns.map((c) => (
             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
           ))}
@@ -1413,6 +1418,11 @@ function LibEmptyState({ tab }: { tab: Tab }) {
       icon: ImageIcon,
       title: 'Tu cuadrícula está vacía',
       sub: 'Crea tu primera imagen para verla aquí.',
+    },
+    collections: {
+      icon: FolderKanban,
+      title: 'Sin colecciones',
+      sub: 'Agrupa generaciones sueltas por proyecto o cliente.',
     },
   };
   return (
