@@ -17,7 +17,9 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deletePresetAction, usePresetAction } from '@/server-actions/presets';
+// Alias: el action se llama usePresetAction pero no es un hook, y la regla
+// rules-of-hooks se dispara por el prefijo "use".
+import { deletePresetAction, usePresetAction as applyPresetAction } from '@/server-actions/presets';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import { WavePlayer } from '@/components/generation/WavePlayer';
@@ -51,7 +53,13 @@ export function PresetsPage({
 }) {
   const [tab, setTab] = useState<'mine' | 'community'>('community');
   const [myPresets, setMyPresets] = useState(initialMy);
-  useEffect(() => { setMyPresets(initialMy); }, [initialMy]);
+  // Re-sincroniza tras router.refresh(): ajuste de estado durante render,
+  // no en effect (react.dev/learn/you-might-not-need-an-effect).
+  const [prevInitialMy, setPrevInitialMy] = useState(initialMy);
+  if (prevInitialMy !== initialMy) {
+    setPrevInitialMy(initialMy);
+    setMyPresets(initialMy);
+  }
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<(typeof TYPE_FILTERS)[number]>('all');
   const [preview, setPreview] = useState<PresetRow | null>(null);
@@ -190,7 +198,7 @@ function PresetCard({
 
   function handleUse() {
     startUse(async () => {
-      const res = await usePresetAction(preset.id);
+      const res = await applyPresetAction(preset.id);
       if (!res.ok) { toast.error('No se pudo cargar el preset'); return; }
       const params = new URLSearchParams();
       if (res.data.params.prompt) params.set('prompt', String(res.data.params.prompt));
@@ -281,7 +289,6 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   const prompt = preset.params.prompt as string | undefined;
   const modelName = preset.params.model as string | undefined;
   const aspectRatio = preset.params.aspectRatio as string | undefined;
-  const generationId = preset.params.generationId as string | undefined;
   const Icon = TYPE_ICON[preset.type as keyof typeof TYPE_ICON] ?? Sparkles;
   const label = TYPE_LABEL[preset.type as keyof typeof TYPE_LABEL] ?? preset.type;
 
@@ -305,7 +312,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
 
   function handleUse() {
     startUse(async () => {
-      const res = await usePresetAction(preset.id);
+      const res = await applyPresetAction(preset.id);
       if (!res.ok) { toast.error('No se pudo cargar'); return; }
       const params = new URLSearchParams();
       if (res.data.params.prompt) params.set('prompt', String(res.data.params.prompt));

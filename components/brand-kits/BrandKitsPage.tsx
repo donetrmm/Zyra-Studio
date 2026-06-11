@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { cn } from '@/lib/utils';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 
 type ColorEntry = { name: string; hex: string };
@@ -27,7 +26,13 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
-  useEffect(() => { setKits(initial); }, [initial]);
+  // Re-sincroniza tras router.refresh(): ajuste de estado durante render,
+  // no en effect (react.dev/learn/you-might-not-need-an-effect).
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (prevInitial !== initial) {
+    setPrevInitial(initial);
+    setKits(initial);
+  }
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
 
   return (

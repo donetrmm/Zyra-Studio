@@ -220,7 +220,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
   }
 
   // Disponibilidad de referencias (el plan nunca propone formatos bloqueados).
-  let available = { product: false, packaging: false, character: false };
+  const available = { product: false, packaging: false, character: false };
   if (campaign.brand_kit_id) {
     const { data: kit } = await supabase
       .from('brand_kits')

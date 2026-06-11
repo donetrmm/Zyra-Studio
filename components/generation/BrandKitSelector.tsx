@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Palette } from 'lucide-react';
 import { listBrandKitsAction } from '@/server-actions/brand-kits';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 const NONE = '__none__';
 

@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FolderKanban, Loader2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCampaignAction, updateCampaignAction, deleteCampaignAction } from '@/server-actions/campaigns';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { cn } from '@/lib/utils';
 
 type CampaignRow = {
   id: string;
@@ -21,7 +20,13 @@ type CampaignRow = {
 export function CampaignsPage({ campaigns: initial }: { campaigns: CampaignRow[] }) {
   const router = useRouter();
   const [campaigns, setCampaigns] = useState(initial);
-  useEffect(() => { setCampaigns(initial); }, [initial]);
+  // Re-sincroniza tras router.refresh(): ajuste de estado durante render,
+  // no en effect (react.dev/learn/you-might-not-need-an-effect).
+  const [prevInitial, setPrevInitial] = useState(initial);
+  if (prevInitial !== initial) {
+    setPrevInitial(initial);
+    setCampaigns(initial);
+  }
   const confirm = useConfirm();
   const [editing, setEditing] = useState<CampaignRow | 'new' | null>(null);
 

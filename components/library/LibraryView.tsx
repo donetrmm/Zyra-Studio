@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-references/download-client';
-import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
@@ -680,7 +679,6 @@ function LibTile({
 }) {
   const [hover, setHover] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [addingRef, startAddRef] = useTransition();
 
   // En modo compact (dentro de SessionCard) usamos aspect cuadrado para evitar
   // que las cards se vuelvan enormes con aspect ratios como 16:9.
@@ -702,19 +700,6 @@ function LibTile({
     } finally {
       setDownloading(false);
     }
-  }
-
-  function handleUseAsRef(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (addingRef) return;
-    startAddRef(async () => {
-      const res = await addGenerationAsReferenceAction({ generationId: gen.id });
-      if (!res.ok) {
-        toast.error(res.message ?? 'No se pudo usar como referencia');
-        return;
-      }
-      toast.success('Agregada a tus referencias');
-    });
   }
 
   return (
@@ -871,7 +856,6 @@ function DetailAside({
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const [addingRef, startAddRef] = useTransition();
 
   useEffect(() => {
     // Componente se remonta con key={generation.id} cuando cambia la selección,
@@ -915,18 +899,6 @@ function DetailAside({
     } finally {
       setDownloading(false);
     }
-  }
-
-  function handleUseAsRef() {
-    if (addingRef) return;
-    startAddRef(async () => {
-      const res = await addGenerationAsReferenceAction({ generationId: generation.id });
-      if (!res.ok) {
-        toast.error(res.message ?? 'No se pudo usar como referencia');
-        return;
-      }
-      toast.success('Agregada a tus referencias');
-    });
   }
 
   async function handleCopyPrompt() {
