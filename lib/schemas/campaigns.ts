@@ -105,12 +105,18 @@ export const GenerateSeriesSchema = z.object({
 export const CreateVariantSchema = z
   .object({
     generationId: z.string().uuid(),
-    mode: z.enum(['extend', 'replace_character']),
+    mode: z.enum(['extend', 'replace_character', 'change_action', 'bridge']),
     // extend: cuántos segundos y qué pasa en la continuación
     extendSeconds: z.number().int().min(4).max(8).optional(),
     continuation: z.string().trim().max(500).optional(),
     // replace_character: el nuevo personaje del Cast
     characterId: z.string().uuid().optional(),
+    // change_action: nueva acción/desenlace; sujeto, escena y cámara se conservan
+    newAction: z.string().trim().max(500).optional(),
+    // bridge: el clip destino — la escena puente conecta el final del origen
+    // con el inicio del destino
+    targetGenerationId: z.string().uuid().optional(),
+    bridgeSeconds: z.number().int().min(4).max(8).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.mode === 'extend' && !val.extendSeconds) {
@@ -118,6 +124,17 @@ export const CreateVariantSchema = z
     }
     if (val.mode === 'replace_character' && !val.characterId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'replace_character requiere characterId' });
+    }
+    if (val.mode === 'change_action' && !val.newAction?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'change_action requiere newAction' });
+    }
+    if (val.mode === 'bridge') {
+      if (!val.targetGenerationId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'bridge requiere targetGenerationId' });
+      }
+      if (val.targetGenerationId === val.generationId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El puente necesita dos clips distintos' });
+      }
     }
   });
 

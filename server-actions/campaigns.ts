@@ -886,6 +886,7 @@ export async function createVariantAction(
   let prompt: string;
   let durationS: number;
   const imagePaths: string[] = [];
+  const videoPaths: string[] = [videoRefPath];
 
   if (parsed.data.mode === 'extend') {
     // Regla de las guías: duración de salida = LA EXTENSIÓN, no el total.
@@ -897,6 +898,47 @@ export async function createVariantAction(
       `Extend @Video1 by ${durationS} seconds.${continuation} ` +
       'Continue the motion smoothly from the last frame with no cuts: same camera angle, lighting, ' +
       'pacing and subject appearance. No on-screen text, no captions, no watermarks.';
+  } else if (parsed.data.mode === 'change_action') {
+    // Edición de video (doc V2 §4.5): cambia la acción/desenlace acotando lo
+    // intocable — sujeto, escenario, luz y cámara se conservan.
+    durationS = Math.min(15, Math.max(4, sourceDuration));
+    const action = (parsed.data.newAction as string).trim().replace(/\.?$/, '.');
+    prompt =
+      'In @Video1, keep the subject identity, the setting, the lighting and the camera style ' +
+      `exactly as shown; change the action and outcome: ${action} ` +
+      'One continuous take, no cuts. No on-screen text, no captions, no watermarks.';
+  } else if (parsed.data.mode === 'bridge') {
+    // Escena puente (doc V2 §4.5): conecta el final de @Video1 con el inicio
+    // de @Video2 para montar narrativas multi-clip.
+    const { data: target } = await supabase
+      .from('generations')
+      .select('id, workspace_id, type, status, output_url')
+      .eq('id', parsed.data.targetGenerationId as string)
+      .single();
+    if (!target || target.workspace_id !== workspace.id) {
+      return { ok: false, error: 'not_found', message: 'Clip destino no encontrado' };
+    }
+    if (target.type !== 'video' || target.status !== 'done' || !target.output_url) {
+      return { ok: false, error: 'validation_error', message: 'El clip destino no es un video terminado' };
+    }
+    let targetRefPath: string;
+    try {
+      targetRefPath = await copyOutputVideoToReferences({
+        workspaceId: workspace.id,
+        userId: user.id,
+        outputPath: target.output_url as string,
+        label: 'bridge',
+      });
+    } catch (e) {
+      return { ok: false, error: 'internal_error', message: (e as Error).message };
+    }
+    videoPaths.push(targetRefPath);
+    durationS = parsed.data.bridgeSeconds ?? 5;
+    prompt =
+      `Generate a ${durationS}-second bridge scene that connects @Video1 to @Video2: ` +
+      'start from the final frame of @Video1 and end matching the first frame of @Video2. ' +
+      'Maintain continuity of subject, environment, lighting and camera style throughout; ' +
+      'one smooth camera move, no cuts. No on-screen text, no captions, no watermarks.';
   } else {
     // replace_character
     const { data: character } = await supabase
@@ -951,7 +993,7 @@ export async function createVariantAction(
         duration: durationS,
         generateAudio: (genParams.generateAudio as boolean | undefined) ?? true,
         referenceImagePaths: imagePaths,
-        referenceVideoPaths: [videoRefPath],
+        referenceVideoPaths: videoPaths,
         referenceAudioPaths: [],
       },
       reference_ids: [],
