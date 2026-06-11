@@ -2,12 +2,8 @@ import {
   Banknote,
   Clapperboard,
   Home,
-  ImageIcon,
-  Video,
-  Mic,
   Library,
   FolderKanban,
-  Files,
   Users,
   Palette,
   Sparkles,
@@ -33,50 +29,28 @@ export type NavSection = {
   items: NavItem[];
 };
 
-// Sidebar /app (todas las rutas; algunas las llenan fases 2-5).
+// Sidebar /app. El orden comunica jerarquía: el Campaign Studio es el camino
+// principal; la creación suelta es herramienta secundaria (specs/v2/06-rediseno-ux.md).
 export const APP_SIDEBAR: NavSection[] = [
   {
-    items: [{ label: "Inicio", href: "/app", icon: Home }],
-  },
-  {
-    title: "Crear",
     items: [
-      { label: "Imagen", href: "/app/create/image", icon: ImageIcon },
-      { label: "Video", href: "/app/create/video", icon: Video },
-      { label: "Audio", href: "/app/create/audio", icon: Mic },
-    ],
-  },
-  {
-    title: "Trabajo",
-    items: [
+      { label: "Inicio", href: "/app", icon: Home },
       { label: "Campañas", href: "/app/campaigns", icon: FolderKanban },
-      { label: "Library", href: "/app/library", icon: Library },
+      { label: "Creación rápida", href: "/app/create", icon: Sparkles },
+      { label: "Biblioteca", href: "/app/library", icon: Library },
     ],
   },
   {
-    title: "Recursos",
+    title: "Activos",
     items: [
-      { label: "Referencias", href: "/app/references", icon: Files },
-      { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
-      { label: "Cast", href: "/app/cast", icon: Users },
+      { label: "Marca", href: "/app/brand", icon: Palette },
       { label: "Formatos", href: "/app/formats", icon: Clapperboard },
-      { label: "Voces", href: "/app/voices", icon: Mic, badge: "Beta" },
-      { label: "Presets", href: "/app/presets", icon: Sparkles },
     ],
   },
   {
     title: "Cuenta",
-    items: [{ label: "Billing", href: "/app/billing", icon: Wallet }],
+    items: [{ label: "Créditos", href: "/app/billing", icon: Wallet }],
   },
-];
-
-// Bottom-nav mobile: 5 ítems principales.
-export const MOBILE_NAV: NavItem[] = [
-  { label: "Inicio", href: "/app", icon: Home },
-  { label: "Crear", href: "/app/create/image", icon: ImageIcon },
-  { label: "Library", href: "/app/library", icon: Library },
-  { label: "Campañas", href: "/app/campaigns", icon: FolderKanban },
-  { label: "Billing", href: "/app/billing", icon: Wallet },
 ];
 
 // Sidebar /admin.

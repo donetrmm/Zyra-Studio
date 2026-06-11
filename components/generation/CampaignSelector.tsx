@@ -32,7 +32,7 @@ export function CampaignSelector({
     <div className="mt-4">
       <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <FolderKanban className="size-3" aria-hidden />
-        Campaña
+        Colección
       </label>
       <Select
         value={value?.id ?? NONE}
@@ -46,7 +46,7 @@ export function CampaignSelector({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE}>Sin campaña</SelectItem>
+          <SelectItem value={NONE}>Sin colección</SelectItem>
           {campaigns.map((c) => (
             <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
           ))}

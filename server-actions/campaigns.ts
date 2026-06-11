@@ -114,6 +114,9 @@ export async function assignCampaignAction(
   return { ok: true, data: { assigned: true } };
 }
 
+// Lista solo colecciones (carpetas V1, sin brief de producto): es el destino
+// al que se asignan generaciones sueltas. Las campañas studio reciben sus
+// generaciones vía campaign_items, no por asignación manual (specs/v2/06 §4.3).
 export async function listCampaignsAction(): Promise<Result<{ id: string; name: string; color: string }[]>> {
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
@@ -121,6 +124,7 @@ export async function listCampaignsAction(): Promise<Result<{ id: string; name: 
     .from('campaigns')
     .select('id, name, color')
     .eq('workspace_id', workspace.id)
+    .is('product_brief', null)
     .order('name');
   if (error) return { ok: false, error: 'internal_error', message: error.message };
   return { ok: true, data: (data ?? []) as { id: string; name: string; color: string }[] };
@@ -140,20 +144,39 @@ export async function createCampaignStudioAction(
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  // Brand Kit con al menos una imagen de producto (columna vertebral de V2).
-  const { data: kit } = await supabase
-    .from('brand_kits')
-    .select('id, workspace_id, product_image_ids, reference_image_ids')
-    .eq('id', parsed.data.brandKitId)
-    .single();
-  if (!kit || kit.workspace_id !== workspace.id) {
-    return { ok: false, error: 'not_found', message: 'Brand Kit no encontrado' };
-  }
-  const productImageIds = ((kit.product_image_ids as string[]) ?? []).length
-    ? (kit.product_image_ids as string[])
-    : ((kit.reference_image_ids as string[]) ?? []);
-  if (productImageIds.length === 0) {
-    return { ok: false, error: 'validation_error', message: 'El Brand Kit necesita al menos una imagen de producto' };
+  // Imágenes de producto: del Brand Kit elegido, o subidas directo en el
+  // wizard — en ese caso el kit se crea implícito tras el análisis, para que
+  // el usuario nuevo no necesite conocer el concepto (specs/v2/06 §4.4).
+  let kitId: string | null = null;
+  let productImageIds: string[];
+  if (parsed.data.brandKitId) {
+    const { data: kit } = await supabase
+      .from('brand_kits')
+      .select('id, workspace_id, product_image_ids, reference_image_ids')
+      .eq('id', parsed.data.brandKitId)
+      .single();
+    if (!kit || kit.workspace_id !== workspace.id) {
+      return { ok: false, error: 'not_found', message: 'Brand Kit no encontrado' };
+    }
+    productImageIds = ((kit.product_image_ids as string[]) ?? []).length
+      ? (kit.product_image_ids as string[])
+      : ((kit.reference_image_ids as string[]) ?? []);
+    if (productImageIds.length === 0) {
+      return { ok: false, error: 'validation_error', message: 'El Brand Kit necesita al menos una imagen de producto' };
+    }
+    kitId = kit.id as string;
+  } else {
+    productImageIds = parsed.data.productImageIds ?? [];
+    const { data: refs } = await supabase
+      .from('media_references')
+      .select('id, workspace_id')
+      .in('id', productImageIds);
+    const owned = new Set(
+      (refs ?? []).filter((r) => r.workspace_id === workspace.id).map((r) => r.id as string),
+    );
+    if (productImageIds.some((id) => !owned.has(id))) {
+      return { ok: false, error: 'not_found', message: 'Imagen de producto no encontrada' };
+    }
   }
 
   // Auto-detección del brief con la primera imagen.
@@ -185,6 +208,28 @@ export async function createCampaignStudioAction(
     return { ok: false, error: 'provider_error', message: (e as Error).message };
   }
 
+  // Brand Kit implícito: nace del análisis (nombre del producto detectado)
+  // y de las imágenes subidas. Se crea solo si el análisis tuvo éxito, para
+  // no dejar kits huérfanos cuando el proveedor falla.
+  if (!kitId) {
+    const { data: newKit, error: kitError } = await supabase
+      .from('brand_kits')
+      .insert({
+        workspace_id: workspace.id,
+        name: brief.productName,
+        colors: [],
+        fonts: [],
+        product_image_ids: productImageIds,
+      })
+      .select('id')
+      .single();
+    if (kitError || !newKit) {
+      return { ok: false, error: 'internal_error', message: kitError?.message };
+    }
+    kitId = newKit.id as string;
+    revalidatePath('/app/brand/kits');
+  }
+
   const dateStart = parsed.data.dateStart ?? new Date();
   const dateEnd =
     parsed.data.dateEnd ?? new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -197,7 +242,7 @@ export async function createCampaignStudioAction(
       goal: parsed.data.goal,
       language: parsed.data.language,
       market: parsed.data.market ?? brief.market,
-      brand_kit_id: kit.id,
+      brand_kit_id: kitId,
       product_brief: brief,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),

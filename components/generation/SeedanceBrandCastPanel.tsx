@@ -112,7 +112,7 @@ export function SeedanceBrandCastPanel({
         {brandKits.length === 0 ? (
           <p className="px-0.5 text-[11px] text-muted-foreground/60">
             Sin Brand Kits con imágenes.{' '}
-            <Link href="/app/brand-kits" className="text-primary/80 underline-offset-2 hover:underline">
+            <Link href="/app/brand/kits" className="text-primary/80 underline-offset-2 hover:underline">
               Crea uno
             </Link>{' '}
             para usar tu producto como referencia.
@@ -165,7 +165,7 @@ export function SeedanceBrandCastPanel({
         {cast.length === 0 ? (
           <p className="px-0.5 text-[11px] text-muted-foreground/60">
             Sin personajes.{' '}
-            <Link href="/app/cast" className="text-primary/80 underline-offset-2 hover:underline">
+            <Link href="/app/brand/cast" className="text-primary/80 underline-offset-2 hover:underline">
               Crea tu Cast
             </Link>{' '}
             para mantener identidad consistente entre videos.

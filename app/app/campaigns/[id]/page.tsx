@@ -40,7 +40,7 @@ export default async function CampaignDetailRoute({
           .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, scheduled_date, status, warnings, generation_id, is_winner')
           .eq('campaign_id', id)
           .order('scheduled_date'),
-        supabase.from('formats').select('id, name'),
+        supabase.from('formats').select('id, name, description'),
         supabase.from('characters').select('id, name').eq('workspace_id', workspace.id),
         supabase
           .from('creative_templates')
@@ -50,12 +50,16 @@ export default async function CampaignDetailRoute({
       ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
+    const formatDescriptions = new Map(
+      (formatRows ?? []).map((f) => [f.id as string, (f.description as string | null) ?? '']),
+    );
     const characterNames = new Map((characterRows ?? []).map((c) => [c.id as string, c.name as string]));
 
     const items: StudioItem[] = (itemRows ?? []).map((r) => ({
       id: r.id as string,
       formatId: (r.format_id as string | null) ?? null,
       formatName: r.format_id ? (formatNames.get(r.format_id as string) ?? 'Formato') : 'Formato',
+      formatDescription: r.format_id ? (formatDescriptions.get(r.format_id as string) ?? '') : '',
       templateId: (r.template_id as string | null) ?? null,
       durationS: (r.duration_s as number | null) ?? null,
       aspectRatio: (r.aspect_ratio as string | null) ?? null,
@@ -85,6 +89,7 @@ export default async function CampaignDetailRoute({
     const formatOptions = (formatRows ?? []).map((f) => ({
       id: f.id as string,
       name: f.name as string,
+      description: (f.description as string | null) ?? '',
     }));
 
     return (

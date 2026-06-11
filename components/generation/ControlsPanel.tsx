@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Camera,
   Check,
+  ChevronDown,
   Globe,
   Info,
   LayoutDashboard,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Step as StepBase, SectionHeading } from './Step';
+import { CreateModeTabs } from './CreateModeTabs';
 import {
   ReferencesPanel,
   type AvailableReference,
@@ -131,22 +133,15 @@ export function ControlsPanel(props: ControlsPanelProps) {
       ? 'Modo conversacional activo. Verás un chat para iterar.'
       : null;
 
+  const isFlux = props.selection.provider === 'flux';
+
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-border bg-card/30">
+      <div className="border-b border-border/60 px-4 py-2.5">
+        <CreateModeTabs />
+      </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
-        <Step n={1} title="Elige el modelo" subtitle="Auto decide por ti">
-          <ModelPicker value={props.modelKey} onChange={props.setModelKey} />
-          {props.modelKey === 'auto' && (
-            <IntentPicker value={props.intent} onChange={props.setIntent} />
-          )}
-          {props.modelKey === 'auto' ? (
-            <AutoInfoCard selection={props.selection} />
-          ) : (
-            <InfoCard text={MODEL_META[props.modelKey].desc} />
-          )}
-        </Step>
-
-        <Step n={2} title="Describe tu imagen" subtitle="Cuanto más concreto, mejor">
+        <Step n={1} title="Describe tu imagen" subtitle="Cuanto más concreto, mejor">
           <PromptArea
             value={props.prompt}
             onChange={props.setPrompt}
@@ -175,10 +170,18 @@ export function ControlsPanel(props: ControlsPanelProps) {
               </span>
             </button>
           )}
+          {props.modelKey === 'auto' && (
+            <IntentPicker value={props.intent} onChange={props.setIntent} />
+          )}
+          {props.modelKey === 'auto' ? (
+            <AutoInfoCard selection={props.selection} />
+          ) : (
+            <InfoCard text={`${MODEL_META[props.modelKey].label}: ${MODEL_META[props.modelKey].desc}`} />
+          )}
         </Step>
 
         <Step
-          n={3}
+          n={2}
           title="Añade referencias"
           subtitle="Opcional · guía el estilo"
           hint={
@@ -195,35 +198,87 @@ export function ControlsPanel(props: ControlsPanelProps) {
           />
         </Step>
 
-        <Step n={4} title="Brand Kit">
-          <p className="mb-2 text-[11px] text-muted-foreground/60">Inyecta tu paleta y estilo en el prompt.</p>
+        <Step n={3} title="Marca y colección" subtitle="Opcional · estilo y orden">
+          <p className="mb-2 text-[11px] text-muted-foreground/60">El Brand Kit inyecta tu paleta y tono en el prompt.</p>
           <BrandKitSelector value={props.brandKit} onChange={props.setBrandKit} />
-        </Step>
-
-        <Step n={5} title="Campaña">
           <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
         </Step>
 
-        <Step n={6} title="Formato y parámetros">
+        <Step n={4} title="Formato">
           <SectionHeading>Proporción</SectionHeading>
           <AspectPicker value={props.aspectRatio} onChange={props.setAspectRatio} />
-          <div className="mt-3.5">
-            {isNano ? (
-              <NanoParams
-                isPro={isPro}
-                resolution={props.resolution}
-                setResolution={props.setResolution}
-                hasTextInImage={props.hasTextInImage}
-                setHasTextInImage={props.setHasTextInImage}
-                noBackground={props.noBackground}
-                setNoBackground={props.setNoBackground}
-                conversational={props.conversational}
-                setConversational={props.setConversational}
-                useGrounding={props.useGrounding}
-                setUseGrounding={props.setUseGrounding}
-                activeResult={props.activeResult}
+          {isNano && (
+            <div className="mt-3.5 grid gap-2.5">
+              <ToggleRow
+                icon={Type}
+                label="Texto en imagen"
+                hint="Mejora la fidelidad de palabras dentro de la imagen."
+                on={props.hasTextInImage}
+                onChange={props.setHasTextInImage}
               />
-            ) : (
+              <ToggleRow
+                icon={LayoutDashboard}
+                label="Sin fondo"
+                hint="Genera el sujeto aislado sobre fondo transparente (PNG)."
+                on={props.noBackground}
+                onChange={props.setNoBackground}
+              />
+            </div>
+          )}
+        </Step>
+
+        <AdvancedSection summary={MODEL_META[props.modelKey].label}>
+          <SectionHeading>Modelo</SectionHeading>
+          <ModelPicker value={props.modelKey} onChange={props.setModelKey} />
+          <div className="mt-3.5 grid gap-2.5">
+            {isNano && (
+              <>
+                <div>
+                  <SectionHeading
+                    hint={
+                      props.resolution === '4k' ? <span className="text-amber-400">~50s</span> : null
+                    }
+                  >
+                    Resolución
+                  </SectionHeading>
+                  <SegRow
+                    options={[
+                      { id: '1k', label: '1K' },
+                      { id: '2k', label: '2K' },
+                      { id: '4k', label: '4K' },
+                    ]}
+                    value={props.resolution}
+                    warnOn="4k"
+                    onChange={props.setResolution}
+                  />
+                </div>
+                {isPro && (
+                  <ToggleRow
+                    icon={MessageSquareText}
+                    label="Edición conversacional"
+                    hint={
+                      props.conversational && !props.activeResult
+                        ? 'Genera una primera imagen para iniciar el hilo.'
+                        : props.conversational && props.activeResult
+                          ? 'Iterando sobre la última imagen.'
+                          : 'Activa modo chat para iterar sobre la imagen.'
+                    }
+                    costNote="+50% en créditos"
+                    on={props.conversational}
+                    onChange={props.setConversational}
+                  />
+                )}
+                <ToggleRow
+                  icon={Globe}
+                  label="Buscar datos reales en Google"
+                  hint="Útil para clima, mapas, eventos, precios. No aporta a escenas creativas."
+                  costNote={props.useGrounding ? '+20% en créditos' : undefined}
+                  on={props.useGrounding}
+                  onChange={props.setUseGrounding}
+                />
+              </>
+            )}
+            {isFlux && (
               <FluxParams
                 megapixels={props.megapixels}
                 setMegapixels={props.setMegapixels}
@@ -232,7 +287,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
               />
             )}
           </div>
-        </Step>
+        </AdvancedSection>
       </div>
 
       {!props.hideCta && (
@@ -342,6 +397,38 @@ function Step({
     <StepBase index={n} title={title} subtitle={subtitle} hint={hint}>
       {children}
     </StepBase>
+  );
+}
+
+// Disclosure de parametros tecnicos: el camino feliz no los necesita
+// (specs/v2/06 regla 1: una decision por pantalla, defaults editables).
+function AdvancedSection({
+  summary,
+  children,
+}: {
+  summary: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="rounded-[10px] border border-border/60">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+      >
+        <span className="text-[12.5px] font-medium text-muted-foreground">Avanzado</span>
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <span className="font-mono">{summary}</span>
+          <ChevronDown
+            className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+            aria-hidden
+          />
+        </span>
+      </button>
+      {open && <div className="border-t border-border/60 px-3 py-3">{children}</div>}
+    </section>
   );
 }
 
@@ -676,96 +763,6 @@ function ToggleRow({
         </div>
       </div>
       <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />
-    </div>
-  );
-}
-
-function NanoParams({
-  isPro,
-  resolution,
-  setResolution,
-  hasTextInImage,
-  setHasTextInImage,
-  noBackground,
-  setNoBackground,
-  conversational,
-  setConversational,
-  useGrounding,
-  setUseGrounding,
-  activeResult,
-}: {
-  isPro: boolean;
-  resolution: '1k' | '2k' | '4k';
-  setResolution: (v: '1k' | '2k' | '4k') => void;
-  hasTextInImage: boolean;
-  setHasTextInImage: (v: boolean) => void;
-  noBackground: boolean;
-  setNoBackground: (v: boolean) => void;
-  conversational: boolean;
-  setConversational: (v: boolean) => void;
-  useGrounding: boolean;
-  setUseGrounding: (v: boolean) => void;
-  activeResult: SessionItem | null;
-}) {
-  return (
-    <div className="grid gap-2.5">
-      <div>
-        <SectionHeading
-          hint={
-            resolution === '4k' ? <span className="text-amber-400">~50s</span> : null
-          }
-        >
-          Resolución
-        </SectionHeading>
-        <SegRow
-          options={[
-            { id: '1k', label: '1K' },
-            { id: '2k', label: '2K' },
-            { id: '4k', label: '4K' },
-          ]}
-          value={resolution}
-          warnOn="4k"
-          onChange={setResolution}
-        />
-      </div>
-      <ToggleRow
-        icon={Type}
-        label="Texto en imagen"
-        hint="Mejora la fidelidad de palabras dentro de la imagen."
-        on={hasTextInImage}
-        onChange={setHasTextInImage}
-      />
-      <ToggleRow
-        icon={LayoutDashboard}
-        label="Sin fondo"
-        hint="Genera el sujeto aislado sobre fondo transparente (PNG)."
-        on={noBackground}
-        onChange={setNoBackground}
-      />
-      {isPro && (
-        <ToggleRow
-          icon={MessageSquareText}
-          label="Edición conversacional"
-          hint={
-            conversational && !activeResult
-              ? 'Genera una primera imagen para iniciar el hilo.'
-              : conversational && activeResult
-                ? 'Iterando sobre la última imagen.'
-                : 'Activa modo chat para iterar sobre la imagen.'
-          }
-          costNote="+50% en créditos"
-          on={conversational}
-          onChange={setConversational}
-        />
-      )}
-      <ToggleRow
-        icon={Globe}
-        label="Buscar datos reales en Google"
-        hint="Útil para clima, mapas, eventos, precios. No aporta a escenas creativas."
-        costNote={useGrounding ? '+20% en créditos' : undefined}
-        on={useGrounding}
-        onChange={setUseGrounding}
-      />
     </div>
   );
 }

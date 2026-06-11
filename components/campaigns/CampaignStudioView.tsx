@@ -37,6 +37,7 @@ export type StudioItem = {
   id: string;
   formatId: string | null;
   formatName: string;
+  formatDescription: string;
   templateId: string | null;
   durationS: number | null;
   aspectRatio: string | null;
@@ -74,9 +75,9 @@ const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean
   planned: { label: 'planificado', tone: 'text-muted-foreground/70 border-border' },
   sample: { label: 'muestra…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
   queued: { label: 'generando…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
-  draft_ready: { label: 'draft listo', tone: 'text-emerald-400/90 border-emerald-400/30' },
-  approved: { label: 'render final…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
-  final_ready: { label: 'final listo', tone: 'text-sky-300 border-sky-300/40' },
+  draft_ready: { label: 'borrador listo', tone: 'text-emerald-400/90 border-emerald-400/30' },
+  approved: { label: 'versión final…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
+  final_ready: { label: 'versión final lista', tone: 'text-sky-300 border-sky-300/40' },
   failed: { label: 'falló', tone: 'text-red-400/90 border-red-400/30' },
   skipped: { label: 'bloqueado', tone: 'text-amber-400/90 border-amber-400/30' },
 };
@@ -91,7 +92,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export type StudioFormatOption = { id: string; name: string };
+export type StudioFormatOption = { id: string; name: string; description?: string };
 
 export function CampaignStudioView({
   campaign,
@@ -192,7 +193,7 @@ export function CampaignStudioView({
           <h1 className="text-[18px] font-semibold text-foreground">{campaign.name}</h1>
           <p className="mt-0.5 text-[12.5px] text-muted-foreground">
             {campaign.productName} · {items.length} creativos
-            {campaign.creditsEstimated ? ` · ~${campaign.creditsEstimated} cr (draft)` : ''}
+            {campaign.creditsEstimated ? ` · ~${campaign.creditsEstimated} cr en borradores` : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -349,7 +350,10 @@ function PlanTable({
                     : '—'}
                 </span>
               </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-foreground/90">
+              <td
+                className="whitespace-nowrap px-3 py-2.5 text-foreground/90"
+                title={item.formatDescription || undefined}
+              >
                 {item.formatName}
                 {item.templateId && (
                   <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
@@ -465,7 +469,7 @@ function ProductionView({
       else toast.error(res.message ?? 'No se pudo encolar el final');
       return;
     }
-    toast.success('Render final en cola (720p, mismo seed)');
+    toast.success('Versión final en cola (720p, misma composición)');
   }
 
   async function handleRedoSamples(formatId: string) {
@@ -478,7 +482,7 @@ function ProductionView({
     }
     onSamplesReset(formatId);
     toast.success(
-      `${res.data.reset} drafts regresaron al plan: edítalos o vuelve a tirar la muestra (cobra créditos de nuevo)`,
+      `${res.data.reset} borradores regresaron al plan: edítalos o vuelve a tirar la muestra (cobra créditos de nuevo)`,
     );
   }
 
@@ -497,12 +501,12 @@ function ProductionView({
                 <div className="grid size-8 place-items-center rounded-lg bg-muted/40">
                   <Clapperboard className="size-4 text-muted-foreground" aria-hidden />
                 </div>
-                <div>
+                <div title={group.items[0]?.formatDescription || undefined}>
                   <p className="text-[13.5px] font-medium text-foreground">{group.formatName}</p>
                   <p className="text-[11.5px] text-muted-foreground/60">
-                    {group.items.length} items · {pending} pendientes
+                    {group.items.length} creativos · {pending} pendientes
                     {generating > 0 && ` · ${generating} generando`}
-                    {drafts.length > 0 && ` · ${drafts.length} drafts`}
+                    {drafts.length > 0 && ` · ${drafts.length} borradores`}
                     {finals > 0 && ` · ${finals} finales`}
                   </p>
                 </div>
@@ -548,7 +552,7 @@ function ProductionView({
                       onClick={() => handleFinal(d.id)}
                       className="shrink-0 rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
                     >
-                      {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar final 720p'}
+                      {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
                     </button>
                   </div>
                 ))}
@@ -559,8 +563,8 @@ function ProductionView({
                   className="mt-1 text-[11px] text-muted-foreground/60 underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:redo`
-                    ? 'Regresando drafts…'
-                    : 'La muestra no convence: regresar drafts al plan'}
+                    ? 'Regresando borradores…'
+                    : 'La muestra no convence: regresar borradores al plan'}
                 </button>
               </div>
             )}
@@ -617,7 +621,7 @@ function ProductionView({
 
       <p className="text-[11.5px] text-muted-foreground/50">
         Los lotes se encolan escalonados (20 s entre videos). Los resultados aparecen en la pestaña de la
-        campaña en la biblioteca; el draft se genera en 480p y el final aprobado en 720p con el mismo seed.
+        campaña en la biblioteca; el borrador se genera en 480p y la versión final aprobada en 720p con la misma composición.
       </p>
 
       {distilling?.generationId && (
@@ -1222,6 +1226,7 @@ function AddItemDialog({
       id: res.data.id,
       formatId,
       formatName: formatOptions.find((f) => f.id === formatId)?.name ?? 'Formato',
+      formatDescription: formatOptions.find((f) => f.id === formatId)?.description ?? '',
       templateId: null,
       durationS: res.data.durationS,
       aspectRatio: res.data.aspectRatio,

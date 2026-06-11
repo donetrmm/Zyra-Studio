@@ -3,8 +3,22 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  ReferenceImagesUploader,
+  type RefImage,
+} from '@/components/shared/ReferenceImagesUploader';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
 
 type BrandKitOption = {
@@ -22,6 +36,9 @@ const GOALS = [
 
 const VOLUME_OPTIONS = [6, 12, 18, 24, 30];
 
+// Wizard sin walls (specs/v2/06 §4.4): subir fotos del producto es el camino
+// primario — el Brand Kit se crea implícito en el server. Elegir un kit
+// existente es la alternativa, nunca un requisito previo.
 export function CampaignStudioWizard({
   brandKits,
   hasCharacters,
@@ -34,13 +51,16 @@ export function CampaignStudioWizard({
   const [goal, setGoal] = useState<string>('mixed');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
   const [productUrl, setProductUrl] = useState('');
+  const [productImages, setProductImages] = useState<RefImage[]>([]);
+  const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
   const [totalItems, setTotalItems] = useState(12);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
-  const canSubmit = name.trim().length > 0 && !!selectedKit && !submitting;
+  const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
+  const canSubmit = name.trim().length > 0 && productReady && !submitting;
 
   async function handleCreate() {
     if (!canSubmit) return;
@@ -50,7 +70,9 @@ export function CampaignStudioWizard({
       name: name.trim(),
       goal,
       language,
-      brandKitId,
+      ...(mode === 'upload'
+        ? { productImageIds: productImages.map((img) => img.id) }
+        : { brandKitId }),
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
     });
     if (!created.ok) {
@@ -73,7 +95,9 @@ export function CampaignStudioWizard({
       router.push(`/app/campaigns/${created.data.id}`);
       return;
     }
-    toast.success(`Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en draft`);
+    toast.success(
+      `Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en borradores`,
+    );
     router.push(`/app/campaigns/${created.data.id}`);
   }
 
@@ -89,178 +113,194 @@ export function CampaignStudioWizard({
 
       <h1 className="text-[18px] font-semibold text-foreground">Nueva campaña</h1>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        El sistema analiza tu producto, propone el mix de formatos y arma el plan completo.
+        Sube tu producto y el sistema propone el mix de formatos y arma el plan completo.
       </p>
 
-      {brandKits.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-border bg-card/50 p-6 text-center">
-          <p className="text-[14px] text-foreground/80">Necesitas un Brand Kit con imágenes de producto</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
-            El Brand Kit es la columna vertebral de la campaña: producto, paleta y tono.
-          </p>
-          <Link
-            href="/app/brand-kits"
-            className="mt-4 inline-flex rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground"
-          >
-            Crear Brand Kit
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-6 space-y-5">
-          <div>
-            <label htmlFor="campaign-name" className="text-[12.5px] font-medium text-foreground/80">
-              Nombre
-            </label>
-            <input
-              id="campaign-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Lanzamiento verano"
-              maxLength={120}
-              className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-[13.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-primary/50"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="campaign-kit" className="text-[12.5px] font-medium text-foreground/80">
-              Brand Kit
-            </label>
-            <select
-              id="campaign-kit"
-              value={brandKitId}
-              onChange={(e) => setBrandKitId(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/50"
-            >
-              {brandKits.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.name} · {k.productImages} img producto
-                </option>
-              ))}
-            </select>
-            {selectedKit && selectedKit.productImages === 0 && (
-              <p className="mt-1 text-[11.5px] text-amber-400/80">
-                Este kit no tiene imágenes de producto; el brief se analizará con sus referencias generales.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="campaign-url" className="text-[12.5px] font-medium text-foreground/80">
-              URL del producto <span className="text-muted-foreground/50">(opcional)</span>
-            </label>
-            <input
-              id="campaign-url"
-              type="url"
-              value={productUrl}
-              onChange={(e) => setProductUrl(e.target.value)}
-              placeholder="https://mitienda.com/producto"
-              maxLength={500}
-              className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-[13.5px] text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-primary/50"
-            />
-            <p className="mt-1 text-[11.5px] text-muted-foreground/60">
-              El texto de la página (nombre, descripción, tono) enriquece el análisis del producto.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="campaign-goal" className="text-[12.5px] font-medium text-foreground/80">
-              Objetivo
-            </label>
-            <select
-              id="campaign-goal"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-card px-3 py-2 text-[13.5px] text-foreground outline-none focus:border-primary/50"
-            >
-              {GOALS.map((g) => (
-                <option key={g.value} value={g.value}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <span className="text-[12.5px] font-medium text-foreground/80">Idioma hablado</span>
-            <div className="mt-1.5 flex gap-2">
-              {(
-                [
-                  { value: 'es', label: 'Español' },
-                  { value: 'en', label: 'English' },
-                ] as const
-              ).map((l) => (
+      <div className="mt-6 space-y-6">
+        <section>
+          <Label className="text-[12.5px] font-medium text-foreground/80">Tu producto</Label>
+          {mode === 'upload' ? (
+            <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
+              <ReferenceImagesUploader
+                label="Fotos del producto"
+                hint="1 a 6 imágenes: frontal, perfil, detalle. Mejor con fondo simple."
+                images={productImages}
+                onChange={setProductImages}
+                max={6}
+              />
+              {brandKits.length > 0 && (
                 <button
-                  key={l.value}
                   type="button"
-                  onClick={() => setLanguage(l.value)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
-                    language === l.value
-                      ? 'border-primary/60 bg-primary/10 text-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                  }`}
+                  onClick={() => setMode('kit')}
+                  className="mt-3 text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
                 >
-                  {l.label}
+                  ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
-              ))}
+              )}
             </div>
-            <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
-              Idioma de los diálogos y voz en off de los videos; el caption sale en español.
-            </p>
-          </div>
-
-          <div>
-            <span className="text-[12.5px] font-medium text-foreground/80">Volumen de creativos</span>
-            <div className="mt-1.5 flex gap-2">
-              {VOLUME_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setTotalItems(n)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
-                    totalItems === n
-                      ? 'border-primary/60 bg-primary/10 text-foreground'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
+          ) : (
+            <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
+              <Select value={brandKitId} onValueChange={setBrandKitId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Elige un Brand Kit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {brandKits.map((k) => (
+                    <SelectItem key={k.id} value={k.id}>
+                      {k.name} · {k.productImages} img producto
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedKit && selectedKit.productImages === 0 && (
+                <p className="mt-2 text-[11.5px] text-amber-400/80">
+                  Este kit no tiene imágenes de producto; el análisis usará sus referencias
+                  generales.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setMode('upload')}
+                className="mt-3 text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              >
+                Mejor subir fotos nuevas
+              </button>
             </div>
-            <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
-              Techo demo: 30 creativos por campaña. Los drafts se generan en calidad de exploración (480p).
-            </p>
-          </div>
-
-          {!hasCharacters && (
-            <p className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-[12px] text-muted-foreground">
-              Sin personajes en el Cast, el plan omite los formatos con presentador (Voz Cercana, A Pie de
-              Calle).{' '}
-              <Link href="/app/cast" className="text-primary hover:underline">
-                Crear personaje en Cast
-              </Link>
-            </p>
           )}
+        </section>
 
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={!canSubmit}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[13.5px] font-medium text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                {step === 'brief' ? 'Analizando producto…' : 'Armando plan…'}
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-4" aria-hidden />
-                Analizar producto y armar plan
-              </>
-            )}
-          </button>
-        </div>
-      )}
+        <section className="space-y-1.5">
+          <Label htmlFor="campaign-name" className="text-[12.5px] font-medium text-foreground/80">
+            Nombre de la campaña
+          </Label>
+          <Input
+            id="campaign-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Lanzamiento verano"
+            maxLength={120}
+          />
+        </section>
+
+        <section className="space-y-1.5">
+          <Label htmlFor="campaign-url" className="text-[12.5px] font-medium text-foreground/80">
+            URL del producto <span className="font-normal text-muted-foreground/50">(opcional)</span>
+          </Label>
+          <Input
+            id="campaign-url"
+            type="url"
+            value={productUrl}
+            onChange={(e) => setProductUrl(e.target.value)}
+            placeholder="https://mitienda.com/producto"
+            maxLength={500}
+          />
+          <p className="text-[11.5px] text-muted-foreground/60">
+            El texto de la página (nombre, descripción, tono) enriquece el análisis.
+          </p>
+        </section>
+
+        <section className="space-y-1.5">
+          <Label htmlFor="campaign-goal" className="text-[12.5px] font-medium text-foreground/80">
+            Objetivo
+          </Label>
+          <Select value={goal} onValueChange={setGoal}>
+            <SelectTrigger id="campaign-goal" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GOALS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>
+                  {g.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </section>
+
+        <section>
+          <span className="text-[12.5px] font-medium text-foreground/80">Idioma hablado</span>
+          <div className="mt-1.5 flex gap-2">
+            {(
+              [
+                { value: 'es', label: 'Español' },
+                { value: 'en', label: 'English' },
+              ] as const
+            ).map((l) => (
+              <button
+                key={l.value}
+                type="button"
+                onClick={() => setLanguage(l.value)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                  language === l.value
+                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+            Idioma de los diálogos y voz en off de los videos; el caption sale en español.
+          </p>
+        </section>
+
+        <section>
+          <span className="text-[12.5px] font-medium text-foreground/80">Volumen de creativos</span>
+          <div className="mt-1.5 flex gap-2">
+            {VOLUME_OPTIONS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setTotalItems(n)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                  totalItems === n
+                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+            Techo demo: 30 creativos por campaña. Los borradores se generan en calidad de
+            exploración (480p).
+          </p>
+        </section>
+
+        {!hasCharacters && (
+          <section className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+            <UserRound className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" aria-hidden />
+            <div className="flex-1 text-[12px] leading-relaxed text-muted-foreground">
+              <p>
+                Sin personas en tu Cast, el plan omite los formatos con presentador (Voz Cercana, A
+                Pie de Calle). Puedes continuar así y agregarlos después.
+              </p>
+              <Link
+                href="/app/brand/cast"
+                className="mt-1 inline-block text-primary underline-offset-2 hover:underline"
+              >
+                Crear un presentador primero
+              </Link>
+            </div>
+          </section>
+        )}
+
+        <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>
+          {submitting ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              {step === 'brief' ? 'Analizando producto…' : 'Armando plan…'}
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-4" aria-hidden />
+              Analizar producto y armar plan
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

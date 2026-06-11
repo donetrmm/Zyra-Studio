@@ -4,37 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Clapperboard,
   Home,
-  ImageIcon,
   Library,
   Menu,
-  Mic,
-  Video,
   Wallet,
-  Files,
   Palette,
   Sparkles,
   FolderKanban,
-  FlaskConical,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAIN_NAV = [
   { label: "Inicio", href: "/app", icon: Home },
-  { label: "Crear", href: "/app/create/image", icon: ImageIcon },
-  { label: "Library", href: "/app/library", icon: Library },
-  { label: "Billing", href: "/app/billing", icon: Wallet },
+  { label: "Campañas", href: "/app/campaigns", icon: FolderKanban },
+  { label: "Crear", href: "/app/create", icon: Sparkles },
+  { label: "Biblioteca", href: "/app/library", icon: Library },
 ] as const;
 
 const MORE_NAV = [
-  { label: "Video", href: "/app/create/video", icon: Video },
-  { label: "Audio", href: "/app/create/audio", icon: Mic },
-  { label: "Campañas", href: "/app/campaigns", icon: FolderKanban },
-  { label: "Referencias", href: "/app/references", icon: Files },
-  { label: "Brand Kits", href: "/app/brand-kits", icon: Palette },
-  { label: "Voces", href: "/app/voices", icon: FlaskConical },
-  { label: "Presets", href: "/app/presets", icon: Sparkles },
+  { label: "Marca", href: "/app/brand", icon: Palette },
+  { label: "Formatos", href: "/app/formats", icon: Clapperboard },
+  { label: "Créditos", href: "/app/billing", icon: Wallet },
 ] as const;
 
 export function MobileBottomNav() {

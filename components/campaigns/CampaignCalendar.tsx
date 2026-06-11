@@ -318,8 +318,8 @@ export function CalendarView({
         )}
       </div>
       <p className="mt-2 text-[11.5px] text-muted-foreground/50">
-        Arrastra un creativo a otro día para reprogramar su fecha de publicación. Verde: draft listo;
-        violeta: final listo.
+        Arrastra un creativo a otro día para reprogramar su fecha de publicación. Verde: borrador listo;
+        azul: versión final lista.
       </p>
     </div>
   );

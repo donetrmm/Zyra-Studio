@@ -17,6 +17,7 @@ import {
 import { CampaignSelector, type SelectedCampaign } from './CampaignSelector';
 import { EnhanceButton } from './EnhanceButton';
 import { Step, SectionHeading } from './Step';
+import { CreateModeTabs } from './CreateModeTabs';
 import { GenerateBar } from './GenerateBar';
 import { SeedanceRefsPanel, type SeedanceRef } from './SeedanceRefsPanel';
 import {
@@ -207,6 +208,9 @@ export function VideoControlsPanel(props: VideoControlsProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-border bg-card/30">
+      <div className="border-b border-border/60 px-4 py-2.5">
+        <CreateModeTabs />
+      </div>
       <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-4 py-[18px] pb-2">
         <h2 className="font-heading text-[15px] font-medium tracking-tight text-foreground">
           Crear video
@@ -678,7 +682,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
           </div>
         </Step>
 
-        <Step index={7} title="Campaña" subtitle="Opcional · agrupa generaciones">
+        <Step index={7} title="Colección" subtitle="Opcional · agrupa generaciones">
           <CampaignSelector value={props.campaign} onChange={props.setCampaign} />
         </Step>
 

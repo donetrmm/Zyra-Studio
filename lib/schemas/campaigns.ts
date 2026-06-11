@@ -62,18 +62,26 @@ export const SubmitSeedanceSchema = z
 // El workspace NUNCA viene del cliente: la server action lo lee de la sesión
 // (requireWorkspace). Lo mismo aplica a user_id.
 
-export const CreateCampaignStudioSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  goal: z.enum(['awareness', 'conversion', 'mixed']).default('mixed'),
-  market: z.string().trim().max(80).optional(),
-  brandKitId: z.string().uuid(),
-  // Página del producto: su texto enriquece la auto-detección del brief.
-  productUrl: z.string().trim().url().max(500).optional(),
-  // Idioma del diálogo hablado de los videos (el prompt va en inglés siempre).
-  language: z.enum(['es', 'en']).default('es'),
-  dateStart: z.coerce.date().optional(),
-  dateEnd: z.coerce.date().optional(),
-});
+export const CreateCampaignStudioSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    goal: z.enum(['awareness', 'conversion', 'mixed']).default('mixed'),
+    market: z.string().trim().max(80).optional(),
+    // Camino sin walls (specs/v2/06 §4.4): el wizard acepta imágenes de
+    // producto directas; el Brand Kit se crea implícito. Elegir un kit
+    // existente es la alternativa secundaria.
+    brandKitId: z.string().uuid().optional(),
+    productImageIds: z.array(z.string().uuid()).min(1).max(6).optional(),
+    // Página del producto: su texto enriquece la auto-detección del brief.
+    productUrl: z.string().trim().url().max(500).optional(),
+    // Idioma del diálogo hablado de los videos (el prompt va en inglés siempre).
+    language: z.enum(['es', 'en']).default('es'),
+    dateStart: z.coerce.date().optional(),
+    dateEnd: z.coerce.date().optional(),
+  })
+  .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
+    message: 'Sube al menos una imagen de producto o elige un Brand Kit',
+  });
 
 export const GeneratePlanSchema = z.object({
   campaignId: z.string().uuid(),
