@@ -11,6 +11,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  Sparkles,
   Trash2,
   Trophy,
   X,
@@ -18,7 +19,6 @@ import {
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
-  addCampaignItemAction,
   approveBatchAction,
   createVariantAction,
   deleteCampaignItemAction,
@@ -92,25 +92,21 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export type StudioFormatOption = { id: string; name: string; description?: string };
 
 export function CampaignStudioView({
   campaign,
   initialItems,
   templates,
   characterOptions,
-  formatOptions,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
   templates: StudioTemplate[];
   characterOptions: StudioCharacterOption[];
-  formatOptions: StudioFormatOption[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
-  const [adding, setAdding] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   async function handleExport() {
@@ -239,16 +235,15 @@ export function CampaignStudioView({
       {tab === 'plan' ? (
         <>
           <div className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setAdding(true)}
+            <Link
+              href={`/app/campaigns/${campaign.id}/refine/new`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
             >
-              <Pencil className="size-3.5" aria-hidden />
+              <Sparkles className="size-3.5" aria-hidden />
               Agregar creativo
-            </button>
+            </Link>
           </div>
-          <PlanTable items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
+          <PlanTable campaignId={campaign.id} items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
         </>
       ) : tab === 'produccion' ? (
         <ProductionView
@@ -291,27 +286,17 @@ export function CampaignStudioView({
         />
       )}
 
-      {adding && (
-        <AddItemDialog
-          campaignId={campaign.id}
-          formatOptions={formatOptions}
-          characterOptions={characterOptions}
-          onClose={() => setAdding(false)}
-          onAdded={(item) => {
-            setItems((prev) => [...prev, item]);
-            setAdding(false);
-          }}
-        />
-      )}
     </div>
   );
 }
 
 function PlanTable({
+  campaignId,
   items,
   onEdit,
   onDeleted,
 }: {
+  campaignId: string;
   items: StudioItem[];
   onEdit: (item: StudioItem) => void;
   onDeleted: (id: string) => void;
@@ -384,6 +369,13 @@ function PlanTable({
               <td className="whitespace-nowrap px-3 py-2.5 text-right">
                 {editable(item.status) && (
                   <span className="inline-flex gap-1">
+                    <Link
+                      href={`/app/campaigns/${campaignId}/refine/${item.id}`}
+                      aria-label="Refinar con asistente"
+                      className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+                    >
+                      <Sparkles className="size-3.5" aria-hidden />
+                    </Link>
                     <button
                       type="button"
                       onClick={() => onEdit(item)}
@@ -1177,183 +1169,6 @@ function EditItemDialog({
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddItemDialog({
-  campaignId,
-  formatOptions,
-  characterOptions,
-  onClose,
-  onAdded,
-}: {
-  campaignId: string;
-  formatOptions: StudioFormatOption[];
-  characterOptions: StudioCharacterOption[];
-  onClose: () => void;
-  onAdded: (item: StudioItem) => void;
-}) {
-  const [formatId, setFormatId] = useState(formatOptions[0]?.id ?? '');
-  const [scenePrompt, setScenePrompt] = useState('');
-  const [scene, setScene] = useState('');
-  const [characterId, setCharacterId] = useState('');
-  const [scheduledDate, setScheduledDate] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const canSubmit = formatId.length > 0 && scenePrompt.trim().length > 0 && !saving;
-
-  async function handleAdd() {
-    if (!canSubmit) return;
-    setSaving(true);
-    const res = await addCampaignItemAction({
-      campaignId,
-      formatId,
-      scenePrompt: scenePrompt.trim(),
-      scene: scene.trim() || undefined,
-      ...(characterId ? { characterId } : {}),
-      ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
-    });
-    setSaving(false);
-    if (!res.ok) {
-      toast.error(res.message ?? 'No se pudo agregar el creativo');
-      return;
-    }
-    onAdded({
-      id: res.data.id,
-      formatId,
-      formatName: formatOptions.find((f) => f.id === formatId)?.name ?? 'Formato',
-      formatDescription: formatOptions.find((f) => f.id === formatId)?.description ?? '',
-      templateId: null,
-      durationS: res.data.durationS,
-      aspectRatio: res.data.aspectRatio,
-      scene: scene.trim() || null,
-      scenePrompt: scenePrompt.trim(),
-      caption: res.data.caption,
-      characterName: characterId
-        ? (characterOptions.find((c) => c.id === characterId)?.name ?? null)
-        : null,
-      scheduledDate: res.data.scheduledDate,
-      status: 'planned',
-      warnings: [],
-      generationId: null,
-      isWinner: false,
-    });
-    toast.success('Creativo agregado al plan');
-  }
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div
-        className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <h2 className="text-[15px] font-semibold text-foreground">Agregar creativo al plan</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-            <X className="size-4.5" aria-hidden />
-          </button>
-        </div>
-
-        <label htmlFor="add-format" className="mt-4 block text-[12.5px] font-medium text-foreground/80">
-          Formato
-        </label>
-        <select
-          id="add-format"
-          value={formatId}
-          onChange={(e) => setFormatId(e.target.value)}
-          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
-        >
-          {formatOptions.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-
-        <label htmlFor="add-prompt" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
-          Acción de la escena
-        </label>
-        <textarea
-          id="add-prompt"
-          value={scenePrompt}
-          onChange={(e) => setScenePrompt(e.target.value)}
-          rows={3}
-          maxLength={4000}
-          placeholder="The presenter lifts the product into frame and shares a one-sentence take"
-          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
-        />
-
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="add-scene" className="block text-[12.5px] font-medium text-foreground/80">
-              Escena (opcional)
-            </label>
-            <input
-              id="add-scene"
-              value={scene}
-              onChange={(e) => setScene(e.target.value)}
-              maxLength={200}
-              placeholder="a sunlit home kitchen"
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
-            />
-          </div>
-          <div>
-            <label htmlFor="add-character" className="block text-[12.5px] font-medium text-foreground/80">
-              Personaje (opcional)
-            </label>
-            <select
-              id="add-character"
-              value={characterId}
-              onChange={(e) => setCharacterId(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
-            >
-              <option value="">Sin personaje</option>
-              {characterOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <label htmlFor="add-date" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
-          Fecha programada (opcional)
-        </label>
-        <input
-          id="add-date"
-          type="date"
-          value={scheduledDate}
-          onChange={(e) => setScheduledDate(e.target.value)}
-          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
-        />
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={!canSubmit}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-            Agregar
           </button>
         </div>
       </div>

@@ -33,6 +33,7 @@ import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
 import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
+import { matchIdeas } from '@/lib/prompt-director/format-matcher';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -305,7 +306,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
 
   const { data: formatRows } = await supabase
     .from('formats')
-    .select('id, slug, name, required_refs, default_duration_s, default_audio')
+    .select('id, slug, name, description, required_refs, default_duration_s, default_audio')
     .or(`is_system.eq.true,workspace_id.eq.${workspace.id}`);
   const formats: PlannerFormat[] = (formatRows ?? []).map((f) => ({
     id: f.id as string,
@@ -315,6 +316,54 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     defaultDurationS: f.default_duration_s as number,
     defaultAudio: f.default_audio as boolean,
   }));
+
+  // Ideas del usuario (specs/v2/07): el matcher las mapea a formatos; lo que
+  // no encaja nace como formato custom del workspace. Los slugs sembrados
+  // entran al mix con el mismo boost que los formatos ganadores.
+  const seededSlugs: string[] = [];
+  if (parsed.data.userIdeas) {
+    try {
+      const matched = await matchIdeas({
+        ideasText: parsed.data.userIdeas,
+        formats: (formatRows ?? []).map((f) => ({
+          id: f.id as string,
+          slug: f.slug as string,
+          name: f.name as string,
+          description: (f.description as string | null) ?? null,
+        })),
+      });
+      for (const m of matched.matches) {
+        if (m.formatId) {
+          const f = formats.find((x) => x.id === m.formatId);
+          if (f) seededSlugs.push(f.slug);
+        } else if (m.customFormat) {
+          const cf = m.customFormat;
+          const { data: created } = await supabase
+            .from('formats')
+            .insert({
+              slug: cf.slug, name: cf.name, description: cf.description,
+              register: cf.register, camera_style: cf.cameraStyle, pacing: cf.pacing,
+              required_refs: cf.requiredRefs, default_duration_s: cf.defaultDurationS,
+              default_audio: cf.defaultAudio, is_system: false, workspace_id: workspace.id,
+            })
+            .select('id, slug')
+            .single();
+          if (created) {
+            formats.push({
+              id: created.id as string, slug: created.slug as string, name: cf.name,
+              requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS,
+              defaultAudio: cf.defaultAudio,
+            });
+            seededSlugs.push(created.slug as string);
+          }
+        }
+      }
+      if (seededSlugs.length) revalidatePath('/app/formats');
+    } catch {
+      // El matcher es mejora, no requisito: si Gemini falla, el plan sale
+      // con el mix por categoría de siempre.
+    }
+  }
 
   const { data: sceneRows } = await supabase
     .from('scene_library')
@@ -354,7 +403,7 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     scenes,
     characters,
     available,
-    winningSlugs,
+    winningSlugs: [...winningSlugs, ...seededSlugs],
     dateStart: campaign.date_start ? new Date(campaign.date_start as string) : new Date(),
     dateEnd: campaign.date_end
       ? new Date(campaign.date_end as string)

@@ -87,6 +87,8 @@ export const GeneratePlanSchema = z.object({
   campaignId: z.string().uuid(),
   // Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
   totalItems: z.number().int().min(2).max(30),
+  // Ideas en lenguaje natural (specs/v2/07): siembran el mix vía format matcher.
+  userIdeas: z.string().trim().max(2000).optional(),
 });
 
 export const ApproveBatchSchema = z.object({
