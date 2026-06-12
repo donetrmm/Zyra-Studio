@@ -60,6 +60,60 @@ describe('matchIdeas', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('normaliza customFormat con claves en español y campos faltantes (caso real de Vercel)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'una escena majestuosa como de deidad del refresco',
+        formatId: null,
+        customFormat: {
+          slug: 'deidad-del-refresco',
+          registro: 'Fantástico, épico',
+          estiloDeCamara: 'Cinemático, gran angular',
+          ritmo: 'Lento, majestuoso',
+        },
+        count: 1,
+        scenePrompt: 'A majestic deity-like scene of the soft drink appears',
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'deidad del refresco', formats: FORMATS });
+    const cf = res.matches[0].customFormat;
+    expect(cf).not.toBeNull();
+    expect(cf?.slug).toBe('deidad-del-refresco');
+    expect(cf?.name).toBe('Deidad del refresco');
+    expect(cf?.register).toBe('Fantástico, épico');
+    expect(cf?.cameraStyle).toBe('Cinemático, gran angular');
+    expect(cf?.pacing).toBe('Lento, majestuoso');
+    expect(cf?.requiredRefs).toEqual(['product']);
+    expect(cf?.defaultDurationS).toBe(8);
+    expect(cf?.defaultAudio).toBe(true);
+  });
+
+  it('normaliza slug con acentos y clampa la duración', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'algo épico',
+        formatId: null,
+        customFormat: { name: 'Visión Épica', defaultDurationS: 30 },
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'algo épico', formats: FORMATS });
+    const cf = res.matches[0].customFormat;
+    expect(cf?.slug).toBe('vision-epica');
+    expect(cf?.name).toBe('Visión Épica');
+    expect(cf?.defaultDurationS).toBe(15);
+  });
+
+  it('customFormat null se conserva como null', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].customFormat).toBeNull();
+  });
+
   it('descarta el match malformado pero conserva los válidos', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [
