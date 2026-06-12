@@ -723,7 +723,7 @@ export async function approveBatchAction(
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, scene_prompt, status')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status')
     .eq('campaign_id', campaign.id)
     .eq('format_id', parsed.data.formatId)
     .order('created_at');

@@ -76,6 +76,8 @@ export const CreateCampaignStudioSchema = z
     productUrl: z.string().trim().url().max(500).optional(),
     // Idioma del diálogo hablado de los videos (el prompt va en inglés siempre).
     language: z.enum(['es', 'en']).default('es'),
+    // Pool de personajes de la campaña (máx 3). El primero es el principal.
+    characterIds: z.array(z.string().uuid()).max(3).default([]),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
   })
@@ -162,6 +164,9 @@ export const CampaignItemSchema = z.object({
   scene: z.string().trim().max(200).optional(),
   audio: z.boolean().default(true),
   characterId: z.string().uuid().optional(),
+  // Multi-personaje (máx 3, orden = referencias del prompt). characterId se
+  // mantiene como principal sincronizado (= characterIds[0]).
+  characterIds: z.array(z.string().uuid()).max(3).optional(),
   scenePrompt: z.string().trim().min(1).max(4000),
   // copy para publicar el creativo; nunca se compila dentro del prompt
   caption: z.string().trim().max(2200).optional(),
@@ -180,6 +185,9 @@ export const AddCampaignItemSchema = z.object({
   scenePrompt: z.string().trim().min(1).max(4000),
   scene: z.string().trim().max(200).optional(),
   characterId: z.string().uuid().optional(),
+  // Multi-personaje (máx 3, orden = referencias del prompt). characterId se
+  // mantiene como principal sincronizado (= characterIds[0]).
+  characterIds: z.array(z.string().uuid()).max(3).optional(),
   durationS: z.number().int().min(4).max(15).optional(),
   scheduledDate: z.coerce.date().optional(),
 });

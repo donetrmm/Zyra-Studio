@@ -14,7 +14,7 @@ import { seedanceCostPerItem } from './estimate';
 const STAGGER_SECONDS = 20;
 const SAMPLE_SIZE = 2;
 
-type ItemRow = {
+export type ItemRow = {
   id: string;
   campaign_id: string;
   format_id: string | null;
@@ -25,9 +25,17 @@ type ItemRow = {
   scene: string | null;
   audio: boolean;
   character_id: string | null;
+  character_ids: string[] | null;
+  reference_ids: string[] | null;
   scene_prompt: string;
   status: string;
 };
+
+// Personajes efectivos del item: array nuevo con fallback al principal legacy.
+export function itemCharacterIds(item: Pick<ItemRow, 'character_id' | 'character_ids'>): string[] {
+  if (item.character_ids?.length) return item.character_ids.slice(0, 3);
+  return item.character_id ? [item.character_id] : [];
+}
 
 type FormatRow = {
   id: string;
@@ -47,7 +55,7 @@ export type CampaignContext = {
   palette?: string[];
   productImagePaths: string[];
   packagingImagePaths: string[];
-  characters: Map<string, { name: string; description: string; masterImagePath: string }>;
+  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }>;
   // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
   language: 'es' | 'en';
 };
@@ -105,16 +113,17 @@ export async function loadCampaignContext(
     }
   }
 
-  const characters = new Map<string, { name: string; description: string; masterImagePath: string }>();
+  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }>();
   if (characterIds.length) {
     const { data: rows } = await supabase
       .from('characters')
-      .select('id, workspace_id, name, description, master_image_id, reference_image_ids')
+      .select('id, workspace_id, name, description, master_image_id, reference_image_ids, angle_image_ids')
       .in('id', characterIds);
     const imageIds: string[] = [];
     for (const c of rows ?? []) {
       const masterId = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
       if (masterId) imageIds.push(masterId);
+      imageIds.push(...((c.angle_image_ids as string[]) ?? []).slice(0, 2));
     }
     const paths = await resolvePaths(supabase, workspaceId, imageIds);
     for (const c of rows ?? []) {
@@ -122,10 +131,13 @@ export async function loadCampaignContext(
       const masterId = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
       const masterPath = masterId ? paths.get(masterId) : undefined;
       if (masterPath) {
+        const angleIds = ((c.angle_image_ids as string[]) ?? []).slice(0, 2);
+        const angleImagePaths = angleIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
         characters.set(c.id as string, {
           name: c.name as string,
           description: (c.description as string) ?? '',
           masterImagePath: masterPath,
+          angleImagePaths,
         });
       }
     }
@@ -147,8 +159,17 @@ function directorContextFor(
   format: FormatRow | null,
   ctx: CampaignContext,
   templateVideoPath?: string,
+  extraImagePaths?: string[],
 ): DirectorContext {
-  const character = item.character_id ? ctx.characters.get(item.character_id) : undefined;
+  const characters = itemCharacterIds(item)
+    .map((id) => ctx.characters.get(id))
+    .filter((c): c is NonNullable<typeof c> => !!c)
+    .map((c) => ({
+      name: c.name,
+      description: c.description,
+      masterImagePath: c.masterImagePath,
+      angleImagePaths: c.angleImagePaths,
+    }));
   return {
     format: format ? fromFormatRow(format) : undefined,
     product: {
@@ -160,13 +181,8 @@ function directorContextFor(
         ? ctx.packagingImagePaths
         : undefined,
     },
-    character: character
-      ? {
-          name: character.name,
-          description: character.description,
-          masterImagePath: character.masterImagePath,
-        }
-      : undefined,
+    characters: characters.length ? characters : undefined,
+    extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
     scene: item.scene ? { fragment: item.scene } : undefined,
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,
@@ -236,11 +252,16 @@ export async function enqueueBatch(params: {
   }
   if (selected.length === 0) return { enqueued: 0, skipped: [], creditsReserved: 0 };
 
-  const characterIds = [...new Set(selected.map((i) => i.character_id).filter((c): c is string => !!c))];
+  const characterIds = [...new Set(selected.flatMap((i) => itemCharacterIds(i)))];
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
   const pricing = await loadPricing();
   const supabase = await createClient();
   const templateVideos = await loadTemplateVideoPaths(supabase, selected);
+  // Referencias extra del refinado (campaign_items.reference_ids): hoy el
+  // refinado las guarda pero nunca llegaban al modelo. Se resuelven una vez
+  // por lote y entran al contexto como extraImagePaths (rol environment).
+  const extraRefIds = [...new Set(selected.flatMap((i) => i.reference_ids ?? []))];
+  const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
   const itemStatus = mode === 'sample' ? 'sample' : 'queued';
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
@@ -262,6 +283,7 @@ export async function enqueueBatch(params: {
         format,
         ctx,
         item.template_id ? templateVideos.get(item.template_id) : undefined,
+        (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
       ),
     );
 
