@@ -55,6 +55,25 @@ Nunca inventes atributos del producto. Devuelve SOLO el JSON:
 export async function matchIdeas(input: {
   ideasText: string;
   formats: MatcherFormat[];
+  // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
+  // después del brief (otra llamada a Gemini): un 429 puntual no debe
+  // degradar el plan dirigido a mix genérico.
+  retryDelayMs?: number;
+}): Promise<MatcherResult> {
+  try {
+    return await requestMatch(input);
+  } catch (err) {
+    if (err instanceof ProviderError && err.retryable) {
+      await new Promise((resolve) => setTimeout(resolve, input.retryDelayMs ?? 2000));
+      return requestMatch(input);
+    }
+    throw err;
+  }
+}
+
+async function requestMatch(input: {
+  ideasText: string;
+  formats: MatcherFormat[];
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);

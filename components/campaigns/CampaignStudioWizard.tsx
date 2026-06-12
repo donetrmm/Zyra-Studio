@@ -36,6 +36,16 @@ type BrandKitOption = {
   packagingImages: number;
 };
 
+// Motivos legibles del fallback del plan dirigido (codes de ProviderError
+// más 'sin_match' del saneo de la action).
+const MATCHER_ERROR_HINTS: Record<string, string> = {
+  rate_limit: 'Gemini alcanzó su límite de peticiones, intenta en un minuto',
+  auth: 'la API key de Gemini no es válida en este entorno',
+  server: 'Gemini respondió con error',
+  unknown: 'la respuesta de Gemini no se pudo interpretar',
+  sin_match: 'Gemini no logró mapear tus ideas al catálogo',
+};
+
 const GOALS = [
   { value: 'mixed', label: 'Mixto (awareness + conversión)' },
   { value: 'awareness', label: 'Awareness' },
@@ -121,11 +131,14 @@ export function CampaignStudioWizard({
       return;
     }
     // Nunca degradar en silencio: si dio ideas y el plan salió del mix
-    // genérico (matcher caído), el usuario debe saberlo.
+    // genérico (matcher caído), el usuario debe saber qué pasó y por qué.
     if (ideas.trim() && planned.data.source === 'mix') {
-      toast.warning(
-        'No pude interpretar tus ideas esta vez: te propuse un plan genérico. Edita o refina cada creativo, o crea la campaña de nuevo.',
-      );
+      const reason =
+        MATCHER_ERROR_HINTS[planned.data.matcherError ?? ''] ?? 'no se pudo consultar a Gemini';
+      toast.warning(`No pude interpretar tus ideas (${reason}): te propuse un plan genérico.`, {
+        description: 'Edita o refina cada creativo, o crea la campaña de nuevo.',
+        duration: 10000,
+      });
     } else {
       toast.success(
         `Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en borradores`,
