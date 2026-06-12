@@ -452,6 +452,8 @@ export async function generatePlanAction(input: unknown): Promise<
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+              scenes: m.scenes,
+              sequenceLabel: m.sequenceLabel,
             });
           }
         } else if (m.customFormat) {
@@ -469,6 +471,8 @@ export async function generatePlanAction(input: unknown): Promise<
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+              scenes: m.scenes,
+              sequenceLabel: m.sequenceLabel,
             });
             continue;
           }
@@ -497,6 +501,8 @@ export async function generatePlanAction(input: unknown): Promise<
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+              scenes: m.scenes,
+              sequenceLabel: m.sequenceLabel,
             });
             createdCustom = true;
           }

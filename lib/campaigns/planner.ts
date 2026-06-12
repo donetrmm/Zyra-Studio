@@ -60,6 +60,11 @@ export type PlanItemDraft = {
   sceneSummary: string | null;
   caption: string;          // metadato de publicación (gancho + CTA + tags)
   scheduledDate: string;    // YYYY-MM-DD
+  // Secuencia: null en creativos normales. Cuando != null, las escenas de un
+  // mismo anuncio comparten sequenceId y se ordenan por sceneIndex.
+  sequenceId: string | null;
+  sceneIndex: number | null;
+  sequenceLabel: string | null;
 };
 
 // Presentador inventado cuando el formato pide personaje y la campaña no
@@ -208,24 +213,38 @@ function isoDate(d: Date): string {
 
 // Intercalar grupos (round-robin) para que el calendario no amontone items
 // del mismo formato seguidos, y repartir fechas en el rango.
+// Unidad de calendario: un grupo-secuencia (sequenceId != null) cuenta como
+// UNA unidad (sus escenas comparten fecha y quedan contiguas); los grupos
+// normales se intercalan item-a-item como antes.
 function interleaveAndSchedule(
   groups: PlanItemDraft[][],
   dateStart: Date,
   dateEnd: Date,
 ): PlanItemDraft[] {
-  const interleaved: PlanItemDraft[] = [];
-  const maxLen = Math.max(0, ...groups.map((arr) => arr.length));
+  const sequenceUnits = groups.filter((g) => g[0]?.sequenceId != null);
+  const normalGroups = groups.filter((g) => g[0]?.sequenceId == null);
+
+  const interleavedNormals: PlanItemDraft[] = [];
+  const maxLen = Math.max(0, ...normalGroups.map((arr) => arr.length));
   for (let i = 0; i < maxLen; i++) {
-    for (const arr of groups) {
-      if (arr[i]) interleaved.push(arr[i]);
-    }
+    for (const arr of normalGroups) if (arr[i]) interleavedNormals.push(arr[i]);
   }
+
+  const units: PlanItemDraft[][] = [
+    ...interleavedNormals.map((it) => [it]),
+    ...sequenceUnits,
+  ];
   const rangeMs = Math.max(0, dateEnd.getTime() - dateStart.getTime());
-  const step = interleaved.length > 1 ? rangeMs / (interleaved.length - 1) : 0;
-  interleaved.forEach((item, idx) => {
-    item.scheduledDate = isoDate(new Date(dateStart.getTime() + step * idx));
+  const step = units.length > 1 ? rangeMs / (units.length - 1) : 0;
+  const out: PlanItemDraft[] = [];
+  units.forEach((unit, idx) => {
+    const date = isoDate(new Date(dateStart.getTime() + step * idx));
+    for (const item of unit) {
+      item.scheduledDate = date;
+      out.push(item);
+    }
   });
-  return interleaved;
+  return out;
 }
 
 // Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
@@ -252,6 +271,10 @@ export type DirectedIdea = {
   // Personajes inventados por el matcher que no existen en el pool de la
   // campaña. Se inyectan como frases descriptivas en el scenePrompt.
   invented: Array<{ name: string; description: string }>;
+  // Si la idea es un anuncio multi-escena, las escenas que el matcher propuso.
+  // Vacio = idea normal (un solo clip).
+  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null }>;
+  sequenceLabel: string | null;
 };
 
 export type DirectedPlanInput = {
@@ -277,6 +300,48 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
 
   let budget = MAX_PLAN_ITEMS;
   const groups: PlanItemDraft[][] = viable.map((idea, gIdx) => {
+    // Rama secuencia: N escenas de un mismo anuncio, mismo sequenceId.
+    if (idea.scenes.length > 0) {
+      const allowed = Math.min(idea.scenes.length, budget);
+      budget -= allowed;
+      if (allowed === 0) return [];
+      const sequenceId = crypto.randomUUID();
+      const format = idea.format;
+      const scene = input.scenes[gIdx % Math.max(1, input.scenes.length)] ?? {
+        name: 'Estudio', fragment: 'a clean minimal studio setting with controlled soft light',
+      };
+      const fromIdea = idea.characterIds.filter((id) => input.characters.some((c) => c.id === id)).slice(0, 3);
+      const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
+      const needsCharacter = format.requiredRefs.includes('character');
+      if (needsCharacter && fromIdea.length === 0 && inventedLines.length === 0) {
+        inventedLines.push(`The presenter is ${DEFAULT_PRESENTER}.`);
+      }
+      return idea.scenes.slice(0, allowed).map((sc, sceneIndex) => {
+        let scenePrompt = sc.scenePrompt;
+        if (inventedLines.length) {
+          scenePrompt = `${scenePrompt.trim().replace(/\.?$/, '.')} ${inventedLines.join(' ')}`;
+        }
+        return {
+          formatId: format.id,
+          formatSlug: format.slug,
+          modelSlug: input.draftModelSlug,
+          durationS: sc.durationS ?? format.defaultDurationS,
+          aspectRatio: input.aspectRatio,
+          scene: scene.fragment,
+          audio: format.defaultAudio,
+          characterIds: fromIdea,
+          scenePrompt,
+          sceneSummary: sc.sceneSummary,
+          caption: buildCaption({ productName: input.productName, formatSlug: format.slug, goal: input.goal, index: sceneIndex }),
+          scheduledDate: '',
+          sequenceId,
+          sceneIndex,
+          sequenceLabel: idea.sequenceLabel,
+        } satisfies PlanItemDraft;
+      });
+    }
+
+    // Rama normal: idéntica a la actual.
     const count = Math.min(Math.max(1, idea.count), budget);
     budget -= count;
     const format = idea.format;
@@ -338,6 +403,9 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           index: i,
         }),
         scheduledDate: '',
+        sequenceId: null,
+        sceneIndex: null,
+        sequenceLabel: null,
       });
     }
     return items;
@@ -419,6 +487,9 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
           index: i,
         }),
         scheduledDate: '', // se asigna abajo, intercalado
+        sequenceId: null,
+        sceneIndex: null,
+        sequenceLabel: null,
       });
     }
     return items;

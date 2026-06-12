@@ -207,8 +207,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 3, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('susurro'), count: 3, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
         ],
       }),
     );
@@ -231,6 +231,8 @@ describe('buildDirectedPlan', () => {
             sceneSummary: null,
             characterIds: [],
             invented: [],
+            scenes: [],
+            sequenceLabel: null,
           },
         ],
       }),
@@ -241,7 +243,7 @@ describe('buildDirectedPlan', () => {
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null }],
       }),
     );
     for (const item of items) {
@@ -256,8 +258,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-descubrimiento'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-descubrimiento'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
         ],
         available: { product: true, packaging: false },
         characters: [],
@@ -270,7 +272,7 @@ describe('buildDirectedPlan', () => {
   it('devuelve vacío si ninguna idea es viable', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-descubrimiento'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-descubrimiento'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null }],
         available: { product: true, packaging: false },
       }),
     );
@@ -281,10 +283,10 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('antes-y-despues'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('susurro'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('gran-pantalla'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('antes-y-despues'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
         ],
       }),
     );
@@ -295,8 +297,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('voz-cercana'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('voz-cercana'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('gran-pantalla'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
         ],
       }),
     );
@@ -321,7 +323,7 @@ describe('buildDirectedPlan', () => {
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
           count: 1, durationS: null, scenePrompt: 'She presents the can', sceneSummary: null,
-          characterIds: ['c2', 'c1'], invented: [],
+          characterIds: ['c2', 'c1'], invented: [], scenes: [], sequenceLabel: null,
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
       }),
@@ -334,7 +336,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
+          count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null,
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
       }),
@@ -351,6 +353,7 @@ describe('buildDirectedPlan', () => {
           count: 1, durationS: null, scenePrompt: 'Lucia tries the product', sceneSummary: null,
           characterIds: [],
           invented: [{ name: 'Lucía', description: 'a presenter with short auburn hair' }],
+          scenes: [], sequenceLabel: null,
         }],
         characters: [],
       }),
@@ -365,7 +368,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
+          count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null,
         }],
         characters: [],
       }),
@@ -378,8 +381,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 1, durationS: 12, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, durationS: 12, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null },
         ],
       }),
     );
@@ -394,7 +397,7 @@ describe('buildDirectedPlan', () => {
         ideas: [{
           format: fmt('el-icono'), count: 1, durationS: null,
           scenePrompt: 'The can spins on marble', sceneSummary: 'La lata gira sobre mármol',
-          characterIds: [], invented: [],
+          characterIds: [], invented: [], scenes: [], sequenceLabel: null,
         }],
       }),
     );
@@ -403,7 +406,7 @@ describe('buildDirectedPlan', () => {
     // Sin scenePrompt del matcher (semilla) y campaña en español: resumen ES.
     const seeded = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null }],
       }),
     );
     expect(seeded[0].sceneSummary).toMatch(/producto/);
@@ -411,7 +414,7 @@ describe('buildDirectedPlan', () => {
     // Campaña en inglés: sin resumen — la UI muestra el scenePrompt.
     const english = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null }],
         language: 'en',
       }),
     );
@@ -431,6 +434,8 @@ describe('buildDirectedPlan', () => {
           sceneSummary: null,
           characterIds: ['c-borrado'],
           invented: [],
+          scenes: [],
+          sequenceLabel: null,
         }],
         characters: [{ id: 'c-pool-1', name: 'Ana' }, { id: 'c-pool-2', name: 'Bruno' }],
       }),
@@ -442,6 +447,53 @@ describe('buildDirectedPlan', () => {
     const validIds = new Set(['c-pool-1', 'c-pool-2']);
     expect(validIds.has(items[0].characterIds[0])).toBe(true);
     expect(validIds.has(items[1].characterIds[0])).toBe(true);
+  });
+
+  it('una idea-secuencia produce N items con mismo sequenceId, sceneIndex 0..N-1 y misma fecha', () => {
+    const format = { id: 'f1', slug: 'gran-pantalla', name: 'Gran Pantalla', requiredRefs: ['product'], defaultDurationS: 8, defaultAudio: true };
+    const items = buildDirectedPlan({
+      ideas: [{
+        format, count: 1, scenePrompt: null, durationS: null, sceneSummary: null,
+        characterIds: [], invented: [],
+        scenes: [
+          { scenePrompt: 'Scene one with the product', durationS: 4, sceneSummary: 'uno' },
+          { scenePrompt: 'Scene two with the product', durationS: 6, sceneSummary: 'dos' },
+          { scenePrompt: 'Scene three with the product', durationS: 5, sceneSummary: 'tres' },
+        ],
+        sequenceLabel: 'Mi anuncio',
+      }],
+      productName: 'Producto', goal: 'mixed', scenes: [], characters: [],
+      available: { product: true, packaging: true },
+      dateStart: new Date('2026-07-01'), dateEnd: new Date('2026-07-30'),
+      draftModelSlug: 'bytedance/seedance-2.0/fast/text-to-video',
+      language: 'es', aspectRatio: '9:16',
+    });
+    expect(items).toHaveLength(3);
+    const seqIds = new Set(items.map((i) => i.sequenceId));
+    expect(seqIds.size).toBe(1);
+    expect([...seqIds][0]).not.toBeNull();
+    expect(items.map((i) => i.sceneIndex)).toEqual([0, 1, 2]);
+    expect(items.map((i) => i.sequenceLabel)).toEqual(['Mi anuncio', 'Mi anuncio', 'Mi anuncio']);
+    expect(new Set(items.map((i) => i.scheduledDate)).size).toBe(1);
+    expect(items.map((i) => i.durationS)).toEqual([4, 6, 5]);
+    expect(items.map((i) => i.scenePrompt)).toEqual([
+      'Scene one with the product', 'Scene two with the product', 'Scene three with the product',
+    ]);
+  });
+
+  it('una idea normal (sin scenes) sigue siendo un item con sequenceId null', () => {
+    const format = { id: 'f2', slug: 'voz-cercana', name: 'Voz Cercana', requiredRefs: ['product'], defaultDurationS: 9, defaultAudio: true };
+    const items = buildDirectedPlan({
+      ideas: [{ format, count: 1, scenePrompt: 'She lifts the product to camera', durationS: null, sceneSummary: null, characterIds: [], invented: [], scenes: [], sequenceLabel: null }],
+      productName: 'Producto', goal: 'mixed', scenes: [], characters: [],
+      available: { product: true, packaging: true },
+      dateStart: new Date('2026-07-01'), dateEnd: new Date('2026-07-30'),
+      draftModelSlug: 'bytedance/seedance-2.0/fast/text-to-video',
+      language: 'es', aspectRatio: '9:16',
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0].sequenceId).toBeNull();
+    expect(items[0].sceneIndex).toBeNull();
   });
 });
 
