@@ -56,13 +56,38 @@ describe('matchIdeas', () => {
     await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toThrow(/schema/i);
   });
 
-  it('marca rate limit como reintentable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429 }) as Response));
+  it('reintenta una vez ante rate limit y falla si persiste', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 429 }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
     process.env.GEMINI_API_KEY = 'test';
-    await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toMatchObject({
-      code: 'rate_limit',
-      retryable: true,
-    });
+    await expect(
+      matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
+    ).rejects.toMatchObject({ code: 'rate_limit', retryable: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('se recupera si el reintento tras 429 responde bien', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429 } as Response)
+      .mockResolvedValueOnce(geminiOk({
+        matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS, retryDelayMs: 0 });
+    expect(res.matches[0].formatId).toBe('f1');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('no reintenta errores no recuperables (auth)', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: false, status: 403 }) as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.GEMINI_API_KEY = 'test';
+    await expect(
+      matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
+    ).rejects.toMatchObject({ code: 'auth' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('sin count ni scenePrompt aplica defaults (1 y null)', async () => {

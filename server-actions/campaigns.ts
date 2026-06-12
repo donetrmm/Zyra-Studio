@@ -40,6 +40,7 @@ import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas } from '@/lib/prompt-director/format-matcher';
+import { ProviderError } from '@/lib/providers/types';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -268,9 +269,16 @@ export async function createCampaignStudioAction(
 // ideas: plan sugerido con el mix por categoría (totalItems, default 6).
 // En ambos casos: escenas y personajes rotados, fechas intercaladas,
 // estimación de créditos en tier draft.
-export async function generatePlanAction(
-  input: unknown,
-): Promise<Result<{ items: number; creditsEstimated: number; source: 'ideas' | 'mix' }>> {
+export async function generatePlanAction(input: unknown): Promise<
+  Result<{
+    items: number;
+    creditsEstimated: number;
+    source: 'ideas' | 'mix';
+    // Código del error del matcher cuando se dieron ideas pero el plan cayó
+    // al mix: el wizard lo traduce a un motivo legible en el toast.
+    matcherError?: string;
+  }>
+> {
   const parsed = GeneratePlanSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -332,6 +340,7 @@ export async function generatePlanAction(
   // describió. El matcher mapea cada idea a un formato (o crea uno custom) y
   // determina cuántos creativos pide; NO se rellena hasta un volumen fijo.
   const directed: DirectedIdea[] = [];
+  let matcherError: string | undefined;
   if (parsed.data.userIdeas) {
     try {
       const matched = await matchIdeas({
@@ -381,10 +390,14 @@ export async function generatePlanAction(
         }
       }
       if (createdCustom) revalidatePath('/app/formats');
+      // Matcher respondió pero el saneo descartó todos los matches (ids
+      // inventados sin customFormat): también es fallback, también se avisa.
+      if (directed.length === 0) matcherError = 'sin_match';
     } catch (err) {
       // Si Gemini falla, el plan cae al mix sugerido por categoría — pero
       // nunca en silencio: queda en logs y el wizard avisa (source: 'mix').
       console.error('[generatePlanAction] matcher falló; plan sugerido en su lugar', err);
+      matcherError = err instanceof ProviderError ? err.code : 'unknown';
     }
   }
 
@@ -509,6 +522,7 @@ export async function generatePlanAction(
       items: items.length,
       creditsEstimated: total,
       source: directed.length > 0 ? 'ideas' : 'mix',
+      ...(matcherError ? { matcherError } : {}),
     },
   };
 }
