@@ -243,7 +243,7 @@ async function requestMatch(input: {
     matches: matches.map((m) => ({
       ...m,
       formatId: m.formatId && known.has(m.formatId) ? m.formatId : null,
-      characterIds: m.characterIds.filter((id) => knownCharacters.has(id)).slice(0, 3),
+      characterIds: [...new Set(m.characterIds.filter((id) => knownCharacters.has(id)))].slice(0, 3),
     })),
   };
 }

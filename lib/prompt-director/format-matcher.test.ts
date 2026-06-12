@@ -245,6 +245,24 @@ describe('matchIdeas', () => {
     expect(res.matches[0].inventedCharacters).toEqual([]);
   });
 
+  it('characterIds dedupe y recorta a 3', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'todos presentan', formatId: 'f1', customFormat: null,
+        characterIds: ['c1', 'c1', 'c2', 'c3', 'c4'],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({
+      ideasText: 'todos presentan', formats: FORMATS,
+      characters: [
+        { id: 'c1', name: 'A' }, { id: 'c2', name: 'B' },
+        { id: 'c3', name: 'C' }, { id: 'c4', name: 'D' },
+      ],
+    });
+    expect(res.matches[0].characterIds).toEqual(['c1', 'c2', 'c3']);
+  });
+
   it('inventedCharacters se parsea y los malformados se descartan sin tirar el match', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{
