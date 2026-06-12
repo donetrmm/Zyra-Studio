@@ -26,12 +26,14 @@ import {
   distillTemplateAction,
   exportCampaignCsvAction,
   generateSeriesAction,
+  mergeSequenceAction,
   previewItemPromptAction,
   redoSamplesAction,
   requestFinalAction,
   toggleWinnerAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
+import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +63,9 @@ export type StudioItem = {
   warnings: string[];
   generationId: string | null;
   isWinner: boolean;
+  sequenceId: string | null;
+  sceneIndex: number | null;
+  sequenceLabel: string | null;
 };
 
 export type StudioTemplate = {
@@ -279,6 +284,9 @@ export function CampaignStudioView({
             onEdit={setEditing}
             onPreview={handlePreviewPrompt}
             onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
+            onSequenceMerged={(sequenceId) =>
+              setItems((p) => p.filter((i) => i.sequenceId !== sequenceId))
+            }
           />
         </>
       ) : tab === 'produccion' ? (
@@ -336,12 +344,14 @@ function PlanTable({
   onEdit,
   onPreview,
   onDeleted,
+  onSequenceMerged,
 }: {
   campaignId: string;
   items: StudioItem[];
   onEdit: (item: StudioItem) => void;
   onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
+  onSequenceMerged: (sequenceId: string) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
 
@@ -354,107 +364,245 @@ function PlanTable({
     onDeleted(item.id);
   }
 
+  async function handleMergeSequence(sequenceId: string) {
+    const res = await mergeSequenceAction({ sequenceId, campaignId });
+    if (res.ok) {
+      onSequenceMerged(sequenceId);
+    } else {
+      toast.error(res.message ?? 'No se pudo unir la secuencia');
+    }
+  }
+
+  function renderPlanRow(item: StudioItem) {
+    return (
+      <tr key={item.id} className="border-b border-border/50 last:border-0">
+        <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
+            {item.scheduledDate
+              ? new Date(`${item.scheduledDate}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+              : '—'}
+          </span>
+        </td>
+        <td
+          className="whitespace-nowrap px-3 py-2.5 text-foreground/90"
+          title={item.formatDescription || undefined}
+        >
+          {item.formatName}
+          {item.templateId && (
+            <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
+              serie
+            </span>
+          )}
+          {item.characterNames.length > 0 && (
+            <span className="ml-1.5 text-[11px] text-muted-foreground/60">
+              · {item.characterNames.join(' + ')}
+            </span>
+          )}
+        </td>
+        <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
+          {item.scene && (
+            <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
+          )}
+          <p className="line-clamp-2 text-muted-foreground/80">
+            {item.sceneSummary ?? item.scenePrompt}
+          </p>
+          {item.caption && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+              Caption: {item.caption}
+            </p>
+          )}
+          {item.warnings.length > 0 && (
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{item.warnings[0]}</p>
+          )}
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5">
+          <StatusBadge status={item.status} />
+        </td>
+        <td className="whitespace-nowrap px-3 py-2.5 text-right">
+          <span className="inline-flex gap-1">
+            {editable(item.status) && (
+              <>
+                <Link
+                  href={`/app/campaigns/${campaignId}/refine/${item.id}`}
+                  aria-label="Refinar con asistente"
+                  className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+                >
+                  <Sparkles className="size-3.5" aria-hidden />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onEdit(item)}
+                  aria-label="Editar item"
+                  className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Pencil className="size-3.5" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(item)}
+                  aria-label="Eliminar item"
+                  className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-red-400"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => onPreview(item.id)}
+              aria-label="Ver prompt final"
+              className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Eye className="size-3.5" aria-hidden />
+            </button>
+          </span>
+        </td>
+      </tr>
+    );
+  }
+
+  const groups = groupPlanItems(items);
+
   return (
-    <div className="mt-5 overflow-hidden rounded-xl border border-border">
-      <table className="w-full text-left text-[12.5px]">
-        <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
-          <tr>
-            <th className="px-3 py-2 font-medium">Fecha</th>
-            <th className="px-3 py-2 font-medium">Formato</th>
-            <th className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
-            <th className="px-3 py-2 font-medium">Estado</th>
-            <th className="px-3 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border/50 last:border-0">
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
-                <span className="inline-flex items-center gap-1.5">
-                  <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
-                  {item.scheduledDate
-                    ? new Date(`${item.scheduledDate}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-                    : '—'}
-                </span>
-              </td>
-              <td
-                className="whitespace-nowrap px-3 py-2.5 text-foreground/90"
-                title={item.formatDescription || undefined}
+    <div className="mt-5 space-y-3">
+      {groups.map((group) =>
+        group.kind === 'single' ? (
+          <div key={group.item.id} className="overflow-hidden rounded-xl border border-border">
+            <table className="w-full text-left text-[12.5px]">
+              <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Fecha</th>
+                  <th className="px-3 py-2 font-medium">Formato</th>
+                  <th className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
+                  <th className="px-3 py-2 font-medium">Estado</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>{renderPlanRow(group.item)}</tbody>
+            </table>
+          </div>
+        ) : (
+          <div key={group.sequenceId} className="rounded-lg border border-zinc-800 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm text-zinc-300">
+                {group.label ?? 'Secuencia'} · {group.scenes.length} escenas
+                <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">sugerida por IA</span>
+              </div>
+              <button
+                type="button"
+                className="text-xs text-zinc-400 hover:text-zinc-200"
+                onClick={() => handleMergeSequence(group.sequenceId)}
               >
-                {item.formatName}
-                {item.templateId && (
-                  <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
-                    serie
-                  </span>
-                )}
-                {item.characterNames.length > 0 && (
-                  <span className="ml-1.5 text-[11px] text-muted-foreground/60">
-                    · {item.characterNames.join(' + ')}
-                  </span>
-                )}
-              </td>
-              <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
-                {item.scene && (
-                  <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
-                )}
-                <p className="line-clamp-2 text-muted-foreground/80">
-                  {item.sceneSummary ?? item.scenePrompt}
-                </p>
-                {item.caption && (
-                  <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
-                    Caption: {item.caption}
-                  </p>
-                )}
-                {item.warnings.length > 0 && (
-                  <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{item.warnings[0]}</p>
-                )}
-              </td>
-              <td className="whitespace-nowrap px-3 py-2.5">
-                <StatusBadge status={item.status} />
-              </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                <span className="inline-flex gap-1">
-                  {editable(item.status) && (
-                    <>
-                      <Link
-                        href={`/app/campaigns/${campaignId}/refine/${item.id}`}
-                        aria-label="Refinar con asistente"
-                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+                Unir en 1 clip
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-border">
+              <table className="w-full text-left text-[12.5px]">
+                <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">#</th>
+                    <th className="px-3 py-2 font-medium">Fecha</th>
+                    <th className="px-3 py-2 font-medium">Formato</th>
+                    <th className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
+                    <th className="px-3 py-2 font-medium">Estado</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.scenes.map((scene, i) => (
+                    <tr key={scene.id} className="border-b border-border/50 last:border-0">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-zinc-500">{i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
+                          {scene.scheduledDate
+                            ? new Date(`${scene.scheduledDate}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+                            : '—'}
+                        </span>
+                      </td>
+                      <td
+                        className="whitespace-nowrap px-3 py-2.5 text-foreground/90"
+                        title={scene.formatDescription || undefined}
                       >
-                        <Sparkles className="size-3.5" aria-hidden />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => onEdit(item)}
-                        aria-label="Editar item"
-                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
-                      >
-                        <Pencil className="size-3.5" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item)}
-                        aria-label="Eliminar item"
-                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-red-400"
-                      >
-                        <Trash2 className="size-3.5" aria-hidden />
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onPreview(item.id)}
-                    aria-label="Ver prompt final"
-                    className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <Eye className="size-3.5" aria-hidden />
-                  </button>
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                        {scene.formatName}
+                        {scene.templateId && (
+                          <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
+                            serie
+                          </span>
+                        )}
+                        {scene.characterNames.length > 0 && (
+                          <span className="ml-1.5 text-[11px] text-muted-foreground/60">
+                            · {scene.characterNames.join(' + ')}
+                          </span>
+                        )}
+                      </td>
+                      <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
+                        {scene.scene && (
+                          <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{scene.scene}</p>
+                        )}
+                        <p className="line-clamp-2 text-muted-foreground/80">
+                          {scene.sceneSummary ?? scene.scenePrompt}
+                        </p>
+                        {scene.caption && (
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+                            Caption: {scene.caption}
+                          </p>
+                        )}
+                        {scene.warnings.length > 0 && (
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{scene.warnings[0]}</p>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        <StatusBadge status={scene.status} />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                        <span className="inline-flex gap-1">
+                          {editable(scene.status) && (
+                            <>
+                              <Link
+                                href={`/app/campaigns/${campaignId}/refine/${scene.id}`}
+                                aria-label="Refinar con asistente"
+                                className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+                              >
+                                <Sparkles className="size-3.5" aria-hidden />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => onEdit(scene)}
+                                aria-label="Editar item"
+                                className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                              >
+                                <Pencil className="size-3.5" aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(scene)}
+                                aria-label="Eliminar item"
+                                className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-red-400"
+                              >
+                                <Trash2 className="size-3.5" aria-hidden />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onPreview(scene.id)}
+                            aria-label="Ver prompt final"
+                            className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <Eye className="size-3.5" aria-hidden />
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ),
+      )}
     </div>
   );
 }
