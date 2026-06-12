@@ -151,8 +151,16 @@ create table campaigns (
   description text,
   color text default '#7c3aed',
   cover_url text,
+  -- character_ids: pool de personajes de la campaña (máx 3 — validado en server action).
+  -- Orden significativo: el primero es el principal. Sin FK a array; validar en app.
+  -- Agregado en migración 031.
+  character_ids uuid[] not null default '{}',
   created_at timestamptz default now()
 );
+
+-- campaign_items.character_ids (migración 031): personajes del creativo (máx 3).
+-- Orden = orden de referencias en el prompt. character_id (columna existente) = principal
+-- sincronizado con character_ids[1] por las server actions replace_character / rotateCharacters.
 
 create table projects (
   id uuid primary key default gen_random_uuid(),
