@@ -84,11 +84,11 @@ describe('compile seedance', () => {
     expect(params.generateAudio).toBe(true);
   });
 
-  it('con hablante y audio: encabezado, lip sync y voz natural anti-robótica', () => {
+  it('con diálogo explícito y audio: encabezado, lip sync y voz natural anti-robótica', () => {
     const res = compile(
       {
         modelSlug: 'bytedance/seedance-2.0/reference-to-video',
-        scenePrompt: 'She lifts the can and shares one casual line to camera',
+        scenePrompt: '0-4s: she lifts the can to camera. Dialogue: "Esto cambió mis mañanas." 4-9s: she takes a sip and nods',
         durationS: 9,
         aspectRatio: '9:16',
       },
@@ -106,12 +106,12 @@ describe('compile seedance', () => {
     expect(prompt).toContain('Avoid robotic speech');
   });
 
-  it('sin audio o sin hablante no hay dirección de lip sync', () => {
+  it('sin diálogo explícito no hay dirección de lip sync (aunque haya personajes)', () => {
     // generateAudio: false → ni lip sync ni directiva de idioma.
     const silent = compile(
       {
         modelSlug: 'bytedance/seedance-2.0/reference-to-video',
-        scenePrompt: 'She lifts the can toward the camera',
+        scenePrompt: 'Dialogue: "Hola" — she waves',
         generateAudio: false,
       },
       fullContext(),
@@ -119,7 +119,19 @@ describe('compile seedance', () => {
     expect(silent.ok).toBe(true);
     if (silent.ok) expect(silent.compiled.prompt).not.toContain('Synchronized on-camera speech');
 
-    // Sin personajes ni mención de hablante (el-icono): audio sí, lip sync no.
+    // Personaje en escena pero SIN diálogo pedido: no se fuerza el habla
+    // (decisión 2026-06-12: diálogos solo si el usuario los pide o los da).
+    const withCast = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She lifts the can toward the camera and smiles with an easy nod',
+      },
+      fullContext(),
+    );
+    expect(withCast.ok).toBe(true);
+    if (withCast.ok) expect(withCast.compiled.prompt).not.toContain('Synchronized on-camera speech');
+
+    // Sin personajes ni diálogo (el-icono): audio sí, lip sync no.
     const ctx = fullContext();
     ctx.characters = undefined;
     ctx.format = elIcono;

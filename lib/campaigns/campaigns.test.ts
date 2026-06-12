@@ -57,6 +57,7 @@ function plannerInput(overrides: Partial<PlannerInput> = {}): PlannerInput {
     dateEnd: new Date('2026-07-30'),
     draftModelSlug: 'bytedance/seedance-2.0/fast/reference-to-video',
     language: 'es',
+    aspectRatio: '9:16',
     ...overrides,
   };
 }
@@ -92,6 +93,7 @@ function directedInput(over: Partial<DirectedPlanInput> = {}): DirectedPlanInput
     dateEnd: base.dateEnd,
     draftModelSlug: base.draftModelSlug,
     language: base.language,
+    aspectRatio: base.aspectRatio,
     ...over,
   };
 }
@@ -169,11 +171,13 @@ describe('buildPlan', () => {
     expect(dates).toEqual(sorted);
   });
 
-  it('gran-pantalla en 16:9, el resto vertical', () => {
-    const items = buildPlan(plannerInput({ totalItems: 18 }));
-    for (const item of items) {
-      expect(item.aspectRatio).toBe(item.formatSlug === 'gran-pantalla' ? '16:9' : '9:16');
-    }
+  it('el formato de video de la campaña aplica a todos los items (034)', () => {
+    // La elección explícita del usuario manda: sin excepciones por slug.
+    const vertical = buildPlan(plannerInput({ totalItems: 18 }));
+    for (const item of vertical) expect(item.aspectRatio).toBe('9:16');
+
+    const horizontal = buildPlan(plannerInput({ totalItems: 6, aspectRatio: '16:9' }));
+    for (const item of horizontal) expect(item.aspectRatio).toBe('16:9');
   });
 
   it('sin formatos viables devuelve vacío', () => {
@@ -203,8 +207,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 3, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 3, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
@@ -222,6 +226,7 @@ describe('buildDirectedPlan', () => {
           {
             format: fmt('mundo-imposible'),
             count: 1,
+            durationS: null,
             scenePrompt: 'A dog carries the product through a park, tail wagging',
             sceneSummary: null,
             characterIds: [],
@@ -236,7 +241,7 @@ describe('buildDirectedPlan', () => {
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
       }),
     );
     for (const item of items) {
@@ -251,8 +256,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-descubrimiento'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-descubrimiento'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
         available: { product: true, packaging: false },
         characters: [],
@@ -265,7 +270,7 @@ describe('buildDirectedPlan', () => {
   it('devuelve vacío si ninguna idea es viable', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-descubrimiento'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
         available: { product: true, packaging: false },
       }),
     );
@@ -276,10 +281,10 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('antes-y-despues'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('antes-y-despues'), count: 10, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
@@ -290,19 +295,19 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('voz-cercana'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('voz-cercana'), count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
     for (const item of items) {
       if (item.formatSlug === 'voz-cercana') {
         expect(item.characterIds.length).toBeGreaterThan(0);
-        expect(item.aspectRatio).toBe('9:16');
       } else {
         expect(item.characterIds).toEqual([]);
-        expect(item.aspectRatio).toBe('16:9');
       }
+      // El formato de video lo decide la campaña (034), uniforme.
+      expect(item.aspectRatio).toBe('9:16');
       expect(item.scheduledDate >= '2026-07-01').toBe(true);
       expect(item.scheduledDate <= '2026-07-30').toBe(true);
     }
@@ -315,7 +320,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: 'She presents the can', sceneSummary: null,
+          count: 1, durationS: null, scenePrompt: 'She presents the can', sceneSummary: null,
           characterIds: ['c2', 'c1'], invented: [],
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
@@ -329,7 +334,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
+          count: 2, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
       }),
@@ -343,7 +348,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: 'Lucia tries the product', sceneSummary: null,
+          count: 1, durationS: null, scenePrompt: 'Lucia tries the product', sceneSummary: null,
           characterIds: [],
           invented: [{ name: 'Lucía', description: 'a presenter with short auburn hair' }],
         }],
@@ -360,7 +365,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
+          count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
         }],
         characters: [],
       }),
@@ -369,12 +374,25 @@ describe('buildDirectedPlan', () => {
     expect(items[0].scenePrompt).toContain(DEFAULT_PRESENTER);
   });
 
+  it('la duración del matcher manda sobre la default del formato', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          { format: fmt('el-icono'), count: 1, durationS: 12, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+        ],
+      }),
+    );
+    const durations = items.map((i) => i.durationS).sort((a, b) => a - b);
+    expect(durations).toEqual([8, 12]); // null cae al default del formato (8)
+  });
+
   it('sceneSummary del matcher manda; con semilla cae al resumen en español; en inglés es null', () => {
     // Resumen del matcher: se respeta tal cual.
     const withSummary = buildDirectedPlan(
       directedInput({
         ideas: [{
-          format: fmt('el-icono'), count: 1,
+          format: fmt('el-icono'), count: 1, durationS: null,
           scenePrompt: 'The can spins on marble', sceneSummary: 'La lata gira sobre mármol',
           characterIds: [], invented: [],
         }],
@@ -385,7 +403,7 @@ describe('buildDirectedPlan', () => {
     // Sin scenePrompt del matcher (semilla) y campaña en español: resumen ES.
     const seeded = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
       }),
     );
     expect(seeded[0].sceneSummary).toMatch(/producto/);
@@ -393,7 +411,7 @@ describe('buildDirectedPlan', () => {
     // Campaña en inglés: sin resumen — la UI muestra el scenePrompt.
     const english = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 1, durationS: null, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
         language: 'en',
       }),
     );
@@ -408,6 +426,7 @@ describe('buildDirectedPlan', () => {
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
           count: 2,
+          durationS: null,
           scenePrompt: null,
           sceneSummary: null,
           characterIds: ['c-borrado'],

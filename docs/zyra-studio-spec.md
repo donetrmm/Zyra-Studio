@@ -159,6 +159,9 @@ create table campaigns (
   -- del Brand Kit. Con false, el plan omite formatos que exigen empaque y la
   -- generación no envía packaging_image_ids al modelo.
   include_packaging boolean not null default true,
+  -- aspect_ratio (migración 034): formato de video de la campaña (9:16/16:9/1:1),
+  -- elegido en el wizard. Default de todos los items del plan; editable por item.
+  aspect_ratio text not null default '9:16',
   created_at timestamptz default now()
 );
 

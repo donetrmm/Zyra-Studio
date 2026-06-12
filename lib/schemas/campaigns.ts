@@ -82,6 +82,9 @@ export const CreateCampaignStudioSchema = z
     // Con false, el plan omite formatos que exigen empaque y la generación no
     // envía packaging_image_ids.
     includePackaging: z.boolean().default(true),
+    // Formato de video de la campaña (034): default de todos los creativos
+    // del plan; cada item puede cambiarlo en la edición.
+    aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
   })

@@ -45,6 +45,9 @@ const MatchSchema = z.object({
   // item para que el creativo refleje lo que el usuario escribió. Con varias
   // acciones o ≥8s puede traer timeline ("0-3s: ...") — por eso el tope amplio.
   scenePrompt: z.string().trim().min(1).max(1500).nullable().catch(null).default(null),
+  // Duración que la acción necesita (4-15s, 1 acción ≈ 4s). null = usar la
+  // default del formato.
+  durationS: z.number().int().min(4).max(15).nullable().catch(null).default(null),
   // Resumen de la acción en el idioma de la campaña: SOLO display en la UI
   // (el prompt al modelo va en inglés siempre).
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
@@ -144,18 +147,22 @@ Por cada idea distinta devuelve un match:
 - count: cuántos creativos pide la idea. Cantidad explícita ("3 versiones")
   = ese número. Invitación abierta ("varios", "los que se te ocurran",
   "puedes generar más de una") = 2 o 3, a tu criterio. Sin señal, count = 1.
+- durationS: los segundos que la acción NECESITA (entero 4-15; 1 acción ≈ 4s).
+  Una acción simple = 4-6s; varias acciones/beats = más. null para usar la
+  duración default del formato.
 - scenePrompt: la acción concreta de la idea, en INGLÉS, con el producto como
   ancla. Si la acción es UNA sola y simple: 1-2 frases. Si la idea implica
-  varias acciones/beats o el formato dura 8s o más (duración en el catálogo),
-  estructúralo como timeline con marcadores de segundos que cubran la duración
+  varias acciones/beats o durationS es 8 o más, estructúralo como timeline con
+  marcadores de segundos que cubran exactamente durationS
   ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
-  producto protagonista. Si hay un presentador que habla, incluye en cada
-  tramo su línea de diálogo guionizada __SUMMARY_LANG__ entre comillas
-  (Dialogue: "..."), corta y conversacional — como se le habla a un amigo,
-  nunca como locutor. Si recibes imágenes adjuntas (producto y personajes),
-  describe la acción usando lo que VES: colores, materiales, contexto físico
-  real del producto y apariencia real de los personajes. Si la idea solo
-  nombra un formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
+  producto protagonista. Diálogo: SOLO si el usuario pide que alguien hable o
+  da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
+  (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
+  a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
+  inventes. Si recibes imágenes adjuntas (producto y personajes), describe la
+  acción usando lo que VES: colores, materiales, contexto físico real del
+  producto y apariencia real de los personajes. Si la idea solo nombra un
+  formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
 - sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
   1 frase, máximo 200 caracteres, sin marcadores de segundos. Si scenePrompt es
   null, sceneSummary = null.
@@ -166,7 +173,7 @@ Por cada idea distinta devuelve un match:
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
   no menciona. Si no aplica, [].
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null","sceneSummary":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;

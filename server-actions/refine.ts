@@ -33,7 +33,7 @@ async function loadContext(campaignId: string, draft: RefineDraft) {
   const supabase = await createClient();
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, product_brief, language, brand_kit_id')
+    .select('id, workspace_id, product_brief, language, brand_kit_id, aspect_ratio')
     .eq('id', campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -130,9 +130,12 @@ Reglas duras:
   por toma. Si la escena tiene varios beats o dura 8s o más, estructura el
   scenePrompt como timeline con marcadores de segundos que cubran la duración
   ("0-3s: ... 3-7s: ..."), una acción por tramo, cierre con el producto.
-  Si hay un presentador que habla, guioniza su diálogo dentro de cada tramo
-  (Dialogue: "...") ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'},
-  corto y conversacional — como se le habla a un amigo, nunca de locutor.
+  Diálogo: SOLO si el usuario pide que alguien hable o da las líneas —
+  guionízalo dentro de cada tramo (Dialogue: "...") ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'},
+  corto y conversacional, como se le habla a un amigo, nunca de locutor.
+  Si no pidió diálogo, no lo inventes.
+  durationS: elige los segundos que la escena NECESITA (4-15, 1 acción ≈ 4s);
+  no uses la duración default si la acción pide otra cosa.
   Cada vez que cambies scenePrompt actualiza también sceneSummary: 1 frase
   ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'}, máx 200 caracteres,
   sin marcadores de segundos (es lo que el usuario lee en el panel).
@@ -299,7 +302,8 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     reference_ids: parsed.data.draft.referenceIds,
     caption: parsed.data.draft.caption,
     duration_s: parsed.data.draft.durationS ?? ctx.format?.defaultDurationS ?? 8,
-    aspect_ratio: parsed.data.draft.aspectRatio ?? '9:16',
+    // Sin elección explícita en el refinado, manda el formato de la campaña (034).
+    aspect_ratio: parsed.data.draft.aspectRatio ?? (ctx.campaign.aspect_ratio as string | null) ?? '9:16',
     warnings: validation.warnings,
     status: 'planned' as const,
   };

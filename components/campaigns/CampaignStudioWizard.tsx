@@ -70,6 +70,8 @@ export function CampaignStudioWizard({
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
+  // Formato de video de la campaña (034): default de todos los creativos.
+  const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
@@ -120,6 +122,7 @@ export function CampaignStudioWizard({
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       includePackaging,
+      aspectRatio,
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -455,6 +458,35 @@ export function CampaignStudioWizard({
           </div>
           <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
             Idioma de los diálogos y voz en off de los videos; el caption sale en español.
+          </p>
+        </section>
+
+        <section>
+          <span className="text-[12.5px] font-medium text-foreground/80">Formato de video</span>
+          <div className="mt-1.5 flex gap-2">
+            {(
+              [
+                { value: '9:16', label: '9:16 · Vertical' },
+                { value: '16:9', label: '16:9 · Horizontal' },
+                { value: '1:1', label: '1:1 · Cuadrado' },
+              ] as const
+            ).map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                onClick={() => setAspectRatio(a.value)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                  aspectRatio === a.value
+                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+            Aplica a todos los creativos del plan; puedes cambiarlo por video al editar.
           </p>
         </section>
 

@@ -265,6 +265,7 @@ export async function createCampaignStudioAction(
       product_brief: brief,
       character_ids: characterIds,
       include_packaging: parsed.data.includePackaging,
+      aspect_ratio: parsed.data.aspectRatio,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
@@ -301,7 +302,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, aspect_ratio, date_start, date_end, status')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -446,6 +447,7 @@ export async function generatePlanAction(input: unknown): Promise<
             directed.push({
               format: f,
               count: m.count,
+              durationS: m.durationS,
               scenePrompt: m.scenePrompt,
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
@@ -462,6 +464,7 @@ export async function generatePlanAction(input: unknown): Promise<
             directed.push({
               format: existing,
               count: m.count,
+              durationS: m.durationS,
               scenePrompt: m.scenePrompt,
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
@@ -489,6 +492,7 @@ export async function generatePlanAction(input: unknown): Promise<
             directed.push({
               format: pf,
               count: m.count,
+              durationS: m.durationS,
               scenePrompt: m.scenePrompt,
               sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
@@ -541,6 +545,7 @@ export async function generatePlanAction(input: unknown): Promise<
       dateEnd,
       draftModelSlug: DRAFT_MODEL,
       language: campaignLanguage,
+      aspectRatio: (campaign.aspect_ratio as string | null) ?? '9:16',
     });
     if (items.length === 0) {
       return {
@@ -583,6 +588,7 @@ export async function generatePlanAction(input: unknown): Promise<
       dateEnd,
       draftModelSlug: DRAFT_MODEL,
       language: campaignLanguage,
+      aspectRatio: (campaign.aspect_ratio as string | null) ?? '9:16',
     });
     if (items.length === 0) {
       return { ok: false, error: 'validation_error', message: 'No hay formatos viables: revisa Brand Kit y Cast' };
@@ -731,7 +737,7 @@ export async function addCampaignItemAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, goal, product_brief')
+    .select('id, workspace_id, goal, product_brief, aspect_ratio')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -761,7 +767,8 @@ export async function addCampaignItemAction(input: unknown): Promise<
   }
 
   const durationS = parsed.data.durationS ?? (format.default_duration_s as number) ?? 8;
-  const aspectRatio = (format.slug as string) === 'gran-pantalla' ? '16:9' : '9:16';
+  // El formato de video lo decide la campaña (034).
+  const aspectRatio = (campaign.aspect_ratio as string | null) ?? '9:16';
   const caption = buildCaption({
     productName,
     formatSlug: format.slug as string,

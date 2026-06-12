@@ -32,11 +32,18 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
-// Heurística determinista: hay hablante si el item lleva personajes del Cast
-// o la acción menciona presentador/diálogo (cubre inventados del planner).
-function hasSpeaker(req: CompileRequest, ctx: DirectorContext): boolean {
-  if ((ctx.characters?.length ?? 0) > 0) return true;
-  return /\b(presenter|interviewer|dialogue|speaks?|speaking|talks?|talking)\b/i.test(req.scenePrompt);
+// Heurística determinista: la dirección de habla SOLO entra cuando la acción
+// trae diálogo explícito — líneas guionizadas (Dialogue: "..."), texto entre
+// comillas o verbos de habla. Tener personajes en escena NO implica que
+// hablen (decisión del usuario 2026-06-12: diálogos solo si los pide o los da).
+function hasSpokenDialogue(req: CompileRequest): boolean {
+  const p = req.scenePrompt;
+  return (
+    /\bdialogue\s*:/i.test(p) ||
+    /"[^"\n]{2,}"/.test(p) ||
+    /[“”][^“”\n]{2,}[“”]/.test(p) ||
+    /\b(speaks?|speaking|says|saying|delivers? a line|voice-?over)\b/i.test(p)
+  );
 }
 
 // Tope de trabajo del prompt: fal NO documenta límite (verificado 2026-06-12
@@ -151,7 +158,7 @@ export function compileSeedance(
 
   const duration = req.durationS ?? ctx.format?.defaultDurationS;
   const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
-  const speaker = generateAudio && hasSpeaker(req, ctx);
+  const speaker = generateAudio && hasSpokenDialogue(req);
 
   const sections: string[] = [];
 

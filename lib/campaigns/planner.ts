@@ -38,6 +38,8 @@ export type PlannerInput = {
   draftModelSlug: string;
   // Idioma de la campaña: decide el idioma del sceneSummary (033).
   language: 'es' | 'en';
+  // Formato de video de la campaña (034): aplica a todos los items del plan.
+  aspectRatio: string;
 };
 
 export type PlanItemDraft = {
@@ -238,6 +240,9 @@ export type DirectedIdea = {
   format: PlannerFormat;
   count: number;
   scenePrompt: string | null;
+  // Segundos que la acción necesita según el matcher (4-15); null = la
+  // duración default del formato.
+  durationS: number | null;
   // Resumen display del matcher en el idioma de la campaña (033); null cae a
   // la semilla en español (es) o al scenePrompt (en).
   sceneSummary: string | null;
@@ -261,6 +266,8 @@ export type DirectedPlanInput = {
   draftModelSlug: string;
   // Idioma de la campaña: decide el idioma del sceneSummary (033).
   language: 'es' | 'en';
+  // Formato de video de la campaña (034): aplica a todos los items del plan.
+  aspectRatio: string;
 };
 
 export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
@@ -314,8 +321,11 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         formatId: format.id,
         formatSlug: format.slug,
         modelSlug: input.draftModelSlug,
-        durationS: format.defaultDurationS,
-        aspectRatio: format.slug === 'gran-pantalla' ? '16:9' : '9:16',
+        // La duración la decide la escena (matcher); sin ella, el formato.
+        durationS: idea.durationS ?? format.defaultDurationS,
+        // El formato de video lo decide la campaña (034), sin excepciones por
+        // slug: la elección explícita del usuario manda.
+        aspectRatio: input.aspectRatio,
         scene: scene.fragment,
         audio: format.defaultAudio,
         characterIds,
@@ -395,8 +405,8 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         formatSlug: format.slug,
         modelSlug: input.draftModelSlug,
         durationS: format.defaultDurationS,
-        // Social-first: vertical, salvo el registro cinematográfico.
-        aspectRatio: format.slug === 'gran-pantalla' ? '16:9' : '9:16',
+        // El formato de video lo decide la campaña (034).
+        aspectRatio: input.aspectRatio,
         scene: scene.fragment,
         audio: format.defaultAudio,
         characterIds,
