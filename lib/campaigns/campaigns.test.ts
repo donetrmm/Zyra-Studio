@@ -118,12 +118,18 @@ describe('buildPlan', () => {
   });
 
   it('sin packaging no propone formatos que exigen packaging', () => {
-    const items = buildPlan(
-      plannerInput({ available: { product: true, packaging: false }, characters: [] }),
+    // beauty SÍ incluye el-descubrimiento en su mix (requiredRefs: ['product','packaging']).
+    // Con packaging:false el filtro formatFitsRefs lo debe excluir; con packaging:true aparece.
+    const withoutPkg = buildPlan(
+      plannerInput({ category: 'beauty', available: { product: true, packaging: false } }),
     );
-    const slugs = new Set(items.map((i) => i.formatSlug));
-    expect(slugs.has('el-descubrimiento')).toBe(false);
-    expect(items.length).toBe(12); // el total se reparte entre los viables
+    expect(withoutPkg.map((i) => i.formatSlug)).not.toContain('el-descubrimiento');
+    expect(withoutPkg.length).toBe(12); // el total se reparte entre los viables
+
+    const withPkg = buildPlan(
+      plannerInput({ category: 'beauty', available: { product: true, packaging: true } }),
+    );
+    expect(withPkg.map((i) => i.formatSlug)).toContain('el-descubrimiento');
   });
 
   it('asigna personajes solo a formatos que los requieren', () => {
@@ -358,6 +364,30 @@ describe('buildDirectedPlan', () => {
     );
     expect(items).toHaveLength(1);
     expect(items[0].scenePrompt).toContain(DEFAULT_PRESENTER);
+  });
+
+  it('characterIds con ids inexistentes en el pool cae a rotación del pool', () => {
+    // El matcher devolvió un id que ya no existe en la campaña ('c-borrado').
+    // El planner debe ignorarlo y asignar por rotación del pool real.
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('voz-cercana', ['product', 'character']),
+          count: 2,
+          scenePrompt: null,
+          characterIds: ['c-borrado'],
+          invented: [],
+        }],
+        characters: [{ id: 'c-pool-1', name: 'Ana' }, { id: 'c-pool-2', name: 'Bruno' }],
+      }),
+    );
+    expect(items).toHaveLength(2);
+    // Cada item debe llevar exactamente 1 personaje del pool real
+    expect(items[0].characterIds).toHaveLength(1);
+    expect(items[1].characterIds).toHaveLength(1);
+    const validIds = new Set(['c-pool-1', 'c-pool-2']);
+    expect(validIds.has(items[0].characterIds[0])).toBe(true);
+    expect(validIds.has(items[1].characterIds[0])).toBe(true);
   });
 });
 
