@@ -27,7 +27,9 @@ export type PlannerInput = {
   characters: PlannerCharacter[];
   // Qué referencias existen en el Brand Kit/Cast: el plan nunca propone un
   // formato cuyos required_refs no se pueden cumplir (evita items bloqueados).
-  available: { product: boolean; packaging: boolean; character: boolean };
+  // Nota: `character` se eliminó — el personaje puede inventarse en el prompt,
+  // por lo que nunca bloquea un formato (spec 2026-06-12).
+  available: { product: boolean; packaging: boolean };
   // Ciclo de aprendizaje (doc V2 §4.1 etapa 5): slugs de formatos con
   // creativos ganadores o plantillas destiladas — reciben doble peso en el mix.
   winningSlugs?: string[];
@@ -44,11 +46,20 @@ export type PlanItemDraft = {
   aspectRatio: string;
   scene: string;            // fragment de la escena (va al contexto del compile)
   audio: boolean;
-  characterId: string | null;
+  // orden = orden de referencias del prompt; [0] es el personaje principal.
+  // Array vacío cuando el formato no necesita personaje o el pool está vacío y
+  // se resuelve con el DEFAULT_PRESENTER inyectado en scenePrompt.
+  characterIds: string[];
   scenePrompt: string;
   caption: string;          // metadato de publicación (gancho + CTA + tags)
   scheduledDate: string;    // YYYY-MM-DD
 };
+
+// Presentador inventado cuando el formato pide personaje y la campaña no
+// asignó ninguno (spec 2026-06-12): solo texto, sin imagen — coherencia
+// razonable, no identidad garantizada.
+export const DEFAULT_PRESENTER =
+  'a presenter with shoulder-length dark hair, neutral casual wardrobe and a warm confident delivery';
 
 // Mix de formatos por categoría — mapa PROPIO (doc V2: no copiar relevance
 // maps de terceros). El núcleo universal funciona para casi todo; cada
@@ -117,11 +128,13 @@ const CONCEPT_SEEDS: Record<string, Seed[]> = {
   ],
 };
 
+// `character` se elimina de la comprobación: el personaje puede inventarse en
+// el prompt (DEFAULT_PRESENTER o inventados del matcher), por lo que su
+// ausencia nunca bloquea un formato.
 function formatFitsRefs(format: PlannerFormat, available: PlannerInput['available']): boolean {
   for (const ref of format.requiredRefs) {
     if (ref === 'product' && !available.product) return false;
     if (ref === 'packaging' && !available.packaging) return false;
-    if (ref === 'character' && !available.character) return false;
   }
   return true;
 }
@@ -164,6 +177,12 @@ export type DirectedIdea = {
   format: PlannerFormat;
   count: number;
   scenePrompt: string | null;
+  // Personajes mencionados explícitamente por el matcher, ya validados y
+  // saneados. [0] = primer mencionado (principal). Array vacío = sin mención.
+  characterIds: string[];
+  // Personajes inventados por el matcher que no existen en el pool de la
+  // campaña. Se inyectan como frases descriptivas en el scenePrompt.
+  invented: Array<{ name: string; description: string }>;
 };
 
 export type DirectedPlanInput = {
@@ -196,10 +215,31 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         name: 'Estudio',
         fragment: 'a clean minimal studio setting with controlled soft light',
       };
-      const character = needsCharacter && input.characters.length
-        ? input.characters[(gIdx + i) % input.characters.length]
-        : null;
+
+      // Personajes mencionados por el matcher, validados contra el pool.
+      const fromIdea = idea.characterIds
+        .filter((id) => input.characters.some((c) => c.id === id))
+        .slice(0, 3);
+      // Rotación del pool cuando no hay mención explícita.
+      const rotated =
+        needsCharacter && input.characters.length
+          ? [input.characters[(gIdx + i) % input.characters.length].id]
+          : [];
+      const characterIds = fromIdea.length ? fromIdea : rotated;
+
       const seed = seeds[i % seeds.length];
+      let scenePrompt = idea.scenePrompt ?? seed({ product: input.productName, scene: scene.fragment });
+
+      // Personajes inventados → frases descriptivas en el scenePrompt.
+      const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
+      // Sin pool, sin inventados y el formato pide personaje → presentador genérico.
+      if (needsCharacter && characterIds.length === 0 && inventedLines.length === 0) {
+        inventedLines.push(`The presenter is ${DEFAULT_PRESENTER}.`);
+      }
+      if (inventedLines.length) {
+        scenePrompt = `${scenePrompt.trim().replace(/\.?$/, '.')} ${inventedLines.join(' ')}`;
+      }
+
       items.push({
         formatId: format.id,
         formatSlug: format.slug,
@@ -208,8 +248,8 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         aspectRatio: format.slug === 'gran-pantalla' ? '16:9' : '9:16',
         scene: scene.fragment,
         audio: format.defaultAudio,
-        characterId: character?.id ?? null,
-        scenePrompt: idea.scenePrompt ?? seed({ product: input.productName, scene: scene.fragment }),
+        characterIds,
+        scenePrompt,
         caption: buildCaption({
           productName: input.productName,
           formatSlug: format.slug,
@@ -267,10 +307,18 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         name: 'Estudio',
         fragment: 'a clean minimal studio setting with controlled soft light',
       };
-      const character = needsCharacter && input.characters.length
-        ? input.characters[(fIdx + i) % input.characters.length]
-        : null;
+      const characterIds =
+        needsCharacter && input.characters.length
+          ? [input.characters[(fIdx + i) % input.characters.length].id]
+          : [];
+
       const seed = seeds[i % seeds.length];
+      let scenePrompt = seed({ product: input.productName, scene: scene.fragment });
+      // Sin pool de personajes y el formato pide personaje → presentador genérico.
+      if (needsCharacter && characterIds.length === 0) {
+        scenePrompt = `${scenePrompt.trim().replace(/\.?$/, '.')} The presenter is ${DEFAULT_PRESENTER}.`;
+      }
+
       items.push({
         formatId: format.id,
         formatSlug: format.slug,
@@ -280,8 +328,8 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         aspectRatio: format.slug === 'gran-pantalla' ? '16:9' : '9:16',
         scene: scene.fragment,
         audio: format.defaultAudio,
-        characterId: character?.id ?? null,
-        scenePrompt: seed({ product: input.productName, scene: scene.fragment }),
+        characterIds,
+        scenePrompt,
         caption: buildCaption({
           productName: input.productName,
           formatSlug: format.slug,

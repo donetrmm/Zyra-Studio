@@ -3,8 +3,10 @@ import {
   buildDirectedPlan,
   buildPlan,
   MAX_PLAN_ITEMS,
+  DEFAULT_PRESENTER,
   type DirectedPlanInput,
   type PlannerInput,
+  type PlannerFormat,
 } from './planner';
 import { buildCaption, productHashtag } from './captions';
 import { htmlToText, isPrivateIp } from './brief';
@@ -50,11 +52,45 @@ function plannerInput(overrides: Partial<PlannerInput> = {}): PlannerInput {
       { id: 'char-1', name: 'Maya' },
       { id: 'char-2', name: 'Leo' },
     ],
-    available: { product: true, packaging: false, character: true },
+    available: { product: true, packaging: false },
     dateStart: new Date('2026-07-01'),
     dateEnd: new Date('2026-07-30'),
     draftModelSlug: 'bytedance/seedance-2.0/fast/reference-to-video',
     ...overrides,
+  };
+}
+
+// Helper: busca en FORMATS si no se pasan refs; crea formato ad-hoc si se pasan.
+const fmt = (slug: string, refs?: string[]): PlannerFormat => {
+  if (refs !== undefined) {
+    return {
+      id: `id-${slug}`,
+      slug,
+      name: slug,
+      requiredRefs: refs,
+      defaultDurationS: 8,
+      defaultAudio: true,
+    };
+  }
+  const f = FORMATS.find((x) => x.slug === slug);
+  if (!f) throw new Error(`fixture sin formato ${slug}`);
+  return f;
+};
+
+// Helper unificado para DirectedPlanInput. Acepta Partial con `ideas` incluida.
+function directedInput(over: Partial<DirectedPlanInput> = {}): DirectedPlanInput {
+  const base = plannerInput();
+  return {
+    ideas: [],
+    productName: base.productName,
+    goal: base.goal,
+    scenes: base.scenes,
+    characters: base.characters,
+    available: base.available,
+    dateStart: base.dateStart,
+    dateEnd: base.dateEnd,
+    draftModelSlug: base.draftModelSlug,
+    ...over,
   };
 }
 
@@ -81,22 +117,21 @@ describe('buildPlan', () => {
     expect(slugs.has('manos-a-la-obra')).toBe(true);
   });
 
-  it('sin Cast no propone formatos que exigen personaje', () => {
+  it('sin packaging no propone formatos que exigen packaging', () => {
     const items = buildPlan(
-      plannerInput({ available: { product: true, packaging: false, character: false }, characters: [] }),
+      plannerInput({ available: { product: true, packaging: false }, characters: [] }),
     );
     const slugs = new Set(items.map((i) => i.formatSlug));
-    expect(slugs.has('voz-cercana')).toBe(false);
-    expect(slugs.has('a-pie-de-calle')).toBe(false);
+    expect(slugs.has('el-descubrimiento')).toBe(false);
     expect(items.length).toBe(12); // el total se reparte entre los viables
   });
 
-  it('asigna personaje solo a formatos que lo requieren', () => {
+  it('asigna personajes solo a formatos que los requieren', () => {
     const items = buildPlan(plannerInput());
     for (const item of items) {
       const needsChar = ['voz-cercana', 'a-pie-de-calle'].includes(item.formatSlug);
-      if (needsChar) expect(item.characterId).not.toBeNull();
-      else expect(item.characterId).toBeNull();
+      if (needsChar) expect(item.characterIds.length).toBeGreaterThan(0);
+      else expect(item.characterIds).toEqual([]);
     }
   });
 
@@ -135,46 +170,35 @@ describe('buildPlan', () => {
 
   it('sin formatos viables devuelve vacío', () => {
     const items = buildPlan(
-      plannerInput({ available: { product: false, packaging: false, character: false } }),
+      plannerInput({ available: { product: false, packaging: false } }),
     );
     expect(items).toHaveLength(0);
+  });
+
+  it('sin pool de personajes y formato con personaje agrega el presentador genérico al scenePrompt', () => {
+    const items = buildPlan(
+      plannerInput({ characters: [] }),
+    );
+    const vozcercana = items.filter((i) => i.formatSlug === 'voz-cercana');
+    expect(vozcercana.length).toBeGreaterThan(0);
+    for (const item of vozcercana) {
+      expect(item.characterIds).toEqual([]);
+      expect(item.scenePrompt).toContain(DEFAULT_PRESENTER);
+    }
   });
 });
 
 // ============ Plan dirigido por ideas ============
 
-const fmt = (slug: string) => {
-  const f = FORMATS.find((x) => x.slug === slug);
-  if (!f) throw new Error(`fixture sin formato ${slug}`);
-  return f;
-};
-
-function directedInput(
-  ideas: DirectedPlanInput['ideas'],
-  overrides: Partial<DirectedPlanInput> = {},
-): DirectedPlanInput {
-  const base = plannerInput();
-  return {
-    ideas,
-    productName: base.productName,
-    goal: base.goal,
-    scenes: base.scenes,
-    characters: base.characters,
-    available: base.available,
-    dateStart: base.dateStart,
-    dateEnd: base.dateEnd,
-    draftModelSlug: base.draftModelSlug,
-    ...overrides,
-  };
-}
-
 describe('buildDirectedPlan', () => {
   it('genera exactamente los creativos pedidos, sin rellenar', () => {
     const items = buildDirectedPlan(
-      directedInput([
-        { format: fmt('el-icono'), count: 1, scenePrompt: null },
-        { format: fmt('susurro'), count: 3, scenePrompt: null },
-      ]),
+      directedInput({
+        ideas: [
+          { format: fmt('el-icono'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 3, scenePrompt: null, characterIds: [], invented: [] },
+        ],
+      }),
     );
     expect(items).toHaveLength(4);
     const bySlug = new Map<string, number>();
@@ -185,20 +209,26 @@ describe('buildDirectedPlan', () => {
 
   it('el scenePrompt del matcher manda sobre las semillas del formato', () => {
     const items = buildDirectedPlan(
-      directedInput([
-        {
-          format: fmt('mundo-imposible'),
-          count: 1,
-          scenePrompt: 'A dog carries the product through a park, tail wagging',
-        },
-      ]),
+      directedInput({
+        ideas: [
+          {
+            format: fmt('mundo-imposible'),
+            count: 1,
+            scenePrompt: 'A dog carries the product through a park, tail wagging',
+            characterIds: [],
+            invented: [],
+          },
+        ],
+      }),
     );
     expect(items[0].scenePrompt).toBe('A dog carries the product through a park, tail wagging');
   });
 
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
-      directedInput([{ format: fmt('el-icono'), count: 2, scenePrompt: null }]),
+      directedInput({
+        ideas: [{ format: fmt('el-icono'), count: 2, scenePrompt: null, characterIds: [], invented: [] }],
+      }),
     );
     for (const item of items) {
       expect(item.scenePrompt.length).toBeGreaterThan(20);
@@ -208,15 +238,16 @@ describe('buildDirectedPlan', () => {
     expect(items[0].scenePrompt).not.toBe(items[1].scenePrompt);
   });
 
-  it('filtra ideas cuyos formatos requieren referencias que faltan', () => {
+  it('filtra ideas cuyos formatos requieren referencias de producto/packaging que faltan', () => {
     const items = buildDirectedPlan(
-      directedInput(
-        [
-          { format: fmt('voz-cercana'), count: 2, scenePrompt: null },
-          { format: fmt('el-icono'), count: 1, scenePrompt: null },
+      directedInput({
+        ideas: [
+          { format: fmt('el-descubrimiento'), count: 2, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
         ],
-        { available: { product: true, packaging: false, character: false }, characters: [] },
-      ),
+        available: { product: true, packaging: false },
+        characters: [],
+      }),
     );
     expect(items).toHaveLength(1);
     expect(items[0].formatSlug).toBe('el-icono');
@@ -224,44 +255,109 @@ describe('buildDirectedPlan', () => {
 
   it('devuelve vacío si ninguna idea es viable', () => {
     const items = buildDirectedPlan(
-      directedInput(
-        [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null }],
-        { available: { product: true, packaging: false, character: true } },
-      ),
+      directedInput({
+        ideas: [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null, characterIds: [], invented: [] }],
+        available: { product: true, packaging: false },
+      }),
     );
     expect(items).toHaveLength(0);
   });
 
   it('aplica el techo demo de 30 creativos en total', () => {
     const items = buildDirectedPlan(
-      directedInput([
-        { format: fmt('el-icono'), count: 10, scenePrompt: null },
-        { format: fmt('susurro'), count: 10, scenePrompt: null },
-        { format: fmt('gran-pantalla'), count: 10, scenePrompt: null },
-        { format: fmt('antes-y-despues'), count: 10, scenePrompt: null },
-      ]),
+      directedInput({
+        ideas: [
+          { format: fmt('el-icono'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('antes-y-despues'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
+        ],
+      }),
     );
     expect(items).toHaveLength(MAX_PLAN_ITEMS);
   });
 
-  it('asigna personaje, aspect ratio y fechas como el plan por mix', () => {
+  it('asigna personajes, aspect ratio y fechas como el plan por mix', () => {
     const items = buildDirectedPlan(
-      directedInput([
-        { format: fmt('voz-cercana'), count: 2, scenePrompt: null },
-        { format: fmt('gran-pantalla'), count: 1, scenePrompt: null },
-      ]),
+      directedInput({
+        ideas: [
+          { format: fmt('voz-cercana'), count: 2, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
+        ],
+      }),
     );
     for (const item of items) {
       if (item.formatSlug === 'voz-cercana') {
-        expect(item.characterId).not.toBeNull();
+        expect(item.characterIds.length).toBeGreaterThan(0);
         expect(item.aspectRatio).toBe('9:16');
       } else {
-        expect(item.characterId).toBeNull();
+        expect(item.characterIds).toEqual([]);
         expect(item.aspectRatio).toBe('16:9');
       }
       expect(item.scheduledDate >= '2026-07-01').toBe(true);
       expect(item.scheduledDate <= '2026-07-30').toBe(true);
     }
+  });
+
+  // ---- Tests nuevos (Task 3) ----
+
+  it('asigna los personajes mencionados por el matcher al creativo', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('voz-cercana', ['product', 'character']),
+          count: 1, scenePrompt: 'She presents the can',
+          characterIds: ['c2', 'c1'], invented: [],
+        }],
+        characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
+      }),
+    );
+    expect(items[0].characterIds).toEqual(['c2', 'c1']);
+  });
+
+  it('sin mención rota un personaje del pool', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('voz-cercana', ['product', 'character']),
+          count: 2, scenePrompt: null, characterIds: [], invented: [],
+        }],
+        characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
+      }),
+    );
+    expect(items.map((i) => i.characterIds.length)).toEqual([1, 1]);
+    expect(items[0].characterIds).not.toEqual(items[1].characterIds);
+  });
+
+  it('inventados van al scene_prompt y el formato con personaje ya no se bloquea sin pool', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('voz-cercana', ['product', 'character']),
+          count: 1, scenePrompt: 'Lucia tries the product',
+          characterIds: [],
+          invented: [{ name: 'Lucía', description: 'a presenter with short auburn hair' }],
+        }],
+        characters: [],
+      }),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].characterIds).toEqual([]);
+    expect(items[0].scenePrompt).toContain('Lucía is a presenter with short auburn hair');
+  });
+
+  it('formato con personaje, sin pool y sin inventados usa el presentador genérico', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('voz-cercana', ['product', 'character']),
+          count: 1, scenePrompt: null, characterIds: [], invented: [],
+        }],
+        characters: [],
+      }),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].scenePrompt).toContain(DEFAULT_PRESENTER);
   });
 });
 
