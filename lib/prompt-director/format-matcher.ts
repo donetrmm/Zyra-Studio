@@ -40,6 +40,45 @@ function extractJson(raw: string): string {
   return fenced ? fenced[1] : trimmed;
 }
 
+function kebab(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+const REF_VALUES = new Set(['product', 'character', 'packaging']);
+
+// El LLM no siempre respeta la forma pedida: claves en español (registro,
+// estiloDeCamara, ritmo) o campos faltantes. Normalizar antes de validar —
+// que un sinónimo o un default no tire la idea del usuario.
+function normalizeCustomFormat(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  const o = value as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const slugSource = str(o.slug) ?? str(o.name) ?? str(o.nombre);
+  if (!slugSource) return value; // sin nada usable: que lo rechace el schema
+  const slug = kebab(slugSource);
+  const fallbackName = slug.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  const duration = typeof o.defaultDurationS === 'number' ? Math.round(o.defaultDurationS) : 8;
+  const refs = (Array.isArray(o.requiredRefs) ? o.requiredRefs : [])
+    .filter((r): r is string => typeof r === 'string' && REF_VALUES.has(r));
+  return {
+    slug,
+    name: (str(o.name) ?? str(o.nombre) ?? fallbackName).slice(0, 80),
+    description: (str(o.description) ?? str(o.descripcion) ?? '').slice(0, 300),
+    register: (str(o.register) ?? str(o.registro) ?? '').slice(0, 200),
+    cameraStyle: (str(o.cameraStyle) ?? str(o.estiloDeCamara) ?? str(o.camera_style) ?? '').slice(0, 200),
+    pacing: (str(o.pacing) ?? str(o.ritmo) ?? '').slice(0, 120),
+    requiredRefs: refs.length ? refs : ['product'],
+    defaultDurationS: Math.min(15, Math.max(4, duration)),
+    defaultAudio: typeof o.defaultAudio === 'boolean' ? o.defaultAudio : true,
+  };
+}
+
 const GeminiResponseSchema = z.object({
   candidates: z
     .array(z.object({
@@ -52,8 +91,13 @@ const SYSTEM = `Eres director creativo de una plataforma de anuncios con IA.
 Recibes ideas de campaña en lenguaje natural y un catálogo de formatos.
 Por cada idea distinta devuelve un match:
 - Si encaja en un formato del catálogo: formatId con su id exacto y customFormat null.
-- Si NO encaja: formatId null y customFormat con registro, estilo de cámara y
-  ritmo inferidos de la idea. slug en kebab-case, nombres en español.
+- Si NO encaja: formatId null y customFormat con EXACTAMENTE estas claves
+  (claves en inglés, valores en español):
+  {"slug":"kebab-case-sin-acentos","name":"Nombre del formato","description":"una línea: qué es",
+  "register":"registro/tono","cameraStyle":"estilo de cámara","pacing":"ritmo",
+  "requiredRefs":["product"],"defaultDurationS":8,"defaultAudio":true}
+  requiredRefs es subconjunto de ["product","character","packaging"];
+  defaultDurationS es un entero entre 4 y 15.
 - count: cuántos creativos pide la idea. Cantidad explícita ("3 versiones")
   = ese número. Invitación abierta ("varios", "los que se te ocurran",
   "puedes generar más de una") = 2 o 3, a tu criterio. Sin señal, count = 1.
@@ -143,7 +187,13 @@ async function requestMatch(input: {
   const matches = loose.data.matches
     .slice(0, 8)
     .flatMap((m) => {
-      const parsed = MatchSchema.safeParse(m);
+      const candidate = m && typeof m === 'object'
+        ? {
+            ...(m as Record<string, unknown>),
+            customFormat: normalizeCustomFormat((m as Record<string, unknown>).customFormat ?? null),
+          }
+        : m;
+      const parsed = MatchSchema.safeParse(candidate);
       return parsed.success ? [parsed.data] : [];
     });
   if (matches.length === 0) {
