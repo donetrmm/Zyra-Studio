@@ -131,22 +131,49 @@ describe('compile seedance', () => {
     expect(res.compiled.params.resolution).toBe('480p'); // default draft en fast
   });
 
-  it('recorta referencias al tope de 12 con warning', () => {
+  it('el presupuesto nunca excede 9 imágenes ni 12 archivos totales', () => {
+    // Peor caso real:
+    //   producto     3 imágenes   (imagePaths)
+    //   empaque      2 imágenes   (packagingImagePaths)
+    //   personaje    1 master + 2 ángulos = 3 imágenes
+    //   extras       2 imágenes   (extraImagePaths)
+    //   templateVideo  1 archivo
+    //   audioRef       1 archivo
+    // Total sin recorte: 10 imágenes + 1 video + 1 audio = 12 archivos
+    // El tope de 9 imágenes debe recortar las extras (quedan 9 img); total ≤ 12.
     const ctx = fullContext();
-    ctx.product!.imagePaths = Array.from({ length: 3 }, (_, i) => `p${i}.png`);
+    ctx.product!.imagePaths = ['p1.png', 'p2.png', 'p3.png'];
     ctx.product!.packagingImagePaths = ['pack1.png', 'pack2.png'];
-    ctx.characters![0].angleImagePaths = ['a1.png', 'a2.png'];
+    ctx.characters = [{
+      name: 'Maya',
+      description: 'curly dark hair, relaxed linen shirt',
+      masterImagePath: 'maya-master.png',
+      angleImagePaths: ['maya-a1.png', 'maya-a2.png'],
+    }];
+    ctx.extraImagePaths = ['x1.png', 'x2.png'];
     ctx.templateVideoPath = 'v.mp4';
     ctx.audioRefPath = 'a.mp3';
-    // 3+2+1+2 imágenes + 1 video + 1 audio = 10 → dentro del tope; forzar exceso:
     ctx.format = { ...vozCercana, requiredRefs: ['product', 'character', 'packaging'] };
+
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She opens the can' },
       ctx,
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
+
+    const images = res.compiled.references.filter((r) => r.kind === 'image');
+    expect(images.length).toBeLessThanOrEqual(9);
     expect(res.compiled.references.length).toBeLessThanOrEqual(12);
+
+    // Orden: imágenes primero, luego video, luego audio
+    const kinds = res.compiled.references.map((r) => r.kind);
+    const firstVideo = kinds.indexOf('video');
+    const firstAudio = kinds.indexOf('audio');
+    const lastImage = kinds.lastIndexOf('image');
+    if (firstVideo !== -1 && lastImage !== -1) expect(lastImage).toBeLessThan(firstVideo);
+    if (firstAudio !== -1 && firstVideo !== -1) expect(firstVideo).toBeLessThan(firstAudio);
+    if (firstAudio !== -1 && lastImage !== -1) expect(lastImage).toBeLessThan(firstAudio);
   });
 
   it('dos personajes: master + 1 ángulo cada uno, con nombre en la línea @', () => {

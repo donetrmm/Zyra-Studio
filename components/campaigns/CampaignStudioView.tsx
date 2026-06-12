@@ -1111,7 +1111,9 @@ function EditItemDialog({
       characterNames: characterId
         ? (() => {
             const name = characterOptions.find((c) => c.id === characterId)?.name;
-            return name ? [name] : item.characterNames;
+            if (!name) return item.characterNames;
+            const rest = item.characterNames.slice(1).filter((n) => n !== name);
+            return [name, ...rest];
           })()
         : item.characterNames,
       caption: caption || null,
