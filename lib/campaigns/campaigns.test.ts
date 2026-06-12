@@ -13,6 +13,8 @@ import { htmlToText, isPrivateIp } from './brief';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
 import { buildSeries, buildTemplateParams } from './distill';
 import type { PricingRow } from '@/lib/credits/types';
+import { MergeSequenceSchema } from '@/lib/schemas/campaigns';
+import { mergeScenes } from '@/lib/campaigns/merge';
 
 // ============ Fixtures ============
 
@@ -774,4 +776,23 @@ describe('buildPlan captions', () => {
       expect(i.caption).toContain('Lumen');
     }
   });
+});
+
+it('MergeSequenceSchema exige uuids de secuencia y campaña', () => {
+  expect(MergeSequenceSchema.safeParse({ sequenceId: 'no-uuid', campaignId: 'x' }).success).toBe(false);
+  const ok = MergeSequenceSchema.safeParse({
+    sequenceId: '00000000-0000-4000-8000-000000000001',
+    campaignId: '00000000-0000-4000-8000-000000000002',
+  });
+  expect(ok.success).toBe(true);
+});
+
+it('mergeScenes une por saltos de linea y capa la duracion a 15', () => {
+  const { joinedPrompt, mergedDuration } = mergeScenes([
+    { scene_prompt: 'A', duration_s: 6 },
+    { scene_prompt: 'B', duration_s: 6 },
+    { scene_prompt: 'C', duration_s: 6 },
+  ]);
+  expect(joinedPrompt).toBe('A\nB\nC');
+  expect(mergedDuration).toBe(15);
 });

@@ -29,9 +29,11 @@ import {
   DistillTemplateSchema,
   GeneratePlanSchema,
   GenerateSeriesSchema,
+  MergeSequenceSchema,
   RequestFinalSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
+import { mergeScenes } from '@/lib/campaigns/merge';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { buildSeries, buildTemplateParams, type TemplateFixedParams, type TemplateSlots } from '@/lib/campaigns/distill';
 import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
@@ -631,6 +633,9 @@ export async function generatePlanAction(input: unknown): Promise<
       caption: i.caption,
       scheduled_date: i.scheduledDate,
       status: 'planned',
+      sequence_id: i.sequenceId,
+      scene_index: i.sceneIndex,
+      sequence_label: i.sequenceLabel,
     })),
   );
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
@@ -1830,4 +1835,58 @@ export async function previewItemPromptAction(itemId: string): Promise<
       errors: [],
     },
   };
+}
+
+// ============================================================
+// Secuencias: unir N escenas planificadas en 1 clip (specs/v2 §7 secuencias)
+// ============================================================
+
+// Colapsa todas las escenas de una secuencia (sequence_id) en un único
+// campaign_item: los prompts se concatenan y la duracion total se capa a 15s.
+// Solo funciona si TODAS las escenas estan en estado 'planned'.
+export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true }>> {
+  const parsed = MergeSequenceSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  // Ownership + estado: todas las escenas deben ser de la campaña del workspace
+  // y estar en 'planned' (sin generar).
+  const { data: rows } = await supabase
+    .from('campaign_items')
+    .select('id, status, scene_prompt, duration_s, format_id, model_slug, aspect_ratio, scene, audio, character_id, character_ids, caption, scheduled_date, sequence_label, campaigns!inner(workspace_id)')
+    .eq('campaign_id', parsed.data.campaignId)
+    .eq('sequence_id', parsed.data.sequenceId)
+    .order('scene_index', { ascending: true });
+
+  if (!rows || rows.length === 0) return { ok: false, error: 'not_found' };
+  const ws = (rows[0] as { campaigns?: { workspace_id?: string } }).campaigns?.workspace_id;
+  if (ws !== workspace.id) return { ok: false, error: 'not_found' };
+  if (rows.some((r) => r.status !== 'planned')) {
+    return { ok: false, error: 'validation_error', message: 'No se puede unir: alguna escena ya se generó' };
+  }
+
+  const first = rows[0] as Record<string, unknown>;
+  const { joinedPrompt, mergedDuration } = mergeScenes(
+    rows.map((r) => ({ scene_prompt: r.scene_prompt as string, duration_s: r.duration_s as number | null })),
+  );
+
+  const { error: delErr } = await supabase
+    .from('campaign_items').delete()
+    .eq('campaign_id', parsed.data.campaignId).eq('sequence_id', parsed.data.sequenceId);
+  if (delErr) return { ok: false, error: 'internal_error', message: delErr.message };
+
+  const { error: insErr } = await supabase.from('campaign_items').insert({
+    campaign_id: parsed.data.campaignId,
+    format_id: first.format_id, model_slug: first.model_slug, duration_s: mergedDuration,
+    aspect_ratio: first.aspect_ratio, scene: first.scene, audio: first.audio,
+    character_id: first.character_id, character_ids: first.character_ids,
+    scene_prompt: joinedPrompt, scene_summary: null, caption: first.caption,
+    scheduled_date: first.scheduled_date, status: 'planned',
+    sequence_id: null, scene_index: null, sequence_label: null,
+  });
+  if (insErr) return { ok: false, error: 'internal_error', message: insErr.message };
+
+  revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
+  return { ok: true, data: { merged: true } };
 }

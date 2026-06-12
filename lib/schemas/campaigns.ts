@@ -184,6 +184,11 @@ export const UpdateCampaignItemSchema = CampaignItemSchema.partial().extend({
   itemId: z.string().uuid(),
 });
 
+export const MergeSequenceSchema = z.object({
+  sequenceId: z.string().uuid(),
+  campaignId: z.string().uuid(),
+});
+
 // Agregar un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
 // El modelo y el caption los decide el server (tier draft + caption generado).
 export const AddCampaignItemSchema = z.object({
