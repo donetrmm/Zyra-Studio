@@ -17,7 +17,7 @@ import {
 } from '@/lib/campaigns/planner';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
-import { enqueueBatch } from '@/lib/campaigns/orchestrator';
+import { enqueueBatch, itemCharacterIds, loadCampaignContext } from '@/lib/campaigns/orchestrator';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -37,7 +37,7 @@ import { buildSeries, buildTemplateParams, type TemplateFixedParams, type Templa
 import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
 import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
 import { signedOutputUrl } from '@/lib/supabase/storage';
-import { compile } from '@/lib/prompt-director';
+import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas } from '@/lib/prompt-director/format-matcher';
 import { ProviderError } from '@/lib/providers/types';
@@ -187,6 +187,25 @@ export async function createCampaignStudioAction(
     }
   }
 
+  // Pool de personajes (máx 3 por schema): ownership + que tengan imagen.
+  let characterIds: string[] = [];
+  if (parsed.data.characterIds.length) {
+    const { data: chars } = await supabase
+      .from('characters')
+      .select('id, workspace_id, master_image_id, reference_image_ids')
+      .in('id', parsed.data.characterIds);
+    const valid = new Set(
+      (chars ?? [])
+        .filter((c) => c.workspace_id === workspace.id)
+        .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
+        .map((c) => c.id as string),
+    );
+    if (parsed.data.characterIds.some((id) => !valid.has(id))) {
+      return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
+    }
+    characterIds = parsed.data.characterIds; // orden del wizard = principal primero
+  }
+
   // Auto-detección del brief con la primera imagen.
   const { data: refRow } = await supabase
     .from('media_references')
@@ -252,6 +271,7 @@ export async function createCampaignStudioAction(
       market: parsed.data.market ?? brief.market,
       brand_kit_id: kitId,
       product_brief: brief,
+      character_ids: characterIds,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
@@ -277,6 +297,8 @@ export async function generatePlanAction(input: unknown): Promise<
     // Código del error del matcher cuando se dieron ideas pero el plan cayó
     // al mix: el wizard lo traduce a un motivo legible en el toast.
     matcherError?: string;
+    // Nombres de personajes inventados por el matcher: para el toast del wizard.
+    inventedNames?: string[];
   }>
 > {
   const parsed = GeneratePlanSchema.safeParse(input);
@@ -286,7 +308,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, date_start, date_end, status')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -300,7 +322,7 @@ export async function generatePlanAction(input: unknown): Promise<
   }
 
   // Disponibilidad de referencias (el plan nunca propone formatos bloqueados).
-  const available = { product: false, packaging: false, character: false };
+  const available = { product: false, packaging: false };
   if (campaign.brand_kit_id) {
     const { data: kit } = await supabase
       .from('brand_kits')
@@ -314,14 +336,24 @@ export async function generatePlanAction(input: unknown): Promise<
     available.packaging = ((kit?.packaging_image_ids as string[]) ?? []).length > 0;
   }
 
-  const { data: characterRows } = await supabase
-    .from('characters')
-    .select('id, name, master_image_id, reference_image_ids')
-    .eq('workspace_id', workspace.id);
-  const characters = (characterRows ?? [])
-    .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
-    .map((c) => ({ id: c.id as string, name: c.name as string }));
-  available.character = characters.length > 0;
+  // Pool de la campaña (spec 2026-06-12): el plan solo usa los personajes
+  // asignados; pool vacío = formatos con presentador usan personaje inventado.
+  const poolIds = ((campaign.character_ids as string[]) ?? []).slice(0, 3);
+  let characters: Array<{ id: string; name: string }> = [];
+  if (poolIds.length) {
+    const { data: characterRows } = await supabase
+      .from('characters')
+      .select('id, name, master_image_id, reference_image_ids')
+      .eq('workspace_id', workspace.id)
+      .in('id', poolIds);
+    const byId = new Map(
+      (characterRows ?? [])
+        .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
+        .map((c) => [c.id as string, { id: c.id as string, name: c.name as string }]),
+    );
+    // Personajes borrados del Cast desde la creación: se filtran en silencio.
+    characters = poolIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  }
 
   const { data: formatRows } = await supabase
     .from('formats')
@@ -341,6 +373,9 @@ export async function generatePlanAction(input: unknown): Promise<
   // determina cuántos creativos pide; NO se rellena hasta un volumen fijo.
   const directed: DirectedIdea[] = [];
   let matcherError: string | undefined;
+  // Un inventado por nombre: la PRIMERA descripción gana y se reusa en
+  // todos los creativos que lo mencionen (coherencia razonable).
+  const inventedByName = new Map<string, { name: string; description: string }>();
   if (parsed.data.userIdeas) {
     try {
       const matched = await matchIdeas({
@@ -351,12 +386,27 @@ export async function generatePlanAction(input: unknown): Promise<
           name: f.name as string,
           description: (f.description as string | null) ?? null,
         })),
+        characters: characters.map((c) => ({ id: c.id, name: c.name })),
       });
+      for (const m of matched.matches) {
+        for (const p of m.inventedCharacters) {
+          const key = p.name.toLowerCase();
+          if (!inventedByName.has(key)) inventedByName.set(key, p);
+        }
+      }
       let createdCustom = false;
       for (const m of matched.matches) {
         if (m.formatId) {
           const f = formats.find((x) => x.id === m.formatId);
-          if (f) directed.push({ format: f, count: m.count, scenePrompt: m.scenePrompt });
+          if (f) {
+            directed.push({
+              format: f,
+              count: m.count,
+              scenePrompt: m.scenePrompt,
+              characterIds: m.characterIds,
+              invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+            });
+          }
         } else if (m.customFormat) {
           const cf = m.customFormat;
           // Re-planificación: si el slug ya existe en el catálogo del
@@ -364,7 +414,13 @@ export async function generatePlanAction(input: unknown): Promise<
           // chocar con el UNIQUE global de formats.slug.
           const existing = formats.find((x) => x.slug === cf.slug);
           if (existing) {
-            directed.push({ format: existing, count: m.count, scenePrompt: m.scenePrompt });
+            directed.push({
+              format: existing,
+              count: m.count,
+              scenePrompt: m.scenePrompt,
+              characterIds: m.characterIds,
+              invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+            });
             continue;
           }
           const { data: created } = await supabase
@@ -384,7 +440,13 @@ export async function generatePlanAction(input: unknown): Promise<
               defaultAudio: cf.defaultAudio,
             };
             formats.push(pf);
-            directed.push({ format: pf, count: m.count, scenePrompt: m.scenePrompt });
+            directed.push({
+              format: pf,
+              count: m.count,
+              scenePrompt: m.scenePrompt,
+              characterIds: m.characterIds,
+              invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
+            });
             createdCustom = true;
           }
         }
@@ -501,7 +563,8 @@ export async function generatePlanAction(input: unknown): Promise<
       aspect_ratio: i.aspectRatio,
       scene: i.scene,
       audio: i.audio,
-      character_id: i.characterId,
+      character_id: i.characterIds[0] ?? null,
+      character_ids: i.characterIds,
       scene_prompt: i.scenePrompt,
       caption: i.caption,
       scheduled_date: i.scheduledDate,
@@ -516,6 +579,7 @@ export async function generatePlanAction(input: unknown): Promise<
     .eq('id', campaign.id);
 
   revalidatePath(`/app/campaigns/${campaign.id}`);
+  const inventedNamesList = [...inventedByName.values()].map((p) => p.name);
   return {
     ok: true,
     data: {
@@ -523,6 +587,7 @@ export async function generatePlanAction(input: unknown): Promise<
       creditsEstimated: total,
       source: directed.length > 0 ? 'ideas' : 'mix',
       ...(matcherError ? { matcherError } : {}),
+      ...(inventedNamesList.length ? { inventedNames: inventedNamesList } : {}),
     },
   };
 }
@@ -536,7 +601,7 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   // Ownership vía join campaña→workspace (RLS también lo cubre; defensa doble).
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, status, campaigns!inner(workspace_id)')
+    .select('id, campaign_id, status, character_ids, campaigns!inner(workspace_id)')
     .eq('id', parsed.data.itemId)
     .single();
   const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
@@ -549,7 +614,8 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     parsed.data.scene !== undefined ||
     parsed.data.durationS !== undefined ||
     parsed.data.aspectRatio !== undefined ||
-    parsed.data.characterId !== undefined;
+    parsed.data.characterId !== undefined ||
+    parsed.data.characterIds !== undefined;
   if (touchesProduction && !['planned', 'skipped', 'failed'].includes(item.status as string)) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
@@ -559,7 +625,15 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   if (parsed.data.scene !== undefined) patch.scene = parsed.data.scene;
   if (parsed.data.durationS !== undefined) patch.duration_s = parsed.data.durationS;
   if (parsed.data.aspectRatio !== undefined) patch.aspect_ratio = parsed.data.aspectRatio;
-  if (parsed.data.characterId !== undefined) patch.character_id = parsed.data.characterId;
+  if (parsed.data.characterIds !== undefined) {
+    patch.character_ids = parsed.data.characterIds;
+    patch.character_id = parsed.data.characterIds[0] ?? null;
+  } else if (parsed.data.characterId !== undefined) {
+    // Editar el principal conserva al resto del elenco del item.
+    const rest = (((item as Record<string, unknown>).character_ids as string[] | null) ?? []).slice(1);
+    patch.character_id = parsed.data.characterId;
+    patch.character_ids = parsed.data.characterId ? [parsed.data.characterId, ...rest].slice(0, 3) : rest;
+  }
   if (parsed.data.scheduledDate !== undefined) {
     patch.scheduled_date = parsed.data.scheduledDate.toISOString().slice(0, 10);
   }
@@ -631,7 +705,8 @@ export async function addCampaignItemAction(input: unknown): Promise<
       aspect_ratio: aspectRatio,
       scene: parsed.data.scene ?? null,
       audio: (format.default_audio as boolean) ?? true,
-      character_id: parsed.data.characterId ?? null,
+      character_id: parsed.data.characterIds?.[0] ?? parsed.data.characterId ?? null,
+      character_ids: parsed.data.characterIds ?? (parsed.data.characterId ? [parsed.data.characterId] : []),
       scene_prompt: parsed.data.scenePrompt,
       caption,
       scheduled_date: scheduledDate,
@@ -1106,6 +1181,7 @@ export async function generateSeriesAction(
       scene: i.scene,
       audio: i.audio,
       character_id: i.characterId,
+      character_ids: i.characterId ? [i.characterId] : [],
       scene_prompt: i.scenePrompt,
       caption: buildCaption({
         productName: seriesProduct,
@@ -1551,4 +1627,115 @@ export async function buildImagePackAction(
 
   if (specs.length === 0) return { ok: false, error: 'internal_error', message: 'No se pudieron compilar los prompts' };
   return { ok: true, data: { specs, references } };
+}
+
+// Preview del prompt final (spec 2026-06-12 §8): compila el item por el mismo
+// camino del orquestador SIN encolar ni cobrar. Solo lectura.
+// templateVideoPath se omite a propósito: el preview muestra composición y
+// referencias de imagen; cargar la plantilla requeriría otra query.
+export async function previewItemPromptAction(itemId: string): Promise<
+  Result<{
+    prompt: string | null;
+    references: Array<{ kind: string; role: string; path: string }>;
+    warnings: string[];
+    errors: string[];
+  }>
+> {
+  if (!z.string().uuid().safeParse(itemId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, campaigns!inner(workspace_id, brand_kit_id, product_brief, language)')
+    .eq('id', itemId)
+    .single();
+  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null } } | null)?.campaigns;
+  if (!item || camp?.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+
+  let format: FormatDirection | undefined;
+  if (item.format_id) {
+    const { data: f } = await supabase
+      .from('formats')
+      .select('slug, name, register, camera_style, pacing, required_refs, default_duration_s, default_audio')
+      .eq('id', item.format_id)
+      .single();
+    if (f) {
+      format = fromFormatRow({
+        slug: f.slug as string, name: f.name as string,
+        register: f.register as string | null, camera_style: f.camera_style as string | null,
+        pacing: f.pacing as string | null, required_refs: (f.required_refs as string[]) ?? [],
+        default_duration_s: f.default_duration_s as number, default_audio: f.default_audio as boolean,
+      });
+    }
+  }
+
+  const charIds = itemCharacterIds({
+    character_id: item.character_id as string | null,
+    character_ids: (item.character_ids as string[] | null) ?? null,
+  });
+  const ctx = await loadCampaignContext(
+    workspace.id,
+    {
+      brand_kit_id: (camp.brand_kit_id as string | null) ?? null,
+      product_brief: (camp.product_brief as Record<string, unknown> | null) ?? null,
+      language: (camp.language as string | null) ?? null,
+    },
+    charIds,
+  );
+
+  const extraIds = (item.reference_ids as string[] | null) ?? [];
+  let extraImagePaths: string[] = [];
+  if (extraIds.length) {
+    const { data: refs } = await supabase
+      .from('media_references')
+      .select('id, storage_url, workspace_id')
+      .in('id', extraIds);
+    extraImagePaths = (refs ?? [])
+      .filter((r) => r.workspace_id === workspace.id && r.storage_url)
+      .map((r) => r.storage_url as string);
+  }
+
+  const characters = charIds
+    .map((id) => ctx.characters.get(id))
+    .filter((c): c is NonNullable<ReturnType<typeof ctx.characters.get>> => !!c);
+
+  const result = compile(
+    {
+      modelSlug: item.model_slug as string,
+      scenePrompt: item.scene_prompt as string,
+      durationS: (item.duration_s as number | null) ?? undefined,
+      aspectRatio: (item.aspect_ratio as string | null) ?? undefined,
+      generateAudio: item.audio as boolean,
+    },
+    {
+      format,
+      product: {
+        name: ctx.productName,
+        visualDetails: ctx.visualDetails,
+        palette: ctx.palette,
+        imagePaths: ctx.productImagePaths,
+        packagingImagePaths: format?.requiredRefs.includes('packaging') ? ctx.packagingImagePaths : undefined,
+      },
+      characters: characters.length ? characters : undefined,
+      scene: item.scene ? { fragment: item.scene as string } : undefined,
+      extraImagePaths: extraImagePaths.length ? extraImagePaths : undefined,
+      language: ctx.language,
+    },
+  );
+
+  if (!result.ok) {
+    return { ok: true, data: { prompt: null, references: [], warnings: result.warnings, errors: result.errors } };
+  }
+  return {
+    ok: true,
+    data: {
+      prompt: result.compiled.prompt,
+      references: result.compiled.references.map((r) => ({ kind: r.kind, role: r.role, path: r.storagePath })),
+      warnings: result.compiled.warnings,
+      errors: [],
+    },
+  };
 }

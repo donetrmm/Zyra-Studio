@@ -157,11 +157,13 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     return { ok: false, error: 'validation_error', message: 'El creativo no tiene escena' };
   }
 
-  // Si el item existe, debe seguir editable.
+  // Si el item existe, debe seguir editable. Su elenco actual se conserva
+  // al sincronizar character_ids (el refinado solo decide el principal).
+  let existingCharacterIds: string[] = [];
   if (parsed.data.itemId) {
     const { data: item } = await supabase
       .from('campaign_items')
-      .select('id, status, campaign_id')
+      .select('id, status, campaign_id, character_ids')
       .eq('id', parsed.data.itemId)
       .eq('campaign_id', parsed.data.campaignId)
       .single();
@@ -169,6 +171,7 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
       return { ok: false, error: 'forbidden', message: 'El creativo ya está en producción' };
     }
+    existingCharacterIds = (item.character_ids as string[] | null) ?? [];
   }
 
   // Formato custom: nace aquí, del workspace, visible en /app/formats.
@@ -231,6 +234,14 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     scene_prompt: parsed.data.draft.scenePrompt.trim(),
     shot: parsed.data.draft.shot,
     character_id: parsed.data.draft.characterId,
+    // Sync principal/elenco: el principal del refinado encabeza y el resto
+    // del elenco existente se conserva (máx 3).
+    character_ids: parsed.data.draft.characterId
+      ? [
+          parsed.data.draft.characterId,
+          ...existingCharacterIds.filter((id) => id !== parsed.data.draft.characterId),
+        ].slice(0, 3)
+      : [],
     reference_ids: parsed.data.draft.referenceIds,
     caption: parsed.data.draft.caption,
     duration_s: parsed.data.draft.durationS ?? ctx.format?.defaultDurationS ?? 8,
