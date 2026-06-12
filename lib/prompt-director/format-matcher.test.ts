@@ -50,10 +50,42 @@ describe('matchIdeas', () => {
     expect(res.matches[0].customFormat?.slug).toBe('mascota-protagonista');
   });
 
-  it('rechaza JSON que no cumple el schema', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({ matches: [{ bogus: true }] })));
+  it('rechaza la respuesta si ningún match es válido (con reintento)', async () => {
+    const fetchMock = vi.fn(async () => geminiOk({ matches: [{ bogus: true }] }));
+    vi.stubGlobal('fetch', fetchMock);
     process.env.GEMINI_API_KEY = 'test';
-    await expect(matchIdeas({ ideasText: 'algo', formats: FORMATS })).rejects.toThrow(/schema/i);
+    await expect(
+      matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
+    ).rejects.toThrow(/matches válidos/i);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('descarta el match malformado pero conserva los válidos', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [
+        { bogus: true },
+        { ideaText: 'un unboxing', formatId: 'f1', customFormat: null },
+      ],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches).toHaveLength(1);
+    expect(res.matches[0].formatId).toBe('f1');
+  });
+
+  it('tolera JSON envuelto en fences markdown', async () => {
+    const payload = JSON.stringify({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: '```json\n' + payload + '\n```' }] } }],
+      }),
+    }) as Response));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].formatId).toBe('f1');
   });
 
   it('reintenta una vez ante rate limit y falla si persiste', async () => {

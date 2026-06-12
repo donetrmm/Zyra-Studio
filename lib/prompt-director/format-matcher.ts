@@ -16,7 +16,8 @@ const MODEL = 'gemini-2.5-flash';
 export type MatcherFormat = { id: string; slug: string; name: string; description: string | null };
 
 const MatchSchema = z.object({
-  ideaText: z.string().min(1).max(500),
+  // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt.
+  ideaText: z.string().min(1).max(2000),
   formatId: z.string().nullable(),
   customFormat: CustomFormatSchema.nullable(),
   // Cuántos creativos pide la idea ("3 versiones de..."). Sin cantidad
@@ -26,8 +27,18 @@ const MatchSchema = z.object({
   // item para que el creativo refleje lo que el usuario escribió.
   scenePrompt: z.string().trim().min(1).max(600).nullable().catch(null).default(null),
 });
-const MatcherReplySchema = z.object({ matches: z.array(MatchSchema).max(8) });
-export type MatcherResult = z.infer<typeof MatcherReplySchema>;
+// El envoltorio se valida laxo y cada match por separado: un match malformado
+// se descarta sin tirar los demás (la salida del LLM es estocástica).
+const LooseReplySchema = z.object({ matches: z.array(z.unknown()) });
+export type MatcherResult = { matches: Array<z.infer<typeof MatchSchema>> };
+
+// Algunas variantes del modelo envuelven el JSON en fences markdown aunque
+// se pida application/json: extraer el cuerpo antes de parsear.
+function extractJson(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return fenced ? fenced[1] : trimmed;
+}
 
 const GeminiResponseSchema = z.object({
   candidates: z
@@ -108,22 +119,43 @@ async function requestMatch(input: {
     throw new ProviderError(`Gemini matcher ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
   }
 
+  // De aquí en adelante los fallos son de la GENERACIÓN (truncada, fences,
+  // campos malos): estocásticos, así que retryable=true — el reintento de
+  // matchIdeas suele resolverlos. El detalle va al mensaje para que el log
+  // del server muestre qué llegó.
   const envelope = GeminiResponseSchema.safeParse(await res.json());
-  if (!envelope.success) throw new ProviderError('Respuesta inesperada de Gemini en matcher', 'unknown', false);
+  if (!envelope.success) {
+    throw new ProviderError('Respuesta inesperada de Gemini en matcher', 'unknown', true);
+  }
   const raw = (envelope.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   let json: unknown;
-  try { json = JSON.parse(raw); } catch {
-    throw new ProviderError('Gemini devolvió JSON inválido en matcher', 'unknown', false);
+  try { json = JSON.parse(extractJson(raw)); } catch {
+    throw new ProviderError(
+      `Gemini devolvió JSON inválido en matcher: ${raw.slice(0, 180)}`, 'unknown', true,
+    );
   }
-  const parsed = MatcherReplySchema.safeParse(json);
-  if (!parsed.success) {
-    throw new ProviderError(`Matcher no cumple el schema: ${parsed.error.message.slice(0, 200)}`, 'unknown', false);
+  const loose = LooseReplySchema.safeParse(json);
+  if (!loose.success) {
+    throw new ProviderError(
+      `Matcher sin lista de matches: ${raw.slice(0, 180)}`, 'unknown', true,
+    );
+  }
+  const matches = loose.data.matches
+    .slice(0, 8)
+    .flatMap((m) => {
+      const parsed = MatchSchema.safeParse(m);
+      return parsed.success ? [parsed.data] : [];
+    });
+  if (matches.length === 0) {
+    throw new ProviderError(
+      `Matcher sin matches válidos: ${raw.slice(0, 180)}`, 'unknown', true,
+    );
   }
 
   // Saneo: formatId debe existir en el catálogo recibido; si no, null.
   const known = new Set(input.formats.map((f) => f.id));
   return {
-    matches: parsed.data.matches.map((m) => ({
+    matches: matches.map((m) => ({
       ...m,
       formatId: m.formatId && known.has(m.formatId) ? m.formatId : null,
     })),
