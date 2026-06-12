@@ -12,6 +12,7 @@ import { MAX_TURNS, STAGE_LABEL, type RefineDraft, type Stage } from '@/lib/refi
 import { SHOTS } from '@/lib/shots/catalog';
 import { AcceptRefineInputSchema, RefineTurnInputSchema } from '@/lib/schemas/refine';
 import type { FormatDirection } from '@/lib/prompt-director/types';
+import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -172,6 +173,14 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
       return { ok: false, error: 'forbidden', message: 'El creativo ya está en producción' };
     }
     existingCharacterIds = (item.character_ids as string[] | null) ?? [];
+  }
+
+  // Ownership del personaje principal: viene del cliente, validar antes de persistir.
+  if (parsed.data.draft.characterId) {
+    const owned = await validateOwnedCharacters(supabase, workspace.id, [parsed.data.draft.characterId]);
+    if (owned === null) {
+      return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
+    }
   }
 
   // Formato custom: nace aquí, del workspace, visible en /app/formats.

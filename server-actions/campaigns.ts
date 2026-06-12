@@ -41,6 +41,7 @@ import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-direc
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas } from '@/lib/prompt-director/format-matcher';
 import { ProviderError } from '@/lib/providers/types';
+import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -190,20 +191,11 @@ export async function createCampaignStudioAction(
   // Pool de personajes (máx 3 por schema): ownership + que tengan imagen.
   let characterIds: string[] = [];
   if (parsed.data.characterIds.length) {
-    const { data: chars } = await supabase
-      .from('characters')
-      .select('id, workspace_id, master_image_id, reference_image_ids')
-      .in('id', parsed.data.characterIds);
-    const valid = new Set(
-      (chars ?? [])
-        .filter((c) => c.workspace_id === workspace.id)
-        .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
-        .map((c) => c.id as string),
-    );
-    if (parsed.data.characterIds.some((id) => !valid.has(id))) {
+    const owned = await validateOwnedCharacters(supabase, workspace.id, parsed.data.characterIds);
+    if (owned === null) {
       return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
     }
-    characterIds = parsed.data.characterIds; // orden del wizard = principal primero
+    characterIds = owned; // orden del wizard = principal primero; dedupeado por el helper
   }
 
   // Auto-detección del brief con la primera imagen.
@@ -626,11 +618,24 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   if (parsed.data.durationS !== undefined) patch.duration_s = parsed.data.durationS;
   if (parsed.data.aspectRatio !== undefined) patch.aspect_ratio = parsed.data.aspectRatio;
   if (parsed.data.characterIds !== undefined) {
-    patch.character_ids = parsed.data.characterIds;
-    patch.character_id = parsed.data.characterIds[0] ?? null;
+    // Ownership de los ids entrantes (los del elenco existente vienen de la DB).
+    const owned = await validateOwnedCharacters(supabase, workspace.id, parsed.data.characterIds);
+    if (owned === null) {
+      return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
+    }
+    patch.character_ids = owned;
+    patch.character_id = owned[0] ?? null;
   } else if (parsed.data.characterId !== undefined) {
-    // Editar el principal conserva al resto del elenco del item.
-    const rest = (((item as Record<string, unknown>).character_ids as string[] | null) ?? []).slice(1);
+    // Editar el principal conserva al resto del elenco del item (sin duplicarlo).
+    const existing = (((item as Record<string, unknown>).character_ids as string[] | null) ?? []);
+    const idsToValidate = parsed.data.characterId ? [parsed.data.characterId] : [];
+    if (idsToValidate.length) {
+      const owned = await validateOwnedCharacters(supabase, workspace.id, idsToValidate);
+      if (owned === null) {
+        return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
+      }
+    }
+    const rest = existing.slice(1).filter((id) => id !== parsed.data.characterId);
     patch.character_id = parsed.data.characterId;
     patch.character_ids = parsed.data.characterId ? [parsed.data.characterId, ...rest].slice(0, 3) : rest;
   }
@@ -682,6 +687,15 @@ export async function addCampaignItemAction(input: unknown): Promise<
   const goal = (['awareness', 'conversion', 'mixed'].includes(campaign.goal as string)
     ? campaign.goal
     : 'mixed') as 'awareness' | 'conversion' | 'mixed';
+
+  // Ownership de personajes: los ids vienen del cliente, validar antes de persistir.
+  const rawCharIds = parsed.data.characterIds ?? (parsed.data.characterId ? [parsed.data.characterId] : []);
+  if (rawCharIds.length) {
+    const owned = await validateOwnedCharacters(supabase, workspace.id, rawCharIds);
+    if (owned === null) {
+      return { ok: false, error: 'validation_error', message: 'Personaje no encontrado o sin imagen' };
+    }
+  }
 
   const durationS = parsed.data.durationS ?? (format.default_duration_s as number) ?? 8;
   const aspectRatio = (format.slug as string) === 'gran-pantalla' ? '16:9' : '9:16';
