@@ -17,12 +17,13 @@ import {
   ReferenceImagesUploader,
   type RefImage,
 } from '@/components/shared/ReferenceImagesUploader';
+import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 
 const GREETING =
   'Cuéntame qué quieres mostrar en este creativo. Puedes describirlo en tus palabras: yo me encargo de convertirlo en una buena dirección.';
 
 export function RefineView({
-  campaignId, campaignName, productName, itemId, initialDraft, formatNames,
+  campaignId, campaignName, productName, itemId, initialDraft, formatNames, inherited,
 }: {
   campaignId: string;
   campaignName: string;
@@ -30,6 +31,12 @@ export function RefineView({
   itemId: string | null;
   initialDraft: RefineDraft;
   formatNames: Record<string, string>;
+  inherited: {
+    productPreviews: Array<string | null>;
+    productCount: number;
+    packagingCount: number;
+    characters: Array<{ id: string; name: string; previewUrl: string | null; angleCount: number }>;
+  };
 }) {
   const router = useRouter();
   const turnId = useRef(1);
@@ -249,11 +256,19 @@ export function RefineView({
             </div>
             <div>
               <dt className="text-muted-foreground/80">Toma</dt>
-              <dd className="text-foreground/90">{shot ? `${shot.name} — ${shot.description}` : '— pendiente —'}</dd>
+              <dd className="text-foreground/90">{shot ? `${shot.name} — ${shot.description}` : 'La decide el director según el formato'}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground/80">Referencias</dt>
-              <dd className="text-foreground/90">{draft.referenceIds.length > 0 ? `${draft.referenceIds.length} adjuntas` : 'Ninguna aún'}</dd>
+              <dd>
+                <ReferenceBudget
+                  productPreviews={inherited.productPreviews}
+                  productCount={inherited.productCount}
+                  packagingCount={inherited.packagingCount}
+                  characters={inherited.characters}
+                  extraCount={draft.referenceIds.length}
+                />
+              </dd>
             </div>
             {errors.length > 0 && (
               <div>
