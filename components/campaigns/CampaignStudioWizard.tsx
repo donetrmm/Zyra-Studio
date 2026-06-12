@@ -79,6 +79,8 @@ export function CampaignStudioWizard({
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  // Empaque del Brand Kit: el usuario decide si entra a la campaña (032).
+  const [includePackaging, setIncludePackaging] = useState(true);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
   // El orden de selección importa: [0] es el personaje principal.
@@ -117,6 +119,7 @@ export function CampaignStudioWizard({
         : { brandKitId }),
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
+      includePackaging,
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -224,6 +227,24 @@ export function CampaignStudioWizard({
                   Este kit no tiene imágenes de producto; el análisis usará sus referencias
                   generales.
                 </p>
+              )}
+              {selectedKit && selectedKit.packagingImages > 0 && (
+                <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={includePackaging}
+                    onChange={(e) => setIncludePackaging(e.target.checked)}
+                    className="mt-0.5 size-3.5 accent-primary"
+                  />
+                  <span className="text-[12px] leading-snug text-muted-foreground">
+                    Incluir las {selectedKit.packagingImages} imagen
+                    {selectedKit.packagingImages !== 1 ? 'es' : ''} de empaque del kit
+                    <span className="block text-[11px] text-muted-foreground/60">
+                      Solo viajan al video en formatos que las usan (ej. unboxing). Si lo
+                      desactivas, el plan no propondrá esos formatos.
+                    </span>
+                  </span>
+                </label>
               )}
               <button
                 type="button"
@@ -379,7 +400,9 @@ export function CampaignStudioWizard({
                 : Array.from({ length: Math.min(selectedKit?.productImages ?? 0, 3) }, () => null)
             }
             productCount={mode === 'upload' ? productImages.length : selectedKit?.productImages ?? 0}
-            packagingCount={mode === 'kit' ? selectedKit?.packagingImages ?? 0 : 0}
+            packagingCount={
+              mode === 'kit' && includePackaging ? selectedKit?.packagingImages ?? 0 : 0
+            }
             characters={selectedCharacterIds.map((id) => {
               const c = characters.find((x) => x.id === id);
               return c

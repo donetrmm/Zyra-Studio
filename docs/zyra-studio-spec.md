@@ -155,6 +155,10 @@ create table campaigns (
   -- Orden significativo: el primero es el principal. Sin FK a array; validar en app.
   -- Agregado en migración 031.
   character_ids uuid[] not null default '{}',
+  -- include_packaging (migración 032): si la campaña usa las imágenes de empaque
+  -- del Brand Kit. Con false, el plan omite formatos que exigen empaque y la
+  -- generación no envía packaging_image_ids al modelo.
+  include_packaging boolean not null default true,
   created_at timestamptz default now()
 );
 

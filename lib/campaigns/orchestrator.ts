@@ -86,6 +86,9 @@ export async function loadCampaignContext(
     brand_kit_id: string | null;
     product_brief: Record<string, unknown> | null;
     language?: string | null;
+    // Toggle del wizard (migración 032): false = el empaque del kit no viaja
+    // al modelo. undefined (callers viejos) se trata como true.
+    include_packaging?: boolean | null;
   },
   characterIds: string[],
 ): Promise<CampaignContext> {
@@ -110,7 +113,8 @@ export async function loadCampaignContext(
       const productIds = rawProductIds.length
         ? rawProductIds
         : ((kit.reference_image_ids ?? []) as string[]);
-      const packagingIds = (kit.packaging_image_ids ?? []) as string[];
+      const packagingIds =
+        campaign.include_packaging === false ? [] : ((kit.packaging_image_ids ?? []) as string[]);
       const paths = await resolvePaths(supabase, workspaceId, [...productIds, ...packagingIds]);
       productImagePaths = productIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
       packagingImagePaths = packagingIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
@@ -229,6 +233,7 @@ export async function enqueueBatch(params: {
     brand_kit_id: string | null;
     product_brief: Record<string, unknown> | null;
     language?: string | null;
+    include_packaging?: boolean | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;

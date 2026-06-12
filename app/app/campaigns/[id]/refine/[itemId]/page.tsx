@@ -18,7 +18,7 @@ export default async function RefineRoute({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name, product_brief, brand_kit_id')
+    .select('id, name, product_brief, brand_kit_id, include_packaging')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -74,7 +74,11 @@ export default async function RefineRoute({
       ? ((kit?.product_image_ids as string[]) ?? [])
       : ((kit?.reference_image_ids as string[]) ?? []);
     productCount = productIds.length;
-    packagingCount = ((kit?.packaging_image_ids as string[]) ?? []).length;
+    // El empaque solo cuenta si la campaña decidió incluirlo (032).
+    packagingCount =
+      campaign.include_packaging === false
+        ? 0
+        : ((kit?.packaging_image_ids as string[]) ?? []).length;
     const top = productIds.slice(0, 3);
     if (top.length) {
       const { data: refs } = await supabase

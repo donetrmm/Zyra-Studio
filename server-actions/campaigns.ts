@@ -264,6 +264,7 @@ export async function createCampaignStudioAction(
       brand_kit_id: kitId,
       product_brief: brief,
       character_ids: characterIds,
+      include_packaging: parsed.data.includePackaging,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
@@ -300,7 +301,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, date_start, date_end, status')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -325,7 +326,10 @@ export async function generatePlanAction(input: unknown): Promise<
       ? ((kit?.product_image_ids as string[]) ?? [])
       : ((kit?.reference_image_ids as string[]) ?? []);
     available.product = productIds.length > 0;
-    available.packaging = ((kit?.packaging_image_ids as string[]) ?? []).length > 0;
+    // El empaque solo está disponible si la campaña decidió incluirlo (032).
+    available.packaging =
+      campaign.include_packaging !== false &&
+      ((kit?.packaging_image_ids as string[]) ?? []).length > 0;
   }
 
   // Pool de la campaña (spec 2026-06-12): el plan solo usa los personajes
@@ -804,7 +808,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -847,6 +851,7 @@ export async function approveBatchAction(
       brand_kit_id: campaign.brand_kit_id as string | null,
       product_brief: campaign.product_brief as Record<string, unknown> | null,
       language: campaign.language as string | null,
+      include_packaging: campaign.include_packaging as boolean | null,
     },
     items: itemRows as never,
     formats: formatsMap,
@@ -1663,10 +1668,10 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, campaigns!inner(workspace_id, brand_kit_id, product_brief, language)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging)')
     .eq('id', itemId)
     .single();
-  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null } } | null)?.campaigns;
+  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null } } | null)?.campaigns;
   if (!item || camp?.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
 
   let format: FormatDirection | undefined;
@@ -1696,6 +1701,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
       brand_kit_id: (camp.brand_kit_id as string | null) ?? null,
       product_brief: (camp.product_brief as Record<string, unknown> | null) ?? null,
       language: (camp.language as string | null) ?? null,
+      include_packaging: camp.include_packaging ?? null,
     },
     charIds,
   );

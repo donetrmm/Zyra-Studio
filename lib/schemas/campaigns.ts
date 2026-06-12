@@ -78,6 +78,10 @@ export const CreateCampaignStudioSchema = z
     language: z.enum(['es', 'en']).default('es'),
     // Pool de personajes de la campaña (máx 3). El primero es el principal.
     characterIds: z.array(z.string().uuid()).max(3).default([]),
+    // Si la campaña usa las imágenes de empaque del Brand Kit (migración 032).
+    // Con false, el plan omite formatos que exigen empaque y la generación no
+    // envía packaging_image_ids.
+    includePackaging: z.boolean().default(true),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
   })
