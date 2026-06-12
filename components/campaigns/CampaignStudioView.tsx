@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Clapperboard,
   Download,
+  Eye,
   FileBarChart,
   Loader2,
   Pencil,
@@ -25,11 +26,19 @@ import {
   distillTemplateAction,
   exportCampaignCsvAction,
   generateSeriesAction,
+  previewItemPromptAction,
   redoSamplesAction,
   requestFinalAction,
   toggleWinnerAction,
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { insufficientCreditsToast } from './credits-toast';
 
@@ -44,7 +53,7 @@ export type StudioItem = {
   scene: string | null;
   scenePrompt: string;
   caption: string | null;
-  characterName: string | null;
+  characterNames: string[];
   scheduledDate: string | null;
   status: string;
   warnings: string[];
@@ -108,6 +117,25 @@ export function CampaignStudioView({
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [promptPreview, setPromptPreview] = useState<{
+    itemId: string;
+    loading: boolean;
+    prompt: string | null;
+    references: Array<{ kind: string; role: string; path: string }>;
+    warnings: string[];
+    errors: string[];
+  } | null>(null);
+
+  async function handlePreviewPrompt(itemId: string) {
+    setPromptPreview({ itemId, loading: true, prompt: null, references: [], warnings: [], errors: [] });
+    const res = await previewItemPromptAction(itemId);
+    if (!res.ok) {
+      setPromptPreview(null);
+      toast.error('No se pudo compilar el prompt');
+      return;
+    }
+    setPromptPreview({ itemId, loading: false, ...res.data });
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -243,7 +271,13 @@ export function CampaignStudioView({
               Agregar creativo
             </Link>
           </div>
-          <PlanTable campaignId={campaign.id} items={items} onEdit={setEditing} onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))} />
+          <PlanTable
+            campaignId={campaign.id}
+            items={items}
+            onEdit={setEditing}
+            onPreview={handlePreviewPrompt}
+            onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
+          />
         </>
       ) : tab === 'produccion' ? (
         <ProductionView
@@ -286,6 +320,10 @@ export function CampaignStudioView({
         />
       )}
 
+      {promptPreview && (
+        <PromptPreviewDialog preview={promptPreview} onClose={() => setPromptPreview(null)} />
+      )}
+
     </div>
   );
 }
@@ -294,11 +332,13 @@ function PlanTable({
   campaignId,
   items,
   onEdit,
+  onPreview,
   onDeleted,
 }: {
   campaignId: string;
   items: StudioItem[];
   onEdit: (item: StudioItem) => void;
+  onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
@@ -345,8 +385,10 @@ function PlanTable({
                     serie
                   </span>
                 )}
-                {item.characterName && (
-                  <span className="ml-1.5 text-[11px] text-muted-foreground/60">· {item.characterName}</span>
+                {item.characterNames.length > 0 && (
+                  <span className="ml-1.5 text-[11px] text-muted-foreground/60">
+                    · {item.characterNames.join(' + ')}
+                  </span>
                 )}
               </td>
               <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
@@ -367,33 +409,43 @@ function PlanTable({
                 <StatusBadge status={item.status} />
               </td>
               <td className="whitespace-nowrap px-3 py-2.5 text-right">
-                {editable(item.status) && (
-                  <span className="inline-flex gap-1">
-                    <Link
-                      href={`/app/campaigns/${campaignId}/refine/${item.id}`}
-                      aria-label="Refinar con asistente"
-                      className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
-                    >
-                      <Sparkles className="size-3.5" aria-hidden />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => onEdit(item)}
-                      aria-label="Editar item"
-                      className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <Pencil className="size-3.5" aria-hidden />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item)}
-                      aria-label="Eliminar item"
-                      className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-red-400"
-                    >
-                      <Trash2 className="size-3.5" aria-hidden />
-                    </button>
-                  </span>
-                )}
+                <span className="inline-flex gap-1">
+                  {editable(item.status) && (
+                    <>
+                      <Link
+                        href={`/app/campaigns/${campaignId}/refine/${item.id}`}
+                        aria-label="Refinar con asistente"
+                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-primary"
+                      >
+                        <Sparkles className="size-3.5" aria-hidden />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(item)}
+                        aria-label="Editar item"
+                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Pencil className="size-3.5" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        aria-label="Eliminar item"
+                        className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-red-400"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onPreview(item.id)}
+                    aria-label="Ver prompt final"
+                    className="rounded-md p-1.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Eye className="size-3.5" aria-hidden />
+                  </button>
+                </span>
               </td>
             </tr>
           ))}
@@ -1032,7 +1084,7 @@ function EditItemDialog({
   const [scenePrompt, setScenePrompt] = useState(item.scenePrompt);
   const [scene, setScene] = useState(item.scene ?? '');
   const [characterId, setCharacterId] = useState(
-    characterOptions.find((c) => c.name === item.characterName)?.id ?? '',
+    characterOptions.find((c) => c.name === (item.characterNames[0] ?? null))?.id ?? '',
   );
   const [caption, setCaption] = useState(item.caption ?? '');
   const [scheduledDate, setScheduledDate] = useState(item.scheduledDate ?? '');
@@ -1056,9 +1108,12 @@ function EditItemDialog({
     onSaved({
       scenePrompt,
       scene: scene.trim() || item.scene,
-      characterName: characterId
-        ? (characterOptions.find((c) => c.id === characterId)?.name ?? item.characterName)
-        : item.characterName,
+      characterNames: characterId
+        ? (() => {
+            const name = characterOptions.find((c) => c.id === characterId)?.name;
+            return name ? [name] : item.characterNames;
+          })()
+        : item.characterNames,
       caption: caption || null,
       scheduledDate: scheduledDate || item.scheduledDate,
     });
@@ -1173,5 +1228,70 @@ function EditItemDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function PromptPreviewDialog({
+  preview,
+  onClose,
+}: {
+  preview: {
+    loading: boolean;
+    prompt: string | null;
+    references: Array<{ kind: string; role: string; path: string }>;
+    warnings: string[];
+    errors: string[];
+  };
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Prompt final (preview)</DialogTitle>
+          <DialogDescription>
+            Así se compila este creativo al generar: referencias con propósito, contexto,
+            acción y dirección del formato. El texto del plan es solo la acción.
+          </DialogDescription>
+        </DialogHeader>
+        {preview.loading ? (
+          <div className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden /> Compilando…
+          </div>
+        ) : preview.errors.length > 0 ? (
+          <div className="space-y-1 text-[12.5px] text-red-300/90">
+            {preview.errors.map((e) => (
+              <p key={e}>{e}</p>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-3 text-[12px] leading-relaxed text-foreground/90">
+              {preview.prompt}
+            </pre>
+            {preview.references.length > 0 && (
+              <div className="text-[11.5px] text-muted-foreground">
+                <p className="font-medium text-foreground/70">Referencias ({preview.references.length})</p>
+                <ul className="mt-1 space-y-0.5">
+                  {preview.references.map((r, i) => (
+                    <li key={`${r.path}-${i}`}>
+                      {r.kind === 'image' ? 'Imagen' : r.kind === 'video' ? 'Video' : 'Audio'} — {r.role}
+                      <span className="ml-1 text-muted-foreground/50">{r.path.split('/').pop()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {preview.warnings.length > 0 && (
+              <div className="text-[11.5px] text-amber-300/80">
+                {preview.warnings.map((w) => (
+                  <p key={w}>{w}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

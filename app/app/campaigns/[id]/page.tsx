@@ -37,7 +37,7 @@ export default async function CampaignDetailRoute({
       await Promise.all([
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, scheduled_date, status, warnings, generation_id, is_winner')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner')
           .eq('campaign_id', id)
           .order('scheduled_date'),
         supabase.from('formats').select('id, name, description'),
@@ -53,7 +53,7 @@ export default async function CampaignDetailRoute({
     const formatDescriptions = new Map(
       (formatRows ?? []).map((f) => [f.id as string, (f.description as string | null) ?? '']),
     );
-    const characterNames = new Map((characterRows ?? []).map((c) => [c.id as string, c.name as string]));
+    const characterNameById = new Map((characterRows ?? []).map((c) => [c.id as string, c.name as string]));
 
     const items: StudioItem[] = (itemRows ?? []).map((r) => ({
       id: r.id as string,
@@ -66,7 +66,9 @@ export default async function CampaignDetailRoute({
       scene: (r.scene as string | null) ?? null,
       scenePrompt: r.scene_prompt as string,
       caption: (r.caption as string | null) ?? null,
-      characterName: r.character_id ? (characterNames.get(r.character_id as string) ?? null) : null,
+      characterNames: ((r.character_ids as string[] | null) ?? (r.character_id ? [r.character_id as string] : []))
+        .map((id) => characterNameById.get(id))
+        .filter((n): n is string => !!n),
       scheduledDate: (r.scheduled_date as string | null) ?? null,
       status: r.status as string,
       warnings: (r.warnings as string[]) ?? [],
