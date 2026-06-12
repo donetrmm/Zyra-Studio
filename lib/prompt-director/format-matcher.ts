@@ -14,6 +14,12 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 
 export type MatcherFormat = { id: string; slug: string; name: string; description: string | null };
+export type MatcherCharacter = { id: string; name: string };
+
+const InventedCharacterSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  description: z.string().trim().min(1).max(300),
+});
 
 const MatchSchema = z.object({
   // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt.
@@ -26,6 +32,21 @@ const MatchSchema = z.object({
   // Concepto concreto de la idea en inglés: va directo al scenePrompt del
   // item para que el creativo refleje lo que el usuario escribió.
   scenePrompt: z.string().trim().min(1).max(600).nullable().catch(null).default(null),
+  // Personajes del pool mencionados en la idea (ids exactos; se sanean abajo).
+  characterIds: z.array(z.string()).catch([]).default([]),
+  // Nombres mencionados que NO están en el pool: apariencia inventada que el
+  // planner inyecta en el scene_prompt (sin imagen de referencia). Se valida
+  // elemento a elemento: uno malformado no tira el match.
+  inventedCharacters: z
+    .array(z.unknown())
+    .catch([])
+    .default([])
+    .transform((arr) =>
+      arr.flatMap((item) => {
+        const parsed = InventedCharacterSchema.safeParse(item);
+        return parsed.success ? [parsed.data] : [];
+      }),
+    ),
 });
 // El envoltorio se valida laxo y cada match por separado: un match malformado
 // se descarta sin tirar los demás (la salida del LLM es estocástica).
@@ -104,12 +125,19 @@ Por cada idea distinta devuelve un match:
 - scenePrompt: la acción concreta de la idea, en INGLÉS, 1-2 frases, con el
   producto como ancla. Si la idea solo nombra un formato sin acción concreta
   ("quiero unboxings"), scenePrompt = null.
+- characterIds: si la idea nombra personajes del Cast listado abajo, devuelve sus
+  ids exactos (máximo 3). Si no nombra a nadie, [].
+- inventedCharacters: si la idea nombra a una persona que NO está en el Cast,
+  inventa su apariencia: {"name":"...","description":"apariencia concreta en
+  INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
+  no menciona. Si no aplica, [].
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null"}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;
   formats: MatcherFormat[];
+  characters?: MatcherCharacter[];
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
   // después del brief (otra llamada a Gemini): un 429 puntual no debe
   // degradar el plan dirigido a mix genérico.
@@ -129,6 +157,7 @@ export async function matchIdeas(input: {
 async function requestMatch(input: {
   ideasText: string;
   formats: MatcherFormat[];
+  characters?: MatcherCharacter[];
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
@@ -137,6 +166,10 @@ async function requestMatch(input: {
     .map((f) => `- id=${f.id} slug=${f.slug} "${f.name}": ${f.description ?? ''}`)
     .join('\n');
 
+  const cast = (input.characters ?? [])
+    .map((c) => `- id=${c.id} ${c.name}`)
+    .join('\n') || '(ninguno)';
+
   const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -144,7 +177,7 @@ async function requestMatch(input: {
       systemInstruction: { parts: [{ text: SYSTEM }] },
       contents: [{
         role: 'user',
-        parts: [{ text: `Catálogo:\n${catalog}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}` }],
+        parts: [{ text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}` }],
       }],
       generationConfig: {
         temperature: 0.2,
@@ -203,11 +236,14 @@ async function requestMatch(input: {
   }
 
   // Saneo: formatId debe existir en el catálogo recibido; si no, null.
+  // characterIds se filtra contra el pool y se recorta a 3 máximo.
   const known = new Set(input.formats.map((f) => f.id));
+  const knownCharacters = new Set((input.characters ?? []).map((c) => c.id));
   return {
     matches: matches.map((m) => ({
       ...m,
       formatId: m.formatId && known.has(m.formatId) ? m.formatId : null,
+      characterIds: m.characterIds.filter((id) => knownCharacters.has(id)).slice(0, 3),
     })),
   };
 }

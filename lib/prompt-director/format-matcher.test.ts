@@ -219,4 +219,46 @@ describe('matchIdeas', () => {
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].formatId).toBeNull(); // saneado a custom pendiente o null
   });
+
+  it('devuelve characterIds saneados contra el pool', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'María hace un unboxing', formatId: 'f1', customFormat: null,
+        characterIds: ['c1', 'c-falso', 'c2'],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({
+      ideasText: 'María hace un unboxing', formats: FORMATS,
+      characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
+    });
+    expect(res.matches[0].characterIds).toEqual(['c1', 'c2']);
+  });
+
+  it('characterIds vacío y sin crash cuando el modelo no manda el campo', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].characterIds).toEqual([]);
+    expect(res.matches[0].inventedCharacters).toEqual([]);
+  });
+
+  it('inventedCharacters se parsea y los malformados se descartan sin tirar el match', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'Lucía presenta', formatId: 'f2', customFormat: null,
+        inventedCharacters: [
+          { name: 'Lucía', description: 'a presenter with short auburn hair and a denim jacket' },
+          { bogus: true },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'Lucía presenta', formats: FORMATS, characters: [] });
+    expect(res.matches[0].inventedCharacters).toEqual([
+      { name: 'Lucía', description: 'a presenter with short auburn hair and a denim jacket' },
+    ]);
+  });
 });
