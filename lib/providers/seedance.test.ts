@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Seedance 2.0 vía ModelArk (REST). Mockeamos fetch global.
+// Seedance 2.0: backend default ModelArk (REST, mock de fetch) + backend fal
+// seleccionable por SEEDANCE_PROVIDER=fal (mock del SDK @fal-ai/client).
 // Regla del repo: los tests NUNCA llaman a la API real.
+
+vi.mock('@fal-ai/client', () => {
+  const queue = { submit: vi.fn(), status: vi.fn(), result: vi.fn() };
+  return { fal: { config: vi.fn(), queue } };
+});
 
 function mockJson(status: number, body: unknown): Response {
   return {
@@ -191,7 +197,7 @@ describe('seedance provider (vía ModelArk)', () => {
       }),
     );
     const { pollTask } = await import('./seedance');
-    const res = await pollTask('cgt-sd-1');
+    const res = await pollTask('bytedance/seedance-2.0/text-to-video', 'cgt-sd-1');
     expect(res.status).toBe('completed');
     expect(res.videoUrl).toBe('https://ark.example/sd.mp4');
     expect(res.seed).toBe(42);
@@ -203,13 +209,13 @@ describe('seedance provider (vía ModelArk)', () => {
   it('pollTask queued/running → processing', async () => {
     fetchMock.mockResolvedValue(mockJson(200, { status: 'running' }));
     const { pollTask } = await import('./seedance');
-    expect((await pollTask('cgt-sd-1')).status).toBe('processing');
+    expect((await pollTask('bytedance/seedance-2.0/text-to-video', 'cgt-sd-1')).status).toBe('processing');
   });
 
   it('pollTask failed → failed con mensaje', async () => {
     fetchMock.mockResolvedValue(mockJson(200, { status: 'failed', error: { message: 'content rejected' } }));
     const { pollTask } = await import('./seedance');
-    const res = await pollTask('cgt-sd-1');
+    const res = await pollTask('bytedance/seedance-2.0/text-to-video', 'cgt-sd-1');
     expect(res.status).toBe('failed');
     expect(res.error).toBe('content rejected');
   });
@@ -217,7 +223,7 @@ describe('seedance provider (vía ModelArk)', () => {
   it('pollTask 429 → processing (reintenta en el próximo tick)', async () => {
     fetchMock.mockResolvedValue(mockJson(429, {}));
     const { pollTask } = await import('./seedance');
-    expect((await pollTask('cgt-sd-1')).status).toBe('processing');
+    expect((await pollTask('bytedance/seedance-2.0/text-to-video', 'cgt-sd-1')).status).toBe('processing');
   });
 
   it('lanza ProviderError auth cuando ARK_API_KEY falta', async () => {
@@ -230,5 +236,55 @@ describe('seedance provider (vía ModelArk)', () => {
         prompt: 'p',
       }),
     ).rejects.toThrow(/ARK_API_KEY/);
+  });
+});
+
+describe('seedance provider (toggle SEEDANCE_PROVIDER=fal)', () => {
+  beforeEach(() => {
+    vi.stubEnv('SEEDANCE_PROVIDER', 'fal');
+    vi.stubEnv('FAL_KEY', 'fake-fal-key');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('submitTask enruta a fal.queue.submit y devuelve el request_id', async () => {
+    const { fal } = await import('@fal-ai/client');
+    (fal.queue.submit as ReturnType<typeof vi.fn>).mockResolvedValue({ request_id: 'req-fal-1' });
+    const { submitTask } = await import('./seedance');
+    const res = await submitTask({
+      operation: 'text2video',
+      model: 'bytedance/seedance-2.0/text-to-video',
+      prompt: 'p',
+      duration: 8,
+      aspectRatio: '9:16',
+    });
+    expect(res.taskId).toBe('req-fal-1');
+    const [model, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(model).toBe('bytedance/seedance-2.0/text-to-video');
+    expect(opts.input).toMatchObject({ duration: '8', aspect_ratio: '9:16' });
+  });
+
+  it('pollTask enruta a fal.queue.status/result', async () => {
+    const { fal } = await import('@fal-ai/client');
+    (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'COMPLETED' });
+    (fal.queue.result as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: { video: { url: 'https://v3.fal.media/x.mp4' }, seed: 7 },
+    });
+    const { pollTask } = await import('./seedance');
+    const res = await pollTask('bytedance/seedance-2.0/text-to-video', 'req-fal-1');
+    expect(res.status).toBe('completed');
+    expect(res.videoUrl).toBe('https://v3.fal.media/x.mp4');
+    expect(res.seed).toBe(7);
+  });
+
+  it('submitTask con fal exige FAL_KEY', async () => {
+    vi.unstubAllEnvs();
+    vi.stubEnv('SEEDANCE_PROVIDER', 'fal');
+    const { submitTask } = await import('./seedance');
+    await expect(
+      submitTask({ operation: 'text2video', model: 'bytedance/seedance-2.0/text-to-video', prompt: 'p' }),
+    ).rejects.toThrow(/FAL_KEY/);
   });
 });

@@ -9,8 +9,8 @@ import { seedanceCostPerItem } from './estimate';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
-// ESCALONAMIENTO: delay incremental para no reventar rate limits de fal.ai
-// ni invocaciones de Vercel Hobby (doc V2 §5.5).
+// ESCALONAMIENTO: delay incremental para no reventar rate limits del proveedor
+// (ModelArk para Seedance) ni invocaciones de Vercel Hobby (doc V2 §5.5).
 const STAGGER_SECONDS = 20;
 const SAMPLE_SIZE = 2;
 

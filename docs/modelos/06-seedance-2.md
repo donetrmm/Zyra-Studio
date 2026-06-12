@@ -4,6 +4,17 @@
 > Multimodal nativo: texto + imagen + video + audio como entradas de una sola generación,
 > con audio estéreo sincronizado en la salida. Paper: arXiv:2604.14148.
 
+## Backend seleccionable (ModelArk default / fal para pruebas)
+
+El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
+
+- **ModelArk** (default): lo que se describe en este doc. Requiere `ARK_API_KEY`.
+- **fal.ai**: se activa con `SEEDANCE_PROVIDER=fal` (usa `FAL_KEY`, el mismo de Kling).
+  Útil para probar el flujo real mientras la cuenta de ModelArk activa el modelo.
+  Slugs idénticos; en fal son endpoints de cola (`fal.queue.submit/status/result`).
+
+Los 6 slugs internos (`bytedance/seedance-2.0/...`) son la clave lógica en ambos casos.
+
 ## Endpoint y modelos (ModelArk, Ark v3 REST)
 
 Base URL (BytePlus global): `https://ark.ap-southeast.bytepluses.com/api/v3`

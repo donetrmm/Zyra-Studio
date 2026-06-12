@@ -4,7 +4,10 @@ import { z } from 'zod';
 // Las server actions de Fase C validan TODO input con estos schemas antes
 // de tocar la base.
 
-// Slugs de Seedance 2.0 en fal.ai (un slug = operación × tier).
+// Slugs lógicos internos de Seedance 2.0 (un slug = operación × tier). El
+// adapter (lib/providers/seedance.ts) los traduce al backend activo (ModelArk
+// por defecto, o fal.ai con SEEDANCE_PROVIDER=fal); aquí solo son la clave que
+// viaja por DB/router/compiler.
 export const SEEDANCE_MODELS = [
   'bytedance/seedance-2.0/text-to-video',
   'bytedance/seedance-2.0/image-to-video',

@@ -96,7 +96,7 @@ export const seedanceHandler: JobHandler = {
       if (gen.poll_attempts >= MAX_POLLS) {
         return { kind: 'fail', message: `MAX_POLLS=${MAX_POLLS} excedido`, code: 'timeout' };
       }
-      const poll = await pollTask(gen.provider_task_id);
+      const poll = await pollTask(model, gen.provider_task_id);
       if (poll.status === 'processing') {
         return { kind: 'continue', delaySeconds: nextDelay(gen.poll_attempts) };
       }
