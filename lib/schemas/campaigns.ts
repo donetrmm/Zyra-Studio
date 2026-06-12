@@ -100,7 +100,7 @@ export const GeneratePlanSchema = z.object({
   totalItems: z.number().int().min(2).max(30).default(6),
   // Ideas en lenguaje natural (specs/v2/07): el plan se construye de ellas —
   // un creativo por idea (más si pide cantidad), formato custom si no encaja.
-  userIdeas: z.string().trim().max(2000).optional(),
+  userIdeas: z.string().trim().max(6000).optional(),
 });
 
 export const ApproveBatchSchema = z.object({

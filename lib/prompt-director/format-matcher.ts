@@ -301,7 +301,7 @@ async function requestMatch(input: {
     ? `\n\nImágenes adjuntas (en orden): ${images.map((img, i) => `${i + 1}=${img.label}`).join(', ')}.`
     : '';
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
-    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}${imageNote}` },
+    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 6000)}${imageNote}` },
     ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.dataBase64 } })),
   ];
 

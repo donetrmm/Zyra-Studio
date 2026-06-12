@@ -300,7 +300,7 @@ export function CampaignStudioWizard({
             value={ideas}
             onChange={(e) => setIdeas(e.target.value)}
             placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
-            maxLength={2000}
+            maxLength={6000}
             rows={3}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
           />
