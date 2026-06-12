@@ -86,12 +86,6 @@ export default async function CampaignDetailRoute({
       name: c.name as string,
     }));
 
-    const formatOptions = (formatRows ?? []).map((f) => ({
-      id: f.id as string,
-      name: f.name as string,
-      description: (f.description as string | null) ?? '',
-    }));
-
     return (
       <CampaignStudioView
         campaign={{
@@ -106,7 +100,6 @@ export default async function CampaignDetailRoute({
         initialItems={items}
         templates={templates}
         characterOptions={characterOptions}
-        formatOptions={formatOptions}
       />
     );
   }
