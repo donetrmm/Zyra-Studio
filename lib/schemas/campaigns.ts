@@ -85,9 +85,12 @@ export const CreateCampaignStudioSchema = z
 
 export const GeneratePlanSchema = z.object({
   campaignId: z.string().uuid(),
-  // Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
-  totalItems: z.number().int().min(2).max(30),
-  // Ideas en lenguaje natural (specs/v2/07): siembran el mix vía format matcher.
+  // Solo aplica al plan sugerido SIN ideas (mix por categoría). Con ideas,
+  // el matcher deriva cuántos creativos salen (specs/v2/07). El techo demo
+  // de 30 lo aplica el planner en ambos caminos (doc V2 §5.5).
+  totalItems: z.number().int().min(2).max(30).default(6),
+  // Ideas en lenguaje natural (specs/v2/07): el plan se construye de ellas —
+  // un creativo por idea (más si pide cantidad), formato custom si no encaja.
   userIdeas: z.string().trim().max(2000).optional(),
 });
 

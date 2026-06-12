@@ -19,6 +19,12 @@ const MatchSchema = z.object({
   ideaText: z.string().min(1).max(500),
   formatId: z.string().nullable(),
   customFormat: CustomFormatSchema.nullable(),
+  // Cuántos creativos pide la idea ("3 versiones de..."). Sin cantidad
+  // explícita el matcher devuelve 1; el techo total del plan lo pone el planner.
+  count: z.number().int().min(1).max(10).catch(1).default(1),
+  // Concepto concreto de la idea en inglés: va directo al scenePrompt del
+  // item para que el creativo refleje lo que el usuario escribió.
+  scenePrompt: z.string().trim().min(1).max(600).nullable().catch(null).default(null),
 });
 const MatcherReplySchema = z.object({ matches: z.array(MatchSchema).max(8) });
 export type MatcherResult = z.infer<typeof MatcherReplySchema>;
@@ -37,8 +43,13 @@ Por cada idea distinta devuelve un match:
 - Si encaja en un formato del catálogo: formatId con su id exacto y customFormat null.
 - Si NO encaja: formatId null y customFormat con registro, estilo de cámara y
   ritmo inferidos de la idea. slug en kebab-case, nombres en español.
+- count: cuántos creativos pide la idea, SOLO si menciona una cantidad
+  explícita ("3 versiones", "varios" = 3). Sin cantidad, count = 1.
+- scenePrompt: la acción concreta de la idea, en INGLÉS, 1-2 frases, con el
+  producto como ancla. Si la idea solo nombra un formato sin acción concreta
+  ("quiero unboxings"), scenePrompt = null.
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null"}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;
@@ -62,7 +73,7 @@ export async function matchIdeas(input: {
       }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 1200,
+        maxOutputTokens: 2000,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },

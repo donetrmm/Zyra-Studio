@@ -96,6 +96,10 @@ CRÉDITOS          /app/billing          renombrado desde "Billing"
   así]" — decisión inline, no navegación a otra sección.
 - El wizard adopta componentes shadcn (hoy usa inputs crudos; el resto del app
   usa shadcn — un solo lenguaje de formulario).
+- **Sin selector de volumen** (decisión 2026-06-12): el plan se construye de
+  "Describe lo que imaginas" — el format matcher decide formato y cantidad por
+  idea (detalle en specs/v2/07). Si el campo va vacío, un paso intermedio
+  pregunta: describir ideas o aceptar un plan sugerido de 6 creativos.
 
 ### 4.5 Creación rápida subordinada
 
@@ -131,7 +135,9 @@ CRÉDITOS          /app/billing          renombrado desde "Billing"
 - **Cards de campaña** clicables completas, con la siguiente acción como botón
   primario y el resto (CSV, reporte) detrás de la entrada a la campaña.
 - Sin modales nuevos: las decisiones inline (Cast en el wizard) usan disclosure
-  en el flujo, no diálogos.
+  en el flujo, no diálogos. Excepción acordada (2026-06-12): el paso intermedio
+  cuando "Describe lo que imaginas" va vacío es un diálogo — es una bifurcación
+  explícita pedida por el usuario, no una decisión inline.
 
 ## 7. Contenido y microcopy
 
@@ -144,8 +150,9 @@ CRÉDITOS          /app/billing          renombrado desde "Billing"
   columna "Qué es" de la tabla §4.2 del doc de arquitectura).
 - **Compuertas**: verbos consistentes — "Revisa el plan", "Aprueba la muestra",
   "Lanza el lote", "Marca ganadores", "Descarga la entrega".
-- Longitudes realistas: nombres de campaña ≤120 chars, 6-30 creativos por
-  campaña, 0-20 campañas por workspace, 1-6 imágenes de producto.
+- Longitudes realistas: nombres de campaña ≤120 chars, hasta 30 creativos por
+  campaña (los deriva el matcher de las ideas; plan sugerido de 6 sin ideas),
+  0-20 campañas por workspace, 1-6 imágenes de producto.
 
 ## 8. Referencias de implementación
 

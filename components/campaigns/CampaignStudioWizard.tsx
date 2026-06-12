@@ -1,11 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,11 +42,12 @@ const GOALS = [
   { value: 'conversion', label: 'Conversión' },
 ] as const;
 
-const VOLUME_OPTIONS = [6, 12, 18, 24, 30];
-
 // Wizard sin walls (specs/v2/06 §4.4): subir fotos del producto es el camino
 // primario — el Brand Kit se crea implícito en el server. Elegir un kit
 // existente es la alternativa, nunca un requisito previo.
+// El plan sale de lo que el usuario describe (specs/v2/07): no hay selector
+// de volumen — el matcher decide cuántos creativos por idea. Sin ideas, un
+// paso intermedio ofrece el plan sugerido.
 export function CampaignStudioWizard({
   brandKits,
   hasCharacters,
@@ -55,16 +64,26 @@ export function CampaignStudioWizard({
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
-  const [totalItems, setTotalItems] = useState(12);
+  const [askIdeasOpen, setAskIdeasOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
+  const ideasRef = useRef<HTMLTextAreaElement>(null);
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
   const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
   const canSubmit = name.trim().length > 0 && productReady && !submitting;
 
-  async function handleCreate() {
+  function handleCreate() {
     if (!canSubmit) return;
+    // Sin ideas, el plan saldría genérico: preguntar antes de generar.
+    if (!ideas.trim()) {
+      setAskIdeasOpen(true);
+      return;
+    }
+    void runCreate();
+  }
+
+  async function runCreate() {
     setSubmitting(true);
     setStep('brief');
     const created = await createCampaignStudioAction({
@@ -89,9 +108,10 @@ export function CampaignStudioWizard({
       return;
     }
     setStep('plan');
+    // Con ideas, el matcher deriva cuántos creativos salen; sin ideas el
+    // server arma el plan sugerido (default del schema).
     const planned = await generatePlanAction({
       campaignId: created.data.id,
-      totalItems,
       ...(ideas.trim() ? { userIdeas: ideas.trim() } : {}),
     });
     setSubmitting(false);
@@ -118,7 +138,7 @@ export function CampaignStudioWizard({
 
       <h1 className="text-[18px] font-semibold text-foreground">Nueva campaña</h1>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        Sube tu producto y el sistema propone el mix de formatos y arma el plan completo.
+        Sube tu producto y describe lo que imaginas: el plan se arma con esos creativos.
       </p>
 
       <div className="mt-6 space-y-6">
@@ -206,19 +226,22 @@ export function CampaignStudioWizard({
 
         <section className="space-y-1.5">
           <Label htmlFor="campaign-ideas" className="text-[12.5px] font-medium text-foreground/80">
-            Describe lo que imaginas <span className="font-normal text-muted-foreground/50">(opcional)</span>
+            Describe lo que imaginas
           </Label>
           <textarea
             id="campaign-ideas"
+            ref={ideasRef}
             value={ideas}
             onChange={(e) => setIdeas(e.target.value)}
-            placeholder="Ej. quiero unboxings, algo ASMR, y un video donde mi perro usa el producto"
+            placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
             maxLength={2000}
             rows={3}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
           />
           <p className="text-[11.5px] text-muted-foreground/60">
-            Tus ideas guían el mix de formatos; las que no encajen en el catálogo crean un formato nuevo tuyo.
+            El plan tendrá un creativo por cada idea (o los que pidas: &ldquo;3 versiones
+            de&hellip;&rdquo;). Lo que no encaje en el catálogo crea un formato nuevo tuyo.
+            Techo demo: 30 creativos; los borradores salen en 480p.
           </p>
         </section>
 
@@ -268,30 +291,6 @@ export function CampaignStudioWizard({
           </p>
         </section>
 
-        <section>
-          <span className="text-[12.5px] font-medium text-foreground/80">Volumen de creativos</span>
-          <div className="mt-1.5 flex gap-2">
-            {VOLUME_OPTIONS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setTotalItems(n)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
-                  totalItems === n
-                    ? 'border-primary/60 bg-primary/10 text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
-            Techo demo: 30 creativos por campaña. Los borradores se generan en calidad de
-            exploración (480p).
-          </p>
-        </section>
-
         {!hasCharacters && (
           <section className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
             <UserRound className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" aria-hidden />
@@ -324,6 +323,38 @@ export function CampaignStudioWizard({
           )}
         </Button>
       </div>
+
+      <Dialog open={askIdeasOpen} onOpenChange={setAskIdeasOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Cómo armamos el plan?</DialogTitle>
+            <DialogDescription>
+              No describiste lo que imaginas. Si lo cuentas, el plan tendrá exactamente
+              los creativos que pidas; si prefieres, proponemos un plan inicial de 6
+              creativos que puedes editar o refinar después.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAskIdeasOpen(false);
+                void runCreate();
+              }}
+            >
+              Proponer un plan por mí
+            </Button>
+            <Button
+              onClick={() => {
+                setAskIdeasOpen(false);
+                ideasRef.current?.focus();
+              }}
+            >
+              Describir mis ideas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

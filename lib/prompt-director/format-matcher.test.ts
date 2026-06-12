@@ -65,6 +65,41 @@ describe('matchIdeas', () => {
     });
   });
 
+  it('sin count ni scenePrompt aplica defaults (1 y null)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].count).toBe(1);
+    expect(res.matches[0].scenePrompt).toBeNull();
+  });
+
+  it('conserva count y scenePrompt cuando la idea los trae', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: '3 unboxings donde se ve el sello al abrir',
+        formatId: 'f1',
+        customFormat: null,
+        count: 3,
+        scenePrompt: 'Hands break the seal slowly and lift the product into soft light',
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: '3 unboxings...', formats: FORMATS });
+    expect(res.matches[0].count).toBe(3);
+    expect(res.matches[0].scenePrompt).toContain('seal');
+  });
+
+  it('count fuera de rango cae al default sin tirar el match', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'muchos unboxings', formatId: 'f1', customFormat: null, count: 99 }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'muchos unboxings', formats: FORMATS });
+    expect(res.matches[0].count).toBe(1);
+  });
+
   it('descarta formatId que no existe en la lista', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{ ideaText: 'x', formatId: 'inventado', customFormat: null }],

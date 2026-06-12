@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildPlan, type PlannerInput } from './planner';
+import {
+  buildDirectedPlan,
+  buildPlan,
+  MAX_PLAN_ITEMS,
+  type DirectedPlanInput,
+  type PlannerInput,
+} from './planner';
 import { buildCaption, productHashtag } from './captions';
 import { htmlToText, isPrivateIp } from './brief';
 import { estimatePlanCost, seedanceCostPerItem } from './estimate';
@@ -132,6 +138,130 @@ describe('buildPlan', () => {
       plannerInput({ available: { product: false, packaging: false, character: false } }),
     );
     expect(items).toHaveLength(0);
+  });
+});
+
+// ============ Plan dirigido por ideas ============
+
+const fmt = (slug: string) => {
+  const f = FORMATS.find((x) => x.slug === slug);
+  if (!f) throw new Error(`fixture sin formato ${slug}`);
+  return f;
+};
+
+function directedInput(
+  ideas: DirectedPlanInput['ideas'],
+  overrides: Partial<DirectedPlanInput> = {},
+): DirectedPlanInput {
+  const base = plannerInput();
+  return {
+    ideas,
+    productName: base.productName,
+    goal: base.goal,
+    scenes: base.scenes,
+    characters: base.characters,
+    available: base.available,
+    dateStart: base.dateStart,
+    dateEnd: base.dateEnd,
+    draftModelSlug: base.draftModelSlug,
+    ...overrides,
+  };
+}
+
+describe('buildDirectedPlan', () => {
+  it('genera exactamente los creativos pedidos, sin rellenar', () => {
+    const items = buildDirectedPlan(
+      directedInput([
+        { format: fmt('el-icono'), count: 1, scenePrompt: null },
+        { format: fmt('susurro'), count: 3, scenePrompt: null },
+      ]),
+    );
+    expect(items).toHaveLength(4);
+    const bySlug = new Map<string, number>();
+    for (const i of items) bySlug.set(i.formatSlug, (bySlug.get(i.formatSlug) ?? 0) + 1);
+    expect(bySlug.get('el-icono')).toBe(1);
+    expect(bySlug.get('susurro')).toBe(3);
+  });
+
+  it('el scenePrompt del matcher manda sobre las semillas del formato', () => {
+    const items = buildDirectedPlan(
+      directedInput([
+        {
+          format: fmt('mundo-imposible'),
+          count: 1,
+          scenePrompt: 'A dog carries the product through a park, tail wagging',
+        },
+      ]),
+    );
+    expect(items[0].scenePrompt).toBe('A dog carries the product through a park, tail wagging');
+  });
+
+  it('sin scenePrompt usa las semillas del formato', () => {
+    const items = buildDirectedPlan(
+      directedInput([{ format: fmt('el-icono'), count: 2, scenePrompt: null }]),
+    );
+    for (const item of items) {
+      expect(item.scenePrompt.length).toBeGreaterThan(20);
+      expect(item.scenePrompt).toContain('Lumen Sparkling Water');
+    }
+    // semillas distintas por variación
+    expect(items[0].scenePrompt).not.toBe(items[1].scenePrompt);
+  });
+
+  it('filtra ideas cuyos formatos requieren referencias que faltan', () => {
+    const items = buildDirectedPlan(
+      directedInput(
+        [
+          { format: fmt('voz-cercana'), count: 2, scenePrompt: null },
+          { format: fmt('el-icono'), count: 1, scenePrompt: null },
+        ],
+        { available: { product: true, packaging: false, character: false }, characters: [] },
+      ),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].formatSlug).toBe('el-icono');
+  });
+
+  it('devuelve vacío si ninguna idea es viable', () => {
+    const items = buildDirectedPlan(
+      directedInput(
+        [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null }],
+        { available: { product: true, packaging: false, character: true } },
+      ),
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it('aplica el techo demo de 30 creativos en total', () => {
+    const items = buildDirectedPlan(
+      directedInput([
+        { format: fmt('el-icono'), count: 10, scenePrompt: null },
+        { format: fmt('susurro'), count: 10, scenePrompt: null },
+        { format: fmt('gran-pantalla'), count: 10, scenePrompt: null },
+        { format: fmt('antes-y-despues'), count: 10, scenePrompt: null },
+      ]),
+    );
+    expect(items).toHaveLength(MAX_PLAN_ITEMS);
+  });
+
+  it('asigna personaje, aspect ratio y fechas como el plan por mix', () => {
+    const items = buildDirectedPlan(
+      directedInput([
+        { format: fmt('voz-cercana'), count: 2, scenePrompt: null },
+        { format: fmt('gran-pantalla'), count: 1, scenePrompt: null },
+      ]),
+    );
+    for (const item of items) {
+      if (item.formatSlug === 'voz-cercana') {
+        expect(item.characterId).not.toBeNull();
+        expect(item.aspectRatio).toBe('9:16');
+      } else {
+        expect(item.characterId).toBeNull();
+        expect(item.aspectRatio).toBe('16:9');
+      }
+      expect(item.scheduledDate >= '2026-07-01').toBe(true);
+      expect(item.scheduledDate <= '2026-07-30').toBe(true);
+    }
   });
 });
 
