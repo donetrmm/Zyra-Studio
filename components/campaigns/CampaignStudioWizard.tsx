@@ -27,6 +27,7 @@ import {
   ReferenceImagesUploader,
   type RefImage,
 } from '@/components/shared/ReferenceImagesUploader';
+import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
 
 type BrandKitOption = {
@@ -60,10 +61,10 @@ const GOALS = [
 // paso intermedio ofrece el plan sugerido.
 export function CampaignStudioWizard({
   brandKits,
-  hasCharacters,
+  characters,
 }: {
   brandKits: BrandKitOption[];
-  hasCharacters: boolean;
+  characters: Array<{ id: string; name: string; previewUrl: string | null; angleCount: number }>;
 }) {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -77,7 +78,18 @@ export function CampaignStudioWizard({
   const [askIdeasOpen, setAskIdeasOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
+
+  // El orden de selección importa: [0] es el personaje principal.
+  function toggleCharacter(id: string) {
+    setSelectedCharacterIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : prev.length >= 3 ? prev : [...prev, id],
+    );
+  }
+  function makePrincipal(id: string) {
+    setSelectedCharacterIds((prev) => (prev.includes(id) ? [id, ...prev.filter((x) => x !== id)] : prev));
+  }
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
   const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
@@ -104,6 +116,7 @@ export function CampaignStudioWizard({
         ? { productImageIds: productImages.map((img) => img.id) }
         : { brandKitId }),
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
+      ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -142,6 +155,14 @@ export function CampaignStudioWizard({
     } else {
       toast.success(
         `Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en borradores`,
+      );
+    }
+    // Nombres mencionados en las ideas que no están en el pool: el planner
+    // les inventa apariencia — avisar para que no sorprenda la cara distinta.
+    if (planned.data.inventedNames?.length) {
+      toast.info(
+        `${planned.data.inventedNames.join(', ')}: no está(n) en la campaña, se inventó su apariencia (sin imagen de referencia).`,
+        { duration: 9000 },
       );
     }
     router.push(`/app/campaigns/${created.data.id}`);
@@ -266,6 +287,113 @@ export function CampaignStudioWizard({
           </p>
         </section>
 
+        <section>
+          <Label className="text-[12.5px] font-medium text-foreground/80">
+            Personajes <span className="font-normal text-muted-foreground/50">(hasta 3)</span>
+          </Label>
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground/60">
+            Los personajes asignados pueden aparecer en los videos; nómbralos en tus ideas
+            para dirigirlos (&ldquo;María hace un unboxing&rdquo;). Nombres que no asignes
+            se inventan sin imagen de referencia.
+          </p>
+          {characters.length === 0 ? (
+            <div className="mt-1.5 flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+              <UserRound className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" aria-hidden />
+              <div className="flex-1 text-[12px] leading-relaxed text-muted-foreground">
+                <p>
+                  Sin personajes en tu Cast, los formatos con presentador usarán un
+                  personaje inventado (la cara cambiará entre videos).
+                </p>
+                <Link
+                  href="/app/brand/cast"
+                  className="mt-1 inline-block text-primary underline-offset-2 hover:underline"
+                >
+                  Crear un personaje primero
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-4">
+                {characters.map((c) => {
+                  const idx = selectedCharacterIds.indexOf(c.id);
+                  const selected = idx >= 0;
+                  const full = selectedCharacterIds.length >= 3 && !selected;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => toggleCharacter(c.id)}
+                      disabled={full}
+                      aria-pressed={selected}
+                      className={`relative rounded-xl border p-2 text-left transition-colors ${
+                        selected
+                          ? 'border-primary/60 bg-primary/5'
+                          : 'border-border bg-card/50 hover:border-muted-foreground/30'
+                      } ${full ? 'opacity-40' : ''}`}
+                    >
+                      {c.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.previewUrl}
+                          alt={c.name}
+                          className="aspect-square w-full rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="grid aspect-square w-full place-items-center rounded-lg bg-muted/30">
+                          <UserRound className="size-5 text-muted-foreground/40" aria-hidden />
+                        </div>
+                      )}
+                      <p className="mt-1.5 truncate text-[12px] text-foreground/90">{c.name}</p>
+                      {idx === 0 && (
+                        <span className="absolute right-1.5 top-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[9.5px] font-medium text-primary-foreground">
+                          Principal
+                        </span>
+                      )}
+                      {idx > 0 && (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            makePrincipal(c.id);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.stopPropagation();
+                              makePrincipal(c.id);
+                            }
+                          }}
+                          className="absolute right-1.5 top-1.5 rounded-full border border-border bg-background/80 px-1.5 py-0.5 text-[9.5px] text-muted-foreground hover:text-foreground"
+                        >
+                          Hacer principal
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedCharacterIds.length >= 3 && (
+                <p className="mt-1.5 text-[11.5px] text-amber-400/80">
+                  Con 3 personajes la atención del modelo se reparte y el parecido puede
+                  degradarse; considera 1-2 por video.
+                </p>
+              )}
+              <ReferenceBudget
+                productPreviews={mode === 'upload' ? productImages.map((i) => i.previewUrl) : []}
+                productCount={mode === 'upload' ? productImages.length : selectedKit?.productImages ?? 0}
+                packagingCount={mode === 'kit' ? selectedKit?.packagingImages ?? 0 : 0}
+                characters={selectedCharacterIds.map((id) => {
+                  const c = characters.find((x) => x.id === id);
+                  return c
+                    ? { id: c.id, name: c.name, previewUrl: c.previewUrl, angleCount: c.angleCount }
+                    : { id, name: '', previewUrl: null, angleCount: 0 };
+                })}
+              />
+            </>
+          )}
+        </section>
+
         <section className="space-y-1.5">
           <Label htmlFor="campaign-goal" className="text-[12.5px] font-medium text-foreground/80">
             Objetivo
@@ -311,24 +439,6 @@ export function CampaignStudioWizard({
             Idioma de los diálogos y voz en off de los videos; el caption sale en español.
           </p>
         </section>
-
-        {!hasCharacters && (
-          <section className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
-            <UserRound className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" aria-hidden />
-            <div className="flex-1 text-[12px] leading-relaxed text-muted-foreground">
-              <p>
-                Sin personas en tu Cast, el plan omite los formatos con presentador (Voz Cercana, A
-                Pie de Calle). Puedes continuar así y agregarlos después.
-              </p>
-              <Link
-                href="/app/brand/cast"
-                className="mt-1 inline-block text-primary underline-offset-2 hover:underline"
-              >
-                Crear un presentador primero
-              </Link>
-            </div>
-          </section>
-        )}
 
         <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>
           {submitting ? (
