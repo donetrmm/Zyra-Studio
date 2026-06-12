@@ -39,7 +39,7 @@ import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
 import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
-import { matchIdeas } from '@/lib/prompt-director/format-matcher';
+import { matchIdeas, type MatcherImage } from '@/lib/prompt-director/format-matcher';
 import { ProviderError } from '@/lib/providers/types';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 
@@ -316,6 +316,8 @@ export async function generatePlanAction(input: unknown): Promise<
 
   // Disponibilidad de referencias (el plan nunca propone formatos bloqueados).
   const available = { product: false, packaging: false };
+  // Primera imagen de producto: se adjunta al matcher para que VEA el producto.
+  let matcherProductImageId: string | null = null;
   if (campaign.brand_kit_id) {
     const { data: kit } = await supabase
       .from('brand_kits')
@@ -326,6 +328,7 @@ export async function generatePlanAction(input: unknown): Promise<
       ? ((kit?.product_image_ids as string[]) ?? [])
       : ((kit?.reference_image_ids as string[]) ?? []);
     available.product = productIds.length > 0;
+    matcherProductImageId = productIds[0] ?? null;
     // El empaque solo está disponible si la campaña decidió incluirlo (032).
     available.packaging =
       campaign.include_packaging !== false &&
@@ -335,7 +338,7 @@ export async function generatePlanAction(input: unknown): Promise<
   // Pool de la campaña (spec 2026-06-12): el plan solo usa los personajes
   // asignados; pool vacío = formatos con presentador usan personaje inventado.
   const poolIds = ((campaign.character_ids as string[]) ?? []).slice(0, 3);
-  let characters: Array<{ id: string; name: string }> = [];
+  let characters: Array<{ id: string; name: string; masterId: string | null }> = [];
   if (poolIds.length) {
     const { data: characterRows } = await supabase
       .from('characters')
@@ -345,7 +348,17 @@ export async function generatePlanAction(input: unknown): Promise<
     const byId = new Map(
       (characterRows ?? [])
         .filter((c) => c.master_image_id || ((c.reference_image_ids as string[]) ?? []).length > 0)
-        .map((c) => [c.id as string, { id: c.id as string, name: c.name as string }]),
+        .map((c) => [
+          c.id as string,
+          {
+            id: c.id as string,
+            name: c.name as string,
+            masterId:
+              (c.master_image_id as string | null) ??
+              ((c.reference_image_ids as string[]) ?? [])[0] ??
+              null,
+          },
+        ]),
     );
     // Personajes borrados del Cast desde la creación: se filtran en silencio.
     characters = poolIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
@@ -374,6 +387,37 @@ export async function generatePlanAction(input: unknown): Promise<
   const inventedByName = new Map<string, { name: string; description: string }>();
   const campaignLanguage: 'es' | 'en' = campaign.language === 'en' ? 'en' : 'es';
   if (parsed.data.userIdeas) {
+    // Imágenes para el matcher (best-effort): que VEA el producto y a los
+    // personajes produce acciones fieles a lo que existe. Cualquier fallo de
+    // descarga degrada a solo-texto sin tirar el plan.
+    const matcherImages: MatcherImage[] = [];
+    try {
+      const wanted = [
+        ...(matcherProductImageId ? [{ refId: matcherProductImageId, label: 'producto' }] : []),
+        ...characters.flatMap((c) =>
+          c.masterId ? [{ refId: c.masterId, label: `personaje ${c.name}` }] : [],
+        ),
+      ];
+      if (wanted.length) {
+        const { data: refs } = await supabase
+          .from('media_references')
+          .select('id, storage_url, workspace_id')
+          .in('id', wanted.map((w) => w.refId));
+        const urlById = new Map(
+          (refs ?? [])
+            .filter((r) => r.workspace_id === workspace.id && r.storage_url)
+            .map((r) => [r.id as string, r.storage_url as string]),
+        );
+        for (const { refId, label } of wanted) {
+          const url = urlById.get(refId);
+          if (!url) continue;
+          const { buffer, mimeType } = await downloadReferenceBuffer(url);
+          matcherImages.push({ mimeType, dataBase64: buffer.toString('base64'), label });
+        }
+      }
+    } catch (err) {
+      console.warn('[generatePlanAction] imágenes para el matcher no disponibles', err);
+    }
     try {
       const matched = await matchIdeas({
         ideasText: parsed.data.userIdeas,
@@ -385,6 +429,7 @@ export async function generatePlanAction(input: unknown): Promise<
           defaultDurationS: f.default_duration_s as number,
         })),
         characters: characters.map((c) => ({ id: c.id, name: c.name })),
+        ...(matcherImages.length ? { images: matcherImages } : {}),
         language: campaignLanguage,
       });
       for (const m of matched.matches) {

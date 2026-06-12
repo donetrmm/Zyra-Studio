@@ -84,6 +84,66 @@ describe('compile seedance', () => {
     expect(params.generateAudio).toBe(true);
   });
 
+  it('con hablante y audio: encabezado, lip sync y voz natural anti-robótica', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She lifts the can and shares one casual line to camera',
+        durationS: 9,
+        aspectRatio: '9:16',
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    // Encabezado con duración y orientación, primero.
+    expect(prompt.startsWith('A 9-second vertical (9:16) commercial video')).toBe(true);
+    // Lip sync / habla en cámara (no narración).
+    expect(prompt).toContain('Synchronized on-camera speech, not voice-over narration');
+    // Voz natural anti-robótica.
+    expect(prompt).toContain('natural Mexican accent');
+    expect(prompt).toContain('Avoid robotic speech');
+  });
+
+  it('sin audio o sin hablante no hay dirección de lip sync', () => {
+    // generateAudio: false → ni lip sync ni directiva de idioma.
+    const silent = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She lifts the can toward the camera',
+        generateAudio: false,
+      },
+      fullContext(),
+    );
+    expect(silent.ok).toBe(true);
+    if (silent.ok) expect(silent.compiled.prompt).not.toContain('Synchronized on-camera speech');
+
+    // Sin personajes ni mención de hablante (el-icono): audio sí, lip sync no.
+    const ctx = fullContext();
+    ctx.characters = undefined;
+    ctx.format = elIcono;
+    const noSpeaker = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins on marble and stops label-forward' },
+      ctx,
+    );
+    expect(noSpeaker.ok).toBe(true);
+    if (noSpeaker.ok) expect(noSpeaker.compiled.prompt).not.toContain('Synchronized on-camera speech');
+  });
+
+  it('avisa cuando el prompt supera el techo de 4000 caracteres', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: `The can rests on stone ${'and the light shifts slowly across the label '.repeat(90)}`,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.warnings.some((w) => w.includes('techo de trabajo de 4000'))).toBe(true);
+  });
+
   it('el diálogo hablado va en español por default y en inglés si la campaña lo pide', () => {
     const req = {
       modelSlug: 'bytedance/seedance-2.0/reference-to-video',

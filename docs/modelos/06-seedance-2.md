@@ -100,6 +100,13 @@ Reglas operativas: una acción y un movimiento de cámara por toma; complejidad 
 - **Consistencia de personaje**: misma hoja maestra en TODAS las generaciones + "apariencia
   exacta de @ImageN"; variaciones de ropa/expresión solo en texto.
 
+## Longitud del prompt
+
+fal **no documenta** un límite de caracteres del campo `prompt` (verificado contra su
+API reference, 2026-06-12). El techo de 4000 caracteres es NUESTRO
+(`SubmitSeedanceSchema`), conservador y alineado con la guía de longitud útil
+(2-4 frases por toma, 4-8 multi-toma); el compiler avisa con warning si lo supera.
+
 ## Límites y qué falla (validar antes de encolar)
 
 | Falla | Causa | Mitigación |

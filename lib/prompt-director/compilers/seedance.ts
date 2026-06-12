@@ -18,10 +18,31 @@ const NEGATIVE_CLAUSE =
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
+// La dirección de voz natural (cadencia, pausas, anti-locutor) viene del
+// prompt de ejemplo validado a mano (2026-06-12): sin ella la voz sale
+// robótica. OJO: acento mexicano sustituye al "neutral LatAm" original —
+// decisión tomada de ese ejemplo que funcionó.
 export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
-  es: 'All spoken dialogue and any voice-over must be in Spanish, with a neutral Latin American accent.',
-  en: 'All spoken dialogue and any voice-over must be in English.',
+  es: 'All spoken dialogue and any voice-over must be in Spanish with a natural Mexican accent. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend.',
+  en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend.',
 };
+
+// Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en
+// escena. Del mismo ejemplo validado a mano.
+const SPEECH_DIRECTION =
+  'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
+
+// Heurística determinista: hay hablante si el item lleva personajes del Cast
+// o la acción menciona presentador/diálogo (cubre inventados del planner).
+function hasSpeaker(req: CompileRequest, ctx: DirectorContext): boolean {
+  if ((ctx.characters?.length ?? 0) > 0) return true;
+  return /\b(presenter|interviewer|dialogue|speaks?|speaking|talks?|talking)\b/i.test(req.scenePrompt);
+}
+
+// Tope de trabajo del prompt: fal NO documenta límite (verificado 2026-06-12
+// contra su API reference); 4000 es el techo propio de SubmitSeedanceSchema —
+// el compiler avisa antes de que un submit manual lo rechace.
+const PROMPT_CHAR_BUDGET = 4000;
 
 // Construye las referencias EN ORDEN (la posición define @Image1.., @Video1..).
 // Prioridad ante el tope de 12: producto > empaque > personaje > extra > cámara > audio
@@ -128,10 +149,27 @@ export function compileSeedance(
   const { references, lines, warnings: refWarnings } = buildReferences(ctx);
   warnings.push(...refWarnings);
 
+  const duration = req.durationS ?? ctx.format?.defaultDurationS;
+  const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
+  const speaker = generateAudio && hasSpeaker(req, ctx);
+
   const sections: string[] = [];
+
+  // Encabezado: qué pieza es, antes de cualquier detalle (estructura del
+  // ejemplo validado: duración + orientación + estilo base primero).
+  const aspect = req.aspectRatio ?? '9:16';
+  const orientation = aspect === '9:16' || aspect === '3:4' ? 'vertical' : aspect === '1:1' ? 'square' : 'horizontal';
+  sections.push(
+    `A ${duration ? `${duration}-second ` : ''}${orientation} (${aspect}) commercial video, ultra realistic, filmic color grading.`,
+  );
 
   // R — Referencias primero, cada @ con propósito declarado.
   if (lines.length) sections.push(lines.join(' '));
+
+  // Habla en cámara: temprano y destacado (como el bloque VERY IMPORTANT del
+  // ejemplo) — la calidad del lip sync depende de que el modelo lo lea antes
+  // de la acción.
+  if (speaker) sections.push(SPEECH_DIRECTION);
 
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);
@@ -157,7 +195,6 @@ export function compileSeedance(
   }
 
   // Audio dirigido: qué se oye, no "agrega música".
-  const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
   if (generateAudio && !ctx.audioRefPath) {
     sections.push('Audio: natural diegetic sound that matches the scene; no music unless the register calls for it.');
   }
@@ -167,12 +204,17 @@ export function compileSeedance(
 
   sections.push(NEGATIVE_CLAUSE);
 
-  const duration = req.durationS ?? ctx.format?.defaultDurationS;
   const hasRefs = references.length > 0;
+  const prompt = sections.filter(Boolean).join('\n');
+  if (prompt.length > PROMPT_CHAR_BUDGET) {
+    warnings.push(
+      `prompt: ${prompt.length} caracteres supera el techo de trabajo de ${PROMPT_CHAR_BUDGET}; recorta la acción o divide el creativo`,
+    );
+  }
 
   return {
     modelSlug: req.modelSlug,
-    prompt: sections.filter(Boolean).join('\n'),
+    prompt,
     params: {
       operation: hasRefs ? 'reference2video' : 'text2video',
       duration,

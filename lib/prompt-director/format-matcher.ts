@@ -23,6 +23,10 @@ export type MatcherFormat = {
   defaultDurationS?: number;
 };
 export type MatcherCharacter = { id: string; name: string };
+// Imagen de referencia para el matcher (multimodal): el modelo VE el producto
+// y los personajes y escribe acciones fieles a lo que existe. label entra al
+// texto del usuario para atar cada imagen a su rol.
+export type MatcherImage = { mimeType: string; dataBase64: string; label: string };
 
 const InventedCharacterSchema = z.object({
   name: z.string().trim().min(1).max(60),
@@ -40,7 +44,7 @@ const MatchSchema = z.object({
   // Concepto concreto de la idea en inglés: va directo al scenePrompt del
   // item para que el creativo refleje lo que el usuario escribió. Con varias
   // acciones o ≥8s puede traer timeline ("0-3s: ...") — por eso el tope amplio.
-  scenePrompt: z.string().trim().min(1).max(1000).nullable().catch(null).default(null),
+  scenePrompt: z.string().trim().min(1).max(1500).nullable().catch(null).default(null),
   // Resumen de la acción en el idioma de la campaña: SOLO display en la UI
   // (el prompt al modelo va en inglés siempre).
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
@@ -145,8 +149,13 @@ Por cada idea distinta devuelve un match:
   varias acciones/beats o el formato dura 8s o más (duración en el catálogo),
   estructúralo como timeline con marcadores de segundos que cubran la duración
   ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
-  producto protagonista. Si la idea solo nombra un formato sin acción concreta
-  ("quiero unboxings"), scenePrompt = null.
+  producto protagonista. Si hay un presentador que habla, incluye en cada
+  tramo su línea de diálogo guionizada __SUMMARY_LANG__ entre comillas
+  (Dialogue: "..."), corta y conversacional — como se le habla a un amigo,
+  nunca como locutor. Si recibes imágenes adjuntas (producto y personajes),
+  describe la acción usando lo que VES: colores, materiales, contexto físico
+  real del producto y apariencia real de los personajes. Si la idea solo
+  nombra un formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
 - sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
   1 frase, máximo 200 caracteres, sin marcadores de segundos. Si scenePrompt es
   null, sceneSummary = null.
@@ -163,6 +172,9 @@ export async function matchIdeas(input: {
   ideasText: string;
   formats: MatcherFormat[];
   characters?: MatcherCharacter[];
+  // Imágenes reales de producto/personajes: opcionales y best-effort (sin
+  // ellas el matcher trabaja solo con texto, como antes).
+  images?: MatcherImage[];
   // Idioma del sceneSummary (display). Default 'es'.
   language?: 'es' | 'en';
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
@@ -185,6 +197,7 @@ async function requestMatch(input: {
   ideasText: string;
   formats: MatcherFormat[];
   characters?: MatcherCharacter[];
+  images?: MatcherImage[];
   language?: 'es' | 'en';
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -196,24 +209,34 @@ async function requestMatch(input: {
     )
     .join('\n');
 
-  const system = SYSTEM.replace('__SUMMARY_LANG__', SUMMARY_LANGUAGE[input.language ?? 'es']);
+  const system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[input.language ?? 'es']);
 
   const cast = (input.characters ?? [])
     .map((c) => `- id=${c.id} ${c.name}`)
     .join('\n') || '(ninguno)';
+
+  // Multimodal: las imágenes van después del texto, con sus roles declarados
+  // en el texto para que el modelo sepa qué es cada una.
+  const images = (input.images ?? []).slice(0, 4);
+  const imageNote = images.length
+    ? `\n\nImágenes adjuntas (en orden): ${images.map((img, i) => `${i + 1}=${img.label}`).join(', ')}.`
+    : '';
+  const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
+    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}${imageNote}` },
+    ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.dataBase64 } })),
+  ];
 
   const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{
-        role: 'user',
-        parts: [{ text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}` }],
-      }],
+      contents: [{ role: 'user', parts }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 2000,
+        // Timelines con diálogo por idea abultan el JSON: techo holgado para
+        // que no se trunque (el saneo igual tolera truncados con retry).
+        maxOutputTokens: 4000,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },

@@ -130,6 +130,9 @@ Reglas duras:
   por toma. Si la escena tiene varios beats o dura 8s o más, estructura el
   scenePrompt como timeline con marcadores de segundos que cubran la duración
   ("0-3s: ... 3-7s: ..."), una acción por tramo, cierre con el producto.
+  Si hay un presentador que habla, guioniza su diálogo dentro de cada tramo
+  (Dialogue: "...") ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'},
+  corto y conversacional — como se le habla a un amigo, nunca de locutor.
   Cada vez que cambies scenePrompt actualiza también sceneSummary: 1 frase
   ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'}, máx 200 caracteres,
   sin marcadores de segundos (es lo que el usuario lee en el panel).

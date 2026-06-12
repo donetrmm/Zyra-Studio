@@ -280,6 +280,31 @@ describe('matchIdeas', () => {
     expect(res.matches[0].characterIds).toEqual(['c1', 'c2', 'c3']);
   });
 
+  it('las imágenes adjuntas viajan como inline_data con su rol declarado en el texto', async () => {
+    const fetchMock = vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.GEMINI_API_KEY = 'test';
+    await matchIdeas({
+      ideasText: 'un unboxing',
+      formats: FORMATS,
+      images: [
+        { mimeType: 'image/png', dataBase64: 'AAAA', label: 'producto' },
+        { mimeType: 'image/jpeg', dataBase64: 'BBBB', label: 'personaje María' },
+      ],
+    });
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as { body: string };
+    const body = JSON.parse(init.body) as {
+      contents: Array<{ parts: Array<Record<string, unknown>> }>;
+    };
+    const parts = body.contents[0].parts;
+    expect(parts).toHaveLength(3);
+    expect(String(parts[0].text)).toContain('1=producto, 2=personaje María');
+    expect(parts[1]).toEqual({ inline_data: { mime_type: 'image/png', data: 'AAAA' } });
+    expect(parts[2]).toEqual({ inline_data: { mime_type: 'image/jpeg', data: 'BBBB' } });
+  });
+
   it('inventedCharacters se parsea y los malformados se descartan sin tirar el match', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{
