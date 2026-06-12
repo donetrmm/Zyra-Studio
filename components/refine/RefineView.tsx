@@ -3,7 +3,7 @@
 // Página del refinado conversacional (specs/v2/07): chat con etapas a la
 // izquierda, el creativo armándose en vivo a la derecha. El estado de la
 // conversación vive aquí; nada se persiste ni cobra hasta "Aceptar".
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Loader2, RotateCcw, Sparkles } from 'lucide-react';
@@ -32,7 +32,8 @@ export function RefineView({
   formatNames: Record<string, string>;
 }) {
   const router = useRouter();
-  const [history, setHistory] = useState<ChatTurn[]>([{ role: 'assistant', text: GREETING }]);
+  const turnId = useRef(1);
+  const [history, setHistory] = useState<Array<ChatTurn & { id: number }>>([{ id: 0, role: 'assistant', text: GREETING }]);
   const [draft, setDraft] = useState(initialDraft);
   const [stage, setStage] = useState<Stage>('what');
   const [chips, setChips] = useState<string[]>([]);
@@ -43,14 +44,16 @@ export function RefineView({
   const [accepting, setAccepting] = useState(false);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
   const [showDictionary, setShowDictionary] = useState(false);
-  const [refImages, setRefImages] = useState<RefImage[]>([]);
+  const [refImages, setRefImages] = useState<RefImage[]>(
+    initialDraft.referenceIds.map((id) => ({ id, previewUrl: null })),
+  );
 
   async function sendTurn(text: string) {
     if (!text.trim() || pending) return;
     setPending(true);
     setFailedMessage(null);
     const res = await refineItemTurnAction({
-      campaignId, itemId, history, draft, stage, userMessage: text.trim(),
+      campaignId, itemId, history: history.map(({ role, text }) => ({ role, text })), draft, stage, userMessage: text.trim(),
     });
     setPending(false);
     if (!res.ok) {
@@ -59,7 +62,11 @@ export function RefineView({
       toast.error('No se pudo procesar el turno. Reintenta.');
       return;
     }
-    setHistory((h) => [...h, { role: 'user', text: text.trim() }, { role: 'assistant', text: res.data.reply }]);
+    setHistory((h) => [
+      ...h,
+      { id: turnId.current++, role: 'user', text: text.trim() },
+      { id: turnId.current++, role: 'assistant', text: res.data.reply },
+    ]);
     setDraft(res.data.draft);
     setStage(res.data.stage);
     setChips(res.data.chips);
@@ -122,9 +129,9 @@ export function RefineView({
             ))}
           </nav>
 
-          <div className="scroll-thin flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            {history.map((t, i) => (
-              <div key={i} className={cn('max-w-[85%] rounded-lg px-3 py-2 text-[13px] leading-relaxed', t.role === 'assistant' ? 'bg-muted/40 text-foreground' : 'ml-auto bg-primary/10 text-foreground')}>
+          <div aria-live="polite" aria-label="Conversación de refinado" className="scroll-thin flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            {history.map((t) => (
+              <div key={t.id} className={cn('max-w-[85%] rounded-lg px-3 py-2 text-[13px] leading-relaxed', t.role === 'assistant' ? 'bg-muted/40 text-foreground' : 'ml-auto bg-primary/10 text-foreground')}>
                 {t.text}
               </div>
             ))}
@@ -227,7 +234,7 @@ export function RefineView({
         {/* Borrador en vivo */}
         <aside className="h-fit rounded-xl border border-border bg-card/30 p-4 text-[12.5px]">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Tu creativo</p>
-          <dl className="mt-3 space-y-3">
+          <dl aria-live="polite" className="mt-3 space-y-3">
             <div>
               <dt className="text-muted-foreground/80">Producto</dt>
               <dd className="text-foreground/90">{productName}</dd>
@@ -249,13 +256,13 @@ export function RefineView({
               <dd className="text-foreground/90">{draft.referenceIds.length > 0 ? `${draft.referenceIds.length} adjuntas` : 'Ninguna aún'}</dd>
             </div>
             {errors.length > 0 && (
-              <div role="status">
+              <div>
                 <dt className="text-red-400">Bloqueos</dt>
                 {errors.map((e) => <dd key={e} className="text-red-300/90">{e}</dd>)}
               </div>
             )}
             {warnings.length > 0 && (
-              <div role="status">
+              <div>
                 <dt className="text-amber-400">Puede afectar el resultado</dt>
                 {warnings.map((w) => <dd key={w} className="text-amber-200/80">{w}</dd>)}
               </div>
