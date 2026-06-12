@@ -360,4 +360,52 @@ describe('matchIdeas', () => {
       { name: 'Lucía', description: 'a presenter with short auburn hair and a denim jacket' },
     ]);
   });
+
+  it('parsea una secuencia con scenes[] ordenadas y sequenceLabel', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'anuncio cuadro familiar de 15s con 4 actos', formatId: 'f1', customFormat: null,
+        sequenceLabel: 'Cuadro familiar',
+        scenes: [
+          { scenePrompt: '0-3s: Brenda looks at camera, LED wall of photos behind her', durationS: 4, sceneSummary: 'Gancho: Brenda y el muro de fotos' },
+          { scenePrompt: 'Brenda walks around a floating family photo in a dark museum room', durationS: 6, sceneSummary: 'Museo de recuerdos' },
+          { scenePrompt: 'The family photo becomes a premium framed print in a warm living room', durationS: 5, sceneSummary: 'Revelacion del cuadro' },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'anuncio cuadro familiar', formats: FORMATS });
+    const m = res.matches[0];
+    expect(m.sequenceLabel).toBe('Cuadro familiar');
+    expect(m.scenes).toHaveLength(3);
+    expect(m.scenes[0].durationS).toBe(4);
+    expect(m.scenes[1].scenePrompt).toContain('museum');
+  });
+
+  it('descarta una escena malformada sin tirar la secuencia', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [
+          { scenePrompt: 'Scene one is fully valid and concrete', durationS: 5 },
+          { durationS: 5 },
+          { scenePrompt: 'Scene three is also valid', durationS: 6 },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
+    expect(res.matches[0].scenes).toHaveLength(2);
+    expect(res.matches[0].scenes[1].scenePrompt).toContain('three');
+  });
+
+  it('idea normal trae scenes vacio (no es secuencia)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null, scenePrompt: 'Hands open the box slowly' }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].scenes).toEqual([]);
+    expect(res.matches[0].sequenceLabel).toBeNull();
+  });
 });

@@ -48,6 +48,22 @@ const InventedCharacterSchema = z.object({
   description: z.string().trim().min(1).max(300),
 });
 
+// Una escena de una secuencia: misma forma que un scenePrompt suelto, recortado
+// con el mismo clamp. Sin scenePrompt valido, la escena es descartable.
+const SceneSchema = z.object({
+  scenePrompt: z
+    .unknown()
+    .transform((v) => {
+      if (typeof v !== 'string') return null;
+      const t = v.trim();
+      if (!t) return null;
+      return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
+    }),
+  durationS: z.number().int().min(4).max(15).nullable().catch(null).default(null),
+  sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
+});
+export type MatchedScene = { scenePrompt: string; durationS: number | null; sceneSummary: string | null };
+
 const MatchSchema = z.object({
   // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt.
   ideaText: z.string().min(1).max(2000),
@@ -79,6 +95,25 @@ const MatchSchema = z.object({
   // Resumen de la acción en el idioma de la campaña: SOLO display en la UI
   // (el prompt al modelo va en inglés siempre).
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
+  // Secuencia: cuando la idea es un anuncio multi-escena ya guionizado, el
+  // modelo la parte en N escenas cortas. Vacio = idea normal (un solo clip).
+  // Una escena sin scenePrompt valido se descarta; max 8 escenas.
+  scenes: z
+    .array(z.unknown())
+    .catch([])
+    .default([])
+    .transform((arr) =>
+      arr.slice(0, 8).flatMap((item) => {
+        const parsed = SceneSchema.safeParse(item);
+        if (!parsed.success || parsed.data.scenePrompt === null) return [];
+        return [{
+          scenePrompt: parsed.data.scenePrompt,
+          durationS: parsed.data.durationS,
+          sceneSummary: parsed.data.sceneSummary,
+        } satisfies MatchedScene];
+      }),
+    ),
+  sequenceLabel: z.string().trim().min(1).max(120).nullable().catch(null).default(null),
   // Personajes del pool mencionados en la idea (ids exactos; se sanean abajo).
   characterIds: z.array(z.string()).catch([]).default([]),
   // Nombres mencionados que NO están en el pool: apariencia inventada que el
@@ -191,6 +226,15 @@ Por cada idea distinta devuelve un match:
   acción usando lo que VES: colores, materiales, contexto físico real del
   producto y apariencia real de los personajes. Si la idea solo nombra un
   formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
+- scenes: si UNA idea es un anuncio multi-escena YA guionizado (con actos o
+  marcadores de tiempo explicitos, o que claramente NO cabe coherente en un solo
+  clip de <=15s), pártela en escenas cortas: array de objetos
+  {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
+  (re-describe escenario y personaje, el modelo no recuerda entre clips)",
+  "durationS":entero 4-15,"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
+  Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
+- sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
+  familiar"); null si scenes = [].
 - sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
   1 frase, máximo 200 caracteres, sin marcadores de segundos. Si scenePrompt es
   null, sceneSummary = null.
@@ -201,7 +245,7 @@ Por cada idea distinta devuelve un match:
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
   no menciona. Si no aplica, [].
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"characterIds":[],"inventedCharacters":[]}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;
