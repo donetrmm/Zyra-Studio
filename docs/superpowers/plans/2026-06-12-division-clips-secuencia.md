@@ -521,13 +521,13 @@ export const MergeSequenceSchema = z.object({
 });
 ```
 
-- [ ] **Step 6: Implementar `mergeScenes` + `mergeSequenceAction`**
+- [ ] **Step 6: Implementar `mergeScenes` (módulo puro) + `mergeSequenceAction`**
 
-En `server-actions/campaigns.ts`, añadir el helper puro (exportado para test) y la acción:
+`server-actions/campaigns.ts` tiene `'use server'`: solo puede exportar funciones async. Por eso el helper puro `mergeScenes` vive en un módulo aparte. Create `lib/campaigns/merge.ts`:
 
 ```ts
 // Une las escenas de una secuencia en un solo clip: concatena prompts y capa la
-// duracion total a 15s (tope de un clip Seedance).
+// duracion total a 15s (tope de un clip Seedance). Puro: testeable sin DB.
 export function mergeScenes(
   rows: Array<{ scene_prompt: string; duration_s: number | null }>,
 ): { joinedPrompt: string; mergedDuration: number } {
@@ -535,7 +535,11 @@ export function mergeScenes(
   const sum = rows.reduce((acc, r) => acc + (r.duration_s ?? 0), 0);
   return { joinedPrompt, mergedDuration: Math.min(Math.max(4, sum || 4), 15) };
 }
+```
 
+En `server-actions/campaigns.ts`, importar `mergeScenes` desde `'@/lib/campaigns/merge'` y añadir la acción:
+
+```ts
 export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true }>> {
   const parsed = MergeSequenceSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
@@ -586,7 +590,7 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
 
 Importar `MergeSequenceSchema` en el bloque de imports de `server-actions/campaigns.ts`.
 
-En el test del Step 3, importar `mergeScenes` desde `'@/server-actions/campaigns'`.
+En el test del Step 3, importar `mergeScenes` desde `'@/lib/campaigns/merge'`.
 
 - [ ] **Step 7: Correr los tests para verlos pasar**
 
