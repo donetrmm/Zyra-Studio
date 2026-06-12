@@ -65,8 +65,12 @@ workspace → Gemini con salida JSON validada por zod → por cada idea:
 `{ customFormat: { name, register, cameraStyle, pacing, requiredRefs } }`
 (no encaja → se propone formato custom, `is_system=false`, del workspace,
 visible en `/app/formats`). Además, por idea (decisión 2026-06-12):
-- `count` — cuántos creativos pide la idea, SOLO si menciona cantidad
-  explícita ("3 versiones de…"); default 1, máx 10 por idea.
+- `count` — cuántos creativos pide la idea: cantidad explícita ("3 versiones
+  de…") = ese número; invitación abierta ("varios", "puedes generar más de
+  una") = 2-3 a criterio del matcher; default 1, máx 10 por idea. Si el
+  matcher cae (Gemini caído), el plan sale del mix genérico pero NUNCA en
+  silencio: la action devuelve `source: 'ideas' | 'mix'` y el wizard avisa
+  con toast de advertencia.
 - `scenePrompt` — la acción concreta de la idea en inglés (1-2 frases, el
   producto como ancla) o `null` si la idea solo nombra un formato. Va directo
   al `scene_prompt` del item: el creativo refleja lo que el usuario escribió.

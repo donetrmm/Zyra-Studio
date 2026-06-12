@@ -120,9 +120,17 @@ export function CampaignStudioWizard({
       router.push(`/app/campaigns/${created.data.id}`);
       return;
     }
-    toast.success(
-      `Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en borradores`,
-    );
+    // Nunca degradar en silencio: si dio ideas y el plan salió del mix
+    // genérico (matcher caído), el usuario debe saberlo.
+    if (ideas.trim() && planned.data.source === 'mix') {
+      toast.warning(
+        'No pude interpretar tus ideas esta vez: te propuse un plan genérico. Edita o refina cada creativo, o crea la campaña de nuevo.',
+      );
+    } else {
+      toast.success(
+        `Plan listo: ${planned.data.items} creativos · ~${planned.data.creditsEstimated} cr en borradores`,
+      );
+    }
     router.push(`/app/campaigns/${created.data.id}`);
   }
 
