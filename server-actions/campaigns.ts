@@ -8,7 +8,13 @@ import { createClient } from '@/lib/supabase/server';
 import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { analyzeProductBrief, fetchProductPageText } from '@/lib/campaigns/brief';
-import { buildPlan, type PlannerFormat } from '@/lib/campaigns/planner';
+import {
+  buildDirectedPlan,
+  buildPlan,
+  type DirectedIdea,
+  type PlanItemDraft,
+  type PlannerFormat,
+} from '@/lib/campaigns/planner';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
 import { enqueueBatch } from '@/lib/campaigns/orchestrator';
@@ -257,8 +263,11 @@ export async function createCampaignStudioAction(
   return { ok: true, data: { id: inserted.id as string } };
 }
 
-// Genera el plan: mix por categoría, escenas y personajes rotados, fechas
-// intercaladas, estimación de créditos en tier draft.
+// Genera el plan. Con ideas del usuario: plan dirigido — exactamente los
+// creativos que describió (matcher decide formato y cantidad por idea). Sin
+// ideas: plan sugerido con el mix por categoría (totalItems, default 6).
+// En ambos casos: escenas y personajes rotados, fechas intercaladas,
+// estimación de créditos en tier draft.
 export async function generatePlanAction(input: unknown): Promise<Result<{ items: number; creditsEstimated: number }>> {
   const parsed = GeneratePlanSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
@@ -317,10 +326,10 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     defaultAudio: f.default_audio as boolean,
   }));
 
-  // Ideas del usuario (specs/v2/07): el matcher las mapea a formatos; lo que
-  // no encaja nace como formato custom del workspace. Los slugs sembrados
-  // entran al mix con el mismo boost que los formatos ganadores.
-  const seededSlugs: string[] = [];
+  // Ideas del usuario (specs/v2/07): el plan se construye de lo que el usuario
+  // describió. El matcher mapea cada idea a un formato (o crea uno custom) y
+  // determina cuántos creativos pide; NO se rellena hasta un volumen fijo.
+  const directed: DirectedIdea[] = [];
   if (parsed.data.userIdeas) {
     try {
       const matched = await matchIdeas({
@@ -332,12 +341,21 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
           description: (f.description as string | null) ?? null,
         })),
       });
+      let createdCustom = false;
       for (const m of matched.matches) {
         if (m.formatId) {
           const f = formats.find((x) => x.id === m.formatId);
-          if (f) seededSlugs.push(f.slug);
+          if (f) directed.push({ format: f, count: m.count, scenePrompt: m.scenePrompt });
         } else if (m.customFormat) {
           const cf = m.customFormat;
+          // Re-planificación: si el slug ya existe en el catálogo del
+          // workspace (creado en un plan anterior), se reusa en vez de
+          // chocar con el UNIQUE global de formats.slug.
+          const existing = formats.find((x) => x.slug === cf.slug);
+          if (existing) {
+            directed.push({ format: existing, count: m.count, scenePrompt: m.scenePrompt });
+            continue;
+          }
           const { data: created } = await supabase
             .from('formats')
             .insert({
@@ -349,19 +367,21 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
             .select('id, slug')
             .single();
           if (created) {
-            formats.push({
+            const pf: PlannerFormat = {
               id: created.id as string, slug: created.slug as string, name: cf.name,
               requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS,
               defaultAudio: cf.defaultAudio,
-            });
-            seededSlugs.push(created.slug as string);
+            };
+            formats.push(pf);
+            directed.push({ format: pf, count: m.count, scenePrompt: m.scenePrompt });
+            createdCustom = true;
           }
         }
       }
-      if (seededSlugs.length) revalidatePath('/app/formats');
+      if (createdCustom) revalidatePath('/app/formats');
     } catch {
-      // El matcher es mejora, no requisito: si Gemini falla, el plan sale
-      // con el mix por categoría de siempre.
+      // El matcher es mejora, no requisito: si Gemini falla, el plan cae al
+      // mix sugerido por categoría.
     }
   }
 
@@ -374,44 +394,72 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     fragment: s.prompt_fragment as string,
   }));
 
-  // Aprendizaje: formatos con creativos ganadores o plantillas destiladas en
-  // el workspace reciben doble peso en el mix de esta campaña.
-  const [{ data: winnerRows }, { data: templateRows }] = await Promise.all([
-    supabase
-      .from('campaign_items')
-      .select('format_id, campaigns!inner(workspace_id)')
-      .eq('is_winner', true)
-      .eq('campaigns.workspace_id', workspace.id),
-    supabase.from('creative_templates').select('format_id').eq('workspace_id', workspace.id),
-  ]);
-  const winningFormatIds = new Set(
-    [...(winnerRows ?? []), ...(templateRows ?? [])]
-      .map((r) => r.format_id as string | null)
-      .filter((id): id is string => !!id),
-  );
-  const winningSlugs = formats.filter((f) => winningFormatIds.has(f.id)).map((f) => f.slug);
-
   const goal = (['awareness', 'conversion', 'mixed'].includes(campaign.goal as string)
     ? campaign.goal
     : 'mixed') as 'awareness' | 'conversion' | 'mixed';
-  const items = buildPlan({
-    totalItems: parsed.data.totalItems,
-    category: (brief.category as never) ?? 'other',
-    productName: brief.productName,
-    goal,
-    formats,
-    scenes,
-    characters,
-    available,
-    winningSlugs: [...winningSlugs, ...seededSlugs],
-    dateStart: campaign.date_start ? new Date(campaign.date_start as string) : new Date(),
-    dateEnd: campaign.date_end
-      ? new Date(campaign.date_end as string)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    draftModelSlug: DRAFT_MODEL,
-  });
-  if (items.length === 0) {
-    return { ok: false, error: 'validation_error', message: 'No hay formatos viables: revisa Brand Kit y Cast' };
+  const dateStart = campaign.date_start ? new Date(campaign.date_start as string) : new Date();
+  const dateEnd = campaign.date_end
+    ? new Date(campaign.date_end as string)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  let items: PlanItemDraft[];
+  if (directed.length > 0) {
+    // Plan dirigido: exactamente los creativos que el usuario describió.
+    items = buildDirectedPlan({
+      ideas: directed,
+      productName: brief.productName,
+      goal,
+      scenes,
+      characters,
+      available,
+      dateStart,
+      dateEnd,
+      draftModelSlug: DRAFT_MODEL,
+    });
+    if (items.length === 0) {
+      return {
+        ok: false,
+        error: 'validation_error',
+        message:
+          'Tus ideas piden formatos que necesitan referencias que faltan (p. ej. un presentador en Cast). Agrégalas o describe otra cosa.',
+      };
+    }
+  } else {
+    // Plan sugerido (sin ideas o matcher caído): mix por categoría.
+    // Aprendizaje: formatos con creativos ganadores o plantillas destiladas en
+    // el workspace reciben doble peso en el mix de esta campaña.
+    const [{ data: winnerRows }, { data: templateRows }] = await Promise.all([
+      supabase
+        .from('campaign_items')
+        .select('format_id, campaigns!inner(workspace_id)')
+        .eq('is_winner', true)
+        .eq('campaigns.workspace_id', workspace.id),
+      supabase.from('creative_templates').select('format_id').eq('workspace_id', workspace.id),
+    ]);
+    const winningFormatIds = new Set(
+      [...(winnerRows ?? []), ...(templateRows ?? [])]
+        .map((r) => r.format_id as string | null)
+        .filter((id): id is string => !!id),
+    );
+    const winningSlugs = formats.filter((f) => winningFormatIds.has(f.id)).map((f) => f.slug);
+
+    items = buildPlan({
+      totalItems: parsed.data.totalItems,
+      category: (brief.category as never) ?? 'other',
+      productName: brief.productName,
+      goal,
+      formats,
+      scenes,
+      characters,
+      available,
+      winningSlugs,
+      dateStart,
+      dateEnd,
+      draftModelSlug: DRAFT_MODEL,
+    });
+    if (items.length === 0) {
+      return { ok: false, error: 'validation_error', message: 'No hay formatos viables: revisa Brand Kit y Cast' };
+    }
   }
 
   const pricing = await loadPricing();

@@ -64,12 +64,20 @@ workspace → Gemini con salida JSON validada por zod → por cada idea:
 `{ formatId }` (encaja en un formato existente) o
 `{ customFormat: { name, register, cameraStyle, pacing, requiredRefs } }`
 (no encaja → se propone formato custom, `is_system=false`, del workspace,
-visible en `/app/formats`).
+visible en `/app/formats`). Además, por idea (decisión 2026-06-12):
+- `count` — cuántos creativos pide la idea, SOLO si menciona cantidad
+  explícita ("3 versiones de…"); default 1, máx 10 por idea.
+- `scenePrompt` — la acción concreta de la idea en inglés (1-2 frases, el
+  producto como ancla) o `null` si la idea solo nombra un formato. Va directo
+  al `scene_prompt` del item: el creativo refleja lo que el usuario escribió.
 
 Lo consumen:
-- **Wizard de campaña**: textarea opcional "Describe lo que imaginas". Las
-  ideas del usuario siembran el mix del plan; lo que no encaja genera formato
-  custom. Sin texto, el mix se propone como hoy.
+- **Wizard de campaña**: el plan se construye de "Describe lo que imaginas"
+  vía `buildDirectedPlan` — exactamente los creativos que el usuario pidió,
+  sin rellenar hasta un volumen fijo (no hay selector de volumen). Techo demo
+  de 30 lo aplica el planner. Formatos custom se reusan por slug al
+  re-planificar. Sin texto (o con Gemini caído), plan sugerido con el mix por
+  categoría (`totalItems`, default 6).
 - **Refinado**: si la conversación se sale del catálogo de formatos, el
   matcher propone el formato custom inline y el usuario lo confirma.
 

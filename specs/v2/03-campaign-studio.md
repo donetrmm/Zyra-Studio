@@ -26,6 +26,8 @@ Validación zod (`lib/schemas/campaigns.ts`) + ownership por workspace en cada u
 - `createCampaignFromBrief(productImageRef | productUrl, goal?)` — dispara auto-detección
   (ver tarea 2), crea `campaigns` row en status `draft`.
 - `generatePlan(campaignId, totalItems)` — produce los `campaign_items` (tarea 3).
+  (Actualización 2026-06-12: con ideas del usuario el plan es dirigido y `totalItems`
+  solo aplica al plan sugerido sin ideas — ver specs/v2/07.)
 - `updateCampaignItem(itemId, patch)` / `removeItem` / `addItem`.
 - `approveBatch(campaignId, formatId, mode: 'sample' | 'full')` — reserva créditos del lote
   y encola (tarea 5).
@@ -54,8 +56,9 @@ nunca preguntar lo que se puede inferir (principio del doc V2: minimizar decisio
 Ruta `app/app/campaigns/[id]` (la lista ya existe en V1 como carpetas):
 
 - **Wizard de brief** (`/app/campaigns/new`): subir producto o URL → preview de la
-  auto-detección (editable) → slider de volumen (defaults 10/20/30 — techo demo, doc V2
-  §5.5) → crear.
+  auto-detección (editable) → crear. (El slider de volumen se eliminó el 2026-06-12:
+  la cantidad la derivan las ideas del usuario — ver specs/v2/06 §4.4 y v2/07; el
+  techo demo de 30 del doc V2 §5.5 lo aplica el planner.)
 - **Vista de plan**: tabla de items agrupada por formato (shadcn DataTable), edición inline
   de scene_prompt/escena/personaje/fecha, badges de warnings del validador, totales de
   créditos estimados vs balance.

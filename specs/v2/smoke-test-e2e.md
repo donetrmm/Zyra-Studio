@@ -41,12 +41,18 @@
 
 ## 3. Campaña y plan ✅ validado (URL, captions y addItem ⏳)
 
-1. [ ] `Campañas → Nueva campaña`: nombre, Brand Kit, objetivo, volumen **6**.
+1. [ ] `Campañas → Nueva campaña`: nombre, Brand Kit, objetivo. (El selector de
+       volumen ya no existe: la cantidad sale de "Describe lo que imaginas".)
    - [ ] (Nuevo) **URL del producto**: pegar la URL de una página real → el brief detecta
          nombre/tono coherentes con la página. Una URL inválida bloquea con mensaje claro.
+   - [ ] (Nuevo) **Plan dirigido**: describir 2-3 ideas (una con cantidad, ej. "3
+         unboxings") → el plan tiene exactamente esos creativos, con scene_prompt
+         que refleja cada idea; lo que no encaja crea un formato custom.
+   - [ ] (Nuevo) **Sin ideas**: dejar el campo vacío → diálogo "¿Cómo armamos el
+         plan?"; "Proponer un plan por mí" genera 6 creativos del mix por categoría.
 2. [ ] "Analizar producto y armar plan" → **Verificar**:
    - Toast con N creativos y créditos estimados.
-   - El plan muestra formatos coherentes con la categoría detectada.
+   - El plan muestra formatos coherentes con la categoría detectada (camino sin ideas).
    - Escenas variadas, fechas repartidas en ~30 días, personaje solo en formatos UGC.
    - [ ] (Nuevo) Cada fila muestra **"Caption: …"** (gancho + CTA según objetivo + hashtags).
 3. [ ] Editar un item y guardar. **Verificar**: el cambio persiste. El editor ahora incluye

@@ -130,6 +130,101 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Intercalar grupos (round-robin) para que el calendario no amontone items
+// del mismo formato seguidos, y repartir fechas en el rango.
+function interleaveAndSchedule(
+  groups: PlanItemDraft[][],
+  dateStart: Date,
+  dateEnd: Date,
+): PlanItemDraft[] {
+  const interleaved: PlanItemDraft[] = [];
+  const maxLen = Math.max(0, ...groups.map((arr) => arr.length));
+  for (let i = 0; i < maxLen; i++) {
+    for (const arr of groups) {
+      if (arr[i]) interleaved.push(arr[i]);
+    }
+  }
+  const rangeMs = Math.max(0, dateEnd.getTime() - dateStart.getTime());
+  const step = interleaved.length > 1 ? rangeMs / (interleaved.length - 1) : 0;
+  interleaved.forEach((item, idx) => {
+    item.scheduledDate = isoDate(new Date(dateStart.getTime() + step * idx));
+  });
+  return interleaved;
+}
+
+// Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
+export const MAX_PLAN_ITEMS = 30;
+
+// Plan dirigido por ideas: el usuario describió lo que quiere y el matcher
+// lo mapeó a formatos (existentes o recién creados). Aquí NO se rellena hasta
+// un volumen fijo — salen exactamente los creativos pedidos, uno por idea
+// salvo que la idea pida cantidad. El scenePrompt del matcher (la acción
+// concreta que escribió el usuario) manda; sin él, semillas del formato.
+export type DirectedIdea = {
+  format: PlannerFormat;
+  count: number;
+  scenePrompt: string | null;
+};
+
+export type DirectedPlanInput = {
+  ideas: DirectedIdea[];
+  productName: string;
+  goal: CaptionGoal;
+  scenes: PlannerScene[];
+  characters: PlannerCharacter[];
+  available: PlannerInput['available'];
+  dateStart: Date;
+  dateEnd: Date;
+  draftModelSlug: string;
+};
+
+export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
+  // Igual que el mix: nunca proponer un formato cuyas referencias faltan.
+  const viable = input.ideas.filter((idea) => formatFitsRefs(idea.format, input.available));
+  if (viable.length === 0) return [];
+
+  let budget = MAX_PLAN_ITEMS;
+  const groups: PlanItemDraft[][] = viable.map((idea, gIdx) => {
+    const count = Math.min(Math.max(1, idea.count), budget);
+    budget -= count;
+    const format = idea.format;
+    const seeds = CONCEPT_SEEDS[format.slug] ?? GENERIC_SEEDS;
+    const needsCharacter = format.requiredRefs.includes('character');
+    const items: PlanItemDraft[] = [];
+    for (let i = 0; i < count; i++) {
+      const scene = input.scenes[(gIdx + i) % Math.max(1, input.scenes.length)] ?? {
+        name: 'Estudio',
+        fragment: 'a clean minimal studio setting with controlled soft light',
+      };
+      const character = needsCharacter && input.characters.length
+        ? input.characters[(gIdx + i) % input.characters.length]
+        : null;
+      const seed = seeds[i % seeds.length];
+      items.push({
+        formatId: format.id,
+        formatSlug: format.slug,
+        modelSlug: input.draftModelSlug,
+        durationS: format.defaultDurationS,
+        aspectRatio: format.slug === 'gran-pantalla' ? '16:9' : '9:16',
+        scene: scene.fragment,
+        audio: format.defaultAudio,
+        characterId: character?.id ?? null,
+        scenePrompt: idea.scenePrompt ?? seed({ product: input.productName, scene: scene.fragment }),
+        caption: buildCaption({
+          productName: input.productName,
+          formatSlug: format.slug,
+          goal: input.goal,
+          index: i,
+        }),
+        scheduledDate: '',
+      });
+    }
+    return items;
+  });
+
+  return interleaveAndSchedule(groups, input.dateStart, input.dateEnd);
+}
+
 export function buildPlan(input: PlannerInput): PlanItemDraft[] {
   const relevantSlugs = CATEGORY_MIX[input.category] ?? CATEGORY_MIX.other;
   // Candidatos: formatos del mix de la categoría + formatos custom del usuario
@@ -199,21 +294,5 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
     return items;
   });
 
-  // Intercalar formatos (round-robin) para que el calendario no amontone
-  // 5 items del mismo formato seguidos, y repartir fechas en el rango.
-  const interleaved: PlanItemDraft[] = [];
-  const maxLen = Math.max(...itemsByFormat.map((arr) => arr.length));
-  for (let i = 0; i < maxLen; i++) {
-    for (const arr of itemsByFormat) {
-      if (arr[i]) interleaved.push(arr[i]);
-    }
-  }
-
-  const rangeMs = Math.max(0, input.dateEnd.getTime() - input.dateStart.getTime());
-  const step = interleaved.length > 1 ? rangeMs / (interleaved.length - 1) : 0;
-  interleaved.forEach((item, idx) => {
-    item.scheduledDate = isoDate(new Date(input.dateStart.getTime() + step * idx));
-  });
-
-  return interleaved;
+  return interleaveAndSchedule(itemsByFormat, input.dateStart, input.dateEnd);
 }
