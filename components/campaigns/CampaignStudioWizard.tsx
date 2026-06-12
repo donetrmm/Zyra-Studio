@@ -54,6 +54,7 @@ export function CampaignStudioWizard({
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
+  const [ideas, setIdeas] = useState('');
   const [totalItems, setTotalItems] = useState(12);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
@@ -88,7 +89,11 @@ export function CampaignStudioWizard({
       return;
     }
     setStep('plan');
-    const planned = await generatePlanAction({ campaignId: created.data.id, totalItems });
+    const planned = await generatePlanAction({
+      campaignId: created.data.id,
+      totalItems,
+      ...(ideas.trim() ? { userIdeas: ideas.trim() } : {}),
+    });
     setSubmitting(false);
     if (!planned.ok) {
       toast.error(planned.message ?? 'No se pudo generar el plan');
@@ -196,6 +201,24 @@ export function CampaignStudioWizard({
           />
           <p className="text-[11.5px] text-muted-foreground/60">
             El texto de la página (nombre, descripción, tono) enriquece el análisis.
+          </p>
+        </section>
+
+        <section className="space-y-1.5">
+          <Label htmlFor="campaign-ideas" className="text-[12.5px] font-medium text-foreground/80">
+            Describe lo que imaginas <span className="font-normal text-muted-foreground/50">(opcional)</span>
+          </Label>
+          <textarea
+            id="campaign-ideas"
+            value={ideas}
+            onChange={(e) => setIdeas(e.target.value)}
+            placeholder="Ej. quiero unboxings, algo ASMR, y un video donde mi perro usa el producto"
+            maxLength={2000}
+            rows={3}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+          />
+          <p className="text-[11.5px] text-muted-foreground/60">
+            Tus ideas guían el mix de formatos; las que no encajen en el catálogo crean un formato nuevo tuyo.
           </p>
         </section>
 
