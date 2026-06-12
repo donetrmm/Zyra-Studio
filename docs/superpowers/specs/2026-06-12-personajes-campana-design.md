@@ -138,6 +138,17 @@ pero la UI advierte al seleccionar el tercero.
 - La página del refinado carga las referencias heredadas en el server (campaña →
   brand kit + personajes del item) y las pasa a `RefineView`.
 
+### 7b. Referencias extra del refinado llegan al modelo (bug encontrado al planificar)
+
+`campaign_items.reference_ids` se escribe al aceptar el refinado pero **nadie lo lee**:
+el orquestador no lo incluye en su select ni en el DirectorContext, así que esas
+imágenes nunca llegan a la generación. Fix: el orquestador resuelve
+`item.reference_ids` a storage paths y los pasa como `extraImagePaths` del contexto;
+el compiler los emite como `@ImageN` con rol `environment`, al final de la prioridad
+(producto > empaque > personaje > extra). El compiler además pasa a aplicar el tope
+real de **9 imágenes** (hoy solo aplica el de 12 archivos), recortando desde el final
+con warning.
+
 ### 8. Preview del prompt final (fix del hallazgo 2)
 
 - En el detalle del creativo (CampaignDetailPage), acción "Ver prompt final": server
