@@ -243,12 +243,15 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     scene_prompt: parsed.data.draft.scenePrompt.trim(),
     shot: parsed.data.draft.shot,
     character_id: parsed.data.draft.characterId,
-    // Sync principal/elenco: el principal del refinado encabeza y el resto
-    // del elenco existente se conserva (máx 3).
+    // Sync principal/elenco (misma semántica que updateCampaignItemAction): el
+    // principal nuevo REEMPLAZA al anterior y conserva a los secundarios (máx 3).
+    // Con characterId null el refinado define el creativo SIN personajes (elenco
+    // vacío a propósito); el invariante character_id = character_ids[0] ?? null
+    // se mantiene.
     character_ids: parsed.data.draft.characterId
       ? [
           parsed.data.draft.characterId,
-          ...existingCharacterIds.filter((id) => id !== parsed.data.draft.characterId),
+          ...existingCharacterIds.slice(1).filter((id) => id !== parsed.data.draft.characterId),
         ].slice(0, 3)
       : [],
     reference_ids: parsed.data.draft.referenceIds,

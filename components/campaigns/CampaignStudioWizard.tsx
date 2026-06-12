@@ -320,56 +320,47 @@ export function CampaignStudioWizard({
                   const selected = idx >= 0;
                   const full = selectedCharacterIds.length >= 3 && !selected;
                   return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleCharacter(c.id)}
-                      disabled={full}
-                      aria-pressed={selected}
-                      className={`relative rounded-xl border p-2 text-left transition-colors ${
-                        selected
-                          ? 'border-primary/60 bg-primary/5'
-                          : 'border-border bg-card/50 hover:border-muted-foreground/30'
-                      } ${full ? 'opacity-40' : ''}`}
-                    >
-                      {c.previewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={c.previewUrl}
-                          alt={c.name}
-                          className="aspect-square w-full rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="grid aspect-square w-full place-items-center rounded-lg bg-muted/30">
-                          <UserRound className="size-5 text-muted-foreground/40" aria-hidden />
-                        </div>
-                      )}
-                      <p className="mt-1.5 truncate text-[12px] text-foreground/90">{c.name}</p>
+                    <div key={c.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => toggleCharacter(c.id)}
+                        disabled={full}
+                        aria-pressed={selected}
+                        className={`w-full rounded-xl border p-2 text-left transition-colors ${
+                          selected
+                            ? 'border-primary/60 bg-primary/5'
+                            : 'border-border bg-card/50 hover:border-muted-foreground/30'
+                        } ${full ? 'opacity-40' : ''}`}
+                      >
+                        {c.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={c.previewUrl}
+                            alt={c.name}
+                            className="aspect-square w-full rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="grid aspect-square w-full place-items-center rounded-lg bg-muted/30">
+                            <UserRound className="size-5 text-muted-foreground/40" aria-hidden />
+                          </div>
+                        )}
+                        <p className="mt-1.5 truncate text-[12px] text-foreground/90">{c.name}</p>
+                      </button>
                       {idx === 0 && (
                         <span className="absolute right-1.5 top-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[9.5px] font-medium text-primary-foreground">
                           Principal
                         </span>
                       )}
                       {idx > 0 && (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            makePrincipal(c.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.stopPropagation();
-                              makePrincipal(c.id);
-                            }
-                          }}
+                        <button
+                          type="button"
+                          onClick={() => makePrincipal(c.id)}
                           className="absolute right-1.5 top-1.5 rounded-full border border-border bg-background/80 px-1.5 py-0.5 text-[9.5px] text-muted-foreground hover:text-foreground"
                         >
                           Hacer principal
-                        </span>
+                        </button>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -379,19 +370,23 @@ export function CampaignStudioWizard({
                   degradarse; considera 1-2 por video.
                 </p>
               )}
-              <ReferenceBudget
-                productPreviews={mode === 'upload' ? productImages.map((i) => i.previewUrl) : []}
-                productCount={mode === 'upload' ? productImages.length : selectedKit?.productImages ?? 0}
-                packagingCount={mode === 'kit' ? selectedKit?.packagingImages ?? 0 : 0}
-                characters={selectedCharacterIds.map((id) => {
-                  const c = characters.find((x) => x.id === id);
-                  return c
-                    ? { id: c.id, name: c.name, previewUrl: c.previewUrl, angleCount: c.angleCount }
-                    : { id, name: '', previewUrl: null, angleCount: 0 };
-                })}
-              />
             </>
           )}
+          <ReferenceBudget
+            productPreviews={
+              mode === 'upload'
+                ? productImages.map((i) => i.previewUrl)
+                : Array.from({ length: Math.min(selectedKit?.productImages ?? 0, 3) }, () => null)
+            }
+            productCount={mode === 'upload' ? productImages.length : selectedKit?.productImages ?? 0}
+            packagingCount={mode === 'kit' ? selectedKit?.packagingImages ?? 0 : 0}
+            characters={selectedCharacterIds.map((id) => {
+              const c = characters.find((x) => x.id === id);
+              return c
+                ? { id: c.id, name: c.name, previewUrl: c.previewUrl, angleCount: c.angleCount }
+                : { id, name: '', previewUrl: null, angleCount: 0 };
+            })}
+          />
         </section>
 
         <section className="space-y-1.5">

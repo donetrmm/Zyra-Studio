@@ -18,6 +18,7 @@ export function referenceSlots(input: {
   productCount: number;
   packagingCount?: number;
   characters: BudgetCharacter[];
+  extraCount?: number;
 }): number {
   const product = Math.min(input.productCount, 3);
   const packaging = Math.min(input.packagingCount ?? 0, 2);
@@ -27,7 +28,9 @@ export function referenceSlots(input: {
     (acc, c) => acc + 1 + Math.min(c.angleCount, anglesPer),
     0,
   );
-  return Math.min(product + packaging + chars, MAX_REFERENCE_IMAGES);
+  // Extras al final, misma prioridad que el compiler: producto > empaque > personaje > extra.
+  const extra = input.extraCount ?? 0;
+  return Math.min(product + packaging + chars + extra, MAX_REFERENCE_IMAGES);
 }
 
 export function ReferenceBudget({
@@ -42,10 +45,11 @@ export function ReferenceBudget({
   productCount: number;
   packagingCount?: number;
   characters: BudgetCharacter[];
-  // Referencias extra adjuntas (refinado): informativas, fuera del cómputo base.
+  // Referencias extra adjuntas (refinado): cuentan en el numerador (como en el
+  // compiler); el chip "+N extra" queda como desglose informativo.
   extraCount?: number;
 }) {
-  const slots = referenceSlots({ productCount, packagingCount, characters });
+  const slots = referenceSlots({ productCount, packagingCount, characters, extraCount });
   const thumbs: Array<{ key: string; url: string | null; label: string }> = [
     ...productPreviews.slice(0, 3).map((url, i) => ({ key: `p${i}`, url, label: 'Producto' })),
     ...characters.map((c) => ({ key: c.id, url: c.previewUrl, label: c.name })),

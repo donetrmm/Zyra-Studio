@@ -101,11 +101,15 @@ export async function loadCampaignContext(
   if (campaign.brand_kit_id) {
     const { data: kit } = await supabase
       .from('brand_kits')
-      .select('workspace_id, product_image_ids, packaging_image_ids')
+      .select('workspace_id, product_image_ids, packaging_image_ids, reference_image_ids')
       .eq('id', campaign.brand_kit_id)
       .single();
     if (kit && kit.workspace_id === workspaceId) {
-      const productIds = (kit.product_image_ids ?? []) as string[];
+      // Compat kits V1 — mismo fallback que generatePlanAction.
+      const rawProductIds = (kit.product_image_ids ?? []) as string[];
+      const productIds = rawProductIds.length
+        ? rawProductIds
+        : ((kit.reference_image_ids ?? []) as string[]);
       const packagingIds = (kit.packaging_image_ids ?? []) as string[];
       const paths = await resolvePaths(supabase, workspaceId, [...productIds, ...packagingIds]);
       productImagePaths = productIds.map((id) => paths.get(id)).filter((p): p is string => !!p);

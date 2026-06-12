@@ -159,8 +159,9 @@ create table campaigns (
 );
 
 -- campaign_items.character_ids (migración 031): personajes del creativo (máx 3).
--- Orden = orden de referencias en el prompt. character_id (columna existente) = principal
--- sincronizado con character_ids[1] por las server actions replace_character / rotateCharacters.
+-- Orden = orden de referencias en el prompt. character_id (columna existente) = principal,
+-- sincronizado con character_ids[1] por todas las server actions que escriben campaign_items
+-- (generatePlan, update, add, series, refinado); es lo que consumen las funciones mono-personaje.
 
 create table projects (
   id uuid primary key default gen_random_uuid(),
