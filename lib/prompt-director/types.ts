@@ -59,7 +59,12 @@ export type CharacterInventory = {
 export type DirectorContext = {
   format?: FormatDirection;
   product?: ProductInventory;
-  character?: CharacterInventory;
+  // Personajes del creativo, máx 3. Orden = orden de referencias (el primero
+  // es el principal). Presupuesto de ángulos: 1→2, 2→1, 3→0 (tope 9 imágenes).
+  characters?: CharacterInventory[];
+  // Referencias extra del refinado (campaign_items.reference_ids resueltos):
+  // rol environment, al final de la prioridad.
+  extraImagePaths?: string[];
   // Escena elegida (de scene_library o libre). fragment va al prompt.
   scene?: { name?: string; fragment: string };
   // Plantilla viva: video ganador como referencia de estructura/cámara/ritmo.

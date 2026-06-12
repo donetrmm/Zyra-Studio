@@ -90,7 +90,8 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
   // 4. Identidad anclada: si el prompt habla de una persona, debe haber Cast
   const mentionsPerson =
     /\b(person|creator|presenter|man|woman|persona|creador|creadora|presentador|presentadora|modelo)\b/i.test(prompt);
-  if (mentionsPerson && !ctx.character?.masterImagePath) {
+  const hasCast = (ctx.characters ?? []).some((c) => c.masterImagePath);
+  if (mentionsPerson && !hasCast) {
     warnings.push(
       'identidad: el prompt menciona una persona sin referencia del Cast; la cara cambiará entre generaciones',
     );

@@ -41,9 +41,9 @@ export function resolveRequiredRefs(
     if (ref === 'product' && !(context.product?.imagePaths.length)) {
       missing.push('product: el formato necesita imágenes del producto en el Brand Kit');
     }
-    if (ref === 'character' && !context.character?.masterImagePath) {
-      missing.push('character: el formato necesita la hoja maestra de un personaje del Cast');
-    }
+    // character ya no bloquea: sin Cast el planner inyecta un personaje
+    // inventado en el scene_prompt (spec 2026-06-12); el validador avisa
+    // con el warning de identidad.
     if (ref === 'packaging' && !(context.product?.packagingImagePaths?.length)) {
       missing.push('packaging: el formato necesita imágenes del empaque en el Brand Kit');
     }

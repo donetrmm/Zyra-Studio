@@ -39,11 +39,11 @@ function fullContext(): DirectorContext {
       palette: ['teal', 'white'],
       imagePaths: ['references/ws1/product-front.png', 'references/ws1/product-side.png'],
     },
-    character: {
+    characters: [{
       name: 'Maya',
       description: 'creator with curly dark hair, relaxed linen shirt, warm easygoing delivery',
       masterImagePath: 'references/ws1/maya-master.png',
-    },
+    }],
     scene: { name: 'Cocina luminosa', fragment: 'a sunlit home kitchen, warm morning light through a window' },
   };
 }
@@ -68,7 +68,7 @@ describe('compile seedance', () => {
     // Orden: producto (2 imágenes) → personaje (1) ⇒ @Image1..3
     expect(references.map((r) => r.role)).toEqual(['product', 'product', 'character']);
     expect(prompt).toContain('@Image1 is the product');
-    expect(prompt).toContain('@Image3 is the presenter');
+    expect(prompt).toContain('@Image3 is Maya');
     // Fidelidad y escena
     expect(prompt).toContain('exact packaging');
     expect(prompt).toContain('sunlit home kitchen');
@@ -135,7 +135,7 @@ describe('compile seedance', () => {
     const ctx = fullContext();
     ctx.product!.imagePaths = Array.from({ length: 3 }, (_, i) => `p${i}.png`);
     ctx.product!.packagingImagePaths = ['pack1.png', 'pack2.png'];
-    ctx.character!.angleImagePaths = ['a1.png', 'a2.png'];
+    ctx.characters![0].angleImagePaths = ['a1.png', 'a2.png'];
     ctx.templateVideoPath = 'v.mp4';
     ctx.audioRefPath = 'a.mp3';
     // 3+2+1+2 imágenes + 1 video + 1 audio = 10 → dentro del tope; forzar exceso:
@@ -148,20 +148,91 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     expect(res.compiled.references.length).toBeLessThanOrEqual(12);
   });
+
+  it('dos personajes: master + 1 ángulo cada uno, con nombre en la línea @', () => {
+    const ctx = fullContext();
+    ctx.characters = [
+      { name: 'Maya', description: 'curly dark hair', masterImagePath: 'm1.png', angleImagePaths: ['m1a.png', 'm1b.png'] },
+      { name: 'Leo', description: 'short beard, denim shirt', masterImagePath: 'm2.png', angleImagePaths: ['m2a.png'] },
+    ];
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'They toast with the can' },
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const charRefs = res.compiled.references.filter((r) => r.role === 'character');
+    expect(charRefs.map((r) => r.storagePath)).toEqual(['m1.png', 'm1a.png', 'm2.png', 'm2a.png']);
+    expect(res.compiled.prompt).toContain('is Maya');
+    expect(res.compiled.prompt).toContain('is Leo');
+  });
+
+  it('tres personajes: solo master cada uno', () => {
+    const ctx = fullContext();
+    ctx.characters = [
+      { name: 'A', description: 'd', masterImagePath: 'a.png', angleImagePaths: ['a1.png'] },
+      { name: 'B', description: 'd', masterImagePath: 'b.png', angleImagePaths: ['b1.png'] },
+      { name: 'C', description: 'd', masterImagePath: 'c.png', angleImagePaths: ['c1.png'] },
+    ];
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The three react to the product' },
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const charRefs = res.compiled.references.filter((r) => r.role === 'character');
+    expect(charRefs.map((r) => r.storagePath)).toEqual(['a.png', 'b.png', 'c.png']);
+  });
+
+  it('extraImagePaths entran como environment al final y el tope de 9 imágenes recorta con warning', () => {
+    const ctx = fullContext();
+    ctx.product!.imagePaths = ['p1.png', 'p2.png', 'p3.png'];
+    ctx.product!.packagingImagePaths = ['k1.png', 'k2.png'];
+    ctx.format = { ...ctx.format!, requiredRefs: ['product', 'character', 'packaging'] };
+    ctx.characters = [{ name: 'Maya', description: 'd', masterImagePath: 'm.png', angleImagePaths: ['ma1.png', 'ma2.png'] }];
+    ctx.extraImagePaths = ['x1.png', 'x2.png'];
+    // 3 producto + 2 empaque + 3 personaje = 8 → solo cabe 1 extra
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She opens the can' },
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const images = res.compiled.references.filter((r) => r.kind === 'image');
+    expect(images).toHaveLength(9);
+    expect(images[8].role).toBe('environment');
+    expect(images[8].storagePath).toBe('x1.png');
+    expect(res.compiled.warnings.some((w) => w.includes('tope de 9'))).toBe(true);
+  });
+
+  it('formato que pide personaje sin Cast ya NO bloquea (se inventa en el prompt)', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'The presenter is a person with auburn hair. She presents the can',
+      },
+      { format: vozCercana, product: fullContext().product },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.warnings.some((w) => w.includes('identidad'))).toBe(true);
+  });
 });
 
 // ============ Validadores ============
 
 describe('validators', () => {
-  it('bloquea cuando faltan referencias obligatorias del formato', () => {
+  it('bloquea cuando faltan referencias obligatorias del formato (product bloquea; character ya no bloquea)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/text-to-video', scenePrompt: 'She sips and smiles' },
       { format: vozCercana }, // sin product ni character
     );
     expect(res.ok).toBe(false);
     if (res.ok) return;
+    // product sigue siendo un bloqueo duro
     expect(res.errors.join(' ')).toMatch(/product/);
-    expect(res.errors.join(' ')).toMatch(/character/);
+    // character ya no bloquea: el planner inyecta un personaje inventado en el scene_prompt
+    expect(res.errors.join(' ')).not.toMatch(/character/);
   });
 
   it('bloquea scene_prompt vacío y duración fuera de rango', () => {
@@ -274,9 +345,10 @@ describe('inventory', () => {
 // ============ Formatos ============
 
 describe('format-director', () => {
-  it('resolveRequiredRefs reporta faltantes con mensaje accionable', () => {
+  it('resolveRequiredRefs reporta faltantes con mensaje accionable (solo product bloquea; character ya no)', () => {
     const { missing } = resolveRequiredRefs(vozCercana, {});
-    expect(missing).toHaveLength(2);
+    // vozCercana requiere product y character; character ya no genera faltante
+    expect(missing).toHaveLength(1);
     expect(missing[0]).toMatch(/Brand Kit/);
   });
 

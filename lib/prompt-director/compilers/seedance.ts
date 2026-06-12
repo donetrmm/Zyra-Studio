@@ -24,8 +24,9 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 };
 
 // Construye las referencias EN ORDEN (la posición define @Image1.., @Video1..).
-// Prioridad ante el tope de 12: producto > empaque > personaje > cámara > audio
-// (tier list de la guía Morphic §8).
+// Prioridad ante el tope de 12: producto > empaque > personaje > extra > cámara > audio
+// (tier list de la guía Morphic §8). El tope de 9 imágenes se aplica antes;
+// el tope de 12 archivos totales es la red de seguridad final.
 export function buildReferences(ctx: DirectorContext): {
   references: CompiledReference[];
   lines: string[];
@@ -35,8 +36,13 @@ export function buildReferences(ctx: DirectorContext): {
   const lines: string[] = [];
   const warnings: string[] = [];
   let imageN = 0;
+  let droppedImages = 0;
 
   const pushImage = (storagePath: string, role: CompiledReference['role'], line: (n: number) => string, scope?: string) => {
+    if (imageN >= 9) {
+      droppedImages += 1;
+      return;
+    }
     imageN += 1;
     references.push({ storagePath, kind: 'image', role, scope });
     lines.push(line(imageN));
@@ -59,18 +65,33 @@ export function buildReferences(ctx: DirectorContext): {
     pushImage(path, 'packaging', (n) => `@Image${n} is the product packaging, shown exactly as in the reference.`);
   }
 
-  // Personaje: hoja maestra + hasta 2 ángulos.
-  if (ctx.character?.masterImagePath) {
+  // Personajes: presupuesto de ángulos según cuántos van en escena
+  // (1 → master+2, 2 → master+1, 3 → solo master), para caber en 9 imágenes.
+  const characters = (ctx.characters ?? []).slice(0, 3);
+  const anglesPer = characters.length >= 3 ? 0 : characters.length === 2 ? 1 : 2;
+  for (const character of characters) {
+    if (!character.masterImagePath) continue;
     pushImage(
-      ctx.character.masterImagePath,
+      character.masterImagePath,
       'character',
       (n) =>
-        `@Image${n} is the presenter — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
+        `@Image${n} is ${character.name} — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
       'rostro, peinado y complexión; no la ropa ni el fondo',
     );
-    for (const path of ctx.character.angleImagePaths?.slice(0, 2) ?? []) {
-      pushImage(path, 'character', (n) => `@Image${n} shows the same presenter from another angle, for consistency.`);
+    for (const path of character.angleImagePaths?.slice(0, anglesPer) ?? []) {
+      pushImage(path, 'character', (n) => `@Image${n} shows ${character.name} from another angle, for consistency.`);
     }
+  }
+
+  // Referencias extra del refinado: entorno/estilo, última prioridad.
+  for (const path of ctx.extraImagePaths ?? []) {
+    pushImage(path, 'environment', (n) => `@Image${n} is an additional scene reference — match its environment, mood and look.`);
+  }
+
+  if (droppedImages > 0) {
+    warnings.push(
+      `referencias: ${droppedImages} imágenes recortadas por el tope de 9 del modelo (prioridad: producto > empaque > personaje > extra)`,
+    );
   }
 
   // Video de plantilla viva: estructura, cámara y ritmo.
@@ -93,7 +114,7 @@ export function buildReferences(ctx: DirectorContext): {
     const dropped = references.length - 12;
     references.length = 12;
     lines.length = Math.min(lines.length, 12);
-    warnings.push(`referencias: ${dropped} recortadas por el tope de 12 archivos (prioridad: producto > empaque > personaje > cámara > audio)`);
+    warnings.push(`referencias: ${dropped} recortadas por el tope de 12 archivos (prioridad: producto > empaque > personaje > extra > cámara > audio)`);
   }
 
   return { references, lines, warnings };
@@ -115,13 +136,13 @@ export function compileSeedance(
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);
 
-  // Fidelidad de producto y personaje (reglas duras del inventario).
+  // Fidelidad de producto y personajes (reglas duras del inventario).
   if (ctx.product) sections.push(describeProduct(ctx.product));
-  if (ctx.character) {
-    const { text, ageWordsRemoved } = describeCharacter(ctx.character);
+  for (const character of ctx.characters ?? []) {
+    const { text, ageWordsRemoved } = describeCharacter(character);
     sections.push(text);
     if (ageWordsRemoved.length) {
-      warnings.push(`edad: se removieron marcadores de la descripción del personaje (${ageWordsRemoved.join(', ')})`);
+      warnings.push(`edad: se removieron marcadores de la descripción de ${character.name} (${ageWordsRemoved.join(', ')})`);
     }
   }
 
