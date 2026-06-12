@@ -46,9 +46,9 @@ function hasSpokenDialogue(req: CompileRequest): boolean {
   );
 }
 
-// Tope de trabajo del prompt: fal NO documenta límite (verificado 2026-06-12
-// contra su API reference); 4000 es el techo propio de SubmitSeedanceSchema —
-// el compiler avisa antes de que un submit manual lo rechace.
+// Tope de trabajo del prompt: ModelArk no documenta límite de caracteres;
+// 4000 es el techo propio de SubmitSeedanceSchema — el compiler avisa antes de
+// que un submit manual lo rechace.
 const PROMPT_CHAR_BUDGET = 4000;
 
 // Construye las referencias EN ORDEN (la posición define @Image1.., @Video1..).

@@ -1,29 +1,37 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mockeamos el módulo entero del SDK fal.ai (mismo patrón que kling.test.ts).
+// Seedance 2.0 vía ModelArk (REST). Mockeamos fetch global.
 // Regla del repo: los tests NUNCA llaman a la API real.
-vi.mock('@fal-ai/client', () => {
-  const queue = {
-    submit: vi.fn(),
-    status: vi.fn(),
-    result: vi.fn(),
-  };
-  const config = vi.fn();
-  return { fal: { config, queue }, queue };
-});
 
-describe('seedance provider (via fal.ai)', () => {
+function mockJson(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    headers: new Headers({ 'content-type': 'application/json' }),
+  } as unknown as Response;
+}
+
+const fetchMock = vi.fn();
+
+describe('seedance provider (vía ModelArk)', () => {
   beforeEach(() => {
-    vi.stubEnv('FAL_KEY', 'fake-fal-key');
+    vi.stubEnv('ARK_API_KEY', 'fake-ark-key');
+    vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
-  it('submitTask t2v pasa prompt/resolution/duration/aspect_ratio/audio', async () => {
-    const { fal } = await import('@fal-ai/client');
-    (fal.queue.submit as ReturnType<typeof vi.fn>).mockResolvedValue({ request_id: 'req-sd-1' });
+  function lastBody(): Record<string, unknown> {
+    const [, opts] = fetchMock.mock.calls[0];
+    return JSON.parse(opts.body as string);
+  }
+
+  it('submitTask t2v manda model standard, content texto, ratio/resolution/duration/audio', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { id: 'cgt-sd-1' }));
 
     const { submitTask } = await import('./seedance');
     const res = await submitTask({
@@ -36,59 +44,91 @@ describe('seedance provider (via fal.ai)', () => {
       generateAudio: true,
     });
 
-    expect(res.taskId).toBe('req-sd-1');
-    const [modelSlug, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(modelSlug).toBe('bytedance/seedance-2.0/text-to-video');
-    expect(opts.input).toMatchObject({
-      prompt: 'a frosted glass bottle rotating on black marble',
-      duration: '8',
-      aspect_ratio: '9:16',
-      resolution: '720p',
-      generate_audio: true,
-    });
+    expect(res.taskId).toBe('cgt-sd-1');
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain('/contents/generations/tasks');
+    expect(opts.method).toBe('POST');
+    expect(opts.headers.Authorization).toBe('Bearer fake-ark-key');
+    const body = lastBody();
+    expect(body.model).toBe('dreamina-seedance-2-0-260128');
+    expect(body.resolution).toBe('720p');
+    expect(body.ratio).toBe('9:16');
+    expect(body.duration).toBe(8);
+    expect(body.generate_audio).toBe(true);
+    expect(body.watermark).toBe(false);
+    expect(body.content).toEqual([{ type: 'text', text: 'a frosted glass bottle rotating on black marble' }]);
   });
 
-  it('submitTask sin duration manda "auto"', async () => {
-    const { fal } = await import('@fal-ai/client');
-    (fal.queue.submit as ReturnType<typeof vi.fn>).mockResolvedValue({ request_id: 'req-sd-2' });
+  it('submitTask tier fast usa el model id fast', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { id: 'cgt-sd-2' }));
     const { submitTask } = await import('./seedance');
     await submitTask({
       operation: 'text2video',
       model: 'bytedance/seedance-2.0/fast/text-to-video',
       prompt: 'p',
     });
-    const [, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(opts.input.duration).toBe('auto');
-    expect(opts.input.aspect_ratio).toBe('auto');
+    expect(lastBody().model).toBe('dreamina-seedance-2-0-fast-260128');
   });
 
-  it('submitTask reference2video pasa image_urls/video_urls/audio_urls', async () => {
-    const { fal } = await import('@fal-ai/client');
-    (fal.queue.submit as ReturnType<typeof vi.fn>).mockResolvedValue({ request_id: 'req-sd-3' });
+  it('submitTask sin duration la omite y mapea aspect auto → adaptive', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { id: 'cgt-sd-3' }));
+    const { submitTask } = await import('./seedance');
+    await submitTask({
+      operation: 'text2video',
+      model: 'bytedance/seedance-2.0/fast/text-to-video',
+      prompt: 'p',
+      aspectRatio: 'auto',
+    });
+    const body = lastBody();
+    expect(body.duration).toBeUndefined();
+    expect(body.ratio).toBe('adaptive');
+  });
+
+  it('submitTask image2video mapea first_frame y last_frame', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { id: 'cgt-sd-4' }));
+    const { submitTask } = await import('./seedance');
+    await submitTask({
+      operation: 'image2video',
+      model: 'bytedance/seedance-2.0/image-to-video',
+      prompt: 'p',
+      imageUrl: 'https://x/start.png',
+      endImageUrl: 'https://x/end.png',
+    });
+    expect(lastBody().content).toEqual([
+      { type: 'text', text: 'p' },
+      { type: 'image_url', image_url: { url: 'https://x/start.png' }, role: 'first_frame' },
+      { type: 'image_url', image_url: { url: 'https://x/end.png' }, role: 'last_frame' },
+    ]);
+  });
+
+  it('submitTask reference2video manda roles reference_* en orden', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { id: 'cgt-sd-5' }));
     const { submitTask } = await import('./seedance');
     await submitTask({
       operation: 'reference2video',
       model: 'bytedance/seedance-2.0/reference-to-video',
-      prompt: '@Image1 as the product, exact packaging. Replicate the camera motion of @Video1.',
+      prompt: '@Image1 as the product. Replicate the camera motion of @Video1.',
       imageUrls: ['https://x/p1.png', 'https://x/p2.png'],
       videoUrls: ['https://x/cam.mp4'],
       duration: 10,
     });
-    const [, opts] = (fal.queue.submit as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(opts.input.image_urls).toEqual(['https://x/p1.png', 'https://x/p2.png']);
-    expect(opts.input.video_urls).toEqual(['https://x/cam.mp4']);
-    expect(opts.input.audio_urls).toBeUndefined();
+    expect(lastBody().content).toEqual([
+      { type: 'text', text: '@Image1 as the product. Replicate the camera motion of @Video1.' },
+      { type: 'image_url', image_url: { url: 'https://x/p1.png' }, role: 'reference_image' },
+      { type: 'image_url', image_url: { url: 'https://x/p2.png' }, role: 'reference_image' },
+      { type: 'video_url', video_url: { url: 'https://x/cam.mp4' }, role: 'reference_video' },
+    ]);
   });
 
   it('submitTask rechaza más de 12 referencias en total', async () => {
     const { submitTask } = await import('./seedance');
-    const tenImages = Array.from({ length: 9 }, (_, i) => `https://x/i${i}.png`);
+    const nineImages = Array.from({ length: 9 }, (_, i) => `https://x/i${i}.png`);
     await expect(
       submitTask({
         operation: 'reference2video',
         model: 'bytedance/seedance-2.0/reference-to-video',
         prompt: 'p',
-        imageUrls: tenImages,
+        imageUrls: nineImages,
         videoUrls: ['https://x/v1.mp4', 'https://x/v2.mp4', 'https://x/v3.mp4'],
         audioUrls: ['https://x/a1.mp3'],
       }),
@@ -130,28 +170,57 @@ describe('seedance provider (via fal.ai)', () => {
     ).rejects.toThrow(/requiere imageUrl/);
   });
 
-  it('pollTask COMPLETED → completed con videoUrl y seed', async () => {
-    const { fal } = await import('@fal-ai/client');
-    (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'COMPLETED' });
-    (fal.queue.result as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { video: { url: 'https://v3.fal.media/sd.mp4', content_type: 'video/mp4' }, seed: 42 },
-    });
+  it('submitTask con 401 lanza ProviderError auth', async () => {
+    fetchMock.mockResolvedValue(mockJson(401, { error: { message: 'invalid key' } }));
+    const { submitTask } = await import('./seedance');
+    await expect(
+      submitTask({
+        operation: 'text2video',
+        model: 'bytedance/seedance-2.0/text-to-video',
+        prompt: 'p',
+      }),
+    ).rejects.toThrow(/invalid key/);
+  });
+
+  it('pollTask succeeded → completed con videoUrl y seed', async () => {
+    fetchMock.mockResolvedValue(
+      mockJson(200, {
+        status: 'succeeded',
+        content: { video_url: 'https://ark.example/sd.mp4' },
+        seed: 42,
+      }),
+    );
     const { pollTask } = await import('./seedance');
-    const res = await pollTask('bytedance/seedance-2.0/text-to-video', 'req-sd-1');
+    const res = await pollTask('cgt-sd-1');
     expect(res.status).toBe('completed');
-    expect(res.videoUrl).toBe('https://v3.fal.media/sd.mp4');
+    expect(res.videoUrl).toBe('https://ark.example/sd.mp4');
     expect(res.seed).toBe(42);
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain('/contents/generations/tasks/cgt-sd-1');
+    expect(opts.method).toBe('GET');
   });
 
-  it('pollTask IN_QUEUE → processing', async () => {
-    const { fal } = await import('@fal-ai/client');
-    (fal.queue.status as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'IN_QUEUE' });
+  it('pollTask queued/running → processing', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { status: 'running' }));
     const { pollTask } = await import('./seedance');
-    const res = await pollTask('bytedance/seedance-2.0/text-to-video', 'req-sd-1');
-    expect(res.status).toBe('processing');
+    expect((await pollTask('cgt-sd-1')).status).toBe('processing');
   });
 
-  it('lanza ProviderError auth cuando FAL_KEY falta', async () => {
+  it('pollTask failed → failed con mensaje', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { status: 'failed', error: { message: 'content rejected' } }));
+    const { pollTask } = await import('./seedance');
+    const res = await pollTask('cgt-sd-1');
+    expect(res.status).toBe('failed');
+    expect(res.error).toBe('content rejected');
+  });
+
+  it('pollTask 429 → processing (reintenta en el próximo tick)', async () => {
+    fetchMock.mockResolvedValue(mockJson(429, {}));
+    const { pollTask } = await import('./seedance');
+    expect((await pollTask('cgt-sd-1')).status).toBe('processing');
+  });
+
+  it('lanza ProviderError auth cuando ARK_API_KEY falta', async () => {
     vi.unstubAllEnvs();
     const { submitTask } = await import('./seedance');
     await expect(
@@ -160,6 +229,6 @@ describe('seedance provider (via fal.ai)', () => {
         model: 'bytedance/seedance-2.0/text-to-video',
         prompt: 'p',
       }),
-    ).rejects.toThrow(/FAL_KEY/);
+    ).rejects.toThrow(/ARK_API_KEY/);
   });
 });

@@ -1,61 +1,74 @@
-# Seedance 2.0 (ByteDance) — vía fal.ai
+# Seedance 2.0 (ByteDance) — vía BytePlus ModelArk
 
 > Modelo de video principal de V2 (doc `ZyraStudioV2/ARQUITECTURA-Y-CAPACIDADES-V2.md` §7.2).
 > Multimodal nativo: texto + imagen + video + audio como entradas de una sola generación,
 > con audio estéreo sincronizado en la salida. Paper: arXiv:2604.14148.
 
-## Slugs en fal.ai
+## Endpoint y modelos (ModelArk, Ark v3 REST)
 
-| Slug | Operación | Tier |
+Base URL (BytePlus global): `https://ark.ap-southeast.bytepluses.com/api/v3`
+(Volcengine China: `https://ark.cn-beijing.volces.com/api/v3` con ids `doubao-seedance-2-0-*`).
+Auth: header `Authorization: Bearer ARK_API_KEY`. Configurable con `ARK_API_BASE_URL`.
+
+- `POST /contents/generations/tasks` → `{ "id": "cgt-..." }`
+- `GET  /contents/generations/tasks/{id}` → status + output (ver abajo)
+
+A diferencia de fal hay **un solo `model` y un solo endpoint**: la operación y los
+archivos se expresan con los `role` del array `content`, no con la URL. El tier va en el
+model id:
+
+| Model id (ModelArk) | Tier | Slug interno (DB/model_pricing/router) |
 |---|---|---|
-| `bytedance/seedance-2.0/text-to-video` | T2V | standard |
-| `bytedance/seedance-2.0/image-to-video` | I2V (frame inicial + final opcional) | standard |
-| `bytedance/seedance-2.0/reference-to-video` | R2V (sistema @) | standard |
-| `bytedance/seedance-2.0/fast/text-to-video` | T2V | fast (draft) |
-| `bytedance/seedance-2.0/fast/image-to-video` | I2V | fast |
-| `bytedance/seedance-2.0/fast/reference-to-video` | R2V | fast |
+| `dreamina-seedance-2-0-260128` | standard | `bytedance/seedance-2.0/{text,image,reference}-to-video` |
+| `dreamina-seedance-2-0-fast-260128` | fast (draft) | `bytedance/seedance-2.0/fast/{...}-to-video` |
 
-Auth y cola: igual que Kling (mismo `@fal-ai/client`, `FAL_KEY`, submit → status → result).
-Sin cancel remoto: el refund es local (mismo caso Veo/Kling).
+Los 6 slugs internos siguen siendo la clave lógica (codifican tier+operación); el adapter
+`lib/providers/seedance.ts` los traduce al model id + roles. Sin cancel síncrono útil: el
+refund es local (mismo caso Veo/Kling).
 
-## Parámetros de entrada
+## Cuerpo del request (`content` + params)
 
-| Param | Tipo | Default | Notas |
-|---|---|---|---|
-| `prompt` | string | — | En R2V referencia archivos como `@Image1`, `@Video1`, `@Audio1` |
-| `image_url` / `end_image_url` | string | — | Solo I2V. **Verificar nombres exactos en el smoke test** (confirmados para R2V; I2V inferido del patrón fal) |
-| `image_urls` | string[] | — | R2V, hasta 9, <30 MB c/u |
-| `video_urls` | string[] | — | R2V, hasta 3, 2–15 s combinados, <50 MB c/u, 480p–720p |
-| `audio_urls` | string[] | — | R2V, hasta 3, ≤15 s combinados, <15 MB c/u |
-| `resolution` | enum | `720p` | `480p` `720p` `1080p` — **fast no soporta 1080p** |
-| `duration` | enum | `auto` | `auto` o entero 4–15 (se manda como string) |
-| `aspect_ratio` | enum | `auto` | `auto` `21:9` `16:9` `4:3` `1:1` `3:4` `9:16` |
-| `generate_audio` | bool | `true` | El audio NO cuesta extra |
-| `seed` | int | — | Fijarlo mantiene la composición entre tiers (draft → final) |
+`content` es un array; el primer item es el texto y los media van con `role`. El **orden de
+los media items define la numeración del sistema @** (@Image1 = 1er `reference_image`, etc.).
+
+| Item / param | Forma | Notas |
+|---|---|---|
+| texto | `{ type:"text", text }` | En R2V referencia archivos como `@Image1`, `@Video1`, `@Audio1` |
+| imagen | `{ type:"image_url", image_url:{url}, role }` | I2V: `first_frame` / `last_frame`. R2V: `reference_image` (hasta 9, <30 MB c/u) |
+| video | `{ type:"video_url", video_url:{url}, role:"reference_video" }` | R2V, hasta 3, 2–15 s combinados, <50 MB c/u, 480p–720p |
+| audio | `{ type:"audio_url", audio_url:{url}, role:"reference_audio" }` | R2V, hasta 3, ≤15 s combinados, <15 MB c/u |
+| `resolution` | enum | `480p` `720p` `1080p` — **fast no soporta 1080p** (default `720p`) |
+| `duration` | int | 4–15; si se omite ModelArk usa su default (5) |
+| `ratio` | enum | `21:9` `16:9` `4:3` `1:1` `3:4` `9:16` `adaptive` — el adapter mapea nuestro `auto` → `adaptive` |
+| `generate_audio` | bool | default `true`; el audio NO cuesta extra |
+| `watermark` | bool | el adapter lo fija en `false` |
+| `seed` | int | fijarlo mantiene la composición entre tiers (draft → final) |
 
 **Tope global: 12 archivos de referencia** entre todos los tipos. El adapter valida 9/3/3 y
-el total antes de llamar a fal.
+el total antes de llamar a ModelArk.
 
 ## Output
 
 ```json
-{ "video": { "url": "...", "content_type": "video/mp4" }, "seed": 42 }
+{ "id": "cgt-...", "status": "succeeded", "content": { "video_url": "..." }, "seed": 42, "usage": { "total_tokens": 103000 } }
 ```
 
-El worker descarga `video.url` y lo sube a Storage (regla inmutable: URLs de fal nunca
-llegan al cliente). El `seed` real vuelve en metadata de la generación.
+Status: `queued` → `running` → `succeeded` | `failed` | `expired` | `cancelled`. El worker
+descarga `content.video_url` apenas el status es `succeeded` (la URL expira a 24h; regla
+inmutable: nunca llega al cliente). El `seed` real vuelve en metadata de la generación.
 
-## Pricing (fal.ai, junio 2026 — por segundo, audio incluido)
+## Pricing
 
-| Tier · resolución | USD/s | Clip 10 s |
-|---|---|---|
-| Standard 720p | $0.3034 | ≈ $3.03 |
-| Standard 1080p | $0.682 | ≈ $6.82 |
-| Fast 720p | $0.2419 | ≈ $2.42 |
-| Fast 480p | ~$0.114 (medido en smoke test, 2026-06-10: $0.91 por 2 clips de 4 s) | ≈ $1.14 |
+ModelArk cobra **por tokens** (no por segundo): un clip 5 s 1080p ≈ 103k tokens ≈ $0.93;
+T2V/I2V 1080p ≈ 46 CNY/1M tok (~$6.40), tasks con video de referencia ≈ 28 CNY/1M tok
+(~$3.90). `usage.total_tokens` vuelve en el GET de la task.
 
-Créditos en `model_pricing` (024): 45/80/100/220 cr/s según tier — ver comentario de la
-migración para el cálculo del margen.
+**Nuestros créditos siguen estimándose por segundo** (`model_pricing` 024: 45/80/100/220
+cr/s según tier) porque reservamos el crédito antes de generar y el token count solo se
+conoce al final. La migración 024 está aplicada (inmutable) y sus slugs siguen siendo la
+clave válida; su comentario de margen referencia la base de costo de fal y quedó **obsoleto
+en cifras** — re-validar los márgenes con `usage.total_tokens` reales del smoke test antes
+de la demo (ajustable desde `/admin/pricing` sin nueva migración).
 
 ## El sistema de referencias @ (R2V)
 
@@ -102,10 +115,10 @@ Reglas operativas: una acción y un movimiento de cámara por toma; complejidad 
 
 ## Longitud del prompt
 
-fal **no documenta** un límite de caracteres del campo `prompt` (verificado contra su
-API reference, 2026-06-12). El techo de 4000 caracteres es NUESTRO
-(`SubmitSeedanceSchema`), conservador y alineado con la guía de longitud útil
-(2-4 frases por toma, 4-8 multi-toma); el compiler avisa con warning si lo supera.
+ModelArk no documenta un límite de caracteres del campo de texto. El techo de 4000
+caracteres es NUESTRO (`SubmitSeedanceSchema`), conservador y alineado con la guía de
+longitud útil (2-4 frases por toma, 4-8 multi-toma); el compiler avisa con warning si lo
+supera.
 
 ## Límites y qué falla (validar antes de encolar)
 
