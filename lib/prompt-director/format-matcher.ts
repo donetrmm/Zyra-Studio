@@ -43,8 +43,9 @@ Por cada idea distinta devuelve un match:
 - Si encaja en un formato del catálogo: formatId con su id exacto y customFormat null.
 - Si NO encaja: formatId null y customFormat con registro, estilo de cámara y
   ritmo inferidos de la idea. slug en kebab-case, nombres en español.
-- count: cuántos creativos pide la idea, SOLO si menciona una cantidad
-  explícita ("3 versiones", "varios" = 3). Sin cantidad, count = 1.
+- count: cuántos creativos pide la idea. Cantidad explícita ("3 versiones")
+  = ese número. Invitación abierta ("varios", "los que se te ocurran",
+  "puedes generar más de una") = 2 o 3, a tu criterio. Sin señal, count = 1.
 - scenePrompt: la acción concreta de la idea, en INGLÉS, 1-2 frases, con el
   producto como ancla. Si la idea solo nombra un formato sin acción concreta
   ("quiero unboxings"), scenePrompt = null.

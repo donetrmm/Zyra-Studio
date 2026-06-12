@@ -268,7 +268,9 @@ export async function createCampaignStudioAction(
 // ideas: plan sugerido con el mix por categoría (totalItems, default 6).
 // En ambos casos: escenas y personajes rotados, fechas intercaladas,
 // estimación de créditos en tier draft.
-export async function generatePlanAction(input: unknown): Promise<Result<{ items: number; creditsEstimated: number }>> {
+export async function generatePlanAction(
+  input: unknown,
+): Promise<Result<{ items: number; creditsEstimated: number; source: 'ideas' | 'mix' }>> {
   const parsed = GeneratePlanSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -379,9 +381,10 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
         }
       }
       if (createdCustom) revalidatePath('/app/formats');
-    } catch {
-      // El matcher es mejora, no requisito: si Gemini falla, el plan cae al
-      // mix sugerido por categoría.
+    } catch (err) {
+      // Si Gemini falla, el plan cae al mix sugerido por categoría — pero
+      // nunca en silencio: queda en logs y el wizard avisa (source: 'mix').
+      console.error('[generatePlanAction] matcher falló; plan sugerido en su lugar', err);
     }
   }
 
@@ -500,7 +503,14 @@ export async function generatePlanAction(input: unknown): Promise<Result<{ items
     .eq('id', campaign.id);
 
   revalidatePath(`/app/campaigns/${campaign.id}`);
-  return { ok: true, data: { items: items.length, creditsEstimated: total } };
+  return {
+    ok: true,
+    data: {
+      items: items.length,
+      creditsEstimated: total,
+      source: directed.length > 0 ? 'ideas' : 'mix',
+    },
+  };
 }
 
 export async function updateCampaignItemAction(input: unknown): Promise<Result<{ updated: true }>> {
