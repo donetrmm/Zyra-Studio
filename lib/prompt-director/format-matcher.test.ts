@@ -262,6 +262,45 @@ describe('matchIdeas', () => {
     expect(res.matches[0].sceneSummary).toBe('La lata sobre piedra mojada, revelada con un dolly in');
   });
 
+  it('scenePrompt largo (>1500) se conserva en vez de caer a null', async () => {
+    const longTimeline =
+      '0-3s: Brenda looks straight into the camera while a giant LED wall behind her scrolls thousands of family photographs. ' +
+      'Dialogue: "You are going to lose them if you do nothing with the photos on your phone." '.repeat(18);
+    expect(longTimeline.length).toBeGreaterThan(1500);
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'anuncio cuadro familiar', formatId: 'f1', customFormat: null,
+        scenePrompt: longTimeline,
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'anuncio cuadro familiar', formats: FORMATS });
+    expect(res.matches[0].scenePrompt).not.toBeNull();
+    expect(res.matches[0].scenePrompt!.length).toBeGreaterThan(1500);
+  });
+
+  it('scenePrompt descomunal se recorta en frontera de palabra, nunca a null', async () => {
+    const huge = 'Brenda walks around the floating family photo in a dark museum room. '.repeat(80);
+    expect(huge.length).toBeGreaterThan(3000);
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'museo de recuerdos', formatId: 'f1', customFormat: null, scenePrompt: huge }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'museo', formats: FORMATS });
+    expect(res.matches[0].scenePrompt).not.toBeNull();
+    expect(res.matches[0].scenePrompt!.length).toBeLessThanOrEqual(3000);
+    expect(res.matches[0].scenePrompt!.endsWith(' ')).toBe(false);
+  });
+
+  it('scenePrompt no string (number) sigue cayendo a null sin tirar el match', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'x', formatId: 'f1', customFormat: null, scenePrompt: 12345 }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].scenePrompt).toBeNull();
+  });
+
   it('characterIds dedupe y recorta a 3', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{

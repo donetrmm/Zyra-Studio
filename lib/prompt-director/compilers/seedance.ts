@@ -51,6 +51,17 @@ function hasSpokenDialogue(req: CompileRequest): boolean {
 // que un submit manual lo rechace.
 const PROMPT_CHAR_BUDGET = 4000;
 
+// Recorta la acción en frontera de frase/palabra para no cortar a media palabra
+// cuando el prompt compilado excede el techo duro.
+function clampToBudget(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, Math.max(0, max));
+  const dot = cut.lastIndexOf('. ');
+  const space = cut.lastIndexOf(' ');
+  const at = dot > max * 0.5 ? dot + 1 : space > 0 ? space : cut.length;
+  return cut.slice(0, at).trim();
+}
+
 // Construye las referencias EN ORDEN (la posición define @Image1.., @Video1..).
 // Prioridad ante el tope de 12: producto > empaque > personaje > extra > cámara > audio
 // (tier list de la guía Morphic §8). El tope de 9 imágenes se aplica antes;
@@ -191,7 +202,9 @@ export function compileSeedance(
     }
   }
 
-  // A — Acción: el scene_prompt del plan, sin reescritura.
+  // A — Acción: el scene_prompt del plan, sin reescritura. Guardamos su índice
+  // para poder recortarla (y solo a ella) si el prompt final excede el techo.
+  const actionIndex = sections.length;
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
 
   // F + T — Encuadre, registro y ritmo del formato.
@@ -212,10 +225,19 @@ export function compileSeedance(
   sections.push(NEGATIVE_CLAUSE);
 
   const hasRefs = references.length > 0;
-  const prompt = sections.filter(Boolean).join('\n');
+  let prompt = sections.filter(Boolean).join('\n');
   if (prompt.length > PROMPT_CHAR_BUDGET) {
+    // Garantía dura: el prompt compilado no puede pasar de 4000 (cap de
+    // SubmitSeedanceSchema). Recortamos SOLO la acción —preservando su inicio
+    // (gancho + primer diálogo) y dejando intactas las cláusulas finales
+    // obligatorias (idioma del diálogo, cláusula negativa)— en vez de dejar que
+    // el submit rechace el guion. Si no cabe, hay que dividirlo en escenas.
+    const overflow = prompt.length - PROMPT_CHAR_BUDGET;
+    const action = sections[actionIndex];
+    sections[actionIndex] = clampToBudget(action, Math.max(0, action.length - overflow));
+    prompt = sections.filter(Boolean).join('\n');
     warnings.push(
-      `prompt: ${prompt.length} caracteres supera el techo de trabajo de ${PROMPT_CHAR_BUDGET}; recorta la acción o divide el creativo`,
+      `prompt: la acción se recortó para caber en el techo de ${PROMPT_CHAR_BUDGET} caracteres; divide el creativo en escenas para usar todo el guion`,
     );
   }
 

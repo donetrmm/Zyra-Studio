@@ -143,17 +143,26 @@ describe('compile seedance', () => {
     if (noSpeaker.ok) expect(noSpeaker.compiled.prompt).not.toContain('Synchronized on-camera speech');
   });
 
-  it('avisa cuando el prompt supera el techo de 4000 caracteres', () => {
+  it('recorta solo la acción para garantizar ≤4000, preservando las cláusulas finales', () => {
+    const huge = '0-3s: Brenda stares into the camera as the LED wall scrolls endless family photographs. '.repeat(80);
     const res = compile(
       {
         modelSlug: 'bytedance/seedance-2.0/reference-to-video',
-        scenePrompt: `The can rests on stone ${'and the light shifts slowly across the label '.repeat(90)}`,
+        scenePrompt: `${huge} Dialogue: "No la pierdas."`,
+        durationS: 15,
+        aspectRatio: '9:16',
       },
       fullContext(),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.compiled.warnings.some((w) => w.includes('techo de trabajo de 4000'))).toBe(true);
+    const { prompt, warnings } = res.compiled;
+    // Garantía dura: el prompt compilado nunca supera el cap de SubmitSeedanceSchema.
+    expect(prompt.length).toBeLessThanOrEqual(4000);
+    // Las cláusulas finales obligatorias sobreviven al recorte de la acción.
+    expect(prompt).toContain('No on-screen text');
+    expect(prompt).toContain('natural Mexican accent');
+    expect(warnings.some((w) => w.includes('se recortó'))).toBe(true);
   });
 
   it('el diálogo hablado va en español por default y en inglés si la campaña lo pide', () => {

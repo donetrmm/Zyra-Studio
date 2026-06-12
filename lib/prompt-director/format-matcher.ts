@@ -28,6 +28,21 @@ export type MatcherCharacter = { id: string; name: string };
 // texto del usuario para atar cada imagen a su rol.
 export type MatcherImage = { mimeType: string; dataBase64: string; label: string };
 
+// Tope del scenePrompt del matcher: holgado para timelines de 15s con diálogo.
+// No es el límite duro (ese es el prompt compilado, 4000, que garantiza el
+// compiler); solo evita strings patológicos y deja margen al andamiaje.
+const SCENE_PROMPT_MAX = 3000;
+
+// Recorta en frontera de frase/palabra para no cortar a media palabra.
+function clampToWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const dot = cut.lastIndexOf('. ');
+  const space = cut.lastIndexOf(' ');
+  const at = dot > max * 0.6 ? dot + 1 : space > 0 ? space : cut.length;
+  return cut.slice(0, at).trim();
+}
+
 const InventedCharacterSchema = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().min(1).max(300),
@@ -43,8 +58,21 @@ const MatchSchema = z.object({
   count: z.number().int().min(1).max(10).catch(1).default(1),
   // Concepto concreto de la idea en inglés: va directo al scenePrompt del
   // item para que el creativo refleje lo que el usuario escribió. Con varias
-  // acciones o ≥8s puede traer timeline ("0-3s: ...") — por eso el tope amplio.
-  scenePrompt: z.string().trim().min(1).max(1500).nullable().catch(null).default(null),
+  // acciones o ≥8s puede traer timeline ("0-3s: ...") y diálogo guionizado, así
+  // que es legítimamente largo. ANTES un `.max(1500).catch(null)` lo anulaba en
+  // silencio y el planner lo cambiaba por una semilla genérica, tirando el guion
+  // del usuario. Ahora se CONSERVA y, si excede el presupuesto, se recorta en
+  // frontera de palabra — nunca a null (no-string sí cae a null). El techo duro
+  // del prompt COMPILADO (4000) lo garantiza el compiler de Seedance.
+  scenePrompt: z
+    .unknown()
+    .transform((v) => {
+      if (typeof v !== 'string') return null;
+      const t = v.trim();
+      if (!t) return null;
+      return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
+    })
+    .default(null),
   // Duración que la acción necesita (4-15s, 1 acción ≈ 4s). null = usar la
   // default del formato.
   durationS: z.number().int().min(4).max(15).nullable().catch(null).default(null),
