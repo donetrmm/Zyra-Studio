@@ -1,14 +1,13 @@
 import 'server-only';
-import { fal } from '@fal-ai/client';
 import { z } from 'zod';
 import { ProviderError } from './types';
 
-// Seedance 2.0 con DOS backends seleccionables por env:
-//   SEEDANCE_PROVIDER=fal  → fal.ai (FAL_KEY). Para pruebas mientras la cuenta
-//                            de ModelArk activa el modelo.
-//   (cualquier otro/unset) → BytePlus ModelArk (ARK_API_KEY), el default.
-// La interfaz pública (submitTask, pollTask, downloadVideo) y los slugs internos
-// son idénticos para ambos; cada backend traduce a su API. Specs en
+// Seedance 2.0 con DOS backends seleccionables por env, misma interfaz:
+//   SEEDANCE_PROVIDER=atlas → AtlasCloud (ATLASCLOUD_API_KEY). Per-second,
+//                             más barato y sin waitlist; el `model` es nuestro
+//                             slug interno tal cual.
+//   (cualquier otro/unset)  → BytePlus ModelArk (ARK_API_KEY), el default.
+// Los 6 slugs internos son la clave lógica en ambos. Specs en
 // docs/modelos/06-seedance-2.md.
 
 export type SeedanceOperation = 'text2video' | 'image2video' | 'reference2video';
@@ -56,8 +55,41 @@ export type SeedancePollResult = {
   error?: string;
 };
 
-function isFalBackend(): boolean {
-  return process.env.SEEDANCE_PROVIDER === 'fal';
+function backend(): 'atlas' | 'modelark' {
+  return process.env.SEEDANCE_PROVIDER === 'atlas' ? 'atlas' : 'modelark';
+}
+
+// ratio: ambos backends usan 'adaptive' donde nosotros usamos 'auto'.
+function toRatio(aspect: SeedanceAspectRatio | undefined): string {
+  return !aspect || aspect === 'auto' ? 'adaptive' : aspect;
+}
+
+// Mapea un error HTTP del proveedor a ProviderError con código adecuado.
+async function httpError(res: Response, label: string, fallback: string): Promise<never> {
+  let detail = fallback;
+  try {
+    const body = (await res.json()) as {
+      error?: { message?: string } | string;
+      message?: string;
+      data?: { error?: string };
+    };
+    detail =
+      (typeof body.error === 'string' ? body.error : body.error?.message) ??
+      body.data?.error ??
+      body.message ??
+      fallback;
+  } catch {
+    // cuerpo no-JSON: nos quedamos con el fallback
+  }
+  if (res.status === 401 || res.status === 403) throw new ProviderError(detail, 'auth', false);
+  if (res.status === 429) throw new ProviderError(`Rate limit ${label}`, 'rate_limit', true);
+  if (/sensitive|moderation|safety|content.?policy|disallowed/i.test(detail)) {
+    throw new ProviderError('El proveedor rechazó el contenido por políticas de seguridad', 'safety', false);
+  }
+  if (res.status >= 400 && res.status < 500) {
+    throw new ProviderError(`${label} input inválido: ${detail}`, 'invalid_input', false);
+  }
+  throw new ProviderError(`${label} error ${res.status}: ${detail}`, 'server', res.status >= 500);
 }
 
 // ============ Validación compartida ============
@@ -86,7 +118,6 @@ function assertReferenceLimits(refs: { imageUrls?: string[]; videoUrls?: string[
   }
 }
 
-// Validación común a ambos backends, antes de construir el request.
 function validateSubmit(params: SeedanceSubmitParams, resolution: SeedanceResolution): void {
   assertResolutionForModel(params.model, resolution);
   if (params.duration !== undefined && (!Number.isInteger(params.duration) || params.duration < 4 || params.duration > 15)) {
@@ -100,16 +131,12 @@ function validateSubmit(params: SeedanceSubmitParams, resolution: SeedanceResolu
 
 // ============ Backend: BytePlus ModelArk (default) ============
 
-const ARK_BASE_URL =
-  process.env.ARK_API_BASE_URL ?? 'https://ark.ap-southeast.bytepluses.com/api/v3';
+const ARK_BASE_URL = process.env.ARK_API_BASE_URL ?? 'https://ark.ap-southeast.bytepluses.com/api/v3';
 const ARK_MODEL_STANDARD = 'dreamina-seedance-2-0-260128';
 const ARK_MODEL_FAST = 'dreamina-seedance-2-0-fast-260128';
 
 function arkModelId(model: SeedanceModel): string {
   return model.includes('/fast/') ? ARK_MODEL_FAST : ARK_MODEL_STANDARD;
-}
-function arkRatio(aspect: SeedanceAspectRatio | undefined): string {
-  return !aspect || aspect === 'auto' ? 'adaptive' : aspect;
 }
 function ensureArkKey(): string {
   const key = process.env.ARK_API_KEY;
@@ -123,37 +150,17 @@ type ContentItem =
   | { type: 'video_url'; video_url: { url: string }; role: string }
   | { type: 'audio_url'; audio_url: { url: string }; role: string };
 
-const CreateTaskResponse = z.object({ id: z.string().min(1) });
-const PollResponse = z.object({
+const ArkCreateResponse = z.object({ id: z.string().min(1) });
+const ArkPollResponse = z.object({
   status: z.enum(['queued', 'running', 'succeeded', 'failed', 'expired', 'cancelled']),
   content: z.object({ video_url: z.string().optional() }).nullish(),
   seed: z.number().optional(),
   error: z.object({ message: z.string().optional() }).nullish(),
 });
 
-async function arkError(res: Response, fallback: string): Promise<never> {
-  let detail = fallback;
-  try {
-    const body = (await res.json()) as { error?: { message?: string }; message?: string };
-    detail = body.error?.message ?? body.message ?? fallback;
-  } catch {
-    // cuerpo no-JSON: nos quedamos con el fallback
-  }
-  if (res.status === 401 || res.status === 403) throw new ProviderError(detail, 'auth', false);
-  if (res.status === 429) throw new ProviderError('Rate limit ModelArk', 'rate_limit', true);
-  if (/sensitive|moderation|safety|content.?policy/i.test(detail)) {
-    throw new ProviderError('El proveedor rechazó el contenido por políticas de seguridad', 'safety', false);
-  }
-  if (res.status >= 400 && res.status < 500) {
-    throw new ProviderError(`ModelArk input inválido: ${detail}`, 'invalid_input', false);
-  }
-  throw new ProviderError(`ModelArk error ${res.status}: ${detail}`, 'server', res.status >= 500);
-}
-
 async function submitModelArk(params: SeedanceSubmitParams, resolution: SeedanceResolution): Promise<{ taskId: string }> {
   const apiKey = ensureArkKey();
   const content: ContentItem[] = [{ type: 'text', text: params.prompt }];
-
   if (params.operation === 'image2video') {
     content.push({ type: 'image_url', image_url: { url: params.imageUrl! }, role: 'first_frame' });
     if (params.endImageUrl) content.push({ type: 'image_url', image_url: { url: params.endImageUrl }, role: 'last_frame' });
@@ -163,12 +170,11 @@ async function submitModelArk(params: SeedanceSubmitParams, resolution: Seedance
     for (const url of params.videoUrls ?? []) content.push({ type: 'video_url', video_url: { url }, role: 'reference_video' });
     for (const url of params.audioUrls ?? []) content.push({ type: 'audio_url', audio_url: { url }, role: 'reference_audio' });
   }
-
   const body: Record<string, unknown> = {
     model: arkModelId(params.model),
     content,
     resolution,
-    ratio: arkRatio(params.aspectRatio),
+    ratio: toRatio(params.aspectRatio),
     generate_audio: params.generateAudio ?? true,
     watermark: false,
   };
@@ -185,8 +191,8 @@ async function submitModelArk(params: SeedanceSubmitParams, resolution: Seedance
   } catch (err) {
     throw new ProviderError(`ModelArk submit (red): ${(err as Error).message}`, 'server', true);
   }
-  if (!res.ok) await arkError(res, 'submit falló');
-  const parsed = CreateTaskResponse.safeParse(await res.json());
+  if (!res.ok) await httpError(res, 'ModelArk', 'submit falló');
+  const parsed = ArkCreateResponse.safeParse(await res.json());
   if (!parsed.success) throw new ProviderError(`ModelArk respuesta inesperada: ${parsed.error.message}`, 'unknown', false);
   return { taskId: parsed.data.id };
 }
@@ -203,8 +209,8 @@ async function pollModelArk(taskId: string): Promise<SeedancePollResult> {
     return { status: 'processing' };
   }
   if (res.status === 429) return { status: 'processing' };
-  if (!res.ok) await arkError(res, 'poll falló');
-  const parsed = PollResponse.safeParse(await res.json());
+  if (!res.ok) await httpError(res, 'ModelArk', 'poll falló');
+  const parsed = ArkPollResponse.safeParse(await res.json());
   if (!parsed.success) throw new ProviderError(`ModelArk poll inesperado: ${parsed.error.message}`, 'unknown', false);
   const data = parsed.data;
   if (data.status === 'queued' || data.status === 'running') return { status: 'processing' };
@@ -216,67 +222,93 @@ async function pollModelArk(taskId: string): Promise<SeedancePollResult> {
   return { status: 'failed', error: data.error?.message ?? `ModelArk status: ${data.status}` };
 }
 
-// ============ Backend: fal.ai (SEEDANCE_PROVIDER=fal) ============
+// ============ Backend: AtlasCloud (SEEDANCE_PROVIDER=atlas) ============
 
-let falConfiguredFor: string | null = null;
-function ensureFalConfigured(): void {
-  const credentials = process.env.FAL_KEY;
-  if (!credentials) throw new ProviderError('FAL_KEY no configurada', 'auth', false);
-  if (falConfiguredFor === credentials) return;
-  fal.config({ credentials });
-  falConfiguredFor = credentials;
+const ATLAS_BASE_URL = process.env.ATLASCLOUD_API_BASE_URL ?? 'https://api.atlascloud.ai/api/v1/model';
+
+function ensureAtlasKey(): string {
+  const key = process.env.ATLASCLOUD_API_KEY;
+  if (!key) throw new ProviderError('ATLASCLOUD_API_KEY no configurada', 'auth', false);
+  return key;
 }
 
-async function submitFal(params: SeedanceSubmitParams, resolution: SeedanceResolution): Promise<{ taskId: string }> {
-  ensureFalConfigured();
-  const input: Record<string, unknown> = {
+const AtlasCreateResponse = z.object({ data: z.object({ id: z.string().min(1) }) });
+const AtlasPollResponse = z.object({
+  data: z.object({
+    status: z.string(),
+    outputs: z.array(z.string()).nullish(),
+    error: z.string().nullish(),
+  }),
+});
+
+async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceResolution): Promise<{ taskId: string }> {
+  const apiKey = ensureAtlasKey();
+  // El `model` de AtlasCloud ES nuestro slug interno (sin traducción).
+  const body: Record<string, unknown> = {
+    model: params.model,
     prompt: params.prompt,
     resolution,
-    duration: params.duration !== undefined ? String(params.duration) : 'auto',
-    aspect_ratio: params.aspectRatio ?? 'auto',
+    ratio: toRatio(params.aspectRatio),
     generate_audio: params.generateAudio ?? true,
+    watermark: false,
   };
-  if (params.seed !== undefined) input.seed = params.seed;
+  if (params.duration !== undefined) body.duration = params.duration;
+  if (params.seed !== undefined) body.seed = params.seed;
   if (params.operation === 'image2video') {
-    input.image_url = params.imageUrl;
-    if (params.endImageUrl) input.end_image_url = params.endImageUrl;
+    body.image_url = params.imageUrl;
+    // end_image_url: nombre inferido (I2V de fotograma final). Confirmar en smoke.
+    if (params.endImageUrl) body.end_image_url = params.endImageUrl;
   }
   if (params.operation === 'reference2video') {
-    if (params.imageUrls?.length) input.image_urls = params.imageUrls;
-    if (params.videoUrls?.length) input.video_urls = params.videoUrls;
-    if (params.audioUrls?.length) input.audio_urls = params.audioUrls;
+    // Arrays multi-referencia: nombres inferidos por consistencia con image_url
+    // (I2V). Confirmar en smoke; ajustar aquí si la API usa otra forma.
+    if (params.imageUrls?.length) body.image_urls = params.imageUrls;
+    if (params.videoUrls?.length) body.video_urls = params.videoUrls;
+    if (params.audioUrls?.length) body.audio_urls = params.audioUrls;
   }
+
+  let res: Response;
   try {
-    const res = await fal.queue.submit(params.model, { input });
-    return { taskId: res.request_id };
+    res = await fetch(`${ATLAS_BASE_URL}/generateVideo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   } catch (err) {
-    const message = (err as Error)?.message ?? '';
-    const detail = (err as { body?: { detail?: string } })?.body?.detail;
-    if (message.match(/401|403|unauthorized|forbidden/i)) throw new ProviderError(detail ?? 'Auth inválida con fal.ai', 'auth', false);
-    if (message.match(/429|rate.?limit/i)) throw new ProviderError('Rate limit fal.ai', 'rate_limit', true);
-    if (message.match(/422|validation/i)) throw new ProviderError(`fal.ai input inválido: ${detail ?? message}`, 'invalid_input', false);
-    throw new ProviderError(`fal.ai submit: ${detail ?? message}`, 'unknown', false);
+    throw new ProviderError(`AtlasCloud submit (red): ${(err as Error).message}`, 'server', true);
   }
+  if (!res.ok) await httpError(res, 'AtlasCloud', 'submit falló');
+  const parsed = AtlasCreateResponse.safeParse(await res.json());
+  if (!parsed.success) throw new ProviderError(`AtlasCloud respuesta inesperada: ${parsed.error.message}`, 'unknown', false);
+  return { taskId: parsed.data.data.id };
 }
 
-async function pollFal(model: SeedanceModel, taskId: string): Promise<SeedancePollResult> {
-  ensureFalConfigured();
+async function pollAtlas(taskId: string): Promise<SeedancePollResult> {
+  const apiKey = ensureAtlasKey();
+  let res: Response;
   try {
-    const status = await fal.queue.status(model, { requestId: taskId });
-    if (status.status === 'COMPLETED') {
-      const result = await fal.queue.result(model, { requestId: taskId });
-      const data = result.data as { video?: { url?: string }; seed?: number } | undefined;
-      const videoUrl = data?.video?.url;
-      if (!videoUrl) return { status: 'failed', error: 'completed sin video.url' };
-      return { status: 'completed', videoUrl, seed: data?.seed };
-    }
-    if (status.status === 'IN_QUEUE' || status.status === 'IN_PROGRESS') return { status: 'processing' };
-    return { status: 'failed', error: `fal status: ${(status as { status: string }).status}` };
-  } catch (err) {
-    const message = (err as Error)?.message ?? '';
-    if (message.match(/429|rate.?limit/i)) return { status: 'processing' };
-    throw new ProviderError(`fal.ai poll: ${message}`, 'unknown', false);
+    res = await fetch(`${ATLAS_BASE_URL}/prediction/${taskId}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+  } catch {
+    return { status: 'processing' };
   }
+  if (res.status === 429) return { status: 'processing' };
+  if (!res.ok) await httpError(res, 'AtlasCloud', 'poll falló');
+  const parsed = AtlasPollResponse.safeParse(await res.json());
+  if (!parsed.success) throw new ProviderError(`AtlasCloud poll inesperado: ${parsed.error.message}`, 'unknown', false);
+  const data = parsed.data.data;
+  const status = data.status.toLowerCase();
+  if (status === 'completed' || status === 'succeeded') {
+    const videoUrl = data.outputs?.[0];
+    if (!videoUrl) return { status: 'failed', error: 'completed sin outputs[0]' };
+    return { status: 'completed', videoUrl };
+  }
+  if (status === 'failed' || status === 'canceled' || status === 'cancelled') {
+    return { status: 'failed', error: data.error ?? `AtlasCloud status: ${data.status}` };
+  }
+  return { status: 'processing' };
 }
 
 // ============ Dispatch público ============
@@ -284,13 +316,13 @@ async function pollFal(model: SeedanceModel, taskId: string): Promise<SeedancePo
 export async function submitTask(params: SeedanceSubmitParams): Promise<{ taskId: string }> {
   const resolution = params.resolution ?? '720p';
   validateSubmit(params, resolution);
-  return isFalBackend() ? submitFal(params, resolution) : submitModelArk(params, resolution);
+  return backend() === 'atlas' ? submitAtlas(params, resolution) : submitModelArk(params, resolution);
 }
 
-// `model` solo lo necesita el backend fal (la cola de fal exige el slug en el
-// status); ModelArk lo ignora (la task es global por id).
-export async function pollTask(model: SeedanceModel, taskId: string): Promise<SeedancePollResult> {
-  return isFalBackend() ? pollFal(model, taskId) : pollModelArk(taskId);
+// Ambos backends consultan por id (la task es global), así que `model` no se
+// necesita en el poll.
+export async function pollTask(taskId: string): Promise<SeedancePollResult> {
+  return backend() === 'atlas' ? pollAtlas(taskId) : pollModelArk(taskId);
 }
 
 export async function downloadVideo(url: string): Promise<{ buffer: Buffer; mimeType: string }> {

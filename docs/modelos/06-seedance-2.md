@@ -9,9 +9,14 @@
 El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
 
 - **ModelArk** (default): lo que se describe en este doc. Requiere `ARK_API_KEY`.
-- **fal.ai**: se activa con `SEEDANCE_PROVIDER=fal` (usa `FAL_KEY`, el mismo de Kling).
-  Útil para probar el flujo real mientras la cuenta de ModelArk activa el modelo.
-  Slugs idénticos; en fal son endpoints de cola (`fal.queue.submit/status/result`).
+- **AtlasCloud**: se activa con `SEEDANCE_PROVIDER=atlas` (usa `ATLASCLOUD_API_KEY`).
+  Per-second, más barato (~3x vs fal) y sin waitlist/restricción regional.
+  `POST https://api.atlascloud.ai/api/v1/model/generateVideo` → `{ data: { id } }`;
+  `GET .../prediction/{id}` → `{ data: { status, outputs:[url], error } }`. El `model`
+  del request **ES nuestro slug interno** tal cual (sin traducción). Body análogo al de
+  ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`); I2V usa
+  `image_url`. ⚠️ El shape multi-referencia de R2V (`image_urls`/`video_urls`/`audio_urls`)
+  está **inferido** — confirmar con un smoke de I2V/R2V antes de confiar en él.
 
 Los 6 slugs internos (`bytedance/seedance-2.0/...`) son la clave lógica en ambos casos.
 
