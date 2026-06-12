@@ -301,7 +301,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, date_start, date_end, status')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -372,6 +372,7 @@ export async function generatePlanAction(input: unknown): Promise<
   // Un inventado por nombre: la PRIMERA descripción gana y se reusa en
   // todos los creativos que lo mencionen (coherencia razonable).
   const inventedByName = new Map<string, { name: string; description: string }>();
+  const campaignLanguage: 'es' | 'en' = campaign.language === 'en' ? 'en' : 'es';
   if (parsed.data.userIdeas) {
     try {
       const matched = await matchIdeas({
@@ -381,8 +382,10 @@ export async function generatePlanAction(input: unknown): Promise<
           slug: f.slug as string,
           name: f.name as string,
           description: (f.description as string | null) ?? null,
+          defaultDurationS: f.default_duration_s as number,
         })),
         characters: characters.map((c) => ({ id: c.id, name: c.name })),
+        language: campaignLanguage,
       });
       for (const m of matched.matches) {
         for (const p of m.inventedCharacters) {
@@ -399,6 +402,7 @@ export async function generatePlanAction(input: unknown): Promise<
               format: f,
               count: m.count,
               scenePrompt: m.scenePrompt,
+              sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
             });
@@ -414,6 +418,7 @@ export async function generatePlanAction(input: unknown): Promise<
               format: existing,
               count: m.count,
               scenePrompt: m.scenePrompt,
+              sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
             });
@@ -440,6 +445,7 @@ export async function generatePlanAction(input: unknown): Promise<
               format: pf,
               count: m.count,
               scenePrompt: m.scenePrompt,
+              sceneSummary: m.sceneSummary,
               characterIds: m.characterIds,
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
             });
@@ -489,6 +495,7 @@ export async function generatePlanAction(input: unknown): Promise<
       dateStart,
       dateEnd,
       draftModelSlug: DRAFT_MODEL,
+      language: campaignLanguage,
     });
     if (items.length === 0) {
       return {
@@ -530,6 +537,7 @@ export async function generatePlanAction(input: unknown): Promise<
       dateStart,
       dateEnd,
       draftModelSlug: DRAFT_MODEL,
+      language: campaignLanguage,
     });
     if (items.length === 0) {
       return { ok: false, error: 'validation_error', message: 'No hay formatos viables: revisa Brand Kit y Cast' };
@@ -562,6 +570,7 @@ export async function generatePlanAction(input: unknown): Promise<
       character_id: i.characterIds[0] ?? null,
       character_ids: i.characterIds,
       scene_prompt: i.scenePrompt,
+      scene_summary: i.sceneSummary,
       caption: i.caption,
       scheduled_date: i.scheduledDate,
       status: 'planned',
@@ -617,7 +626,12 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   }
 
   const patch: Record<string, unknown> = {};
-  if (parsed.data.scenePrompt !== undefined) patch.scene_prompt = parsed.data.scenePrompt;
+  if (parsed.data.scenePrompt !== undefined) {
+    patch.scene_prompt = parsed.data.scenePrompt;
+    // El resumen display (033) describe el prompt anterior: al editar el
+    // prompt a mano queda obsoleto — se anula y la UI cae al scenePrompt.
+    patch.scene_summary = null;
+  }
   if (parsed.data.scene !== undefined) patch.scene = parsed.data.scene;
   if (parsed.data.durationS !== undefined) patch.duration_s = parsed.data.durationS;
   if (parsed.data.aspectRatio !== undefined) patch.aspect_ratio = parsed.data.aspectRatio;

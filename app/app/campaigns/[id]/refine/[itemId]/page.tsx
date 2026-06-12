@@ -34,7 +34,7 @@ export default async function RefineRoute({
   if (itemId !== 'new') {
     const { data: item } = await supabase
       .from('campaign_items')
-      .select('id, status, format_id, scene, scene_prompt, shot, character_id, character_ids, reference_ids, duration_s, aspect_ratio, caption')
+      .select('id, status, format_id, scene, scene_prompt, scene_summary, shot, character_id, character_ids, reference_ids, duration_s, aspect_ratio, caption')
       .eq('id', itemId)
       .eq('campaign_id', id)
       .single();
@@ -50,6 +50,7 @@ export default async function RefineRoute({
       customFormat: null,
       scene: (item.scene as string | null) ?? null,
       scenePrompt: (item.scene_prompt as string) ?? '',
+      sceneSummary: (item.scene_summary as string | null) ?? null,
       shot: (item.shot as string | null) ?? null,
       characterId: (item.character_id as string | null) ?? null,
       referenceIds: ((item.reference_ids as string[]) ?? []),

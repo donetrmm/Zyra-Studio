@@ -20,6 +20,9 @@ export const RefineDraftSchema = z.object({
   customFormat: CustomFormatSchema.nullable(),
   scene: z.string().max(120).nullable(),
   scenePrompt: z.string().max(2000),
+  // Resumen display de la escena en el idioma de la campaña (033). El
+  // scenePrompt sigue en inglés; esto es lo que el usuario lee en el panel.
+  sceneSummary: z.string().max(300).nullable(),
   shot: z.string().max(60).nullable(),
   characterId: z.string().uuid().nullable(),
   referenceIds: z.array(z.string().uuid()).max(9),
@@ -30,7 +33,7 @@ export const RefineDraftSchema = z.object({
 export type RefineDraft = z.infer<typeof RefineDraftSchema>;
 
 export const emptyDraft = (formatId: string | null): RefineDraft => ({
-  formatId, customFormat: null, scene: null, scenePrompt: '', shot: null,
+  formatId, customFormat: null, scene: null, scenePrompt: '', sceneSummary: null, shot: null,
   characterId: null, referenceIds: [], durationS: null, aspectRatio: null, caption: null,
 });
 

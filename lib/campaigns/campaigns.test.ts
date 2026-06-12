@@ -56,6 +56,7 @@ function plannerInput(overrides: Partial<PlannerInput> = {}): PlannerInput {
     dateStart: new Date('2026-07-01'),
     dateEnd: new Date('2026-07-30'),
     draftModelSlug: 'bytedance/seedance-2.0/fast/reference-to-video',
+    language: 'es',
     ...overrides,
   };
 }
@@ -90,6 +91,7 @@ function directedInput(over: Partial<DirectedPlanInput> = {}): DirectedPlanInput
     dateStart: base.dateStart,
     dateEnd: base.dateEnd,
     draftModelSlug: base.draftModelSlug,
+    language: base.language,
     ...over,
   };
 }
@@ -201,8 +203,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 3, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 3, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
@@ -221,6 +223,7 @@ describe('buildDirectedPlan', () => {
             format: fmt('mundo-imposible'),
             count: 1,
             scenePrompt: 'A dog carries the product through a park, tail wagging',
+            sceneSummary: null,
             characterIds: [],
             invented: [],
           },
@@ -233,7 +236,7 @@ describe('buildDirectedPlan', () => {
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-icono'), count: 2, scenePrompt: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-icono'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
       }),
     );
     for (const item of items) {
@@ -248,8 +251,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-descubrimiento'), count: 2, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('el-icono'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('el-descubrimiento'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
         available: { product: true, packaging: false },
         characters: [],
@@ -262,7 +265,7 @@ describe('buildDirectedPlan', () => {
   it('devuelve vacío si ninguna idea es viable', () => {
     const items = buildDirectedPlan(
       directedInput({
-        ideas: [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null, characterIds: [], invented: [] }],
+        ideas: [{ format: fmt('el-descubrimiento'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
         available: { product: true, packaging: false },
       }),
     );
@@ -273,10 +276,10 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('el-icono'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('susurro'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('antes-y-despues'), count: 10, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('el-icono'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('susurro'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('antes-y-despues'), count: 10, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
@@ -287,8 +290,8 @@ describe('buildDirectedPlan', () => {
     const items = buildDirectedPlan(
       directedInput({
         ideas: [
-          { format: fmt('voz-cercana'), count: 2, scenePrompt: null, characterIds: [], invented: [] },
-          { format: fmt('gran-pantalla'), count: 1, scenePrompt: null, characterIds: [], invented: [] },
+          { format: fmt('voz-cercana'), count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
+          { format: fmt('gran-pantalla'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] },
         ],
       }),
     );
@@ -312,7 +315,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: 'She presents the can',
+          count: 1, scenePrompt: 'She presents the can', sceneSummary: null,
           characterIds: ['c2', 'c1'], invented: [],
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
@@ -326,7 +329,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 2, scenePrompt: null, characterIds: [], invented: [],
+          count: 2, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
         }],
         characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
       }),
@@ -340,7 +343,7 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: 'Lucia tries the product',
+          count: 1, scenePrompt: 'Lucia tries the product', sceneSummary: null,
           characterIds: [],
           invented: [{ name: 'Lucía', description: 'a presenter with short auburn hair' }],
         }],
@@ -357,13 +360,44 @@ describe('buildDirectedPlan', () => {
       directedInput({
         ideas: [{
           format: fmt('voz-cercana', ['product', 'character']),
-          count: 1, scenePrompt: null, characterIds: [], invented: [],
+          count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [],
         }],
         characters: [],
       }),
     );
     expect(items).toHaveLength(1);
     expect(items[0].scenePrompt).toContain(DEFAULT_PRESENTER);
+  });
+
+  it('sceneSummary del matcher manda; con semilla cae al resumen en español; en inglés es null', () => {
+    // Resumen del matcher: se respeta tal cual.
+    const withSummary = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('el-icono'), count: 1,
+          scenePrompt: 'The can spins on marble', sceneSummary: 'La lata gira sobre mármol',
+          characterIds: [], invented: [],
+        }],
+      }),
+    );
+    expect(withSummary[0].sceneSummary).toBe('La lata gira sobre mármol');
+
+    // Sin scenePrompt del matcher (semilla) y campaña en español: resumen ES.
+    const seeded = buildDirectedPlan(
+      directedInput({
+        ideas: [{ format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+      }),
+    );
+    expect(seeded[0].sceneSummary).toMatch(/producto/);
+
+    // Campaña en inglés: sin resumen — la UI muestra el scenePrompt.
+    const english = buildDirectedPlan(
+      directedInput({
+        ideas: [{ format: fmt('el-icono'), count: 1, scenePrompt: null, sceneSummary: null, characterIds: [], invented: [] }],
+        language: 'en',
+      }),
+    );
+    expect(english[0].sceneSummary).toBeNull();
   });
 
   it('characterIds con ids inexistentes en el pool cae a rotación del pool', () => {
@@ -375,6 +409,7 @@ describe('buildDirectedPlan', () => {
           format: fmt('voz-cercana', ['product', 'character']),
           count: 2,
           scenePrompt: null,
+          sceneSummary: null,
           characterIds: ['c-borrado'],
           invented: [],
         }],

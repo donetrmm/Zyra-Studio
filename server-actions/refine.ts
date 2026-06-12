@@ -79,24 +79,60 @@ async function loadContext(campaignId: string, draft: RefineDraft) {
   return { user, workspace, supabase, campaign, format, characters: characters ?? [] };
 }
 
+// Serializa el borrador para que Gemini SIEMPRE sepa sobre qué creativo está
+// trabajando — sin esto, al refinar un item del plan partía a ciegas del
+// scene_prompt existente (bug reportado 2026-06-12).
+function describeDraft(
+  draft: RefineDraft,
+  characters: Array<{ id: string; name: string }>,
+): string {
+  const characterName = draft.characterId
+    ? characters.find((c) => c.id === draft.characterId)?.name ?? draft.characterId
+    : null;
+  const lines = [
+    `- scenePrompt actual: ${draft.scenePrompt.trim() || '(vacío — creativo nuevo)'}`,
+    draft.sceneSummary ? `- resumen actual: ${draft.sceneSummary}` : null,
+    draft.scene ? `- escena: ${draft.scene}` : null,
+    draft.shot ? `- toma: ${draft.shot}` : null,
+    characterName ? `- personaje: ${characterName}` : null,
+    draft.durationS ? `- duración: ${draft.durationS}s` : null,
+    draft.referenceIds.length ? `- referencias extra adjuntas: ${draft.referenceIds.length}` : null,
+    draft.caption ? `- caption: ${draft.caption}` : null,
+  ].filter((l): l is string => l !== null);
+  return lines.join('\n');
+}
+
 function buildSystemPrompt(args: {
   format: FormatDirection | null;
   productName: string;
   stage: Stage;
   characters: Array<{ id: string; name: string }>;
+  draft: RefineDraft;
+  language: 'es' | 'en';
 }): string {
   const shots = SHOTS.map((s) => `- ${s.slug}: ${s.name} (${s.whenToUse})`).join('\n');
   const cast = args.characters.map((c) => `- id=${c.id} ${c.name}`).join('\n') || '(vacío)';
+  const duration = args.format?.defaultDurationS ?? 8;
   return `Eres director creativo senior guiando a un usuario SIN experiencia para
 definir un creativo de video publicitario. Producto: "${args.productName}".
-Formato: ${args.format ? `${args.format.name} — registro ${args.format.register}, cámara ${args.format.cameraStyle}` : 'aún sin formato'}.
+Formato: ${args.format ? `${args.format.name} — registro ${args.format.register}, cámara ${args.format.cameraStyle}, ${duration}s` : 'aún sin formato'}.
 Etapa actual: ${args.stage} (${STAGE_LABEL[args.stage]}). Etapas: what → shot → refs → review.
+
+Borrador actual (estás MODIFICANDO esto, no partiendo de cero; conserva lo que
+el usuario no pida cambiar):
+${describeDraft(args.draft, args.characters)}
 
 Reglas duras:
 - UNA pregunta por turno, en español, máximo 2 frases. Máximo 2-3 aclaraciones por etapa, luego avanza.
 - chips: 2-4 respuestas sugeridas cortas y clicables.
-- draftPatch: actualiza el borrador con lo que el usuario ya decidió
-  (scenePrompt en inglés cinematográfico, una acción y un movimiento de cámara).
+- draftPatch: actualiza el borrador con lo que el usuario ya decidió.
+  scenePrompt en inglés cinematográfico, una acción y un movimiento de cámara
+  por toma. Si la escena tiene varios beats o dura 8s o más, estructura el
+  scenePrompt como timeline con marcadores de segundos que cubran la duración
+  ("0-3s: ... 3-7s: ..."), una acción por tramo, cierre con el producto.
+  Cada vez que cambies scenePrompt actualiza también sceneSummary: 1 frase
+  ${args.language === 'en' ? 'in ENGLISH' : 'en ESPAÑOL'}, máx 200 caracteres,
+  sin marcadores de segundos (es lo que el usuario lee en el panel).
 - En etapa shot propone slugs SOLO de este catálogo:\n${shots}
 - En etapa refs, characterId solo de este Cast:\n${cast}
 - Nunca inventes atributos del producto ni claims.
@@ -129,6 +165,8 @@ export async function refineItemTurnAction(input: unknown): Promise<
         productName: brief.productName ?? 'el producto',
         stage: currentStage,
         characters: ctx.characters as Array<{ id: string; name: string }>,
+        draft: parsed.data.draft,
+        language: ctx.campaign.language === 'en' ? 'en' : 'es',
       }),
       history: [...parsed.data.history, { role: 'user', text: parsed.data.userMessage }],
     });
@@ -241,6 +279,7 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     format_id: formatId,
     scene: parsed.data.draft.scene,
     scene_prompt: parsed.data.draft.scenePrompt.trim(),
+    scene_summary: parsed.data.draft.sceneSummary,
     shot: parsed.data.draft.shot,
     character_id: parsed.data.draft.characterId,
     // Sync principal/elenco (misma semántica que updateCampaignItemAction): el

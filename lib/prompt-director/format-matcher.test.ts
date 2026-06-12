@@ -243,6 +243,23 @@ describe('matchIdeas', () => {
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].characterIds).toEqual([]);
     expect(res.matches[0].inventedCharacters).toEqual([]);
+    expect(res.matches[0].sceneSummary).toBeNull();
+  });
+
+  it('sceneSummary se parsea y un scenePrompt con timeline largo no se descarta', async () => {
+    const timeline =
+      '0-3s: wide shot, the can rests on wet stone. 3-7s: dolly in as condensation runs down the label. ' +
+      '7-9s: the can is lifted and tilted toward camera, label forward, soft light catching the rim.';
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'un video del producto en piedra mojada', formatId: 'f1', customFormat: null,
+        scenePrompt: timeline, sceneSummary: 'La lata sobre piedra mojada, revelada con un dolly in',
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un video del producto en piedra mojada', formats: FORMATS });
+    expect(res.matches[0].scenePrompt).toBe(timeline);
+    expect(res.matches[0].sceneSummary).toBe('La lata sobre piedra mojada, revelada con un dolly in');
   });
 
   it('characterIds dedupe y recorta a 3', async () => {

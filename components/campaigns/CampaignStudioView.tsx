@@ -52,6 +52,8 @@ export type StudioItem = {
   aspectRatio: string | null;
   scene: string | null;
   scenePrompt: string;
+  // Resumen display en el idioma de la campaña (033); null cae a scenePrompt.
+  sceneSummary: string | null;
   caption: string | null;
   characterNames: string[];
   scheduledDate: string | null;
@@ -395,7 +397,9 @@ function PlanTable({
                 {item.scene && (
                   <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
                 )}
-                <p className="line-clamp-2 text-muted-foreground/80">{item.scenePrompt}</p>
+                <p className="line-clamp-2 text-muted-foreground/80">
+                  {item.sceneSummary ?? item.scenePrompt}
+                </p>
                 {item.caption && (
                   <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
                     Caption: {item.caption}
@@ -589,7 +593,9 @@ function ProductionView({
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
                 {drafts.map((d) => (
                   <div key={d.id} className="flex items-center justify-between gap-3 text-[12.5px]">
-                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">{d.scenePrompt}</p>
+                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">
+                      {d.sceneSummary ?? d.scenePrompt}
+                    </p>
                     <button
                       type="button"
                       disabled={busy !== null}
@@ -617,7 +623,9 @@ function ProductionView({
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
                 {finalItems.map((f) => (
                   <div key={f.id} className="flex items-center justify-between gap-3 text-[12.5px]">
-                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">{f.scenePrompt}</p>
+                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">
+                      {f.sceneSummary ?? f.scenePrompt}
+                    </p>
                     <span className="flex shrink-0 gap-1.5">
                       <button
                         type="button"
@@ -1023,7 +1031,7 @@ function VariantDialog({
                 >
                   {bridgeOptions.map((b) => (
                     <option key={b.id} value={b.generationId ?? ''}>
-                      {b.formatName} · {b.scenePrompt.slice(0, 60)}
+                      {b.formatName} · {(b.sceneSummary ?? b.scenePrompt).slice(0, 60)}
                     </option>
                   ))}
                 </select>
@@ -1094,7 +1102,9 @@ function EditItemDialog({
     setSaving(true);
     const res = await updateCampaignItemAction({
       itemId: item.id,
-      scenePrompt,
+      // Solo si cambió: enviarlo siempre anularía el resumen display (033)
+      // que la action invalida con cada edición del prompt.
+      ...(scenePrompt !== item.scenePrompt ? { scenePrompt } : {}),
       scene: scene.trim() || undefined,
       ...(characterId ? { characterId } : {}),
       caption,
@@ -1107,6 +1117,8 @@ function EditItemDialog({
     }
     onSaved({
       scenePrompt,
+      // El resumen describía el prompt anterior: la action lo anula al editar.
+      ...(scenePrompt !== item.scenePrompt ? { sceneSummary: null } : {}),
       scene: scene.trim() || item.scene,
       characterNames: characterId
         ? (() => {

@@ -36,6 +36,8 @@ export type PlannerInput = {
   dateStart: Date;
   dateEnd: Date;
   draftModelSlug: string;
+  // Idioma de la campaña: decide el idioma del sceneSummary (033).
+  language: 'es' | 'en';
 };
 
 export type PlanItemDraft = {
@@ -51,6 +53,9 @@ export type PlanItemDraft = {
   // se resuelve con el DEFAULT_PRESENTER inyectado en scenePrompt.
   characterIds: string[];
   scenePrompt: string;
+  // Resumen de la acción en el idioma de la campaña: SOLO display (migración
+  // 033). null cuando el idioma es inglés — la UI cae a scenePrompt.
+  sceneSummary: string | null;
   caption: string;          // metadato de publicación (gancho + CTA + tags)
   scheduledDate: string;    // YYYY-MM-DD
 };
@@ -128,6 +133,62 @@ const CONCEPT_SEEDS: Record<string, Seed[]> = {
   ],
 };
 
+// Resúmenes en español de las semillas, paralelos 1:1 por índice (033): el
+// scenePrompt va en inglés al modelo; esto es lo que ve el usuario cuando la
+// campaña está en español. Formatos custom (slug desconocido) usan los genéricos.
+const GENERIC_SUMMARIES_ES: string[] = [
+  'El producto se presenta con naturalidad en la escena y cierra con la etiqueta de frente a cámara',
+  'Un momento de calma crea curiosidad y el producto toma el centro del cuadro',
+  'La escena abre en plena acción y resuelve sobre el producto bañado por la luz',
+];
+const CONCEPT_SUMMARIES_ES: Record<string, string[]> = {
+  'voz-cercana': [
+    'El presentador muestra el producto a cámara, lo prueba y reacciona con un gesto honesto',
+    'El presentador mira a cámara, alza el producto y comparte una opinión personal en una frase',
+    'En plena rutina, el presentador toma el producto, lo muestra y da una recomendación rápida',
+  ],
+  'a-pie-de-calle': [
+    'Entrevista en la calle: un transeúnte prueba el producto y captura su primera reacción espontánea',
+    'Un desconocido califica el producto del 1 al 10 frente a cámara y da su veredicto entre risas',
+  ],
+  'manos-a-la-obra': [
+    'Manos demuestran el producto en tres pasos claros hasta el resultado final',
+    'Vista cenital: manos preparan y usan el producto con movimientos seguros y precisos',
+  ],
+  'el-descubrimiento': [
+    'El paquete sellado se abre lentamente y el producto se revela en alto',
+    'Primer plano del sello abriéndose y el producto emergiendo a la luz suave',
+  ],
+  'antes-y-despues': [
+    'El antes, una transición limpia, y el después con el producto marcando la diferencia',
+    'Mismo encuadre en dos tiempos: la situación sin el producto y transformada con él',
+  ],
+  susurro: [
+    'Macro ASMR: el producto se abre lentamente con cada sonido audible',
+    'Condensación y textura en primer plano extremo; el producto se alza y se posa con un toque suave',
+  ],
+  'el-icono': [
+    'El producto gira sobre su eje en un fondo audaz y se detiene con la etiqueta de frente',
+    'El producto cae a cuadro en cámara lenta y la cámara lo orbita una vez',
+  ],
+  'gran-pantalla': [
+    'Un plano de apertura marca el tono y el producto protagoniza el cierre',
+    'Una escena compuesta alrededor de un beat emocional; el producto ancla la resolución',
+  ],
+  'mundo-imposible': [
+    'El producto aparece a escala imposible, integrado al entorno como si siempre hubiera estado ahí',
+    'La física se dobla alrededor del producto: el entorno reacciona de forma surreal pero coherente',
+  ],
+};
+
+// Resumen display de una semilla: español cuando la campaña está en español;
+// en inglés no hace falta (la UI muestra el scenePrompt tal cual).
+function seedSummary(slug: string, index: number, language: 'es' | 'en'): string | null {
+  if (language !== 'es') return null;
+  const summaries = CONCEPT_SUMMARIES_ES[slug] ?? GENERIC_SUMMARIES_ES;
+  return summaries[index % summaries.length];
+}
+
 // `character` se elimina de la comprobación: el personaje puede inventarse en
 // el prompt (DEFAULT_PRESENTER o inventados del matcher), por lo que su
 // ausencia nunca bloquea un formato.
@@ -177,6 +238,9 @@ export type DirectedIdea = {
   format: PlannerFormat;
   count: number;
   scenePrompt: string | null;
+  // Resumen display del matcher en el idioma de la campaña (033); null cae a
+  // la semilla en español (es) o al scenePrompt (en).
+  sceneSummary: string | null;
   // Personajes mencionados explícitamente por el matcher, ya validados y
   // saneados. [0] = primer mencionado (principal). Array vacío = sin mención.
   characterIds: string[];
@@ -195,6 +259,8 @@ export type DirectedPlanInput = {
   dateStart: Date;
   dateEnd: Date;
   draftModelSlug: string;
+  // Idioma de la campaña: decide el idioma del sceneSummary (033).
+  language: 'es' | 'en';
 };
 
 export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
@@ -228,7 +294,11 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
       const characterIds = fromIdea.length ? fromIdea : rotated;
 
       const seed = seeds[i % seeds.length];
+      const usedSeed = idea.scenePrompt === null;
       let scenePrompt = idea.scenePrompt ?? seed({ product: input.productName, scene: scene.fragment });
+      // Display: el resumen del matcher manda; con semilla, su versión en español.
+      const sceneSummary =
+        idea.sceneSummary ?? (usedSeed ? seedSummary(format.slug, i, input.language) : null);
 
       // Personajes inventados → frases descriptivas en el scenePrompt.
       const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
@@ -250,6 +320,7 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         audio: format.defaultAudio,
         characterIds,
         scenePrompt,
+        sceneSummary,
         caption: buildCaption({
           productName: input.productName,
           formatSlug: format.slug,
@@ -330,6 +401,7 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         audio: format.defaultAudio,
         characterIds,
         scenePrompt,
+        sceneSummary: seedSummary(format.slug, i, input.language),
         caption: buildCaption({
           productName: input.productName,
           formatSlug: format.slug,

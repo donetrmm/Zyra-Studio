@@ -252,7 +252,9 @@ export function RefineView({
             </div>
             <div>
               <dt className="text-muted-foreground/80">Escena</dt>
-              <dd className="text-foreground/90">{draft.scenePrompt || '— construyéndose —'}</dd>
+              <dd className="text-foreground/90">
+                {draft.sceneSummary || draft.scenePrompt || '— construyéndose —'}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground/80">Toma</dt>

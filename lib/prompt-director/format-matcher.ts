@@ -13,7 +13,15 @@ export { CustomFormatSchema, type CustomFormat };
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 
-export type MatcherFormat = { id: string; slug: string; name: string; description: string | null };
+export type MatcherFormat = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  // Duración default del formato: el matcher la usa para decidir si el
+  // scenePrompt necesita timeline por segundos (guía Morphic §T).
+  defaultDurationS?: number;
+};
 export type MatcherCharacter = { id: string; name: string };
 
 const InventedCharacterSchema = z.object({
@@ -30,8 +38,12 @@ const MatchSchema = z.object({
   // explícita el matcher devuelve 1; el techo total del plan lo pone el planner.
   count: z.number().int().min(1).max(10).catch(1).default(1),
   // Concepto concreto de la idea en inglés: va directo al scenePrompt del
-  // item para que el creativo refleje lo que el usuario escribió.
-  scenePrompt: z.string().trim().min(1).max(600).nullable().catch(null).default(null),
+  // item para que el creativo refleje lo que el usuario escribió. Con varias
+  // acciones o ≥8s puede traer timeline ("0-3s: ...") — por eso el tope amplio.
+  scenePrompt: z.string().trim().min(1).max(1000).nullable().catch(null).default(null),
+  // Resumen de la acción en el idioma de la campaña: SOLO display en la UI
+  // (el prompt al modelo va en inglés siempre).
+  sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
   // Personajes del pool mencionados en la idea (ids exactos; se sanean abajo).
   characterIds: z.array(z.string()).catch([]).default([]),
   // Nombres mencionados que NO están en el pool: apariencia inventada que el
@@ -108,6 +120,12 @@ const GeminiResponseSchema = z.object({
     .min(1),
 });
 
+// El idioma del resumen sigue al de la campaña; el scenePrompt va en inglés siempre.
+const SUMMARY_LANGUAGE: Record<'es' | 'en', string> = {
+  es: 'en ESPAÑOL',
+  en: 'in ENGLISH',
+};
+
 const SYSTEM = `Eres director creativo de una plataforma de anuncios con IA.
 Recibes ideas de campaña en lenguaje natural y un catálogo de formatos.
 Por cada idea distinta devuelve un match:
@@ -122,9 +140,16 @@ Por cada idea distinta devuelve un match:
 - count: cuántos creativos pide la idea. Cantidad explícita ("3 versiones")
   = ese número. Invitación abierta ("varios", "los que se te ocurran",
   "puedes generar más de una") = 2 o 3, a tu criterio. Sin señal, count = 1.
-- scenePrompt: la acción concreta de la idea, en INGLÉS, 1-2 frases, con el
-  producto como ancla. Si la idea solo nombra un formato sin acción concreta
+- scenePrompt: la acción concreta de la idea, en INGLÉS, con el producto como
+  ancla. Si la acción es UNA sola y simple: 1-2 frases. Si la idea implica
+  varias acciones/beats o el formato dura 8s o más (duración en el catálogo),
+  estructúralo como timeline con marcadores de segundos que cubran la duración
+  ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
+  producto protagonista. Si la idea solo nombra un formato sin acción concreta
   ("quiero unboxings"), scenePrompt = null.
+- sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
+  1 frase, máximo 200 caracteres, sin marcadores de segundos. Si scenePrompt es
+  null, sceneSummary = null.
 - characterIds: si la idea nombra personajes del Cast listado abajo, devuelve sus
   ids exactos (máximo 3). Si no nombra a nadie, [].
 - inventedCharacters: si la idea nombra a una persona que NO está en el Cast,
@@ -132,12 +157,14 @@ Por cada idea distinta devuelve un match:
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
   no menciona. Si no aplica, [].
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"scenePrompt":"...|null","sceneSummary":"...|null","characterIds":[],"inventedCharacters":[]}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;
   formats: MatcherFormat[];
   characters?: MatcherCharacter[];
+  // Idioma del sceneSummary (display). Default 'es'.
+  language?: 'es' | 'en';
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
   // después del brief (otra llamada a Gemini): un 429 puntual no debe
   // degradar el plan dirigido a mix genérico.
@@ -158,13 +185,18 @@ async function requestMatch(input: {
   ideasText: string;
   formats: MatcherFormat[];
   characters?: MatcherCharacter[];
+  language?: 'es' | 'en';
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
 
   const catalog = input.formats
-    .map((f) => `- id=${f.id} slug=${f.slug} "${f.name}": ${f.description ?? ''}`)
+    .map((f) =>
+      `- id=${f.id} slug=${f.slug} "${f.name}"${f.defaultDurationS ? ` (${f.defaultDurationS}s)` : ''}: ${f.description ?? ''}`,
+    )
     .join('\n');
+
+  const system = SYSTEM.replace('__SUMMARY_LANG__', SUMMARY_LANGUAGE[input.language ?? 'es']);
 
   const cast = (input.characters ?? [])
     .map((c) => `- id=${c.id} ${c.name}`)
@@ -174,7 +206,7 @@ async function requestMatch(input: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
+      systemInstruction: { parts: [{ text: system }] },
       contents: [{
         role: 'user',
         parts: [{ text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 2000)}` }],

@@ -162,6 +162,9 @@ create table campaigns (
   created_at timestamptz default now()
 );
 
+-- campaign_items.scene_summary (migración 033): resumen de la acción en el idioma
+-- de la campaña, SOLO para display en la UI. scene_prompt (inglés, puede traer
+-- timeline "0-3s: ...") es lo que se compila y envía al modelo.
 -- campaign_items.character_ids (migración 031): personajes del creativo (máx 3).
 -- Orden = orden de referencias en el prompt. character_id (columna existente) = principal,
 -- sincronizado con character_ids[1] por todas las server actions que escriben campaign_items
