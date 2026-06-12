@@ -28,7 +28,7 @@ async function loadRefineCost(): Promise<number> {
 // Contexto server-side del turno: formato, brief, Cast. El cliente nunca
 // dicta el contexto — solo su historial y su borrador.
 async function loadContext(campaignId: string, draft: RefineDraft) {
-  const { workspace } = await requireWorkspace();
+  const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
   const { data: campaign } = await supabase
     .from('campaigns')
@@ -75,7 +75,7 @@ async function loadContext(campaignId: string, draft: RefineDraft) {
     .select('id, name')
     .eq('workspace_id', workspace.id);
 
-  return { workspace, supabase, campaign, format, characters: characters ?? [] };
+  return { user, workspace, supabase, campaign, format, characters: characters ?? [] };
 }
 
 function buildSystemPrompt(args: {
@@ -146,8 +146,7 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
 
   const ctx = await loadContext(parsed.data.campaignId, parsed.data.draft);
   if (!ctx) return { ok: false, error: 'not_found' };
-  const { workspace, supabase } = ctx;
-  const { user } = await requireWorkspace();
+  const { user, workspace, supabase } = ctx;
 
   // Re-validación dura server-side: el cliente puede mentir.
   const validation = validateDraft(parsed.data.draft, { format: ctx.format });
@@ -174,6 +173,7 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
 
   // Formato custom: nace aquí, del workspace, visible en /app/formats.
   let formatId = parsed.data.draft.formatId;
+  let createdCustomFormat = false;
   if (!formatId && parsed.data.draft.customFormat) {
     const cf = parsed.data.draft.customFormat;
     const { data: created, error } = await supabase
@@ -194,8 +194,11 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
       .select('id')
       .single();
     if (error && error.code !== '23505') return { ok: false, error: 'internal_error', message: error.message };
-    if (created) formatId = created.id as string;
-    else {
+    if (created) {
+      formatId = created.id as string;
+      createdCustomFormat = true;
+    } else {
+      // 23505: slug ya existe globalmente. Intentar recuperar si pertenece a este workspace.
       const { data: existing } = await supabase
         .from('formats')
         .select('id')
@@ -203,8 +206,15 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
         .eq('workspace_id', workspace.id)
         .single();
       formatId = (existing?.id as string) ?? null;
+      if (!formatId) {
+        // El slug pertenece al sistema u otro workspace — colisión irrecuperable.
+        return {
+          ok: false,
+          error: 'conflict',
+          message: 'Ya existe un formato con ese nombre; renómbralo en la conversación',
+        };
+      }
     }
-    if (formatId) revalidatePath('/app/formats');
   }
   if (!formatId) return { ok: false, error: 'validation_error', message: 'El creativo no tiene formato' };
 
@@ -244,6 +254,7 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     return { ok: false, error: 'internal_error', message: persisted.error?.message };
   }
 
+  if (createdCustomFormat) revalidatePath('/app/formats');
   revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
   return { ok: true, data: { itemId: persisted.data.id as string } };
 }

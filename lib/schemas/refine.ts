@@ -14,5 +14,7 @@ export const AcceptRefineInputSchema = z.object({
   campaignId: z.string().uuid(),
   itemId: z.string().uuid().nullable(),
   draft: RefineDraftSchema,
+  // Advertencias que el usuario vio y aceptó en la etapa de revisión.
+  // Hoy solo viajan para que el submit sea explícito; no se persisten.
   acceptedWarnings: z.array(z.string().max(300)).max(12),
 });
