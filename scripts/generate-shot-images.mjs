@@ -1,6 +1,7 @@
 // scripts/generate-shot-images.mjs
 // Genera las imágenes del diccionario de tomas UNA vez con FLUX.
-// Uso: node --env-file=.env.local scripts/generate-shot-images.mjs [slug]
+// Uso (los imports TS sin extension y 'server-only' exigen tsx + react-server):
+//   BFL_API_KEY=... NODE_OPTIONS=--conditions=react-server pnpm dlx tsx scripts/generate-shot-images.mjs [slug]
 // Sin argumento genera las faltantes; con slug regenera esa toma.
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
