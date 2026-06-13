@@ -1,7 +1,7 @@
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 
-export type GeneratedImage = { generationId: string; refId: string; previewUrl: string };
+export type GeneratedImage = { generationId: string; refId: string; previewUrl: string; storagePath: string };
 export type GenError = { error: string; message?: string };
 
 // Scaffold de retrato neutro (mismo criterio que buildMasterPrompt de CastPage):
@@ -19,7 +19,7 @@ function buildMasterPrompt(appearance: string): string {
 async function fixAsReference(generationId: string): Promise<GeneratedImage | GenError> {
   const ref = await addGenerationAsReferenceAction({ generationId });
   if (!ref.ok) return { error: ref.error, message: ref.message };
-  return { generationId, refId: ref.data.id, previewUrl: ref.data.previewUrl };
+  return { generationId, refId: ref.data.id, previewUrl: ref.data.previewUrl, storagePath: ref.data.storagePath };
 }
 
 // Genera el personaje desde su apariencia (FLUX, síncrono para imágenes).

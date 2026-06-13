@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
+import { getReferencePathsAction } from '@/server-actions/creation';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
-import { CreationWizard } from '@/components/creation/CreationWizard';
+import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -23,6 +24,10 @@ type BrandKit = {
   created_at: string;
 };
 
+type AiState =
+  | { mode: 'create' }
+  | { mode: 'improve'; kit: BrandKit; existing: { product?: ImgRef; packaging?: ImgRef } };
+
 export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; previews: Record<string, string> }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -35,7 +40,48 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
     setKits(initial);
   }
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
-  const [aiKit, setAiKit] = useState<BrandKit | null>(null);
+  const [ai, setAi] = useState<AiState | null>(null);
+
+  // "Mejorar con IA": lee las imágenes que el kit ya tiene (producto y empaque),
+  // resolviendo su storagePath para que Nano Banana pueda editarlas.
+  async function openImprove(kit: BrandKit) {
+    const ids = [kit.product_image_ids[0], kit.packaging_image_ids[0]].filter(Boolean) as string[];
+    const res = await getReferencePathsAction(ids);
+    const paths = res.ok ? res.data : {};
+    const mk = (id?: string): ImgRef | undefined =>
+      id && paths[id] ? { id, storagePath: paths[id], previewUrl: previews[id] ?? '' } : undefined;
+    setAi({
+      mode: 'improve',
+      kit,
+      existing: { product: mk(kit.product_image_ids[0]), packaging: mk(kit.packaging_image_ids[0]) },
+    });
+  }
+
+  async function handleAiSave(result: SaveResult) {
+    if (result.kind === 'product-create') {
+      const created = await createBrandKitAction({ name: 'Producto IA' });
+      if (!created.ok) { toast.error(created.message || 'No se pudo crear el kit'); return; }
+      const img = await setBrandKitImagesAction(created.data.id, {
+        productImageIds: [result.productRefId],
+        packagingImageIds: result.packagingRefId ? [result.packagingRefId] : [],
+      });
+      if (!img.ok) { toast.error(img.message || 'Kit creado, pero no se guardaron las imágenes'); return; }
+      router.refresh();
+    } else if (result.kind === 'product-improve' && ai?.mode === 'improve') {
+      const kit = ai.kit;
+      const baseId = ai.existing[result.target]?.id;
+      const without = (arr: string[]) => arr.filter((id) => id !== baseId);
+      const productImageIds = result.target === 'product'
+        ? [result.refId, ...without(kit.product_image_ids)].slice(0, 4)
+        : kit.product_image_ids;
+      const packagingImageIds = result.target === 'packaging'
+        ? [result.refId, ...without(kit.packaging_image_ids)].slice(0, 2)
+        : kit.packaging_image_ids;
+      const img = await setBrandKitImagesAction(kit.id, { productImageIds, packagingImageIds });
+      if (!img.ok) { toast.error(img.message || 'No se pudo guardar'); return; }
+      router.refresh();
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -46,14 +92,24 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
             Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para inyectar tu estilo en el prompt.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditing('new')}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <Plus className="size-4" aria-hidden />
-          Nuevo kit
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAi({ mode: 'create' })}
+            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15"
+          >
+            <Sparkles className="size-4" aria-hidden />
+            Crear con IA
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing('new')}
+            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Plus className="size-4" aria-hidden />
+            Nuevo kit
+          </button>
+        </div>
       </div>
 
       {editing && (
@@ -65,19 +121,13 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
         />
       )}
 
-      {aiKit && (
+      {ai && (
         <CreationWizard
           kind="product"
-          onSave={async ({ refId, target }) => {
-            const toPackaging = target === 'packaging';
-            const res = await setBrandKitImagesAction(aiKit.id, {
-              productImageIds: toPackaging ? aiKit.product_image_ids : [...aiKit.product_image_ids, refId].slice(0, 4),
-              packagingImageIds: toPackaging ? [...aiKit.packaging_image_ids, refId].slice(0, 2) : aiKit.packaging_image_ids,
-            });
-            if (!res.ok) { toast.error(res.message || 'No se pudo guardar la imagen'); return; }
-            router.refresh();
-          }}
-          onClose={() => setAiKit(null)}
+          productFlow={ai.mode === 'create' ? 'create' : 'improve'}
+          existing={ai.mode === 'improve' ? ai.existing : undefined}
+          onSave={handleAiSave}
+          onClose={() => setAi(null)}
         />
       )}
 
@@ -96,7 +146,7 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
               key={kit.id}
               kit={kit}
               onEdit={() => setEditing(kit)}
-              onImprove={() => setAiKit(kit)}
+              onImprove={() => void openImprove(kit)}
               onDelete={async () => {
                 const ok = await confirm({ title: `Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
                 if (!ok) return;
@@ -152,7 +202,7 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
         <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15">
-          <Sparkles className="size-3" aria-hidden /> Crear/Mejorar con IA
+          <Sparkles className="size-3" aria-hidden /> Mejorar con IA
         </button>
         <button type="button" onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive">
           <Trash2 className="size-3" aria-hidden />

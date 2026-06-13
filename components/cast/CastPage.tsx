@@ -75,11 +75,12 @@ export function CastPage({
       {aiOpen && (
         <CreationWizard
           kind="character"
-          onSave={async ({ refId, angleRefIds }) => {
+          onSave={async (result) => {
+            if (result.kind !== 'character') return;
             const res = await createCharacterAction({
               name: 'Nuevo personaje',
-              masterImageId: refId,
-              angleImageIds: (angleRefIds ?? []).slice(0, 2),
+              masterImageId: result.refId,
+              angleImageIds: result.angleRefIds.slice(0, 2),
             });
             if (!res.ok) { toast.error(res.message || 'No se pudo crear'); return; }
             router.refresh();

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { clarifyCreationAction, analyzeProductImageAction } from '@/server-actions/creation';
+import { clarifyCreationAction } from '@/server-actions/creation';
 import {
   generateCharacter,
   editImage,
@@ -15,51 +15,56 @@ import {
 } from './generate';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import type { CreationKind, ClarifyResult } from '@/lib/schemas/creation';
-import type { ProductBrief } from '@/lib/campaigns/brief';
+
+// Imagen ya existente del kit (para el flujo "mejorar").
+export type ImgRef = { id: string; storagePath: string; previewUrl: string };
+
+// Resultado tipado: el padre decide cómo persistir según la variante.
+export type SaveResult =
+  | { kind: 'character'; refId: string; angleRefIds: string[] }
+  | { kind: 'product-create'; productRefId: string; packagingRefId?: string }
+  | { kind: 'product-improve'; refId: string; target: 'product' | 'packaging' };
 
 type Props = {
   kind: CreationKind;
-  // El padre persiste el resultado. `target` indica a qué campo del kit va la
-  // imagen de producto ('product' | 'packaging'); irrelevante para personaje.
-  onSave: (result: { refId: string; angleRefIds?: string[]; target?: 'product' | 'packaging' }) => Promise<void>;
+  // Producto: 'create' (header → kit nuevo) | 'improve' (tarjeta → modificar lo cargado).
+  productFlow?: 'create' | 'improve';
+  // Imágenes que el kit ya tiene (solo para 'improve'): se leen automáticamente.
+  existing?: { product?: ImgRef; packaging?: ImgRef };
+  onSave: (result: SaveResult) => Promise<void>;
   onClose: () => void;
 };
 
-// Una versión navegable. Las generadas traen generationId (se editan con
-// editImage / parent). La foto SUBIDA (modo "mejorar") trae storagePath y NO
-// generationId (se edita con editUploaded / reference).
-type Version = { refId: string; previewUrl: string; generationId?: string; storagePath?: string };
+// Versión navegable. Las generadas y las subidas traen storagePath; solo las
+// generadas traen generationId (que decide editar por parent vs por reference).
+type Version = { refId: string; previewUrl: string; generationId?: string; storagePath: string };
 
-// Sub-modo del flujo de producto.
-type ProductMode = 'improve' | 'packaging' | 'concept';
+type Step = 'intent' | 'clarify' | 'preview';
 
-type Step = 'intent' | 'clarify' | 'brief' | 'preview';
-
-// Las mejoras de producto nunca inventan: solo ajustan fondo/luz manteniendo el
-// producto idéntico. (No hay "generar ángulo": fabricaría una cara no vista.)
 const KEEP_PRODUCT = 'Keep the product identical — same shape, label, logo, colors and proportions. Do not invent, restyle or alter the product itself.';
 const QUICK_ACTIONS: Array<{ label: string; instruction: string; noBackground?: boolean }> = [
   { label: 'Quitar fondo', instruction: `Place the exact same product on a clean plain white background. ${KEEP_PRODUCT}`, noBackground: true },
   { label: 'Mejorar luz', instruction: `Relight the scene with even, soft, professional product lighting that shows form and material texture. ${KEEP_PRODUCT}` },
 ];
 
-export function CreationWizard({ kind, onSave, onClose }: Props) {
+export function CreationWizard({ kind, productFlow, existing, onSave, onClose }: Props) {
   const [step, setStep] = useState<Step>('intent');
   const [text, setText] = useState('');
   const [clarify, setClarify] = useState<ClarifyResult | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [brief, setBrief] = useState<ProductBrief | null>(null);
-  const [briefLoading, setBriefLoading] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
   const [current, setCurrent] = useState(0);
   const [angles, setAngles] = useState<Array<{ refId: string; previewUrl: string }>>([]);
+  const [packaging, setPackaging] = useState<{ refId: string; previewUrl: string } | null>(null);
+  const [improveTarget, setImproveTarget] = useState<'product' | 'packaging'>('product');
   const [editPrompt, setEditPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Producto: sub-modo elegido, foto fuente (para empaque) y destino del guardado.
-  const [productMode, setProductMode] = useState<ProductMode | null>(null);
-  const [productRef, setProductRef] = useState<{ id: string; storagePath: string; previewUrl: string } | null>(null);
-  const [productTarget, setProductTarget] = useState<'product' | 'packaging'>('product');
+
+  const title =
+    kind === 'character' ? 'Crear personaje con IA'
+      : productFlow === 'improve' ? 'Mejorar con IA'
+        : 'Crear producto con IA';
 
   const composedAppearance = () => {
     const extra = Object.values(answers).filter(Boolean).join(', ');
@@ -75,95 +80,72 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
       const res = await clarifyCreationAction({ text: text.trim(), hasReference: false });
       if (!res.ok) { toast.error(res.message || 'No se pudo procesar'); return; }
       setClarify(res.data);
-      if (res.data.questions.length === 0) await runGenerate(res.data.enrichedPrompt);
+      if (res.data.questions.length === 0) await runCharacter(res.data.enrichedPrompt);
       else setStep('clarify');
     } finally { setBusy(false); }
   }
 
-  async function runGenerate(appearance: string) {
+  async function runCharacter(appearance: string) {
     setBusy(true);
     try {
       const out = await generateCharacter(appearance);
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
-      setVersions([out]);
-      setCurrent(0);
-      setStep('preview');
+      setVersions([out]); setCurrent(0); setStep('preview');
     } finally { setBusy(false); }
   }
 
-  // ---- product: dispatch del file picker según sub-modo ----
-  function onFilePicked(file: File | undefined) {
-    if (!file) return;
-    if (productMode === 'packaging') void uploadProductPhoto(file);
-    else void improveUpload(file);
-  }
-
-  // mejorar: la foto real es la versión 0 y se analiza (brief).
-  async function improveUpload(file: File) {
-    setBusy(true);
-    try {
-      const res = await uploadReferenceFile(file);
-      if (!res.ok) { toast.error(res.message); return; }
-      setVersions([{ refId: res.ref.id, previewUrl: res.ref.previewUrl, storagePath: res.ref.storagePath }]);
-      setCurrent(0);
-      setProductTarget('product');
-      setStep('brief');
-      setBriefLoading(true);
-      const analyzed = await analyzeProductImageAction(res.ref.id);
-      if (analyzed.ok) setBrief(analyzed.data);
-      setBriefLoading(false);
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }
-
-  // empaque: la foto del producto es la FUENTE (referencia), no se guarda como tal.
-  async function uploadProductPhoto(file: File) {
-    setBusy(true);
-    try {
-      const res = await uploadReferenceFile(file);
-      if (!res.ok) { toast.error(res.message); return; }
-      setProductRef({ id: res.ref.id, storagePath: res.ref.storagePath, previewUrl: res.ref.previewUrl });
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }
-
-  async function runPackaging() {
-    if (!productRef || busy) return;
-    setBusy(true);
-    try {
-      const out = await generatePackaging({ id: productRef.id, storagePath: productRef.storagePath }, text);
-      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el empaque'); return; }
-      setVersions([out]);
-      setCurrent(0);
-      setProductTarget('packaging');
-      setStep('preview');
-    } finally { setBusy(false); }
-  }
-
+  // ---- product: crear concepto desde cero ----
   async function runConcept() {
     if (text.trim().length < 3 || busy) return;
     setBusy(true);
     try {
       const out = await generateProductConcept(text.trim());
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
-      setVersions([out]);
-      setCurrent(0);
-      setProductTarget('product');
-      setStep('preview');
+      setVersions([out]); setCurrent(0); setStep('preview');
     } finally { setBusy(false); }
   }
 
-  function resetProductMode() {
-    setProductMode(null);
-    setProductRef(null);
-    setText('');
+  // ---- product create: empaque a partir del producto actual ----
+  async function addPackaging() {
+    const v = versions[current];
+    if (!v || busy) return;
+    setBusy(true);
+    try {
+      const out = await generatePackaging({ id: v.refId, storagePath: v.storagePath }, '');
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el empaque'); return; }
+      setPackaging({ refId: out.refId, previewUrl: out.previewUrl });
+    } finally { setBusy(false); }
   }
 
-  // ---- shared edit (rama según el origen de la versión actual) ----
+  // ---- product improve: elegir qué mejorar (lee lo que el kit ya tiene) ----
+  function chooseImproveTarget(target: 'product' | 'packaging') {
+    setImproveTarget(target);
+    const ex = existing?.[target];
+    if (ex) {
+      setVersions([{ refId: ex.id, previewUrl: ex.previewUrl, storagePath: ex.storagePath }]);
+      setCurrent(0);
+      setStep('preview');
+    } else {
+      fileRef.current?.click();
+    }
+  }
+
+  async function improveUpload(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) { toast.error(res.message); return; }
+      setVersions([{ refId: res.ref.id, previewUrl: res.ref.previewUrl, storagePath: res.ref.storagePath }]);
+      setCurrent(0);
+      setStep('preview');
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  // ---- edición (rama según el origen de la versión actual) ----
   async function applyEdit(instruction: string, opts?: { noBackground?: boolean }) {
     const v = versions[current];
     if (!v || instruction.trim().length < 3) return;
@@ -171,10 +153,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     try {
       const out = v.generationId
         ? await editImage(v.generationId, instruction.trim(), opts)
-        : v.storagePath
-          ? await editUploaded({ id: v.refId, storagePath: v.storagePath }, instruction.trim(), opts)
-          : null;
-      if (!out) return;
+        : await editUploaded({ id: v.refId, storagePath: v.storagePath }, instruction.trim(), opts);
       if (isGenError(out)) { toast.error(out.message || 'No se pudo editar'); return; }
       const next = [...versions, out];
       setVersions(next);
@@ -188,7 +167,6 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     void applyEdit(instruction);
   }
 
-  // Genera un ángulo del retrato actual (perfil / 3-4) para consistencia. Máx 2.
   async function addAngle(view: 'profile' | 'three-quarter') {
     const v = versions[current];
     if (!v?.generationId || angles.length >= 2 || busy) return;
@@ -204,11 +182,14 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     if (versions.length === 0) return;
     setBusy(true);
     try {
-      await onSave({
-        refId: versions[current].refId,
-        angleRefIds: kind === 'character' ? angles.map((a) => a.refId) : undefined,
-        target: kind === 'product' ? productTarget : undefined,
-      });
+      const refId = versions[current].refId;
+      if (kind === 'character') {
+        await onSave({ kind: 'character', refId, angleRefIds: angles.map((a) => a.refId) });
+      } else if (productFlow === 'improve') {
+        await onSave({ kind: 'product-improve', refId, target: improveTarget });
+      } else {
+        await onSave({ kind: 'product-create', productRefId: refId, packagingRefId: packaging?.refId });
+      }
       toast.success('Guardado');
       onClose();
     } finally { setBusy(false); }
@@ -218,111 +199,62 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal>
       <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
-          <h2 className="text-[15px] font-medium text-foreground">
-            {kind === 'character' ? 'Crear personaje con IA' : 'Crear / mejorar producto con IA'}
-          </h2>
+          <h2 className="text-[15px] font-medium text-foreground">{title}</h2>
           <button type="button" onClick={onClose} className="text-[13px] text-muted-foreground hover:text-foreground">Cerrar</button>
         </div>
 
         <div className="space-y-4 p-5">
           {step === 'intent' && kind === 'character' && (
             <>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Describe lo que quieres
-              </label>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={3}
-                maxLength={1000}
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Describe lo que quieres</label>
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
                 placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
-                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
-              />
+                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
               <button type="button" onClick={handleIntentNext} disabled={busy || text.trim().length < 3}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                Continuar
+                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Continuar
               </button>
             </>
           )}
 
-          {step === 'intent' && kind === 'product' && (
+          {step === 'intent' && kind === 'product' && productFlow !== 'improve' && (
             <>
-              {productMode === null && (
-                <>
-                  <p className="text-[13px] text-muted-foreground">¿Qué quieres hacer?</p>
-                  {[
-                    { m: 'improve' as const, t: 'Mejorar mi foto', d: 'Sube una foto real de tu producto y la IA la limpia y mejora. Nunca inventa tu producto.' },
-                    { m: 'packaging' as const, t: 'Crear el empaque', d: 'Tienes el producto pero no la caja/etiqueta: la IA la diseña a partir de tu foto.' },
-                    { m: 'concept' as const, t: 'Crear producto (concepto)', d: 'No tienes el producto: descríbelo y la IA lo genera. Es un concepto, no una foto real.' },
-                  ].map((o) => (
-                    <button key={o.m} type="button" onClick={() => setProductMode(o.m)}
-                      className="block w-full rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/40">
-                      <span className="text-[13px] font-medium text-foreground">{o.t}</span>
-                      <span className="mt-0.5 block text-[12px] text-muted-foreground">{o.d}</span>
+              <p className="text-[13px] text-muted-foreground">Describe el producto. La IA generará un <span className="text-foreground">concepto</span> — no una foto real.</p>
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
+                placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
+                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
+              <button type="button" onClick={runConcept} disabled={busy || text.trim().length < 3}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />} Generar concepto
+              </button>
+            </>
+          )}
+
+          {step === 'intent' && kind === 'product' && productFlow === 'improve' && (
+            <>
+              <p className="text-[13px] text-muted-foreground">¿Qué quieres mejorar?</p>
+              {(['product', 'packaging'] as const).map((t) => {
+                const ex = existing?.[t];
+                return (
+                  <div key={t} className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
+                    {ex ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ex.previewUrl} alt={t} className="size-12 shrink-0 rounded-md border border-border object-cover" />
+                    ) : (
+                      <div className="grid size-12 shrink-0 place-items-center rounded-md border border-dashed border-border text-muted-foreground/50">
+                        <ImagePlus className="size-4" aria-hidden />
+                      </div>
+                    )}
+                    <span className="flex-1 text-[13px] text-foreground">{t === 'product' ? 'Producto' : 'Empaque'}</span>
+                    <button type="button" onClick={() => chooseImproveTarget(t)} disabled={busy}
+                      className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
+                      {ex ? 'Mejorar' : 'Subir y mejorar'}
                     </button>
-                  ))}
-                </>
-              )}
-
-              {productMode === 'improve' && (
-                <>
-                  <p className="text-[13px] text-muted-foreground">Sube una foto de tu producto. La IA la limpia y mejora — nunca inventa tu producto.</p>
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-                    className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
-                    {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-                    Subir foto del producto
-                  </button>
-                </>
-              )}
-
-              {productMode === 'packaging' && (
-                <>
-                  <p className="text-[13px] text-muted-foreground">Sube la foto de tu producto; la IA diseñará un empaque coherente con él.</p>
-                  {productRef ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={productRef.previewUrl} alt="producto" className="max-h-44 rounded-lg border border-border object-contain" />
-                  ) : (
-                    <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-                      className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
-                      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-                      Subir foto del producto
-                    </button>
-                  )}
-                  <input value={text} onChange={(e) => setText(e.target.value)} maxLength={300}
-                    placeholder="cómo quieres el empaque (ej. caja kraft minimalista)"
-                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
-                  <button type="button" onClick={runPackaging} disabled={busy || !productRef}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                    {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
-                    Generar empaque
-                  </button>
-                </>
-              )}
-
-              {productMode === 'concept' && (
-                <>
-                  <p className="text-[13px] text-muted-foreground">Describe el producto. La IA generará un <span className="text-foreground">concepto</span> — no una foto real.</p>
-                  <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
-                    placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
-                    className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
-                  <button type="button" onClick={runConcept} disabled={busy || text.trim().length < 3}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                    {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
-                    Generar concepto
-                  </button>
-                </>
-              )}
-
-              {(productMode === 'improve' || productMode === 'packaging') && (
-                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                  onChange={(e) => onFilePicked(e.target.files?.[0])} />
-              )}
-              {productMode && (
-                <button type="button" onClick={resetProductMode} className="text-[12px] text-muted-foreground hover:text-foreground">
-                  ← Volver
-                </button>
-              )}
+                  </div>
+                );
+              })}
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={(e) => improveUpload(e.target.files?.[0])} />
             </>
           )}
 
@@ -334,8 +266,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                   <label className="text-[12.5px] text-foreground">{q.question}</label>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {q.suggestions.map((s) => (
-                      <button key={s} type="button"
-                        onClick={() => setAnswers((a) => ({ ...a, [q.id]: s }))}
+                      <button key={s} type="button" onClick={() => setAnswers((a) => ({ ...a, [q.id]: s }))}
                         className={`rounded-full border px-2.5 py-1 text-[11.5px] ${answers[q.id] === s ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'}`}>
                         {s}
                       </button>
@@ -346,31 +277,9 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                     className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-primary/40" />
                 </div>
               ))}
-              <button type="button" onClick={() => runGenerate(composedAppearance())} disabled={busy}
+              <button type="button" onClick={() => runCharacter(composedAppearance())} disabled={busy}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
-                Generar
-              </button>
-            </>
-          )}
-
-          {step === 'brief' && (
-            <>
-              <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                {briefLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                {briefLoading ? 'Analizando el producto…' : 'Esto es lo que la IA ve en tu producto:'}
-              </div>
-              {brief && (
-                <div className="space-y-1 rounded-lg border border-border bg-muted/20 p-3 text-[12.5px] text-foreground">
-                  <p><span className="text-muted-foreground">Producto:</span> {brief.productName}</p>
-                  <p><span className="text-muted-foreground">Categoría:</span> {brief.category}</p>
-                  {brief.visualDetails && <p><span className="text-muted-foreground">Detalles:</span> {brief.visualDetails}</p>}
-                  {brief.palette.length > 0 && <p><span className="text-muted-foreground">Paleta:</span> {brief.palette.join(', ')}</p>}
-                </div>
-              )}
-              <button type="button" onClick={() => setStep('preview')} disabled={busy || briefLoading}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                Continuar
+                {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />} Generar
               </button>
             </>
           )}
@@ -401,18 +310,39 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                 </div>
               )}
 
+              {kind === 'product' && productFlow !== 'improve' && (
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Empaque (opcional)</label>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    {packaging ? (
+                      <div className="group relative size-14 overflow-hidden rounded-lg border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={packaging.previewUrl} alt="empaque" className="size-full object-cover" />
+                        <button type="button" aria-label="Quitar empaque" onClick={() => setPackaging(null)}
+                          className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
+                          <X className="size-3" aria-hidden />
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={addPackaging} disabled={busy}
+                        className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                        {busy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : '+ Generar empaque'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground/60">Crea una caja/etiqueta coherente con el producto. Opcional.</p>
+                </div>
+              )}
+
               {kind === 'character' && (
                 <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Ángulos para consistencia (del retrato actual)
-                  </label>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ángulos para consistencia (del retrato actual)</label>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
                     {angles.map((a, i) => (
                       <div key={a.refId} className="group relative size-14 overflow-hidden rounded-lg border border-border">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={a.previewUrl} alt={`angulo ${i + 1}`} className="size-full object-cover" />
-                        <button type="button" aria-label="Quitar ángulo"
-                          onClick={() => setAngles((xs) => xs.filter((x) => x.refId !== a.refId))}
+                        <button type="button" aria-label="Quitar ángulo" onClick={() => setAngles((xs) => xs.filter((x) => x.refId !== a.refId))}
                           className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
                           <X className="size-3" aria-hidden />
                         </button>
@@ -450,8 +380,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
 
               <button type="button" onClick={handleSave} disabled={busy}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                Guardar
+                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Guardar
               </button>
             </>
           )}
