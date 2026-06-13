@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { clarifyCreationAction } from '@/server-actions/creation';
+import { clarifyCreationAction, analyzeKitFromImageAction } from '@/server-actions/creation';
 import {
   generateCharacter,
   editImage,
@@ -22,7 +22,15 @@ export type ImgRef = { id: string; storagePath: string; previewUrl: string };
 // Resultado tipado: el padre decide cómo persistir según la variante.
 export type SaveResult =
   | { kind: 'character'; refId: string; angleRefIds: string[] }
-  | { kind: 'product-create'; productRefId: string; packagingRefId?: string }
+  | {
+      kind: 'product-create';
+      productRefId: string;
+      packagingRefId?: string;
+      // Campos del kit auto-detectados y editados en el paso final.
+      name: string;
+      colors: { name: string; hex: string }[];
+      tone?: string;
+    }
   | { kind: 'product-improve'; refId: string; target: 'product' | 'packaging' };
 
 type Props = {
@@ -39,7 +47,7 @@ type Props = {
 // generadas traen generationId (que decide editar por parent vs por reference).
 type Version = { refId: string; previewUrl: string; generationId?: string; storagePath: string };
 
-type Step = 'intent' | 'clarify' | 'preview';
+type Step = 'intent' | 'clarify' | 'preview' | 'kitfields';
 
 const KEEP_PRODUCT = 'Keep the product identical — same shape, label, logo, colors and proportions. Do not invent, restyle or alter the product itself.';
 const QUICK_ACTIONS: Array<{ label: string; instruction: string; noBackground?: boolean }> = [
@@ -60,6 +68,11 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   const [editPrompt, setEditPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Campos del kit (flujo crear): prellenados desde el análisis de la imagen.
+  const [kitName, setKitName] = useState('');
+  const [kitColors, setKitColors] = useState<{ name: string; hex: string }[]>([]);
+  const [kitTone, setKitTone] = useState('');
+  const [kitLoading, setKitLoading] = useState(false);
 
   const title =
     kind === 'character' ? 'Crear personaje con IA'
@@ -178,6 +191,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     } finally { setBusy(false); }
   }
 
+  // Guardado directo: personaje y "mejorar" (producto crear pasa por kitfields).
   async function handleSave() {
     if (versions.length === 0) return;
     setBusy(true);
@@ -185,12 +199,41 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
       const refId = versions[current].refId;
       if (kind === 'character') {
         await onSave({ kind: 'character', refId, angleRefIds: angles.map((a) => a.refId) });
-      } else if (productFlow === 'improve') {
-        await onSave({ kind: 'product-improve', refId, target: improveTarget });
       } else {
-        await onSave({ kind: 'product-create', productRefId: refId, packagingRefId: packaging?.refId });
+        await onSave({ kind: 'product-improve', refId, target: improveTarget });
       }
       toast.success('Guardado');
+      onClose();
+    } finally { setBusy(false); }
+  }
+
+  // Crear producto: paso final con los campos del kit, prellenados del análisis.
+  async function goToKitFields() {
+    setStep('kitfields');
+    setKitLoading(true);
+    try {
+      const res = await analyzeKitFromImageAction(versions[current].refId);
+      if (res.ok) {
+        setKitName(res.data.name);
+        setKitColors(res.data.colors);
+        setKitTone(res.data.tone ?? '');
+      }
+    } finally { setKitLoading(false); }
+  }
+
+  async function handleCreateKit() {
+    if (versions.length === 0) return;
+    setBusy(true);
+    try {
+      await onSave({
+        kind: 'product-create',
+        productRefId: versions[current].refId,
+        packagingRefId: packaging?.refId,
+        name: kitName.trim() || 'Producto IA',
+        colors: kitColors,
+        tone: kitTone.trim() || undefined,
+      });
+      toast.success('Kit creado');
       onClose();
     } finally { setBusy(false); }
   }
@@ -378,9 +421,66 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                 </div>
               </div>
 
-              <button type="button" onClick={handleSave} disabled={busy}
+              {kind === 'product' && productFlow !== 'improve' ? (
+                <button type="button" onClick={() => void goToKitFields()} disabled={busy}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Continuar
+                </button>
+              ) : (
+                <button type="button" onClick={handleSave} disabled={busy}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                  {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Guardar
+                </button>
+              )}
+            </>
+          )}
+
+          {step === 'kitfields' && (
+            <>
+              <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                {kitLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                {kitLoading ? 'Detectando los datos del kit…' : 'Revisa los datos del kit y ajústalos:'}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre del kit</label>
+                <input value={kitName} onChange={(e) => setKitName(e.target.value)} maxLength={100}
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paleta de colores</label>
+                <div className="mt-1.5 space-y-1.5">
+                  {kitColors.map((c, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="size-6 shrink-0 rounded-md border border-border" style={{ backgroundColor: c.hex }} />
+                      <input value={c.hex} maxLength={7}
+                        onChange={(e) => setKitColors((cs) => cs.map((x, j) => (j === i ? { ...x, hex: e.target.value } : x)))}
+                        className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40" />
+                      <input value={c.name}
+                        onChange={(e) => setKitColors((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                        className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-primary/40" />
+                      <button type="button" onClick={() => setKitColors((cs) => cs.filter((_, j) => j !== i))}
+                        className="text-[11px] text-muted-foreground hover:text-destructive">x</button>
+                    </div>
+                  ))}
+                  {kitColors.length < 6 && (
+                    <button type="button" onClick={() => setKitColors((cs) => [...cs, { name: '', hex: '#000000' }])}
+                      className="text-[11px] text-muted-foreground hover:text-foreground">+ Agregar color</button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tono de voz</label>
+                <input value={kitTone} onChange={(e) => setKitTone(e.target.value)} maxLength={200}
+                  placeholder="ej. minimalista y fresco"
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+              </div>
+
+              <button type="button" onClick={handleCreateKit} disabled={busy || kitLoading}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Guardar
+                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Crear kit
               </button>
             </>
           )}

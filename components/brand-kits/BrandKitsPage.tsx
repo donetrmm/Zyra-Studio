@@ -59,7 +59,11 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
 
   async function handleAiSave(result: SaveResult) {
     if (result.kind === 'product-create') {
-      const created = await createBrandKitAction({ name: 'Producto IA' });
+      const created = await createBrandKitAction({
+        name: result.name,
+        colors: result.colors,
+        toneDescription: result.tone,
+      });
       if (!created.ok) { toast.error(created.message || 'No se pudo crear el kit'); return; }
       const img = await setBrandKitImagesAction(created.data.id, {
         productImageIds: [result.productRefId],
