@@ -120,6 +120,21 @@ alter table characters
   add column if not exists angle_image_ids uuid[] default array[]::uuid[];     -- perfil, 3/4
 ```
 
+**Nota — descripción de personaje por visión (2026-06-13):** `characters.description` ya no
+depende de que el usuario la teclee. `lib/cast/describe-character.ts` (gemelo de
+`analyzeProductBrief`, mismo Gemini Flash) VE la hoja maestra y devuelve la apariencia
+age-blind en inglés. Se aplica en dos capas desde `server-actions/cast.ts`:
+- **Auto-relleno (red de seguridad):** en `create`/`update`, si `description` viene vacía pero
+  hay `master_image_id`, se infiere de la imagen. Best-effort: si el storage o el proveedor
+  fallan, se guarda sin descripción y el alta no se bloquea.
+- **`describeCharacterAction(masterImageId)`:** sugerencia editable para el form del Cast (botón
+  "Describir desde la imagen"), misma UX que el brief del producto.
+
+Reglas duras del inventario (doc V2 §4.3): SOLO lo visible, sin claims inventados; `stripAgeWords`
+limpia cualquier marcador de edad que se cuele. Cierra el desperdicio de que el modelo "viera"
+las imágenes solo en el matcher: ahora la apariencia llega también a la fidelidad del compiler,
+reforzando la línea `@Image` del Cast (guías Morphic §4.1 / RunDiffusion §8).
+
 ### 4. Migración `022_rls_v2.sql` (2h)
 
 - Enable RLS en `campaign_items`, `formats`, `creative_templates`, `scene_library`.

@@ -55,6 +55,10 @@ type CompiledPrompt = {
 Extrae del brief + Brand Kit + item: producto (nombre, empaque, colores, detalles visibles),
 personaje (descripción física desde el Cast), entorno, estilo/mood.
 
+> La descripción física del personaje puede venir auto-generada por visión desde la hoja
+> maestra (`lib/cast/describe-character.ts`, ver Fase A §3, nota 2026-06-13), no solo tecleada.
+> El compiler la consume igual: es texto en `characters.description`.
+
 **Reglas duras (doc V2 §4.3):**
 - Nunca inventar atributos de producto o marca que no estén en el Brand Kit.
 - Nunca fabricar claims ("clínicamente probado", "10x más rápido") — solo lo visible y audible.
