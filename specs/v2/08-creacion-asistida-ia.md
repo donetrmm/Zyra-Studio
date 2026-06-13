@@ -169,8 +169,11 @@ Dos entradas distintas (reorganización 2026-06-13):
 - **Header "Crear con IA"** (junto a "Nuevo kit", como el botón del Cast) → wizard
   `productFlow: 'create'`: describe el producto → `generateProductConcept` (FLUX, concepto, no
   foto real) → preview editable → botón opcional **"Generar empaque"** (`generatePackaging` con el
-  producto como *reference*) → **Guardar crea un kit nuevo** (`createBrandKitAction` + producto en
-  `product_image_ids`, empaque en `packaging_image_ids`), nombre por defecto editable.
+  producto como *reference*) → **paso final de campos del kit** (`analyzeKitFromImageAction` →
+  `analyzeKitImage`: detecta **nombre, paleta con hex y tono** de la imagen del producto, todos
+  **editables** antes de guardar) → **Guardar crea un kit nuevo** (`createBrandKitAction` con
+  esos campos + producto en `product_image_ids`, empaque en `packaging_image_ids`). Así el kit no
+  nace vacío cuando el cliente generó todo con IA sin subir nada (ampliación 2026-06-13).
 - **Tarjeta "Mejorar con IA"** → wizard `productFlow: 'improve'`: **lee las imágenes que el kit ya
   tiene** (producto/empaque) resolviendo su `storagePath` con `getReferencePathsAction`; eliges
   cuál modificar (o subes una si el kit no la tiene), editas (quitar fondo/luz/libre) y **Guardar
