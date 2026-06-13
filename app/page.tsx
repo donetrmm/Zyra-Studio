@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import "./landing.css";
 
@@ -426,8 +427,7 @@ export default function LandingPage() {
                 {/* Preview — result + recent strip */}
                 <div className="l-shot-preview">
                   <div className="l-shot-img" style={{ gridColumn: "1 / -1", gridRow: "1 / -1", marginTop: 0, position: "relative" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={landingImages.hero} alt="Generación de ejemplo" className="block w-full h-full object-cover" />
+                    <Image src={landingImages.hero} alt="Generación de ejemplo" fill priority sizes="(max-width: 900px) 90vw, 600px" className="object-cover" />
                     <div style={{ position: "absolute", bottom: 12, left: 12, right: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div className="mono" style={{ fontSize: 10, color: "var(--text-2)", background: "rgba(9,9,11,0.7)", borderRadius: 6, padding: "3px 8px", backdropFilter: "blur(6px)", border: "1px solid var(--hairline)" }}>
                         Nano Banana Pro · 1:1 · 2K · -40 cr · 14s
@@ -468,17 +468,14 @@ export default function LandingPage() {
                 </p>
                 <div className="l-b-visual">
                   <div className="l-b1-stack">
-                    <div className="l-b1-tile t1">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={landingImages.bento1a} alt="" className="block w-full h-full object-cover" />
+                    <div className="l-b1-tile t1" style={{ position: "relative" }}>
+                      <Image src={landingImages.bento1a} alt="" fill sizes="(max-width: 900px) 40vw, 220px" className="object-cover" />
                     </div>
-                    <div className="l-b1-tile t2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={landingImages.bento1b} alt="" className="block w-full h-full object-cover" />
+                    <div className="l-b1-tile t2" style={{ position: "relative" }}>
+                      <Image src={landingImages.bento1b} alt="" fill sizes="(max-width: 900px) 40vw, 220px" className="object-cover" />
                     </div>
-                    <div className="l-b1-tile t3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={landingImages.bento1c} alt="" className="block w-full h-full object-cover" />
+                    <div className="l-b1-tile t3" style={{ position: "relative" }}>
+                      <Image src={landingImages.bento1c} alt="" fill sizes="(max-width: 900px) 40vw, 220px" className="object-cover" />
                     </div>
                   </div>
                 </div>
@@ -501,8 +498,7 @@ export default function LandingPage() {
                         position: "relative",
                       }}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={landingImages.bento2} alt="" className="block w-full h-full object-cover" />
+                      <Image src={landingImages.bento2} alt="" fill sizes="(max-width: 900px) 90vw, 520px" className="object-cover" />
                       <div
                         style={{
                           position: "absolute",
