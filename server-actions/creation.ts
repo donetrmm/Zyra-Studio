@@ -4,9 +4,7 @@ import 'server-only';
 import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
-import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import { clarifyCharacter } from '@/lib/creation/clarify';
-import { analyzeProductBrief, type ProductBrief } from '@/lib/campaigns/brief';
 import { stripAgeWords } from '@/lib/prompt-director/inventory';
 import { ClarifyInputSchema, type ClarifyResult } from '@/lib/schemas/creation';
 
@@ -25,27 +23,22 @@ export async function clarifyCreationAction(input: unknown): Promise<Result<Clar
   }
 }
 
-// Brief auto-detectado del producto (modo product del wizard): el LLM VE la
-// imagen subida y describe SOLO lo visible (analyzeProductBrief ya tiene prohibido
-// inventar atributos/claims). Falla dura: el usuario lo pidió y espera respuesta.
-export async function analyzeProductImageAction(mediaReferenceId: unknown): Promise<Result<ProductBrief>> {
-  const parsed = z.string().uuid().safeParse(mediaReferenceId);
+// Resuelve el storagePath de imágenes ya guardadas (validando ownership) para
+// que el wizard pueda EDITARLAS con Nano Banana (necesita {id, storagePath}).
+// Lo usa el flujo "Mejorar con IA" del Brand Kit, que lee las imágenes del kit.
+export async function getReferencePathsAction(ids: unknown): Promise<Result<Record<string, string>>> {
+  const parsed = z.array(z.string().uuid()).max(8).safeParse(ids);
   if (!parsed.success) return { ok: false, error: 'validation_error' };
+  if (parsed.data.length === 0) return { ok: true, data: {} };
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
-  const { data: ref } = await supabase
+  const { data } = await supabase
     .from('media_references')
-    .select('storage_url, workspace_id, type')
-    .eq('id', parsed.data)
-    .single();
-  if (!ref || ref.workspace_id !== workspace.id || ref.type !== 'image' || !ref.storage_url) {
-    return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
+    .select('id, storage_url, workspace_id')
+    .in('id', parsed.data);
+  const out: Record<string, string> = {};
+  for (const r of data ?? []) {
+    if (r.workspace_id === workspace.id && r.storage_url) out[r.id as string] = r.storage_url as string;
   }
-  try {
-    const { buffer, mimeType } = await downloadReferenceBuffer(ref.storage_url as string);
-    const brief = await analyzeProductBrief({ imageBuffer: buffer, mimeType });
-    return { ok: true, data: brief };
-  } catch (e) {
-    return { ok: false, error: 'provider_error', message: (e as Error).message };
-  }
+  return { ok: true, data: out };
 }
