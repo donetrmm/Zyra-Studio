@@ -9,10 +9,12 @@
 
 ## Decisiones fijadas (no rediseñar sin confirmar)
 
-- **El producto real se respeta.** La IA NUNCA inventa el empaque/logo de un producto de marca.
-  Para producto, la IA solo: (a) auto-detecta el brief (reusa `analyzeProductBrief`) y (b)
-  **mejora opcional** de la foto subida (quitar fondo, mejorar luz) con Nano Banana, solo si el
-  usuario lo pide. La generación desde cero con FLUX es **solo para personajes** (ficticios).
+- **El producto real se respeta.** Si el cliente sube foto de su producto, la IA NUNCA lo
+  inventa: solo (a) auto-detecta el brief (`analyzeProductBrief`) y (b) lo **mejora** (quitar
+  fondo, luz). La generación **desde cero** solo aplica cuando NO existe el real: empaque
+  inexistente (a partir de la foto del producto) o producto-concepto sin foto (marca nueva,
+  marcado como concepto IA). El criterio es "¿existe un producto/empaque real?", no
+  producto-vs-personaje (ampliación 2026-06-13).
   > **Corrección 2026-06-13 (implementación Plan 2):** se descartó la acción "generar ángulo"
   > que listaba este spec — generar una cara no vista del producto **fabrica geometría** y choca
   > con la regla dura de no inventar atributos. Las mejoras solo ajustan fondo/luz manteniendo el
@@ -162,11 +164,22 @@ En `CastPage.tsx`, botón "Crear con IA" abre el wizard en modo `character`. Abs
 
 ### 5. Integración Brand Kit — modo `product` (1.5h)
 
-En `BrandKitsPage.tsx`, botón "Crear/Mejorar con IA" abre el wizard en modo `product`. Al Guardar:
+En `BrandKitsPage.tsx`, botón "Crear/Mejorar con IA" (por tarjeta) abre el wizard en modo
+`product`. El wizard arranca con un **selector de sub-modo** (ampliación 2026-06-13):
 
-- Las imágenes elegidas (subida y/o mejoradas) se añaden a `product_image_ids` vía
-  `setBrandKitImagesAction`.
-- El brief detectado (`analyzeProductBrief` sobre la foto final) prellena nombre/paleta del kit.
+- **Mejorar mi foto:** sube foto real → brief (`analyzeProductImageAction`) → mejora →
+  `product_image_ids`. (El producto real se respeta; nunca se inventa.)
+- **Crear el empaque:** sube foto del producto → `generatePackaging` (la foto entra como
+  *reference* de Nano Banana; conserva identidad, no fabrica texto de marca) → `packaging_image_ids`.
+- **Crear producto (concepto):** describe → `generateProductConcept` (FLUX desde cero, marcado
+  como concepto IA, no foto real) → `product_image_ids`. Solo cuando NO hay producto físico.
+
+`onSave` recibe `{ refId, target }`; `target` ('product' | 'packaging') decide el campo del kit
+vía `setBrandKitImagesAction` (tope 4 producto / 2 empaque).
+
+> **Logo/etiqueta — diferido:** `brand_kits.logo_url` no lo consume el pipeline de generación
+> (`applyBrandKit` usa colores/fuentes/tono/guidelines), así que un logo generado se guardaría
+> sin usarse. Queda fuera hasta cablear `logo_url` (decisión 2026-06-13).
 
 ### 6. Tests (1h)
 
