@@ -75,7 +75,7 @@ export function CastPage({
       {aiOpen && (
         <CreationWizard
           kind="character"
-          onSave={async (refId, angleRefIds) => {
+          onSave={async ({ refId, angleRefIds }) => {
             const res = await createCharacterAction({
               name: 'Nuevo personaje',
               masterImageId: refId,

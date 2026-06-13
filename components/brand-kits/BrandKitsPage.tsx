@@ -68,10 +68,11 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
       {aiKit && (
         <CreationWizard
           kind="product"
-          onSave={async (refId) => {
+          onSave={async ({ refId, target }) => {
+            const toPackaging = target === 'packaging';
             const res = await setBrandKitImagesAction(aiKit.id, {
-              productImageIds: [...aiKit.product_image_ids, refId].slice(0, 4),
-              packagingImageIds: aiKit.packaging_image_ids,
+              productImageIds: toPackaging ? aiKit.product_image_ids : [...aiKit.product_image_ids, refId].slice(0, 4),
+              packagingImageIds: toPackaging ? [...aiKit.packaging_image_ids, refId].slice(0, 2) : aiKit.packaging_image_ids,
             });
             if (!res.ok) { toast.error(res.message || 'No se pudo guardar la imagen'); return; }
             router.refresh();
@@ -151,7 +152,7 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
         <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15">
-          <Sparkles className="size-3" aria-hidden /> Mejorar con IA
+          <Sparkles className="size-3" aria-hidden /> Crear/Mejorar con IA
         </button>
         <button type="button" onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive">
           <Trash2 className="size-3" aria-hidden />

@@ -4,29 +4,39 @@ import { useRef, useState } from 'react';
 import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { clarifyCreationAction, analyzeProductImageAction } from '@/server-actions/creation';
-import { generateCharacter, editImage, editUploaded, generateAngle, isGenError } from './generate';
+import {
+  generateCharacter,
+  editImage,
+  editUploaded,
+  generateAngle,
+  generateProductConcept,
+  generatePackaging,
+  isGenError,
+} from './generate';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import type { CreationKind, ClarifyResult } from '@/lib/schemas/creation';
 import type { ProductBrief } from '@/lib/campaigns/brief';
 
 type Props = {
   kind: CreationKind;
-  // El padre persiste el resultado: crea el personaje (con sus ángulos), o añade
-  // la imagen al kit. angleRefIds solo aplica a personaje (máx 2).
-  onSave: (refId: string, angleRefIds?: string[]) => Promise<void>;
+  // El padre persiste el resultado. `target` indica a qué campo del kit va la
+  // imagen de producto ('product' | 'packaging'); irrelevante para personaje.
+  onSave: (result: { refId: string; angleRefIds?: string[]; target?: 'product' | 'packaging' }) => Promise<void>;
   onClose: () => void;
 };
 
 // Una versión navegable. Las generadas traen generationId (se editan con
-// editImage / parent). La foto SUBIDA del modo producto trae storagePath y NO
+// editImage / parent). La foto SUBIDA (modo "mejorar") trae storagePath y NO
 // generationId (se edita con editUploaded / reference).
 type Version = { refId: string; previewUrl: string; generationId?: string; storagePath?: string };
+
+// Sub-modo del flujo de producto.
+type ProductMode = 'improve' | 'packaging' | 'concept';
 
 type Step = 'intent' | 'clarify' | 'brief' | 'preview';
 
 // Las mejoras de producto nunca inventan: solo ajustan fondo/luz manteniendo el
-// producto idéntico. (Por eso NO hay acción "generar ángulo": fabricaría una
-// cara no vista del producto — contradice la regla dura de no inventar atributos.)
+// producto idéntico. (No hay "generar ángulo": fabricaría una cara no vista.)
 const KEEP_PRODUCT = 'Keep the product identical — same shape, label, logo, colors and proportions. Do not invent, restyle or alter the product itself.';
 const QUICK_ACTIONS: Array<{ label: string; instruction: string; noBackground?: boolean }> = [
   { label: 'Quitar fondo', instruction: `Place the exact same product on a clean plain white background. ${KEEP_PRODUCT}`, noBackground: true },
@@ -46,6 +56,10 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
   const [editPrompt, setEditPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Producto: sub-modo elegido, foto fuente (para empaque) y destino del guardado.
+  const [productMode, setProductMode] = useState<ProductMode | null>(null);
+  const [productRef, setProductRef] = useState<{ id: string; storagePath: string; previewUrl: string } | null>(null);
+  const [productTarget, setProductTarget] = useState<'product' | 'packaging'>('product');
 
   const composedAppearance = () => {
     const extra = Object.values(answers).filter(Boolean).join(', ');
@@ -77,15 +91,22 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     } finally { setBusy(false); }
   }
 
-  // ---- product ----
-  async function handleUpload(file: File | undefined) {
+  // ---- product: dispatch del file picker según sub-modo ----
+  function onFilePicked(file: File | undefined) {
     if (!file) return;
+    if (productMode === 'packaging') void uploadProductPhoto(file);
+    else void improveUpload(file);
+  }
+
+  // mejorar: la foto real es la versión 0 y se analiza (brief).
+  async function improveUpload(file: File) {
     setBusy(true);
     try {
       const res = await uploadReferenceFile(file);
       if (!res.ok) { toast.error(res.message); return; }
       setVersions([{ refId: res.ref.id, previewUrl: res.ref.previewUrl, storagePath: res.ref.storagePath }]);
       setCurrent(0);
+      setProductTarget('product');
       setStep('brief');
       setBriefLoading(true);
       const analyzed = await analyzeProductImageAction(res.ref.id);
@@ -95,6 +116,51 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+  }
+
+  // empaque: la foto del producto es la FUENTE (referencia), no se guarda como tal.
+  async function uploadProductPhoto(file: File) {
+    setBusy(true);
+    try {
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) { toast.error(res.message); return; }
+      setProductRef({ id: res.ref.id, storagePath: res.ref.storagePath, previewUrl: res.ref.previewUrl });
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  async function runPackaging() {
+    if (!productRef || busy) return;
+    setBusy(true);
+    try {
+      const out = await generatePackaging({ id: productRef.id, storagePath: productRef.storagePath }, text);
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el empaque'); return; }
+      setVersions([out]);
+      setCurrent(0);
+      setProductTarget('packaging');
+      setStep('preview');
+    } finally { setBusy(false); }
+  }
+
+  async function runConcept() {
+    if (text.trim().length < 3 || busy) return;
+    setBusy(true);
+    try {
+      const out = await generateProductConcept(text.trim());
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
+      setVersions([out]);
+      setCurrent(0);
+      setProductTarget('product');
+      setStep('preview');
+    } finally { setBusy(false); }
+  }
+
+  function resetProductMode() {
+    setProductMode(null);
+    setProductRef(null);
+    setText('');
   }
 
   // ---- shared edit (rama según el origen de la versión actual) ----
@@ -122,8 +188,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     void applyEdit(instruction);
   }
 
-  // Genera un ángulo del retrato actual (perfil / 3-4) para consistencia. Máx 2
-  // (tope de angle_image_ids del Cast).
+  // Genera un ángulo del retrato actual (perfil / 3-4) para consistencia. Máx 2.
   async function addAngle(view: 'profile' | 'three-quarter') {
     const v = versions[current];
     if (!v?.generationId || angles.length >= 2 || busy) return;
@@ -139,7 +204,11 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     if (versions.length === 0) return;
     setBusy(true);
     try {
-      await onSave(versions[current].refId, kind === 'character' ? angles.map((a) => a.refId) : []);
+      await onSave({
+        refId: versions[current].refId,
+        angleRefIds: kind === 'character' ? angles.map((a) => a.refId) : undefined,
+        target: kind === 'product' ? productTarget : undefined,
+      });
       toast.success('Guardado');
       onClose();
     } finally { setBusy(false); }
@@ -150,7 +219,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
       <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
           <h2 className="text-[15px] font-medium text-foreground">
-            {kind === 'character' ? 'Crear personaje con IA' : 'Preparar producto con IA'}
+            {kind === 'character' ? 'Crear personaje con IA' : 'Crear / mejorar producto con IA'}
           </h2>
           <button type="button" onClick={onClose} className="text-[13px] text-muted-foreground hover:text-foreground">Cerrar</button>
         </div>
@@ -179,16 +248,81 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
 
           {step === 'intent' && kind === 'product' && (
             <>
-              <p className="text-[13px] text-muted-foreground">
-                Sube una foto de tu producto. La IA la limpia y mejora — nunca inventa tu producto.
-              </p>
-              <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-                className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
-                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
-                Subir foto del producto
-              </button>
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                onChange={(e) => handleUpload(e.target.files?.[0])} />
+              {productMode === null && (
+                <>
+                  <p className="text-[13px] text-muted-foreground">¿Qué quieres hacer?</p>
+                  {[
+                    { m: 'improve' as const, t: 'Mejorar mi foto', d: 'Sube una foto real de tu producto y la IA la limpia y mejora. Nunca inventa tu producto.' },
+                    { m: 'packaging' as const, t: 'Crear el empaque', d: 'Tienes el producto pero no la caja/etiqueta: la IA la diseña a partir de tu foto.' },
+                    { m: 'concept' as const, t: 'Crear producto (concepto)', d: 'No tienes el producto: descríbelo y la IA lo genera. Es un concepto, no una foto real.' },
+                  ].map((o) => (
+                    <button key={o.m} type="button" onClick={() => setProductMode(o.m)}
+                      className="block w-full rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/40">
+                      <span className="text-[13px] font-medium text-foreground">{o.t}</span>
+                      <span className="mt-0.5 block text-[12px] text-muted-foreground">{o.d}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {productMode === 'improve' && (
+                <>
+                  <p className="text-[13px] text-muted-foreground">Sube una foto de tu producto. La IA la limpia y mejora — nunca inventa tu producto.</p>
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
+                    className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                    {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+                    Subir foto del producto
+                  </button>
+                </>
+              )}
+
+              {productMode === 'packaging' && (
+                <>
+                  <p className="text-[13px] text-muted-foreground">Sube la foto de tu producto; la IA diseñará un empaque coherente con él.</p>
+                  {productRef ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={productRef.previewUrl} alt="producto" className="max-h-44 rounded-lg border border-border object-contain" />
+                  ) : (
+                    <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
+                      className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+                      Subir foto del producto
+                    </button>
+                  )}
+                  <input value={text} onChange={(e) => setText(e.target.value)} maxLength={300}
+                    placeholder="cómo quieres el empaque (ej. caja kraft minimalista)"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                  <button type="button" onClick={runPackaging} disabled={busy || !productRef}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                    {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
+                    Generar empaque
+                  </button>
+                </>
+              )}
+
+              {productMode === 'concept' && (
+                <>
+                  <p className="text-[13px] text-muted-foreground">Describe el producto. La IA generará un <span className="text-foreground">concepto</span> — no una foto real.</p>
+                  <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
+                    placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
+                    className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                  <button type="button" onClick={runConcept} disabled={busy || text.trim().length < 3}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                    {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />}
+                    Generar concepto
+                  </button>
+                </>
+              )}
+
+              {(productMode === 'improve' || productMode === 'packaging') && (
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={(e) => onFilePicked(e.target.files?.[0])} />
+              )}
+              {productMode && (
+                <button type="button" onClick={resetProductMode} className="text-[12px] text-muted-foreground hover:text-foreground">
+                  ← Volver
+                </button>
+              )}
             </>
           )}
 
