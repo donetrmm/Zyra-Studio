@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { clarifyCreationAction, analyzeKitFromImageAction } from '@/server-actions/creation';
 import {
   generateCharacter,
@@ -78,13 +79,6 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     kind === 'character' ? 'Crear personaje con IA'
       : productFlow === 'improve' ? 'Mejorar con IA'
         : 'Crear producto con IA';
-
-  // Cerrar con Escape (a11y: el modal debe ser descartable por teclado).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const composedAppearance = () => {
     const extra = Object.values(answers).filter(Boolean).join(', ');
@@ -261,14 +255,16 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal aria-label={title}>
-      <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
-          <h2 className="text-[15px] font-medium text-foreground">{title}</h2>
-          <button type="button" onClick={onClose} className="text-[13px] text-muted-foreground hover:text-foreground">Cerrar</button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="w-full max-w-2xl gap-0 overflow-hidden rounded-xl border border-border bg-card p-0"
+      >
+        <DialogHeader className="border-b border-border bg-muted/30 px-5 py-3.5">
+          <DialogTitle className="text-[15px] font-medium text-foreground">{title}</DialogTitle>
+        </DialogHeader>
 
-        <div className="space-y-4 p-5">
+        <div className="scroll-thin max-h-[78vh] space-y-4 overflow-y-auto p-5">
           {step === 'intent' && kind === 'character' && (
             <>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Describe lo que quieres</label>
@@ -525,7 +521,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
             </>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
