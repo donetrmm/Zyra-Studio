@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Palette, Plus, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
+import { CreationWizard } from '@/components/creation/CreationWizard';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -34,6 +35,7 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
     setKits(initial);
   }
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
+  const [aiKit, setAiKit] = useState<BrandKit | null>(null);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -63,6 +65,21 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
         />
       )}
 
+      {aiKit && (
+        <CreationWizard
+          kind="product"
+          onSave={async (refId) => {
+            const res = await setBrandKitImagesAction(aiKit.id, {
+              productImageIds: [...aiKit.product_image_ids, refId].slice(0, 4),
+              packagingImageIds: aiKit.packaging_image_ids,
+            });
+            if (!res.ok) { toast.error(res.message || 'No se pudo guardar la imagen'); return; }
+            router.refresh();
+          }}
+          onClose={() => setAiKit(null)}
+        />
+      )}
+
       {kits.length === 0 && !editing ? (
         <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
           <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
@@ -78,6 +95,7 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
               key={kit.id}
               kit={kit}
               onEdit={() => setEditing(kit)}
+              onImprove={() => setAiKit(kit)}
               onDelete={async () => {
                 const ok = await confirm({ title: `Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
                 if (!ok) return;
@@ -96,7 +114,7 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
   );
 }
 
-function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => void; onDelete: () => void }) {
+function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onEdit: () => void; onImprove: () => void; onDelete: () => void }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
       <div className="p-4">
@@ -131,6 +149,9 @@ function BrandKitCard({ kit, onEdit, onDelete }: { kit: BrandKit; onEdit: () => 
       <div className="flex gap-2 border-t border-border/30 p-3">
         <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
           <Pencil className="size-3" aria-hidden /> Editar
+        </button>
+        <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15">
+          <Sparkles className="size-3" aria-hidden /> Mejorar con IA
         </button>
         <button type="button" onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive">
           <Trash2 className="size-3" aria-hidden />

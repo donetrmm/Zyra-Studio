@@ -1,30 +1,49 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus } from 'lucide-react';
 import { toast } from 'sonner';
-import { clarifyCreationAction } from '@/server-actions/creation';
-import { generateCharacter, editImage, isGenError, type GeneratedImage } from './generate';
+import { clarifyCreationAction, analyzeProductImageAction } from '@/server-actions/creation';
+import { generateCharacter, editImage, editUploaded, isGenError } from './generate';
+import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import type { CreationKind, ClarifyResult } from '@/lib/schemas/creation';
+import type { ProductBrief } from '@/lib/campaigns/brief';
 
 type Props = {
-  kind: CreationKind; // Plan 1 implementa 'character'; 'product' lo añade Plan 2.
-  // El padre persiste el resultado (crea el personaje con la imagen elegida).
+  kind: CreationKind;
+  // El padre persiste el resultado: crea el personaje, o añade la imagen al kit.
   onSave: (refId: string) => Promise<void>;
   onClose: () => void;
 };
 
-type Step = 'intent' | 'clarify' | 'preview';
+// Una versión navegable. Las generadas traen generationId (se editan con
+// editImage / parent). La foto SUBIDA del modo producto trae storagePath y NO
+// generationId (se edita con editUploaded / reference).
+type Version = { refId: string; previewUrl: string; generationId?: string; storagePath?: string };
+
+type Step = 'intent' | 'clarify' | 'brief' | 'preview';
+
+// Las mejoras de producto nunca inventan: solo ajustan fondo/luz manteniendo el
+// producto idéntico. (Por eso NO hay acción "generar ángulo": fabricaría una
+// cara no vista del producto — contradice la regla dura de no inventar atributos.)
+const KEEP_PRODUCT = 'Keep the product identical — same shape, label, logo, colors and proportions. Do not invent, restyle or alter the product itself.';
+const QUICK_ACTIONS: Array<{ label: string; instruction: string; noBackground?: boolean }> = [
+  { label: 'Quitar fondo', instruction: `Place the exact same product on a clean plain white background. ${KEEP_PRODUCT}`, noBackground: true },
+  { label: 'Mejorar luz', instruction: `Relight the scene with even, soft, professional product lighting that shows form and material texture. ${KEEP_PRODUCT}` },
+];
 
 export function CreationWizard({ kind, onSave, onClose }: Props) {
   const [step, setStep] = useState<Step>('intent');
   const [text, setText] = useState('');
   const [clarify, setClarify] = useState<ClarifyResult | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [versions, setVersions] = useState<GeneratedImage[]>([]);
+  const [brief, setBrief] = useState<ProductBrief | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [versions, setVersions] = useState<Version[]>([]);
   const [current, setCurrent] = useState(0);
   const [editPrompt, setEditPrompt] = useState('');
   const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const composedAppearance = () => {
     const extra = Object.values(answers).filter(Boolean).join(', ');
@@ -32,6 +51,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     return extra ? `${base}, ${extra}` : base;
   };
 
+  // ---- character ----
   async function handleIntentNext() {
     if (text.trim().length < 3) return;
     setBusy(true);
@@ -48,28 +68,56 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     setBusy(true);
     try {
       const out = await generateCharacter(appearance);
-      if (isGenError(out)) {
-        toast.error(out.message || 'No se pudo generar');
-        return;
-      }
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
       setVersions([out]);
       setCurrent(0);
       setStep('preview');
     } finally { setBusy(false); }
   }
 
-  async function handleEdit() {
-    if (editPrompt.trim().length < 3 || versions.length === 0) return;
+  // ---- product ----
+  async function handleUpload(file: File | undefined) {
+    if (!file) return;
     setBusy(true);
     try {
-      const parent = versions[current].generationId;
-      const out = await editImage(parent, editPrompt.trim());
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) { toast.error(res.message); return; }
+      setVersions([{ refId: res.ref.id, previewUrl: res.ref.previewUrl, storagePath: res.ref.storagePath }]);
+      setCurrent(0);
+      setStep('brief');
+      setBriefLoading(true);
+      const analyzed = await analyzeProductImageAction(res.ref.id);
+      if (analyzed.ok) setBrief(analyzed.data);
+      setBriefLoading(false);
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  // ---- shared edit (rama según el origen de la versión actual) ----
+  async function applyEdit(instruction: string, opts?: { noBackground?: boolean }) {
+    const v = versions[current];
+    if (!v || instruction.trim().length < 3) return;
+    setBusy(true);
+    try {
+      const out = v.generationId
+        ? await editImage(v.generationId, instruction.trim(), opts)
+        : v.storagePath
+          ? await editUploaded({ id: v.refId, storagePath: v.storagePath }, instruction.trim(), opts)
+          : null;
+      if (!out) return;
       if (isGenError(out)) { toast.error(out.message || 'No se pudo editar'); return; }
       const next = [...versions, out];
       setVersions(next);
       setCurrent(next.length - 1);
       setEditPrompt('');
     } finally { setBusy(false); }
+  }
+
+  function handleFreeEdit() {
+    const instruction = kind === 'product' ? `${editPrompt.trim()}. ${KEEP_PRODUCT}` : editPrompt.trim();
+    void applyEdit(instruction);
   }
 
   async function handleSave() {
@@ -87,13 +135,13 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
       <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
           <h2 className="text-[15px] font-medium text-foreground">
-            Crear {kind === 'character' ? 'personaje' : 'producto'} con IA
+            {kind === 'character' ? 'Crear personaje con IA' : 'Preparar producto con IA'}
           </h2>
           <button type="button" onClick={onClose} className="text-[13px] text-muted-foreground hover:text-foreground">Cerrar</button>
         </div>
 
         <div className="space-y-4 p-5">
-          {step === 'intent' && (
+          {step === 'intent' && kind === 'character' && (
             <>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Describe lo que quieres
@@ -103,18 +151,29 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                 onChange={(e) => setText(e.target.value)}
                 rows={3}
                 maxLength={1000}
-                placeholder={kind === 'character'
-                  ? 'una creadora de cocina, pelo rizado, entrega cercana…'
-                  : 'mi lata de refresco sobre fondo limpio…'}
+                placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
               />
-              <div className="flex gap-2">
-                <button type="button" onClick={handleIntentNext} disabled={busy || text.trim().length < 3}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                  {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-                  Continuar
-                </button>
-              </div>
+              <button type="button" onClick={handleIntentNext} disabled={busy || text.trim().length < 3}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                Continuar
+              </button>
+            </>
+          )}
+
+          {step === 'intent' && kind === 'product' && (
+            <>
+              <p className="text-[13px] text-muted-foreground">
+                Sube una foto de tu producto. La IA la limpia y mejora — nunca inventa tu producto.
+              </p>
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={busy}
+                className="inline-flex items-center gap-2 rounded-md border border-dashed border-border px-4 py-6 text-[13px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+                Subir foto del producto
+              </button>
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                onChange={(e) => handleUpload(e.target.files?.[0])} />
             </>
           )}
 
@@ -146,6 +205,27 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
             </>
           )}
 
+          {step === 'brief' && (
+            <>
+              <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                {briefLoading && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                {briefLoading ? 'Analizando el producto…' : 'Esto es lo que la IA ve en tu producto:'}
+              </div>
+              {brief && (
+                <div className="space-y-1 rounded-lg border border-border bg-muted/20 p-3 text-[12.5px] text-foreground">
+                  <p><span className="text-muted-foreground">Producto:</span> {brief.productName}</p>
+                  <p><span className="text-muted-foreground">Categoría:</span> {brief.category}</p>
+                  {brief.visualDetails && <p><span className="text-muted-foreground">Detalles:</span> {brief.visualDetails}</p>}
+                  {brief.palette.length > 0 && <p><span className="text-muted-foreground">Paleta:</span> {brief.palette.join(', ')}</p>}
+                </div>
+              )}
+              <button type="button" onClick={() => setStep('preview')} disabled={busy || briefLoading}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                Continuar
+              </button>
+            </>
+          )}
+
           {step === 'preview' && versions.length > 0 && (
             <>
               <div className="relative grid place-items-center rounded-lg border border-border bg-muted/20 p-2">
@@ -159,17 +239,32 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                   </div>
                 )}
               </div>
+
+              {kind === 'product' && (
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ACTIONS.map((a) => (
+                    <button key={a.label} type="button" disabled={busy}
+                      onClick={() => void applyEdit(a.instruction, { noBackground: a.noBackground })}
+                      className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div>
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Editar (un cambio por vez)</label>
                 <div className="mt-1.5 flex gap-2">
-                  <input value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} placeholder="ej. pelo más corto"
+                  <input value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder={kind === 'character' ? 'ej. pelo más corto' : 'ej. fondo más cálido'}
                     className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-primary/40" />
-                  <button type="button" onClick={handleEdit} disabled={busy || editPrompt.trim().length < 3}
+                  <button type="button" onClick={handleFreeEdit} disabled={busy || editPrompt.trim().length < 3}
                     className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[12.5px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
                     {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : 'Aplicar'}
                   </button>
                 </div>
               </div>
+
               <button type="button" onClick={handleSave} disabled={busy}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
