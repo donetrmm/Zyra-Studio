@@ -11,8 +11,12 @@
 
 - **El producto real se respeta.** La IA NUNCA inventa el empaque/logo de un producto de marca.
   Para producto, la IA solo: (a) auto-detecta el brief (reusa `analyzeProductBrief`) y (b)
-  **mejora opcional** de la foto subida (quitar fondo, luz, ángulo) con Nano Banana, solo si el
+  **mejora opcional** de la foto subida (quitar fondo, mejorar luz) con Nano Banana, solo si el
   usuario lo pide. La generación desde cero con FLUX es **solo para personajes** (ficticios).
+  > **Corrección 2026-06-13 (implementación Plan 2):** se descartó la acción "generar ángulo"
+  > que listaba este spec — generar una cara no vista del producto **fabrica geometría** y choca
+  > con la regla dura de no inventar atributos. Las mejoras solo ajustan fondo/luz manteniendo el
+  > producto idéntico.
 - **Flujo = wizard guiado con aclaración IA**, no chat libre. Pasos cortos y predecibles; Gemini
   hace 1-2 preguntas concretas antes de generar, en **una sola ronda**.
 - **Estado efímero en cliente** (Enfoque A). Nada nuevo en la base; solo persiste al Guardar.
@@ -134,8 +138,8 @@ Modal/panel client-side con estado efímero (respuestas + versiones en memoria).
      (multi-turn; un cambio por iteración — el server reconstruye el turn previo con su
      `thought_signature`). Cada salida es una **versión** navegable (◀ ▶); su `media_reference`
      se obtiene igual con `addGenerationAsReferenceAction`.
-   - *product* expone acciones rápidas: **quitar fondo** (`noBackground`), **mejorar luz**,
-     **generar ángulo**, además del prompt libre.
+   - *product* expone acciones rápidas: **quitar fondo** (`noBackground`) y **mejorar luz**,
+     además del prompt libre. (Sin "generar ángulo": fabricaría una cara no vista del producto.)
    - *Guardar:* ver tarea 4/5.
 
 La UI muestra el **costo en créditos por acción** (FLUX/Nano Banana) antes de ejecutarla
