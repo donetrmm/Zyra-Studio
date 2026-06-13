@@ -150,9 +150,15 @@ La UI muestra el **costo en créditos por acción** (FLUX/Nano Banana) antes de 
 En `CastPage.tsx`, botón "Crear con IA" abre el wizard en modo `character`. Absorbe el actual
 "Generar con IA" (que generaba solo desde texto). Al Guardar:
 
-- `createCharacterAction` con la imagen elegida como `masterImageId`.
+- `createCharacterAction` con la imagen elegida como `masterImageId` y los ángulos de
+  consistencia como `angleImageIds` (máx 2).
 - La `description` se obtiene corriendo `describeCharacterImage` **sobre la imagen final**
   generada → la descripción matchea exactamente lo que se ve (no el prompt de entrada).
+- **Ángulos de consistencia (2026-06-13):** en el preview, el wizard ofrece generar perfil
+  (lado) y 3/4 del MISMO personaje (`generateAngle` → Nano Banana edita el retrato master
+  rotando la cámara, manteniendo identidad). Legítimo porque el personaje es ficticio (no es
+  un producto real). Se guardan en `angle_image_ids`; el Prompt Director ya los usa para la
+  consistencia multi-toma (guía Morphic §4.2).
 
 ### 5. Integración Brand Kit — modo `product` (1.5h)
 
