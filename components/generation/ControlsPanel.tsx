@@ -165,7 +165,7 @@ export function ControlsPanel(props: ControlsPanelProps) {
               <span className="flex-1 text-[11.5px] leading-[1.4] text-foreground">
                 Tu prompt parece pedir datos actuales. Activa búsqueda en Google para que el modelo use info real.
               </span>
-              <span className="shrink-0 rounded-md bg-primary px-2 py-0.5 font-mono text-[10px] font-medium text-primary-foreground">
+              <span className="shrink-0 rounded-md bg-primary px-2 py-0.5 font-mono text-[11px] font-medium text-primary-foreground">
                 +20% cr
               </span>
             </button>
@@ -328,7 +328,7 @@ function IntentPicker({
 }) {
   return (
     <div className="mt-3">
-      <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
         Estilo · opcional
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -567,7 +567,7 @@ function PromptArea({
           style={{ minHeight: 96, maxHeight: 280 }}
         />
         <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5">
-          <div className={cn('font-mono text-[10.5px]', value.length > 7200 ? 'text-amber-400' : 'text-muted-foreground/70')}>
+          <div className={cn('font-mono text-[11px]', value.length > 7200 ? 'text-amber-400' : 'text-muted-foreground/70')}>
             {value.length.toLocaleString('es-MX')} / 8.000
           </div>
           <button
@@ -594,7 +594,7 @@ function PromptArea({
               <Sparkles className="size-3" aria-hidden />
             )}
             Mejorar
-            <span className="font-mono text-[10px] opacity-70">
+            <span className="font-mono text-[11px] opacity-70">
               −{enhanceCost} cr
             </span>
           </button>
@@ -608,7 +608,7 @@ function PromptArea({
               <Sparkles className="size-3" aria-hidden />
               Sugerencia
             </div>
-            <div className="font-mono text-[10px] text-muted-foreground/70">
+            <div className="font-mono text-[11px] text-muted-foreground/70">
               {suggestion.length} caracteres
             </div>
           </div>
@@ -758,7 +758,7 @@ function ToggleRow({
             <div className="mt-0.5 text-[11px] text-muted-foreground/80">{hint}</div>
           )}
           {costNote && (
-            <div className="mt-1 font-mono text-[10.5px] text-primary">{costNote}</div>
+            <div className="mt-1 font-mono text-[11px] text-primary">{costNote}</div>
           )}
         </div>
       </div>

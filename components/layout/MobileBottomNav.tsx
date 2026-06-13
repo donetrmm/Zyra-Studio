@@ -41,14 +41,15 @@ export function MobileBottomNav() {
     <>
       {open && (
         <div
+          aria-hidden
           className="fixed inset-0 bottom-[52px] z-40 bg-background/60 backdrop-blur-sm lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
-      <nav className="relative z-50 shrink-0 grid grid-cols-5 border-t border-border bg-background/95 lg:hidden">
+      <nav aria-label="Navegación principal" className="relative z-50 shrink-0 grid grid-cols-5 border-t border-border bg-background/95 lg:hidden">
         {open && (
-          <div className="absolute bottom-full left-0 right-0 border-t border-border bg-card px-4 pb-2 pt-3">
+          <div id="more-panel" className="absolute bottom-full left-0 right-0 border-t border-border bg-card px-4 pb-2 pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Más secciones
@@ -70,9 +71,10 @@ export function MobileBottomNav() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5 text-[10.5px] transition-colors",
+                      "flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5 text-[11px] transition-colors",
                       active
                         ? "bg-primary/10 text-foreground"
                         : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -95,6 +97,7 @@ export function MobileBottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 py-2 text-[11px] transition-colors",
                 active
@@ -110,6 +113,8 @@ export function MobileBottomNav() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls="more-panel"
           className={cn(
             "flex flex-col items-center justify-center gap-1 py-2 text-[11px] transition-colors",
             open || isMoreActive

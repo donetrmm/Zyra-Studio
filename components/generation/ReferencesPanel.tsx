@@ -132,7 +132,7 @@ export function ReferencesPanel({
             <div className="text-[12.5px] text-muted-foreground">
               {uploading ? 'Subiendo…' : 'Arrastra imágenes o haz click'}
             </div>
-            <div className="font-mono text-[10.5px]">
+            <div className="font-mono text-[11px]">
               JPG · PNG · WEBP · GIF · BMP · TIFF · max 10 MB
             </div>
           </div>
@@ -254,11 +254,11 @@ function AvailablePicker({
             )}
           />
           Tus referencias
-          <span className="font-mono text-[10.5px] text-muted-foreground/60">
+          <span className="font-mono text-[11px] text-muted-foreground/60">
             {items.length}
           </span>
         </span>
-        <span className="text-[10.5px] text-muted-foreground/70">
+        <span className="text-[11px] text-muted-foreground/70">
           {open ? 'Ocultar' : 'Mostrar'}
         </span>
       </button>
@@ -303,7 +303,7 @@ function AvailablePicker({
                     className="size-full object-cover"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-[9px] text-muted-foreground/60">
+                  <div className="grid h-full place-items-center text-[11px] text-muted-foreground/60">
                     {r.filename.slice(0, 8)}
                   </div>
                 )}

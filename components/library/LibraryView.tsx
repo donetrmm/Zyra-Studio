@@ -380,7 +380,7 @@ function CompareModal({
                 )}
               </div>
               <p className="line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">{g.prompt}</p>
-              <p className="text-[10px] text-muted-foreground/50">{modelLabel(g)}</p>
+              <p className="text-[11px] text-muted-foreground/50">{modelLabel(g)}</p>
             </div>
           ))}
         </div>
@@ -756,7 +756,7 @@ function LibTile({
                 />
               ))}
             </div>
-            <span className="font-mono text-[9px] text-muted-foreground/50">
+            <span className="font-mono text-[11px] text-muted-foreground/50">
               {gen.status === 'done' ? 'Audio' : gen.status}
             </span>
           </div>
@@ -767,7 +767,7 @@ function LibTile({
             <div className="grid size-9 place-items-center rounded-full border border-primary/25 bg-primary/10">
               <VideoIcon className="size-4 text-primary/70" aria-hidden />
             </div>
-            <span className="font-mono text-[9px] text-muted-foreground/50">
+            <span className="font-mono text-[11px] text-muted-foreground/50">
               {gen.status === 'done' ? 'Video' : gen.status}
             </span>
           </div>
@@ -792,7 +792,7 @@ function LibTile({
       {variantTag && (
         <div
           className={cn(
-            'absolute bottom-2 left-2 rounded-full border border-border/40 bg-background/70 px-2 py-0.5 font-mono text-[10px] text-foreground/85 backdrop-blur transition-opacity',
+            'absolute bottom-2 left-2 rounded-full border border-border/40 bg-background/70 px-2 py-0.5 font-mono text-[11px] text-foreground/85 backdrop-blur transition-opacity',
             hover ? 'opacity-100' : 'opacity-60',
           )}
         >
@@ -993,7 +993,7 @@ function DetailAside({
                 <div className="mb-1 text-center text-[12px] font-medium text-foreground/80">
                   {modelLabel(generation)}
                 </div>
-                <div className="mb-4 font-mono text-[10.5px] text-muted-foreground/60">
+                <div className="mb-4 font-mono text-[11px] text-muted-foreground/60">
                   {generation.credits > 0 && `−${generation.credits} cr · `}
                   {shortTime(generation.createdAt)}
                 </div>
@@ -1180,13 +1180,13 @@ function DetailAside({
                   onClick={() => onNavigate(parent.id)}
                   className="mb-1.5 flex w-full items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-left text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <span className="text-[10px]">↑</span>
+                  <span className="text-[11px]">↑</span>
                   <span className="min-w-0 flex-1 truncate">{parent.prompt || 'Padre'}</span>
                 </button>
               )}
               {siblings.length > 0 && (
                 <div className="mb-1.5">
-                  <p className="mb-1 text-[10px] text-muted-foreground/60">
+                  <p className="mb-1 text-[11px] text-muted-foreground/60">
                     Batch ({generation.batchKind ? batchLabel(generation.batchKind) : ''}) · {siblings.length + 1} items
                   </p>
                   {siblings.slice(0, 5).map((s) => (
@@ -1196,7 +1196,7 @@ function DetailAside({
                       onClick={() => onNavigate(s.id)}
                       className="mb-0.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
                     >
-                      <span className="text-[10px]">↔</span>
+                      <span className="text-[11px]">↔</span>
                       <span className="min-w-0 flex-1 truncate">{s.prompt || s.id.slice(0, 8)}</span>
                     </button>
                   ))}
@@ -1204,7 +1204,7 @@ function DetailAside({
               )}
               {children.length > 0 && (
                 <div>
-                  <p className="mb-1 text-[10px] text-muted-foreground/60">
+                  <p className="mb-1 text-[11px] text-muted-foreground/60">
                     Derivadas · {children.length}
                   </p>
                   {children.slice(0, 5).map((c) => (
@@ -1214,7 +1214,7 @@ function DetailAside({
                       onClick={() => onNavigate(c.id)}
                       className="mb-0.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1 text-left text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
                     >
-                      <span className="text-[10px]">↓</span>
+                      <span className="text-[11px]">↓</span>
                       <span className="min-w-0 flex-1 truncate">{c.prompt || c.id.slice(0, 8)}</span>
                     </button>
                   ))}
@@ -1327,13 +1327,13 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nombre del preset"
-        className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+        className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <input
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="Descripción (opcional)"
-        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+        className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
       />
       <label className="mt-2 flex items-center gap-2 text-[11.5px] text-muted-foreground">
         <input
@@ -1375,7 +1375,7 @@ function DetailRow({
 }) {
   return (
     <div className="mb-3.5">
-      <div className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
+      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
         {label}
       </div>
       {children}
@@ -1532,7 +1532,7 @@ function MiniAudioPlayer({ src }: { src: string }) {
               }}
             />
           </div>
-          <div className="flex justify-between font-mono text-[10px] text-muted-foreground/60">
+          <div className="flex justify-between font-mono text-[11px] text-muted-foreground/60">
             <span>{fmt(currentTime)}</span>
             <span>{fmt(duration)}</span>
           </div>

@@ -72,7 +72,7 @@ export function BrandKitSelector({
             />
           ))}
           {value.tone_description && (
-            <span className="ml-1 truncate text-[10px] text-muted-foreground/50">
+            <span className="ml-1 truncate text-[11px] text-muted-foreground/50">
               {value.tone_description.slice(0, 40)}
             </span>
           )}

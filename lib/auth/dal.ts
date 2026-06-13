@@ -37,10 +37,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   if (!profile) return null;
 
+  // Fallback al nombre de la metadata de auth: el trigger handle_new_user no
+  // copia full_name a profiles, así que sin esto el saludo cae al prefijo del
+  // email (hallazgo UX 2026-06-13). Cubre a todos los usuarios sin migración.
+  const metaFullName = user.user_metadata?.full_name;
+
   return {
     id: profile.id,
     email: profile.email,
-    fullName: profile.full_name,
+    fullName: profile.full_name ?? (typeof metaFullName === "string" ? metaFullName : null),
     avatarUrl: profile.avatar_url,
     role: profile.role,
     status: profile.status,

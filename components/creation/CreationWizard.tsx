@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { clarifyCreationAction, analyzeKitFromImageAction } from '@/server-actions/creation';
@@ -78,6 +78,13 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     kind === 'character' ? 'Crear personaje con IA'
       : productFlow === 'improve' ? 'Mejorar con IA'
         : 'Crear producto con IA';
+
+  // Cerrar con Escape (a11y: el modal debe ser descartable por teclado).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const composedAppearance = () => {
     const extra = Object.values(answers).filter(Boolean).join(', ');
@@ -254,7 +261,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal aria-label={title}>
       <div className="w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-3.5">
           <h2 className="text-[15px] font-medium text-foreground">{title}</h2>
@@ -267,7 +274,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Describe lo que quieres</label>
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
                 placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
-                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               <button type="button" onClick={handleIntentNext} disabled={busy || text.trim().length < 3}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Continuar
@@ -280,7 +287,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
               <p className="text-[13px] text-muted-foreground">Describe el producto. La IA generará un <span className="text-foreground">concepto</span> — no una foto real.</p>
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
                 placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
-                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               <button type="button" onClick={runConcept} disabled={busy || text.trim().length < 3}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />} Generar concepto
@@ -350,7 +357,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                   </div>
                   <input value={answers[q.id] ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
                     placeholder="o escribe…" maxLength={120}
-                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-primary/40" />
+                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12.5px] outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
                 </div>
               ))}
               <button type="button" onClick={() => runCharacter(composedAppearance())} disabled={busy}
@@ -446,7 +453,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                 <div className="mt-1.5 flex gap-2">
                   <input value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)}
                     placeholder={kind === 'character' ? 'ej. pelo más corto' : 'ej. fondo más cálido'}
-                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-primary/40" />
+                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-[13px] outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
                   <button type="button" onClick={handleFreeEdit} disabled={busy || editPrompt.trim().length < 3}
                     className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[12.5px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
                     {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : 'Aplicar'}
@@ -478,7 +485,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
               <div>
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre del kit</label>
                 <input value={kitName} onChange={(e) => setKitName(e.target.value)} maxLength={100}
-                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               </div>
 
               <div>
@@ -489,10 +496,10 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                       <div className="size-6 shrink-0 rounded-md border border-border" style={{ backgroundColor: c.hex }} />
                       <input value={c.hex} maxLength={7}
                         onChange={(e) => setKitColors((cs) => cs.map((x, j) => (j === i ? { ...x, hex: e.target.value } : x)))}
-                        className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40" />
+                        className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
                       <input value={c.name}
                         onChange={(e) => setKitColors((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                        className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus:border-primary/40" />
+                        className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
                       <button type="button" onClick={() => setKitColors((cs) => cs.filter((_, j) => j !== i))}
                         className="text-[11px] text-muted-foreground hover:text-destructive">x</button>
                     </div>
@@ -508,7 +515,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tono de voz</label>
                 <input value={kitTone} onChange={(e) => setKitTone(e.target.value)} maxLength={200}
                   placeholder="ej. minimalista y fresco"
-                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40" />
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               </div>
 
               <button type="button" onClick={handleCreateKit} disabled={busy || kitLoading}

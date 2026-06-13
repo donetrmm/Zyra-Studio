@@ -95,7 +95,9 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  /* Subido de 0.708 → 0.78 por contraste AA: el texto secundario y sus
+     variantes a opacidad (/70, /60) quedaban por debajo de 4.5:1 sobre el fondo. */
+  --muted-foreground: oklch(0.78 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);

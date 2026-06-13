@@ -87,7 +87,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-[18px] font-semibold text-foreground">Mis voces</h1>
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400">
               <FlaskConical className="size-3" aria-hidden />
               Experimental
             </span>
@@ -125,7 +125,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 name="name"
                 required
                 placeholder="Ej: Narrador principal"
-                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
             <div>
@@ -133,7 +133,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
               <input
                 name="description"
                 placeholder="Ej: Voz masculina grave, tono calmado"
-                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
             <div>
@@ -146,7 +146,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 required
                 className="mt-1 w-full text-[12.5px] text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-primary file:cursor-pointer"
               />
-              <p className="mt-1 text-[10.5px] text-muted-foreground/50">1-2 minutos de audio por archivo</p>
+              <p className="mt-1 text-[11px] text-muted-foreground/50">1-2 minutos de audio por archivo</p>
             </div>
             <div className="flex gap-2 pt-1">
               <button
@@ -183,7 +183,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
               value={tryText}
               onChange={(e) => setTryText(e.target.value.slice(0, 500))}
               placeholder="Escribe el texto que quieres escuchar..."
-              className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
+              className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               rows={2}
             />
             <div className="mt-3 flex items-center gap-3">
@@ -237,7 +237,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 </div>
                 <span
                   className={cn(
-                    'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
                     v.status === 'ready'
                       ? 'bg-emerald-500/10 text-emerald-400'
                       : v.status === 'failed'
@@ -315,7 +315,24 @@ function MiniPlayer({ src }: { src: string }) {
       <button type="button" onClick={toggle} className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
         {playing ? <Pause className="size-3" aria-hidden /> : <Play className="ml-0.5 size-3" aria-hidden />}
       </button>
-      <div className="h-1.5 flex-1 cursor-pointer rounded-full bg-border" onClick={seek}>
+      <div
+        role="slider"
+        tabIndex={0}
+        aria-label="Progreso del audio"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress * 100)}
+        onClick={seek}
+        onKeyDown={(e) => {
+          const el = audioRef.current;
+          if (!el || !el.duration) return;
+          if (e.key === 'ArrowRight') { el.currentTime = Math.min(el.duration, el.currentTime + el.duration * 0.05); e.preventDefault(); }
+          else if (e.key === 'ArrowLeft') { el.currentTime = Math.max(0, el.currentTime - el.duration * 0.05); e.preventDefault(); }
+          else if (e.key === 'Home') { el.currentTime = 0; e.preventDefault(); }
+          else if (e.key === 'End') { el.currentTime = el.duration; e.preventDefault(); }
+        }}
+        className="h-1.5 flex-1 cursor-pointer rounded-full bg-border outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
         <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress * 100}%` }} />
       </div>
     </div>

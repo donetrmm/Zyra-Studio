@@ -138,7 +138,7 @@ export function SeedanceRefsPanel({
                 <X className="size-2.5" aria-hidden />
               </button>
               <div className="absolute bottom-1 left-1 flex max-w-[calc(100%-8px)] items-center gap-1 rounded bg-background/75 px-1 py-0.5 backdrop-blur">
-                <span className="font-mono text-[9px] text-foreground/90">{seedanceRefLabel(refs, i)}</span>
+                <span className="font-mono text-[11px] text-foreground/90">{seedanceRefLabel(refs, i)}</span>
                 {ref.sourceLabel && (
                   <span className="truncate text-[8.5px] text-primary/90">{ref.sourceLabel}</span>
                 )}
@@ -164,7 +164,7 @@ export function SeedanceRefsPanel({
                 <button
                   type="button"
                   onClick={() => onCite(citeText(refs, i))}
-                  className="shrink-0 text-[10.5px] text-primary/80 transition-colors hover:text-primary"
+                  className="shrink-0 text-[11px] text-primary/80 transition-colors hover:text-primary"
                 >
                   Citar en prompt
                 </button>
@@ -187,7 +187,7 @@ export function SeedanceRefsPanel({
       </button>
 
       {refs.length > 0 && (
-        <p className="px-1 text-[10.5px] leading-relaxed text-muted-foreground/60">
+        <p className="px-1 text-[11px] leading-relaxed text-muted-foreground/60">
           Cita cada archivo en el prompt con su etiqueta y un propósito: &quot;@Image1 es el producto,
           empaque exacto&quot;, &quot;replica el movimiento de cámara de @Video1&quot;, &quot;@Audio1 marca el ritmo&quot;.
           Una referencia sin propósito declarado es el error más común.

@@ -219,7 +219,7 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por nombre..."
-              className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-[13px] text-foreground outline-none focus:border-primary/40"
+              className="w-full rounded-md border border-border bg-background py-2 pl-8 pr-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <button

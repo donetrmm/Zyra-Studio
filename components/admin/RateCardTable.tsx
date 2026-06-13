@@ -58,7 +58,7 @@ export function RateCardTable({ rows: initial }: { rows: RateCardRow[] }) {
             <tr key={row.id} className={`border-b border-border/50 last:border-0 ${row.active ? '' : 'opacity-50'}`}>
               <td className="px-3 py-2">
                 <p className="text-foreground/90">{row.label}</p>
-                <p className="font-mono text-[10.5px] text-muted-foreground/50">{row.asset_type}</p>
+                <p className="font-mono text-[11px] text-muted-foreground/50">{row.asset_type}</p>
               </td>
               {(['low_usd', 'mid_usd', 'high_usd'] as const).map((field) => (
                 <td key={field} className="px-3 py-2 text-right">
@@ -67,7 +67,7 @@ export function RateCardTable({ rows: initial }: { rows: RateCardRow[] }) {
                     min={0}
                     value={row[field]}
                     onChange={(e) => patch(row.id, field, Number(e.target.value))}
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-right font-mono text-[12px] text-foreground outline-none focus:border-primary/40"
+                    className="w-24 rounded-md border border-border bg-background px-2 py-1 text-right font-mono text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                   />
                 </td>
               ))}

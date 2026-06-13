@@ -11,7 +11,7 @@ export function PreviewToolbar({ ready, label = 'Vista previa' }: { ready: boole
           {label}
         </div>
         {ready && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] text-emerald-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-400">
             <span className="size-[5px] rounded-full bg-emerald-400" />
             Lista
           </span>

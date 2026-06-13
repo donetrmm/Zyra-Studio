@@ -147,7 +147,7 @@ export function SeedanceBrandCastPanel({
                 >
                   {active && <Check className="size-3 text-primary" aria-hidden />}
                   {kit.name}
-                  <span className={cn('font-mono text-[10px]', active ? 'text-primary' : 'text-muted-foreground/50')}>
+                  <span className={cn('font-mono text-[11px]', active ? 'text-primary' : 'text-muted-foreground/50')}>
                     {active ? `${included}/${kit.images.length}` : kit.images.length}
                   </span>
                 </button>

@@ -91,7 +91,7 @@ export function CollectionsTab({ collections: initial }: { collections: Collecti
                   {c.description && (
                     <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{c.description}</p>
                   )}
-                  <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground/50">
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground/50">
                     <span>
                       {c.generationCount} generacion{c.generationCount !== 1 ? 'es' : ''}
                     </span>
@@ -185,13 +185,13 @@ function CollectionEditor({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nombre de la colección"
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Descripción (opcional)"
-          className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
+          className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           rows={2}
         />
         <div className="flex items-center gap-2">
@@ -205,7 +205,7 @@ function CollectionEditor({
               value={color}
               onChange={(e) => setColor(e.target.value)}
               maxLength={7}
-              className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus:border-primary/40"
+              className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
         </div>

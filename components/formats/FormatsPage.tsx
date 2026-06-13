@@ -132,11 +132,11 @@ function FormatCard({
           </div>
           <div>
             <h3 className="text-[14px] font-medium text-foreground">{format.name}</h3>
-            <p className="font-mono text-[10.5px] text-muted-foreground/50">{format.slug}</p>
+            <p className="font-mono text-[11px] text-muted-foreground/50">{format.slug}</p>
           </div>
         </div>
         {format.isSystem ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground/60">
+          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground/60">
             <Lock className="size-2.5" aria-hidden /> sistema
           </span>
         ) : (
@@ -167,7 +167,7 @@ function FormatCard({
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10.5px]">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
         <span className="rounded-full border border-border px-2 py-0.5 text-muted-foreground/70">
           {format.defaultDurationS}s
         </span>
@@ -261,7 +261,7 @@ function FormatEditor({
               }}
               placeholder="El Contraste"
               maxLength={80}
-              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -277,7 +277,7 @@ function FormatEditor({
               }}
               placeholder="el-contraste"
               maxLength={60}
-              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[12.5px] text-foreground outline-none focus:border-primary/40"
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
         </div>
@@ -293,7 +293,7 @@ function FormatEditor({
             placeholder="Qué es y cuándo usarlo"
             rows={2}
             maxLength={500}
-            className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
+            className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </div>
 
@@ -308,7 +308,7 @@ function FormatEditor({
               onChange={(e) => setRegister(e.target.value)}
               placeholder="documental cercano, voz casual"
               maxLength={300}
-              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -321,7 +321,7 @@ function FormatEditor({
               onChange={(e) => setCameraStyle(e.target.value)}
               placeholder="handheld a nivel de ojos"
               maxLength={300}
-              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -334,7 +334,7 @@ function FormatEditor({
               onChange={(e) => setPacing(e.target.value)}
               placeholder="cortes rápidos al inicio, cierre quieto"
               maxLength={200}
-              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary/40"
+              className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
         </div>

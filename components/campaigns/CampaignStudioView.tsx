@@ -101,7 +101,7 @@ const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_LABEL[status] ?? STATUS_LABEL.planned;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] ${s.tone}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] ${s.tone}`}>
       {s.live && <Loader2 className="size-2.5 animate-spin" aria-hidden />}
       {s.label}
     </span>
@@ -390,7 +390,7 @@ function PlanTable({
         >
           {item.formatName}
           {item.templateId && (
-            <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
+            <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[11px] text-primary">
               serie
             </span>
           )}
@@ -487,7 +487,7 @@ function PlanTable({
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm text-zinc-300">
                 {group.label ?? 'Secuencia'} · {group.scenes.length} escenas
-                <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] uppercase text-zinc-400">sugerida por IA</span>
+                <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] uppercase text-zinc-400">sugerida por IA</span>
               </div>
               <button
                 type="button"
@@ -527,7 +527,7 @@ function PlanTable({
                       >
                         {scene.formatName}
                         {scene.templateId && (
-                          <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">
+                          <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[11px] text-primary">
                             serie
                           </span>
                         )}
@@ -972,7 +972,7 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
           placeholder="Nombre de la plantilla"
-          className="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+          className="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
@@ -1119,7 +1119,7 @@ function VariantDialog({
                 rows={2}
                 maxLength={500}
                 placeholder="She sets the can down and looks back to camera with a smile"
-                className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+                className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
           </div>
@@ -1135,7 +1135,7 @@ function VariantDialog({
                 id="variant-char"
                 value={characterId}
                 onChange={(e) => setCharacterId(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {characterOptions.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1157,7 +1157,7 @@ function VariantDialog({
               rows={3}
               maxLength={500}
               placeholder="She opens the can, takes a sip and raises it toward the camera"
-              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
         ) : (
@@ -1175,7 +1175,7 @@ function VariantDialog({
                   id="variant-bridge"
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {bridgeOptions.map((b) => (
                     <option key={b.id} value={b.generationId ?? ''}>
@@ -1309,7 +1309,7 @@ function EditItemDialog({
           onChange={(e) => setScenePrompt(e.target.value)}
           rows={4}
           maxLength={4000}
-          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1334,7 +1334,7 @@ function EditItemDialog({
               id="edit-character"
               value={characterId}
               onChange={(e) => setCharacterId(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <option value="">Sin cambio / sin personaje</option>
               {characterOptions.map((c) => (
@@ -1367,7 +1367,7 @@ function EditItemDialog({
           type="date"
           value={scheduledDate}
           onChange={(e) => setScheduledDate(e.target.value)}
-          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div className="mt-5 flex justify-end gap-2">

@@ -22,7 +22,7 @@ export function PipelineBar({ gate }: { gate: CampaignGate }) {
           />
           <p
             className={cn(
-              'mt-1 text-[10px] uppercase tracking-wide',
+              'mt-1 text-[11px] uppercase tracking-wide',
               i === gate.stage ? 'text-foreground/80' : 'text-muted-foreground/50',
             )}
           >

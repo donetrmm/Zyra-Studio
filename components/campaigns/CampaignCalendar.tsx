@@ -159,7 +159,7 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
             rows={2}
             maxLength={500}
             aria-label="Instrucción de refinamiento"
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus:border-primary/50"
+            className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           <button
             type="button"
@@ -273,7 +273,7 @@ export function CalendarView({
         {WEEKDAYS.map((d, i) => (
           <div
             key={`${d}-${i}`}
-            className="bg-muted/30 px-2 py-1.5 text-center text-[10.5px] uppercase text-muted-foreground/60"
+            className="bg-muted/30 px-2 py-1.5 text-center text-[11px] uppercase text-muted-foreground/60"
           >
             {d}
           </div>
@@ -292,7 +292,7 @@ export function CalendarView({
               onDrop={() => handleDrop(cell.iso)}
               className={`min-h-20 bg-card/60 p-1.5 transition-colors ${overDay === cell.iso ? 'bg-primary/10' : ''}`}
             >
-              <p className="text-[10.5px] text-muted-foreground/50">{cell.day}</p>
+              <p className="text-[11px] text-muted-foreground/50">{cell.day}</p>
               <div className="mt-1 space-y-1">
                 {(byDate.get(cell.iso) ?? []).map((item) => (
                   <div
@@ -301,7 +301,7 @@ export function CalendarView({
                     onDragStart={() => setDragId(item.id)}
                     onDragEnd={() => setDragId(null)}
                     title={`${item.formatName}: ${item.scenePrompt}`}
-                    className={`cursor-grab truncate rounded-md border px-1.5 py-0.5 text-[10px] active:cursor-grabbing ${
+                    className={`cursor-grab truncate rounded-md border px-1.5 py-0.5 text-[11px] active:cursor-grabbing ${
                       item.status === 'final_ready'
                         ? 'border-sky-300/40 text-sky-300'
                         : item.status === 'draft_ready'

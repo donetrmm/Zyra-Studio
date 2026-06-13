@@ -194,7 +194,7 @@ export function RefineView({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={s.image} alt={s.name} loading="lazy" className="mb-1.5 aspect-[3/2] w-full rounded object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       <p className="text-[12px] font-medium text-foreground">{s.name}</p>
-                      <p className="text-[10.5px] leading-snug text-muted-foreground">{s.whenToUse}</p>
+                      <p className="text-[11px] leading-snug text-muted-foreground">{s.whenToUse}</p>
                     </button>
                   ))}
                 </div>
@@ -226,7 +226,7 @@ export function RefineView({
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Escribe tu respuesta…"
               aria-label="Tu respuesta"
-              className="min-h-11 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] text-foreground outline-none focus:border-primary/50"
+              className="min-h-11 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
             <button
               type="submit"

@@ -229,7 +229,7 @@ function ConvMessage({
       <div className="mb-3.5 flex justify-end">
         <div className="max-w-[76%] rounded-[14px] rounded-tr-[4px] border border-primary/40 bg-primary/10 px-3.5 py-2.5 text-[13.5px] leading-[1.5] text-foreground">
           {item.prompt}
-          <div className="mt-1 text-right font-mono text-[10px] text-muted-foreground/80">
+          <div className="mt-1 text-right font-mono text-[11px] text-muted-foreground/80">
             {t}
           </div>
         </div>
@@ -242,7 +242,7 @@ function ConvMessage({
         <div className="min-w-0 flex-1">
           <div className="mb-1.5 flex items-baseline gap-2">
             <span className="text-[12px] font-medium text-foreground">1to1</span>
-            <span className="font-mono text-[10px] text-muted-foreground/80">
+            <span className="font-mono text-[11px] text-muted-foreground/80">
               {t} · −{item.credits} cr.
             </span>
           </div>
@@ -333,7 +333,7 @@ function PendingBubble() {
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex items-baseline gap-2">
           <span className="text-[12px] font-medium text-foreground">1to1</span>
-          <span className="font-mono text-[10px] text-muted-foreground/80">
+          <span className="font-mono text-[11px] text-muted-foreground/80">
             Aplicando cambio…
           </span>
         </div>

@@ -21,7 +21,7 @@ export function Step({
         <span
           className={cn(
             'relative top-0.5 inline-grid size-[18px] shrink-0 place-items-center rounded-full',
-            'border border-primary/40 bg-primary/10 text-[10.5px] font-medium tabular-nums text-primary',
+            'border border-primary/40 bg-primary/10 text-[11px] font-medium tabular-nums text-primary',
           )}
         >
           {index}

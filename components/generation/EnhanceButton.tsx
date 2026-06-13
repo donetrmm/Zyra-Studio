@@ -51,7 +51,7 @@ export function EnhanceButton({
             <Sparkles className="size-3" aria-hidden />
             Sugerencia
           </span>
-          <span className="font-mono text-[10px] text-muted-foreground">-{cost} cr</span>
+          <span className="font-mono text-[11px] text-muted-foreground">-{cost} cr</span>
         </div>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-foreground">{suggestion}</p>
         <div className="mt-2 flex gap-2">
@@ -104,7 +104,7 @@ export function EnhanceButton({
         <Sparkles className="size-3" aria-hidden />
       )}
       Mejorar con IA
-      <span className="font-mono text-[10px] opacity-70">-{cost} cr</span>
+      <span className="font-mono text-[11px] opacity-70">-{cost} cr</span>
     </button>
   );
 }

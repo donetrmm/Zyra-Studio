@@ -260,11 +260,11 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                 onChange={(e) => props.setSeedanceDuration(Number(e.target.value))}
                 className="w-full accent-primary"
               />
-              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
+              <div className="mt-0.5 flex justify-between text-[11px] text-muted-foreground/50">
                 <span>4s</span>
                 <span>15s</span>
               </div>
-              <p className="mt-1 px-0.5 text-[10.5px] text-muted-foreground/60">
+              <p className="mt-1 px-0.5 text-[11px] text-muted-foreground/60">
                 Una idea ≈ 4s; para varias acciones usa más duración o divide en clips.
               </p>
               <div className="mt-3.5">
@@ -309,7 +309,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                   placeholder="Fija la composición para iterar"
                   className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus:border-primary/40"
                 />
-                <p className="mt-1 px-0.5 text-[10.5px] text-muted-foreground/60">
+                <p className="mt-1 px-0.5 text-[11px] text-muted-foreground/60">
                   Mismo seed + mismo prompt = misma composición. Vacío = aleatorio (se guarda en la
                   generación para reusarlo).
                 </p>
@@ -382,7 +382,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                 onChange={(e) => props.setDuration(Number(e.target.value))}
                 className="w-full accent-primary"
               />
-              <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
+              <div className="mt-0.5 flex justify-between text-[11px] text-muted-foreground/50">
                 <span>5s</span>
                 <span>10s</span>
               </div>
@@ -538,7 +538,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                         >
                           <X className="size-3" aria-hidden />
                         </button>
-                        <div className="absolute bottom-1 left-1 rounded bg-background/70 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80 backdrop-blur">
+                        <div className="absolute bottom-1 left-1 rounded bg-background/70 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 backdrop-blur">
                           {!isVeo ? (i === 0 ? 'inicio' : 'final') : 'ref'}
                         </div>
                       </div>
@@ -575,7 +575,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                 )}
 
                 {props.referenceImages.length > 0 && (
-                  <p className="px-1 text-[10px] text-muted-foreground/50">
+                  <p className="px-1 text-[11px] text-muted-foreground/50">
                     {props.referenceImages.length === 1 ? 'Frame inicial' : 'Frame inicial + final'}
                   </p>
                 )}

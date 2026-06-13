@@ -116,7 +116,7 @@ export default async function DashboardPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={thumb} alt={g.model_id ?? ""} className="size-full object-cover" />
                     ) : (
-                      <div className="flex h-full items-center justify-center px-1 text-center text-[9px] text-muted-foreground">
+                      <div className="flex h-full items-center justify-center px-1 text-center text-[11px] text-muted-foreground">
                         {g.status === "done" ? g.type : g.status}
                       </div>
                     )}

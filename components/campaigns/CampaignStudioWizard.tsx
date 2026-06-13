@@ -302,7 +302,7 @@ export function CampaignStudioWizard({
             placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
             maxLength={6000}
             rows={3}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           <p className="text-[11.5px] text-muted-foreground/60">
             El plan tendrá un creativo por cada idea (o los que pidas: &ldquo;3 versiones

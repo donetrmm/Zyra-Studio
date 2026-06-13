@@ -71,7 +71,7 @@ export function ReferenceBudget({
             // eslint-disable-next-line @next/next/no-img-element
             <img key={t.key} src={t.url} alt={t.label} title={t.label} className="size-9 rounded-md border border-border object-cover" />
           ) : (
-            <div key={t.key} title={t.label} className="grid size-9 place-items-center rounded-md border border-border bg-muted/30 text-[9px] text-muted-foreground/60">
+            <div key={t.key} title={t.label} className="grid size-9 place-items-center rounded-md border border-border bg-muted/30 text-[11px] text-muted-foreground/60">
               {t.label.slice(0, 2)}
             </div>
           ),

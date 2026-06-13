@@ -9,7 +9,7 @@ export function Sidebar() {
   return (
     <aside className="hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground lg:flex">
       <Brand />
-      <nav className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
+      <nav aria-label="Navegación principal" className="scroll-thin flex-1 overflow-y-auto px-3 pb-6">
         {APP_SIDEBAR.map((section, idx) => (
           <div key={idx} className="mt-6 first:mt-2">
             {section.title ? (
@@ -53,6 +53,7 @@ function SidebarLink({ item }: { item: NavItem }) {
     <li>
       <Link
         href={item.href}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
           active
@@ -63,7 +64,7 @@ function SidebarLink({ item }: { item: NavItem }) {
         <Icon className="size-4" aria-hidden />
         <span className="flex-1">{item.label}</span>
         {item.badge && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
             {item.badge}
           </span>
         )}

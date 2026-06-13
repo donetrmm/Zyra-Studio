@@ -87,7 +87,7 @@ export function CampaignDetailPage({
                 )}
                 <div className="p-2.5">
                   <p className="line-clamp-2 text-[11px] text-muted-foreground/70">{g.prompt || 'Sin prompt'}</p>
-                  <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/40">
+                  <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/40">
                     <Icon className="size-3" aria-hidden />
                     <span>{g.status === 'done' ? `−${g.credits} cr` : g.status}</span>
                   </div>

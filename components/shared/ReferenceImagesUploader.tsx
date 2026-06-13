@@ -79,7 +79,7 @@ export function ReferenceImagesUploader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={img.previewUrl} alt={`${label} ${i + 1}`} className="size-full object-cover" />
             ) : (
-              <div className="grid size-full place-items-center text-[10px] text-muted-foreground/60">img {i + 1}</div>
+              <div className="grid size-full place-items-center text-[11px] text-muted-foreground/60">img {i + 1}</div>
             )}
             <button
               type="button"

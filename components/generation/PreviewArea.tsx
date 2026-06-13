@@ -404,7 +404,7 @@ function ResultState({
                     className="size-full object-cover"
                   />
                 ) : (
-                  <span className="grid h-full place-items-center text-[10px] text-muted-foreground/70">
+                  <span className="grid h-full place-items-center text-[11px] text-muted-foreground/70">
                     …
                   </span>
                 )}

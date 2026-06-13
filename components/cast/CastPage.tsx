@@ -269,7 +269,7 @@ function CharacterEditor({
           onChange={(e) => setName(e.target.value)}
           placeholder="Nombre del personaje"
           maxLength={80}
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/40"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div>
@@ -299,7 +299,7 @@ function CharacterEditor({
             placeholder="Apariencia, vestuario y manera de actuar (sin edad): creadora de pelo rizado oscuro, camisa de lino, entrega relajada y cercana…"
             rows={3}
             maxLength={600}
-            className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus:border-primary/40"
+            className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </div>
 
