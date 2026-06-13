@@ -164,18 +164,20 @@ En `CastPage.tsx`, botón "Crear con IA" abre el wizard en modo `character`. Abs
 
 ### 5. Integración Brand Kit — modo `product` (1.5h)
 
-En `BrandKitsPage.tsx`, botón "Crear/Mejorar con IA" (por tarjeta) abre el wizard en modo
-`product`. El wizard arranca con un **selector de sub-modo** (ampliación 2026-06-13):
+Dos entradas distintas (reorganización 2026-06-13):
 
-- **Mejorar mi foto:** sube foto real → brief (`analyzeProductImageAction`) → mejora →
-  `product_image_ids`. (El producto real se respeta; nunca se inventa.)
-- **Crear el empaque:** sube foto del producto → `generatePackaging` (la foto entra como
-  *reference* de Nano Banana; conserva identidad, no fabrica texto de marca) → `packaging_image_ids`.
-- **Crear producto (concepto):** describe → `generateProductConcept` (FLUX desde cero, marcado
-  como concepto IA, no foto real) → `product_image_ids`. Solo cuando NO hay producto físico.
+- **Header "Crear con IA"** (junto a "Nuevo kit", como el botón del Cast) → wizard
+  `productFlow: 'create'`: describe el producto → `generateProductConcept` (FLUX, concepto, no
+  foto real) → preview editable → botón opcional **"Generar empaque"** (`generatePackaging` con el
+  producto como *reference*) → **Guardar crea un kit nuevo** (`createBrandKitAction` + producto en
+  `product_image_ids`, empaque en `packaging_image_ids`), nombre por defecto editable.
+- **Tarjeta "Mejorar con IA"** → wizard `productFlow: 'improve'`: **lee las imágenes que el kit ya
+  tiene** (producto/empaque) resolviendo su `storagePath` con `getReferencePathsAction`; eliges
+  cuál modificar (o subes una si el kit no la tiene), editas (quitar fondo/luz/libre) y **Guardar
+  reemplaza** esa imagen en su campo. El producto real nunca se inventa, solo se ajusta.
 
-`onSave` recibe `{ refId, target }`; `target` ('product' | 'packaging') decide el campo del kit
-vía `setBrandKitImagesAction` (tope 4 producto / 2 empaque).
+`onSave` recibe un `SaveResult` tipado (`product-create` con producto + empaque opcional /
+`product-improve` con `target` / `character`); el padre persiste según la variante.
 
 > **Logo/etiqueta — diferido:** `brand_kits.logo_url` no lo consume el pipeline de generación
 > (`applyBrandKit` usa colores/fuentes/tono/guidelines), así que un logo generado se guardaría
