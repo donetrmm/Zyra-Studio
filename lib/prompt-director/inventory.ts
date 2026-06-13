@@ -63,21 +63,37 @@ export function stripAgeWords(text: string): { text: string; removed: string[] }
 }
 
 // Frase de fidelidad del producto: usa SOLO los campos declarados.
-export function describeProduct(product: ProductInventory): string {
+// `fidelity: false` omite la cláusula de fidelidad cuando la línea @Image ya la
+// declara (evita duplicar verbatim y gastar el techo de caracteres en Seedance).
+export function describeProduct(
+  product: ProductInventory,
+  opts: { fidelity?: boolean } = {},
+): string {
   const parts = [`Product: ${product.name}`];
   if (product.visualDetails) parts.push(product.visualDetails);
   if (product.palette?.length) parts.push(`brand colors ${product.palette.join(', ')}`);
-  return `${parts.join(', ')}. The product must appear exactly as shown in its reference images — same packaging, colors, logo placement and proportions. Never restyle the product.`;
+  const facts = `${parts.join(', ')}.`;
+  if (opts.fidelity === false) return facts;
+  return `${facts} The product must appear exactly as shown in its reference images — same packaging, colors, logo placement and proportions. Never restyle the product.`;
 }
 
 // Descripción de personaje age-blind, por apariencia y manera de actuar.
-export function describeCharacter(character: CharacterInventory): {
+// `fidelity: false` omite la cláusula de "apariencia exacta" cuando la línea
+// @Image del Cast ya la declara.
+export function describeCharacter(
+  character: CharacterInventory,
+  opts: { fidelity?: boolean } = {},
+): {
   text: string;
   ageWordsRemoved: string[];
 } {
   const { text, removed } = stripAgeWords(character.description);
+  const base = `${character.name}: ${text}.`;
   return {
-    text: `${character.name}: ${text}. Exact appearance as in the character reference image — same face, same hair, same build.`,
+    text:
+      opts.fidelity === false
+        ? base
+        : `${base} Exact appearance as in the character reference image — same face, same hair, same build.`,
     ageWordsRemoved: removed,
   };
 }

@@ -32,18 +32,52 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
-// Heurística determinista: la dirección de habla SOLO entra cuando la acción
-// trae diálogo explícito — líneas guionizadas (Dialogue: "..."), texto entre
-// comillas o verbos de habla. Tener personajes en escena NO implica que
-// hablen (decisión del usuario 2026-06-12: diálogos solo si los pide o los da).
-function hasSpokenDialogue(req: CompileRequest): boolean {
-  const p = req.scenePrompt;
+// Heurística determinista: la dirección de habla EN CÁMARA (lip sync) SOLO entra
+// cuando la acción trae diálogo explícito — líneas guionizadas (Dialogue: "..."),
+// texto entre comillas o verbos de habla. Tener personajes en escena NO implica
+// que hablen (decisión del usuario 2026-06-12: diálogos solo si los pide o los da).
+export function hasSpokenDialogue(text: string): boolean {
   return (
-    /\bdialogue\s*:/i.test(p) ||
-    /"[^"\n]{2,}"/.test(p) ||
-    /[“”][^“”\n]{2,}[“”]/.test(p) ||
-    /\b(speaks?|speaking|says|saying|delivers? a line|voice-?over)\b/i.test(p)
+    /\bdialogue\s*:/i.test(text) ||
+    /"[^"\n]{2,}"/.test(text) ||
+    /[“”][^“”\n]{2,}[“”]/.test(text) ||
+    /\b(speaks?|speaking|says|saying|delivers? a line|voice-?over)\b/i.test(text)
   );
+}
+
+// Voz presente en la escena (más amplio que el diálogo explícito): habla, VO,
+// narración o un hablante claro (presentador/entrevista/recomendación). Controla
+// la directiva de idioma+acento — NO el lip sync. Sin esto, antes se inyectaba la
+// directiva de voz a clips de puro producto (el-icono, susurro), arriesgando una
+// narración espuria que nadie pidió.
+export function sceneHasVoice(text: string): boolean {
+  if (hasSpokenDialogue(text)) return true;
+  return /\b(voice-?over|narrat\w+|presenter|interviewer|to camera|to the camera|recommendation|verdict|asks?\b|answers?)\b/i.test(
+    text,
+  );
+}
+
+// Timing (la T de CRAFT): para clips >8s con varias acciones, reparte la acción
+// en marcadores por segundos cuando el scenePrompt no trae ya un timeline. El
+// matcher LLM suele entregarlo en planes dirigidos; esto cubre el mix/semillas
+// determinista, donde antes un clip largo multi-acción salía sin reparto de tiempo.
+function hasTimeline(text: string): boolean {
+  return /\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\b|\b\d{1,2}\s*s\s*:/i.test(text);
+}
+
+function toTimeline(action: string, duration: number): string {
+  const beats = action
+    .split(/[;,]+/)
+    .map((b) => b.trim().replace(/\.+$/, ''))
+    .filter((b) => b.length > 3);
+  if (beats.length < 2) return action;
+  return `${beats
+    .map((beat, i) => {
+      const start = Math.round((duration * i) / beats.length);
+      const end = Math.round((duration * (i + 1)) / beats.length);
+      return `${start}-${end}s: ${beat}`;
+    })
+    .join('. ')}.`;
 }
 
 // Tope de trabajo del prompt: ModelArk no documenta límite de caracteres;
@@ -169,16 +203,23 @@ export function compileSeedance(
 
   const duration = req.durationS ?? ctx.format?.defaultDurationS;
   const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
-  const speaker = generateAudio && hasSpokenDialogue(req);
+  const speaker = generateAudio && hasSpokenDialogue(req.scenePrompt);
+  const voiced = generateAudio && sceneHasVoice(req.scenePrompt);
 
   const sections: string[] = [];
 
   // Encabezado: qué pieza es, antes de cualquier detalle (estructura del
-  // ejemplo validado: duración + orientación + estilo base primero).
+  // ejemplo validado: duración + orientación + estilo base primero). El look
+  // base sigue al registro del formato: "ultra realistic" se omite en formatos
+  // estilizados/surreales (el-icono, mundo-imposible) donde contradice la estética.
   const aspect = req.aspectRatio ?? '9:16';
   const orientation = aspect === '9:16' || aspect === '3:4' ? 'vertical' : aspect === '1:1' ? 'square' : 'horizontal';
+  const stylized = /\b(surreal|imposible|impossible|stylized|estilizad|abstract|abstracto|surrealist|hyperreal|dreamlike|onírico|animat)\w*/i.test(
+    ctx.format?.register ?? '',
+  );
+  const look = stylized ? 'filmic color grading' : 'ultra realistic, filmic color grading';
   sections.push(
-    `A ${duration ? `${duration}-second ` : ''}${orientation} (${aspect}) commercial video, ultra realistic, filmic color grading.`,
+    `A ${duration ? `${duration}-second ` : ''}${orientation} (${aspect}) commercial video, ${look}.`,
   );
 
   // R — Referencias primero, cada @ con propósito declarado.
@@ -192,10 +233,16 @@ export function compileSeedance(
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);
 
-  // Fidelidad de producto y personajes (reglas duras del inventario).
-  if (ctx.product) sections.push(describeProduct(ctx.product));
+  // Fidelidad de producto y personajes (reglas duras del inventario). La
+  // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay
+  // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
+  if (ctx.product) {
+    sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
+  }
   for (const character of ctx.characters ?? []) {
-    const { text, ageWordsRemoved } = describeCharacter(character);
+    const { text, ageWordsRemoved } = describeCharacter(character, {
+      fidelity: !character.masterImagePath,
+    });
     sections.push(text);
     if (ageWordsRemoved.length) {
       warnings.push(`edad: se removieron marcadores de la descripción de ${character.name} (${ageWordsRemoved.join(', ')})`);
@@ -204,10 +251,16 @@ export function compileSeedance(
 
   // A — Acción: el scene_prompt del plan, sin reescritura. Guardamos su índice
   // para poder recortarla (y solo a ella) si el prompt final excede el techo.
+  // T — Timing: si el clip dura >8s y la acción tiene varios beats sin timeline,
+  // se reparte en marcadores por segundos (CRAFT; cubre el camino de semillas).
   const actionIndex = sections.length;
-  sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
+  const action =
+    duration && duration > 8 && !hasTimeline(req.scenePrompt)
+      ? toTimeline(req.scenePrompt.trim(), duration)
+      : req.scenePrompt.trim().replace(/\.?$/, '.');
+  sections.push(action);
 
-  // F + T — Encuadre, registro y ritmo del formato.
+  // F — Encuadre, registro y ritmo del formato.
   if (ctx.format) {
     const d = directionFor(ctx.format);
     const direction = [d.framing, d.register, d.pacing].filter(Boolean).join(' ');
@@ -218,8 +271,12 @@ export function compileSeedance(
   if (generateAudio && !ctx.audioRefPath) {
     sections.push('Audio: natural diegetic sound that matches the scene; no music unless the register calls for it.');
   }
-  if (generateAudio) {
+  // Idioma/acento de la voz SOLO cuando hay habla o narración en la escena.
+  // Si no la hay, se le cierra la puerta a una voz en off no pedida.
+  if (voiced) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
+  } else if (generateAudio) {
+    sections.push('No spoken dialogue or voice-over; ambient sound only.');
   }
 
   sections.push(NEGATIVE_CLAUSE);

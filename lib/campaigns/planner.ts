@@ -101,10 +101,14 @@ const GENERIC_SEEDS: Seed[] = [
   ({ product }) => `The scene opens mid-action and resolves on the ${product} placed deliberately, catching the light`,
 ];
 const CONCEPT_SEEDS: Record<string, Seed[]> = {
+  // Todas las semillas describen al presentador HABLANDO a cámara: usan verbos
+  // de habla (speaking/says) para que el compiler active de forma consistente la
+  // dirección de lip sync — antes solo la primera lo hacía y el talking-head
+  // salía sin sincronía de labios según la semilla que tocara.
   'voz-cercana': [
-    ({ product }) => `The presenter holds the ${product} at chest height, tilts it toward the camera while speaking one casual line, takes a try and reacts with an honest nod`,
-    ({ product }) => `The presenter looks to camera, lifts the ${product} into frame, shares a one-sentence personal take and smiles at the end`,
-    ({ product }) => `Mid-routine, the presenter pauses, grabs the ${product}, shows it to camera and delivers a quick genuine recommendation`,
+    ({ product }) => `The presenter holds the ${product} at chest height, tilts it toward the camera while speaking one casual line, takes a sip and reacts with an honest nod`,
+    ({ product }) => `The presenter looks to camera, lifts the ${product} into frame, says a one-sentence personal take and smiles at the end`,
+    ({ product }) => `Mid-routine, the presenter pauses, grabs the ${product}, shows it to camera and says a quick genuine recommendation`,
   ],
   'a-pie-de-calle': [
     ({ product }) => `The interviewer asks a passerby one quick question, hands over the ${product}, and captures the spontaneous first reaction`,

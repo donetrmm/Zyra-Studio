@@ -35,11 +35,19 @@ const MULTI_SUBJECT_RE =
 const SLOW_RE = /\bslow[- ]?(motion|ly)?\b|\bcalm\b|\bpausado\b|\blento\b|\bgentle\b/gi;
 const FAST_RE = /\bfrenetic\b|\bfast cuts\b|\brapid\b|\bfrenético\b|\bvertiginoso\b|\bhigh[- ]energy\b|\bspeed ramp\b/gi;
 
-function countSentences(text: string): number {
-  return text
-    .split(/[.;!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 3).length;
+// Cuenta ACCIONES, no frases: las semillas encadenan beats con comas dentro de
+// una sola frase ("holds…, tilts…, takes a sip"), que contaban como 1 y evadían
+// la regla "1 idea ≈ 4s". Si hay timeline ("0-3s: … 3-7s: …") cuenta sus tramos.
+function countActions(text: string): number {
+  const timeline = text.match(/\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\b/gi);
+  if (timeline?.length) return timeline.length;
+  return Math.max(
+    1,
+    text
+      .split(/[.;,!?]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 3).length,
+  );
 }
 
 function matchedLabels(text: string): string[] {
@@ -73,11 +81,11 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
 
   // 2. Complejidad ∝ duración: 1 idea ≈ 4 s
   const duration = req.durationS ?? ctx.format?.defaultDurationS ?? 8;
-  const sentences = countSentences(prompt);
+  const actions = countActions(prompt);
   const maxIdeas = Math.max(1, Math.floor(duration / 4));
-  if (sentences > maxIdeas + 1) {
+  if (actions > maxIdeas + 1) {
     warnings.push(
-      `complejidad: ~${sentences} acciones para ${duration}s (1 idea ≈ 4s); considera dividir en más de un item`,
+      `complejidad: ~${actions} acciones para ${duration}s (1 idea ≈ 4s); considera dividir en más de un item`,
     );
   }
 

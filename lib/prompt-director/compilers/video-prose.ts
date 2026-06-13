@@ -6,7 +6,7 @@
 
 import { describeProduct } from '../inventory';
 import { directionFor } from '../format-director';
-import { DIALOGUE_LANGUAGE } from './seedance';
+import { DIALOGUE_LANGUAGE, sceneHasVoice } from './seedance';
 import type { CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxChars: number): string {
@@ -19,7 +19,10 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
     const direction = [d.framing, d.pacing].filter(Boolean).join(' ');
     if (direction) sections.push(direction);
   }
-  if (req.generateAudio ?? ctx.format?.defaultAudio ?? true) {
+  // Idioma/acento de la voz solo cuando la escena trae habla o narración: en un
+  // clip de puro producto la directiva sobra y arriesga una voz en off espuria.
+  const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
+  if (generateAudio && sceneHasVoice(req.scenePrompt)) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
   }
   sections.push('No on-screen text, captions or watermarks.');
