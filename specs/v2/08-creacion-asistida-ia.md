@@ -119,14 +119,21 @@ Modal/panel client-side con estado efímero (respuestas + versiones en memoria).
    - *product:* corre `analyzeProductBrief` sobre la foto subida y muestra el brief detectado
      (nombre, paleta, `visualDetails`) editable. Sin preguntas conversacionales.
 3. **Generación / preview:**
+   - **Nota: para imágenes `submitGenerationAction` es síncrono** — FLUX y Nano Banana se
+     ejecutan inline en la action (<60s) y vuelve con la generación ya en `done` (solo el video
+     va por QStash). No hace falta realtime ni polling.
    - *character:* `submitGenerationAction` (FLUX) con el prompt envuelto en el scaffold de
      retrato neutro (reusar `buildMasterPrompt` de `CastPage`) y la referencia como image-ref;
-     esperar por **realtime**; al terminar `addGenerationAsReferenceAction` la fija como
-     `media_reference` y se muestra.
+     al volver `ok`, `addGenerationAsReferenceAction(generationId)` copia el output al bucket de
+     referencias y devuelve `{ id, previewUrl }` — `id` es el `media_reference` que se muestra
+     y se guarda.
    - *product:* si no se pide mejora, no se genera (foto tal cual). Si se pide → paso 4 (editar).
 4. **Editar / Guardar:**
-   - *Editar:* prompt de cambio → Nano Banana **multi-turn** (un cambio por iteración; pasa el
-     `thoughtSignature` del turn previo). Cada salida es una **versión** navegable (◀ ▶).
+   - *Editar:* prompt de cambio → `submitGenerationAction` con `provider: 'nano-banana'`,
+     `conversational: true` y `parentGenerationId` = el `generationId` de la versión actual
+     (multi-turn; un cambio por iteración — el server reconstruye el turn previo con su
+     `thought_signature`). Cada salida es una **versión** navegable (◀ ▶); su `media_reference`
+     se obtiene igual con `addGenerationAsReferenceAction`.
    - *product* expone acciones rápidas: **quitar fondo** (`noBackground`), **mejorar luz**,
      **generar ángulo**, además del prompt libre.
    - *Guardar:* ver tarea 4/5.
