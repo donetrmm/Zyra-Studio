@@ -104,6 +104,56 @@ export async function editUploaded(
   return fixAsReference(res.data.generationId);
 }
 
+// Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.
+// Legítimo solo cuando no hay producto real — es un concepto, no una foto fiel.
+function buildProductPrompt(description: string): string {
+  return (
+    `Studio product photograph of ${description}. ` +
+    'Centered on a clean seamless background, soft even commercial lighting that shows form, ' +
+    'material and texture, sharp focus, high detail, professional product photography. ' +
+    'No text, no watermark.'
+  );
+}
+
+export async function generateProductConcept(description: string): Promise<GeneratedImage | GenError> {
+  const res = await submitGenerationAction({
+    provider: 'flux' as const,
+    model: 'flux-2-pro-preview' as const,
+    variant: 'default' as const,
+    prompt: buildProductPrompt(description),
+    aspectRatio: '1:1' as const,
+    megapixels: 2 as const,
+    photoreal: true,
+    references: [],
+  });
+  if (!res.ok) return { error: res.error, message: res.message };
+  return fixAsReference(res.data.generationId);
+}
+
+// Empaque a partir del producto REAL (la foto entra como referencia): la IA
+// diseña una caja/etiqueta coherente con el producto, sin alterarlo ni fabricar
+// texto de marca que no esté a la vista.
+export async function generatePackaging(
+  productRef: { id: string; storagePath: string },
+  notes: string,
+): Promise<GeneratedImage | GenError> {
+  const detail = notes.trim() ? ` ${notes.trim()}.` : '';
+  const res = await submitGenerationAction({
+    provider: 'nano-banana' as const,
+    model: 'gemini-3-pro-image-preview' as const,
+    variant: '2k' as const,
+    prompt:
+      `Design retail packaging (a box or labeled container) for the exact product shown in the reference image.${detail} ` +
+      'Keep the product identity, label, logo and colors consistent with the reference. ' +
+      'Studio product shot on a clean plain background, soft even lighting. Do not invent brand text or claims beyond what is visible in the reference.',
+    conversational: false,
+    references: [productRef],
+    noBackground: false,
+  });
+  if (!res.ok) return { error: res.error, message: res.message };
+  return fixAsReference(res.data.generationId);
+}
+
 export function isGenError(x: GeneratedImage | GenError): x is GenError {
   return 'error' in x;
 }
