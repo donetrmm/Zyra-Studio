@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
-import { getReferencePathsAction } from '@/server-actions/creation';
+import { getReferencePathsAction, analyzeKitFromImageAction } from '@/server-actions/creation';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
@@ -229,6 +229,22 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
     (kit?.packaging_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
   const [saving, startSave] = useTransition();
+  const [detecting, setDetecting] = useState(false);
+
+  // Auto-rellena nombre, paleta y tono leyendo la imagen de producto subida
+  // (cuando el usuario sube imágenes pero no llena los campos).
+  async function detectFromImage() {
+    if (productImages.length === 0 || detecting) return;
+    setDetecting(true);
+    try {
+      const res = await analyzeKitFromImageAction(productImages[0].id);
+      if (!res.ok) { toast.error(res.message || 'No se pudo detectar'); return; }
+      if (res.data.name) setName(res.data.name);
+      if (res.data.colors.length) setColors(res.data.colors);
+      if (res.data.tone) setTone(res.data.tone);
+      toast.success('Campos detectados desde la imagen; ajústalos si quieres');
+    } finally { setDetecting(false); }
+  }
 
   function handleSave() {
     const payload = {
@@ -270,6 +286,17 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
           onChange={setProductImages}
           max={4}
         />
+
+        <button
+          type="button"
+          onClick={detectFromImage}
+          disabled={detecting || productImages.length === 0}
+          title={productImages.length === 0 ? 'Sube primero una imagen de producto' : undefined}
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {detecting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+          Detectar nombre, paleta y tono desde la imagen
+        </button>
 
         <ReferenceImagesUploader
           label="Empaque"
