@@ -63,6 +63,29 @@ export async function editImage(
   return fixAsReference(res.data.generationId);
 }
 
+// Mejora una imagen SUBIDA por el usuario (no generada): la foto entra como
+// referencia de Nano Banana (no como parent conversacional, porque no hay un
+// turn previo del modelo). Las mejoras siguientes sobre el resultado ya usan
+// editImage (parent). Respeta el producto: la instrucción solo ajusta fondo/luz,
+// nunca inventa el producto.
+export async function editUploaded(
+  reference: { id: string; storagePath: string },
+  instruction: string,
+  opts?: { noBackground?: boolean },
+): Promise<GeneratedImage | GenError> {
+  const res = await submitGenerationAction({
+    provider: 'nano-banana' as const,
+    model: 'gemini-3-pro-image-preview' as const,
+    variant: '2k' as const,
+    prompt: instruction,
+    conversational: false,
+    references: [reference],
+    noBackground: opts?.noBackground ?? false,
+  });
+  if (!res.ok) return { error: res.error, message: res.message };
+  return fixAsReference(res.data.generationId);
+}
+
 export function isGenError(x: GeneratedImage | GenError): x is GenError {
   return 'error' in x;
 }
