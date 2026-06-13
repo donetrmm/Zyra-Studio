@@ -158,6 +158,21 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     }
   }
 
+  // Empaque a partir del PRODUCTO que el kit ya tiene (no subir uno): la foto
+  // del producto entra como referencia y se genera el empaque, editable y luego
+  // guardable en packaging.
+  async function genPackagingFromExisting() {
+    const p = existing?.product;
+    if (!p || busy) return;
+    setImproveTarget('packaging');
+    setBusy(true);
+    try {
+      const out = await generatePackaging({ id: p.id, storagePath: p.storagePath }, '');
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el empaque'); return; }
+      setVersions([out]); setCurrent(0); setStep('preview');
+    } finally { setBusy(false); }
+  }
+
   // ---- edición (rama según el origen de la versión actual) ----
   async function applyEdit(instruction: string, opts?: { noBackground?: boolean }) {
     const v = versions[current];
@@ -289,10 +304,28 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                       </div>
                     )}
                     <span className="flex-1 text-[13px] text-foreground">{t === 'product' ? 'Producto' : 'Empaque'}</span>
-                    <button type="button" onClick={() => chooseImproveTarget(t)} disabled={busy}
-                      className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
-                      {ex ? 'Mejorar' : 'Subir y mejorar'}
-                    </button>
+                    {ex ? (
+                      <button type="button" onClick={() => chooseImproveTarget(t)} disabled={busy}
+                        className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
+                        Mejorar
+                      </button>
+                    ) : t === 'packaging' && existing?.product ? (
+                      <div className="flex gap-1.5">
+                        <button type="button" onClick={() => void genPackagingFromExisting()} disabled={busy}
+                          className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
+                          Generar del producto
+                        </button>
+                        <button type="button" onClick={() => chooseImproveTarget(t)} disabled={busy}
+                          className="rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-50">
+                          Subir
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => chooseImproveTarget(t)} disabled={busy}
+                        className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50">
+                        Subir y mejorar
+                      </button>
+                    )}
                   </div>
                 );
               })}
