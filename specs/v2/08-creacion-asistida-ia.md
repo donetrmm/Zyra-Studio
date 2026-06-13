@@ -178,6 +178,13 @@ Dos entradas distintas (reorganización 2026-06-13):
   tiene** (producto/empaque) resolviendo su `storagePath` con `getReferencePathsAction`; eliges
   cuál modificar (o subes una si el kit no la tiene), editas (quitar fondo/luz/libre) y **Guardar
   reemplaza** esa imagen en su campo. El producto real nunca se inventa, solo se ajusta.
+  - Si el kit tiene **producto pero no empaque**, ofrece **"Generar del producto"**
+    (`generatePackaging`, la foto del producto como *reference*), no solo subirlo (ampliación 2026-06-13).
+
+**Editor manual del kit** (`BrandKitEditor`): botón **"Detectar nombre, paleta y tono desde la
+imagen"** (`analyzeKitFromImageAction` sobre la imagen de producto subida) para que un kit creado
+a mano no quede sin identidad cuando el usuario sube imágenes pero no llena los campos
+(ampliación 2026-06-13).
 
 `onSave` recibe un `SaveResult` tipado (`product-create` con producto + empaque opcional /
 `product-improve` con `target` / `character`); el padre persiste según la variante.
