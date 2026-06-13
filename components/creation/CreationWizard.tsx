@@ -1,18 +1,19 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus } from 'lucide-react';
+import { Loader2, Sparkles, ChevronLeft, ChevronRight, ImagePlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { clarifyCreationAction, analyzeProductImageAction } from '@/server-actions/creation';
-import { generateCharacter, editImage, editUploaded, isGenError } from './generate';
+import { generateCharacter, editImage, editUploaded, generateAngle, isGenError } from './generate';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import type { CreationKind, ClarifyResult } from '@/lib/schemas/creation';
 import type { ProductBrief } from '@/lib/campaigns/brief';
 
 type Props = {
   kind: CreationKind;
-  // El padre persiste el resultado: crea el personaje, o añade la imagen al kit.
-  onSave: (refId: string) => Promise<void>;
+  // El padre persiste el resultado: crea el personaje (con sus ángulos), o añade
+  // la imagen al kit. angleRefIds solo aplica a personaje (máx 2).
+  onSave: (refId: string, angleRefIds?: string[]) => Promise<void>;
   onClose: () => void;
 };
 
@@ -41,6 +42,7 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
   const [briefLoading, setBriefLoading] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
   const [current, setCurrent] = useState(0);
+  const [angles, setAngles] = useState<Array<{ refId: string; previewUrl: string }>>([]);
   const [editPrompt, setEditPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -120,11 +122,24 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
     void applyEdit(instruction);
   }
 
+  // Genera un ángulo del retrato actual (perfil / 3-4) para consistencia. Máx 2
+  // (tope de angle_image_ids del Cast).
+  async function addAngle(view: 'profile' | 'three-quarter') {
+    const v = versions[current];
+    if (!v?.generationId || angles.length >= 2 || busy) return;
+    setBusy(true);
+    try {
+      const out = await generateAngle(v.generationId, view);
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el ángulo'); return; }
+      setAngles((a) => [...a, { refId: out.refId, previewUrl: out.previewUrl }]);
+    } finally { setBusy(false); }
+  }
+
   async function handleSave() {
     if (versions.length === 0) return;
     setBusy(true);
     try {
-      await onSave(versions[current].refId);
+      await onSave(versions[current].refId, kind === 'character' ? angles.map((a) => a.refId) : []);
       toast.success('Guardado');
       onClose();
     } finally { setBusy(false); }
@@ -249,6 +264,40 @@ export function CreationWizard({ kind, onSave, onClose }: Props) {
                       {a.label}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {kind === 'character' && (
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Ángulos para consistencia (del retrato actual)
+                  </label>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    {angles.map((a, i) => (
+                      <div key={a.refId} className="group relative size-14 overflow-hidden rounded-lg border border-border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.previewUrl} alt={`angulo ${i + 1}`} className="size-full object-cover" />
+                        <button type="button" aria-label="Quitar ángulo"
+                          onClick={() => setAngles((xs) => xs.filter((x) => x.refId !== a.refId))}
+                          className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
+                          <X className="size-3" aria-hidden />
+                        </button>
+                      </div>
+                    ))}
+                    {angles.length < 2 && (
+                      <>
+                        <button type="button" onClick={() => void addAngle('profile')} disabled={busy}
+                          className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                          {busy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : '+ Perfil (lado)'}
+                        </button>
+                        <button type="button" onClick={() => void addAngle('three-quarter')} disabled={busy}
+                          className="rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                          + 3/4
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground/60">Mejoran la consistencia del personaje entre videos. Opcional.</p>
                 </div>
               )}
 

@@ -63,6 +63,24 @@ export async function editImage(
   return fixAsReference(res.data.generationId);
 }
 
+// Genera un ángulo del MISMO personaje para consistencia multi-toma (guía
+// Morphic §4.2: paquete frontal + perfil + 3/4). Es legítimo porque el personaje
+// es ficticio: rota la cámara manteniendo identidad, no fabrica un producto real.
+// Va por editImage (parent conversacional) para preservar cara, pelo, ropa y luz.
+const ANGLE_PROMPT: Record<'profile' | 'three-quarter', string> = {
+  profile:
+    'Show the exact same person from a direct side profile view (90 degrees). Identical face, hairstyle, build, skin and clothing; same soft even studio lighting and plain light gray background. Only the camera angle changes — keep the identity perfectly consistent.',
+  'three-quarter':
+    'Show the exact same person from a three-quarter view (about 45 degrees). Identical face, hairstyle, build, skin and clothing; same soft even studio lighting and plain light gray background. Only the camera angle changes — keep the identity perfectly consistent.',
+};
+
+export async function generateAngle(
+  masterGenerationId: string,
+  view: 'profile' | 'three-quarter',
+): Promise<GeneratedImage | GenError> {
+  return editImage(masterGenerationId, ANGLE_PROMPT[view]);
+}
+
 // Mejora una imagen SUBIDA por el usuario (no generada): la foto entra como
 // referencia de Nano Banana (no como parent conversacional, porque no hay un
 // turn previo del modelo). Las mejoras siguientes sobre el resultado ya usan
