@@ -13,7 +13,8 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { ControlsPanel } from './ControlsPanel';
 import { ChatThread } from './ChatThread';
-import { PreviewArea, type GenError } from './PreviewArea';
+import { PreviewArea } from './PreviewArea';
+import { type GenError, genErrorFromResult } from './generation-error';
 import type { SelectedBrandKit } from './BrandKitSelector';
 import type { SelectedCampaign } from './CampaignSelector';
 import type { ReferenceClient } from './ReferencesPanel';
@@ -207,18 +208,9 @@ export function ImageGenerator(props: {
       const res = await submitGenerationAction(input);
       if (!res.ok) {
         // Estado de error PERSISTENTE en el preview (no toast efímero): el
-        // usuario invirtió la espera y necesita causa + recuperación.
-        // insufficient_credits ocurre antes de cobrar (refunded=0); los demás
-        // fallos sí refundan el costo estimado.
-        const kind: GenError['kind'] =
-          res.error === 'safety' ? 'safety' : res.error === 'insufficient_credits' ? 'credits' : 'generic';
-        const message =
-          res.error === 'insufficient_credits'
-            ? 'No tienes saldo para esta generación. Compra créditos y vuelve a intentar.'
-            : res.error === 'validation_error'
-              ? 'Parámetros inválidos. Revisa el prompt y los ajustes, y reintenta.'
-              : res.message || 'Hubo un problema al generar. Reintenta en un momento.';
-        setGenError({ kind, message, refunded: kind === 'credits' ? 0 : cost });
+        // usuario invirtió la espera y necesita causa + recuperación. La lógica
+        // de mapeo vive en generation-error.ts (pura, testeada).
+        setGenError(genErrorFromResult(res, cost));
         return;
       }
       const detail = await fetchGenerationDetail(res.data.generationId);

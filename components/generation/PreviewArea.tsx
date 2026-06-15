@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { downloadGenerationImage } from '@/lib/media-references/download-client';
 import { Lightbox } from './Lightbox';
+import { type GenError, isRetryable } from './generation-error';
 import {
   GhostBtn,
   PreviewToolbar,
@@ -38,15 +39,9 @@ const SAMPLE_PROMPTS = [
   'Paisaje cinemático al atardecer',
 ];
 
-// Error de generación con estado persistente en el preview (no toast efímero):
-// el usuario invirtió la espera y necesita causa + recuperación.
-export type GenError = {
-  // safety: rechazo de contenido (reformular). credits: sin saldo (comprar).
-  // generic: red/server/timeout (reintentable).
-  kind: 'safety' | 'credits' | 'generic';
-  message: string;
-  refunded: number; // créditos devueltos a mostrar (0 = no mostrar badge)
-};
+// El tipo y la lógica viven en generation-error.ts (testeable en node). Se
+// re-exporta para los consumidores que ya lo importaban desde aquí.
+export type { GenError };
 
 export function PreviewArea({
   pending,
@@ -442,9 +437,8 @@ function GenerationErrorState({ error, onRetry }: { error: GenError; onRetry?: (
   const description = safety
     ? 'El modelo rechazó este prompt. Reformúlalo evitando contenido sensible, personas reales o violencia explícita.'
     : error.message;
-  // Reintentar solo donde tiene sentido: fallos transitorios. En safety reformular
-  // el mismo prompt fallaría igual; en credits no hay saldo.
-  const showRetry = error.kind === 'generic' && !!onRetry;
+  // Reintentar solo donde tiene sentido: fallos transitorios (ver isRetryable).
+  const showRetry = isRetryable(error) && !!onRetry;
 
   return (
     <div className="grid h-full place-items-center p-8">
