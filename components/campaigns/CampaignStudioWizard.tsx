@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -246,13 +247,7 @@ export function CampaignStudioWizard({
                 </p>
               )}
               {selectedKit && selectedKit.packagingImages > 0 && (
-                <label className="mt-3 flex cursor-pointer items-start gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={includePackaging}
-                    onChange={(e) => setIncludePackaging(e.target.checked)}
-                    className="mt-0.5 size-3.5 accent-primary"
-                  />
+                <div className="mt-3 flex items-start justify-between gap-3">
                   <span className="text-[12px] leading-snug text-muted-foreground">
                     Incluir las {selectedKit.packagingImages} imagen
                     {selectedKit.packagingImages !== 1 ? 'es' : ''} de empaque del kit
@@ -261,7 +256,13 @@ export function CampaignStudioWizard({
                       desactivas, el plan no propondrá esos formatos.
                     </span>
                   </span>
-                </label>
+                  <Switch
+                    checked={includePackaging}
+                    onCheckedChange={setIncludePackaging}
+                    aria-label="Incluir las imágenes de empaque del kit"
+                    className="mt-0.5 shrink-0"
+                  />
+                </div>
               )}
               <button
                 type="button"

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
 import { updateRateCardRowAction } from '@/server-actions/rate-card';
 
 export type RateCardRow = {
@@ -72,11 +73,11 @@ export function RateCardTable({ rows: initial }: { rows: RateCardRow[] }) {
                 </td>
               ))}
               <td className="px-3 py-2">
-                <input
-                  type="checkbox"
+                <Switch
                   checked={row.active}
-                  onChange={(e) => patch(row.id, 'active', e.target.checked)}
-                  className="accent-[#009fff]"
+                  onCheckedChange={(v) => patch(row.id, 'active', v)}
+                  size="sm"
+                  aria-label="Activo"
                 />
               </td>
               <td className="px-3 py-2 text-right">

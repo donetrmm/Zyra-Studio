@@ -27,6 +27,7 @@ import { CollectionsTab, type Collection } from './CollectionsTab';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
 
 const CAMPAIGN_NONE = '__none__';
@@ -1335,15 +1336,15 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
         placeholder="Descripción (opcional)"
         className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
       />
-      <label className="mt-2 flex items-center gap-2 text-[11.5px] text-muted-foreground">
-        <input
-          type="checkbox"
+      <div className="mt-2 flex items-center justify-between gap-3 text-[11.5px] text-muted-foreground">
+        <span>Hacer público (visible para la comunidad)</span>
+        <Switch
           checked={isPublic}
-          onChange={(e) => setIsPublic(e.target.checked)}
-          className="size-3.5 rounded border-border accent-primary"
+          onCheckedChange={setIsPublic}
+          size="sm"
+          aria-label="Hacer público (visible para la comunidad)"
         />
-        Hacer público (visible para la comunidad)
-      </label>
+      </div>
       <div className="mt-2.5 flex gap-2">
         <button
           type="button"

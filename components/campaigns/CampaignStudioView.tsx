@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { insufficientCreditsToast } from './credits-toast';
 
@@ -890,15 +891,15 @@ function TemplatesView({ templates }: { templates: StudioTemplate[] }) {
             {n}
           </button>
         ))}
-        <label className="ml-2 inline-flex items-center gap-2 text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={rotateCharacters}
-            onChange={(e) => setRotateCharacters(e.target.checked)}
-            className="accent-[#009fff]"
-          />
+        <span className="ml-2 inline-flex items-center gap-2 text-muted-foreground">
           Rotar personajes del Cast
-        </label>
+          <Switch
+            checked={rotateCharacters}
+            onCheckedChange={setRotateCharacters}
+            size="sm"
+            aria-label="Rotar personajes del Cast"
+          />
+        </span>
       </div>
 
       <div className="space-y-2">
