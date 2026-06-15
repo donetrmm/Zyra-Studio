@@ -65,21 +65,29 @@ function toRatio(aspect: SeedanceAspectRatio | undefined): string {
 }
 
 // Mapea un error HTTP del proveedor a ProviderError con código adecuado.
+// Lee el cuerpo como TEXTO (una sola vez) y, si es JSON, extrae el mensaje de
+// las formas conocidas; si no, usa el cuerpo crudo recortado. Así un 4xx con un
+// shape inesperado (típico al afinar un payload nuevo) surface el motivo real
+// del proveedor en vez de un genérico ciego.
 async function httpError(res: Response, label: string, fallback: string): Promise<never> {
+  const raw = (await res.text().catch(() => '')).trim();
   let detail = fallback;
-  try {
-    const body = (await res.json()) as {
-      error?: { message?: string } | string;
-      message?: string;
-      data?: { error?: string };
-    };
-    detail =
-      (typeof body.error === 'string' ? body.error : body.error?.message) ??
-      body.data?.error ??
-      body.message ??
-      fallback;
-  } catch {
-    // cuerpo no-JSON: nos quedamos con el fallback
+  if (raw) {
+    try {
+      const body = JSON.parse(raw) as {
+        error?: { message?: string } | string;
+        message?: string;
+        data?: { error?: string };
+      };
+      detail =
+        (typeof body.error === 'string' ? body.error : body.error?.message) ??
+        body.data?.error ??
+        body.message ??
+        raw.slice(0, 300);
+    } catch {
+      // cuerpo no-JSON (HTML de un 404, texto plano): el crudo recortado informa.
+      detail = raw.slice(0, 300);
+    }
   }
   if (res.status === 401 || res.status === 403) throw new ProviderError(detail, 'auth', false);
   if (res.status === 429) throw new ProviderError(`Rate limit ${label}`, 'rate_limit', true);
@@ -87,7 +95,7 @@ async function httpError(res: Response, label: string, fallback: string): Promis
     throw new ProviderError('El proveedor rechazó el contenido por políticas de seguridad', 'safety', false);
   }
   if (res.status >= 400 && res.status < 500) {
-    throw new ProviderError(`${label} input inválido: ${detail}`, 'invalid_input', false);
+    throw new ProviderError(`${label} ${res.status}: ${detail}`, 'invalid_input', false);
   }
   throw new ProviderError(`${label} error ${res.status}: ${detail}`, 'server', res.status >= 500);
 }

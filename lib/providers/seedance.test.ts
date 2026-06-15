@@ -5,10 +5,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // Regla del repo: los tests NUNCA llaman a la API real.
 
 function mockJson(status: number, body: unknown): Response {
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
   return {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
+    text: async () => text,
     headers: new Headers({ 'content-type': 'application/json' }),
   } as unknown as Response;
 }
@@ -266,6 +268,29 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
     const res = await pollTask('pred-1');
     expect(res.status).toBe('failed');
     expect(res.error).toBe('bad input');
+  });
+
+  it('un 4xx con cuerpo de shape desconocido surface status + cuerpo crudo (diagnóstico)', async () => {
+    // Atlas rechaza con una forma que httpError no conoce: el motivo real debe
+    // llegar al mensaje (status + crudo), no caer al genérico "submit falló".
+    fetchMock.mockResolvedValue(mockJson(400, { detail: 'Unknown field: image_urls' }));
+    const { submitTask } = await import('./seedance');
+    await expect(
+      submitTask({
+        operation: 'reference2video',
+        model: 'bytedance/seedance-2.0/reference-to-video',
+        prompt: 'p',
+        imageUrls: ['https://x/p.png'],
+      }),
+    ).rejects.toThrow(/AtlasCloud 400.*image_urls/);
+  });
+
+  it('un 404 con HTML (endpoint equivocado) surface el crudo, no "submit falló"', async () => {
+    fetchMock.mockResolvedValue(mockJson(404, '<!DOCTYPE html><title>Not Found</title>'));
+    const { submitTask } = await import('./seedance');
+    await expect(
+      submitTask({ operation: 'text2video', model: 'bytedance/seedance-2.0/text-to-video', prompt: 'p' }),
+    ).rejects.toThrow(/AtlasCloud 404.*Not Found/);
   });
 
   it('submitTask con atlas exige ATLASCLOUD_API_KEY', async () => {
