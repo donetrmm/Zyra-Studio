@@ -9,6 +9,8 @@ import {
   Download,
   Eye,
   FileBarChart,
+  Info,
+  Layers,
   Loader2,
   Pencil,
   Play,
@@ -463,9 +465,39 @@ function PlanTable({
   }
 
   const groups = groupPlanItems(items);
+  // Feedback de la decisión del matcher (clip único vs. secuencia multi-escena):
+  // resumir cuántas escenas quedaron agrupadas en anuncios y cuántos clips sueltos.
+  const sequenceGroups = groups.filter(
+    (g): g is Extract<typeof g, { kind: 'sequence' }> => g.kind === 'sequence',
+  );
+  const sequenceScenes = sequenceGroups.reduce((n, g) => n + g.scenes.length, 0);
+  const singleCount = groups.filter((g) => g.kind === 'single').length;
 
   return (
     <div className="mt-5 space-y-3">
+      {sequenceGroups.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/[0.06] px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+          <p>
+            La IA interpretó tus ideas y creó{' '}
+            <span className="text-foreground">
+              {sequenceScenes} escenas en {sequenceGroups.length} secuencia
+              {sequenceGroups.length > 1 ? 's' : ''}
+            </span>
+            {singleCount > 0 && (
+              <>
+                {' '}y{' '}
+                <span className="text-foreground">
+                  {singleCount} clip{singleCount > 1 ? 's' : ''} suelto
+                  {singleCount > 1 ? 's' : ''}
+                </span>
+              </>
+            )}
+            . Cada escena se genera por separado en Producción; une una secuencia
+            para obtener un solo video continuo.
+          </p>
+        </div>
+      )}
       {groups.map((group) =>
         group.kind === 'single' ? (
           <div key={group.item.id} className="overflow-hidden rounded-xl border border-border">
@@ -483,15 +515,25 @@ function PlanTable({
             </table>
           </div>
         ) : (
-          <div key={group.sequenceId} className="rounded-lg border border-zinc-800 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm text-zinc-300">
-                {group.label ?? 'Secuencia'} · {group.scenes.length} escenas
-                <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[11px] uppercase text-zinc-400">sugerida por IA</span>
+          <div key={group.sequenceId} className="rounded-xl border border-border bg-card/40 p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-foreground">
+                  <Layers className="size-3.5 text-primary" aria-hidden />
+                  Secuencia{group.label ? `: «${group.label}»` : ''} · {group.scenes.length} escenas
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-primary">
+                    sugerida por IA
+                  </span>
+                </div>
+                <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
+                  La IA dividió esta idea en {group.scenes.length} escenas que se generan por
+                  separado y juntas forman un anuncio.
+                </p>
               </div>
               <button
                 type="button"
-                className="text-xs text-zinc-400 hover:text-zinc-200"
+                title={`Une las ${group.scenes.length} escenas en un solo video continuo (máx 15s). Si no las unes, se generan por separado.`}
+                className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
                 onClick={() => handleMergeSequence(group.sequenceId)}
               >
                 Unir en 1 clip
@@ -690,6 +732,15 @@ function ProductionView({
         const drafts = group.items.filter((i) => i.status === 'draft_ready');
         const finalItems = group.items.filter((i) => i.status === 'final_ready');
         const finals = finalItems.length;
+        // Secuencias dentro de este grupo de formato: el flujo de lotes las
+        // aplana, así que se rotula su pertenencia y se avisa que el muestreo
+        // parcial («Muestra (2)») rompe el orden narrativo del anuncio.
+        const sequenceItems = group.items.filter((i) => i.sequenceId != null);
+        const sequences = [
+          ...new Map(
+            sequenceItems.map((i) => [i.sequenceId as string, i.sequenceLabel]),
+          ).entries(),
+        ];
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -705,6 +756,18 @@ function ProductionView({
                     {drafts.length > 0 && ` · ${drafts.length} borradores`}
                     {finals > 0 && ` · ${finals} finales`}
                   </p>
+                  {sequences.map(([sid, label]) => {
+                    const n = sequenceItems.filter((i) => i.sequenceId === sid).length;
+                    return (
+                      <p
+                        key={sid}
+                        className="mt-1 flex items-center gap-1.5 text-[11.5px] text-muted-foreground/80"
+                      >
+                        <Layers className="size-3 text-primary/70" aria-hidden />
+                        Secuencia{label ? ` «${label}»` : ''}: {n} escenas en orden
+                      </p>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -736,6 +799,16 @@ function ProductionView({
                 </button>
               </div>
             </div>
+
+            {sequences.length > 0 && pending > 0 && (
+              <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-[11.5px] leading-snug text-amber-300/90">
+                <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>
+                  «Muestra (2)» genera 2 escenas sueltas y rompe el orden del anuncio. Para una
+                  secuencia, usa «Lote completo».
+                </span>
+              </p>
+            )}
 
             {drafts.length > 0 && (
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
