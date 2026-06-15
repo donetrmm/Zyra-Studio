@@ -32,18 +32,12 @@ export type SaveResult =
       colors: { name: string; hex: string }[];
       tone?: string;
     }
-  | { kind: 'product-improve'; refId: string; target: 'product' | 'packaging' }
-  // Producto generado para usarse como asset suelto (p. ej. dentro de la nueva
-  // campaña): solo la imagen, sin crear un Brand Kit ni pedir nombre/paleta.
-  | { kind: 'product-asset'; refId: string; previewUrl: string };
+  | { kind: 'product-improve'; refId: string; target: 'product' | 'packaging' };
 
 type Props = {
   kind: CreationKind;
   // Producto: 'create' (header → kit nuevo) | 'improve' (tarjeta → modificar lo cargado).
   productFlow?: 'create' | 'improve';
-  // Propósito del producto creado: 'kit' (default, pide nombre/paleta/tono al final)
-  // o 'campaign' (devuelve la imagen tal cual para usarla en la campaña; sin kit ni empaque).
-  productPurpose?: 'kit' | 'campaign';
   // Imágenes que el kit ya tiene (solo para 'improve'): se leen automáticamente.
   existing?: { product?: ImgRef; packaging?: ImgRef };
   onSave: (result: SaveResult) => Promise<void>;
@@ -62,7 +56,7 @@ const QUICK_ACTIONS: Array<{ label: string; instruction: string; noBackground?: 
   { label: 'Mejorar luz', instruction: `Relight the scene with even, soft, professional product lighting that shows form and material texture. ${KEEP_PRODUCT}` },
 ];
 
-export function CreationWizard({ kind, productFlow, productPurpose = 'kit', existing, onSave, onClose }: Props) {
+export function CreationWizard({ kind, productFlow, existing, onSave, onClose }: Props) {
   const [step, setStep] = useState<Step>('intent');
   const [text, setText] = useState('');
   const [clarify, setClarify] = useState<ClarifyResult | null>(null);
@@ -225,17 +219,6 @@ export function CreationWizard({ kind, productFlow, productPurpose = 'kit', exis
         await onSave({ kind: 'product-improve', refId, target: improveTarget });
       }
       toast.success('Guardado');
-      onClose();
-    } finally { setBusy(false); }
-  }
-
-  // Producto para la campaña: devuelve la imagen tal cual, sin crear kit.
-  async function handleUseAsset() {
-    const v = versions[current];
-    if (!v) return;
-    setBusy(true);
-    try {
-      await onSave({ kind: 'product-asset', refId: v.refId, previewUrl: v.previewUrl });
       onClose();
     } finally { setBusy(false); }
   }
@@ -406,7 +389,7 @@ export function CreationWizard({ kind, productFlow, productPurpose = 'kit', exis
                 </div>
               )}
 
-              {kind === 'product' && productFlow !== 'improve' && productPurpose === 'kit' && (
+              {kind === 'product' && productFlow !== 'improve' && (
                 <div>
                   <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Empaque (opcional)</label>
                   <div className="mt-1.5 flex items-center gap-2">
@@ -474,12 +457,7 @@ export function CreationWizard({ kind, productFlow, productPurpose = 'kit', exis
                 </div>
               </div>
 
-              {kind === 'product' && productFlow !== 'improve' && productPurpose === 'campaign' ? (
-                <button type="button" onClick={() => void handleUseAsset()} disabled={busy}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                  {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Usar en la campaña
-                </button>
-              ) : kind === 'product' && productFlow !== 'improve' ? (
+              {kind === 'product' && productFlow !== 'improve' ? (
                 <button type="button" onClick={() => void goToKitFields()} disabled={busy}
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                   {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Continuar

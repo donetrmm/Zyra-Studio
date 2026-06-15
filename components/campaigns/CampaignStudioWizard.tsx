@@ -29,6 +29,7 @@ import {
 } from '@/components/shared/ReferenceImagesUploader';
 import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { CreationWizard } from '@/components/creation/CreationWizard';
+import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
 
 type BrandKitOption = {
@@ -61,13 +62,16 @@ const GOALS = [
 // de volumen — el matcher decide cuántos creativos por idea. Sin ideas, un
 // paso intermedio ofrece el plan sugerido.
 export function CampaignStudioWizard({
-  brandKits,
+  brandKits: initialBrandKits,
   characters,
 }: {
   brandKits: BrandKitOption[];
   characters: Array<{ id: string; name: string; previewUrl: string | null; angleCount: number }>;
 }) {
   const router = useRouter();
+  // Estado local: el producto creado con IA inline se guarda como Brand Kit y se
+  // añade aquí para que aparezca en el selector sin recargar.
+  const [brandKits, setBrandKits] = useState(initialBrandKits);
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
@@ -77,7 +81,7 @@ export function CampaignStudioWizard({
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
-  const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
+  const [brandKitId, setBrandKitId] = useState(initialBrandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
   const [askIdeasOpen, setAskIdeasOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -519,13 +523,28 @@ export function CampaignStudioWizard({
         <CreationWizard
           kind="product"
           productFlow="create"
-          productPurpose="campaign"
           onSave={async (result) => {
-            if (result.kind !== 'product-asset') return;
-            setMode('upload');
-            setProductImages((imgs) =>
-              [...imgs, { id: result.refId, previewUrl: result.previewUrl }].slice(0, 6),
-            );
+            if (result.kind !== 'product-create') return;
+            // Guarda el producto generado como Brand Kit reutilizable y lo
+            // selecciona para esta campaña (cubre ambos: usarlo aquí y reusarlo).
+            const created = await createBrandKitAction({
+              name: result.name,
+              colors: result.colors,
+              toneDescription: result.tone,
+            });
+            if (!created.ok) { toast.error(created.message || 'No se pudo crear el Brand Kit'); return; }
+            const img = await setBrandKitImagesAction(created.data.id, {
+              productImageIds: [result.productRefId],
+              packagingImageIds: result.packagingRefId ? [result.packagingRefId] : [],
+            });
+            if (!img.ok) { toast.error(img.message || 'Kit creado, pero no se guardaron las imágenes'); return; }
+            setBrandKits((ks) => [
+              { id: created.data.id, name: result.name, productImages: 1, packagingImages: result.packagingRefId ? 1 : 0 },
+              ...ks,
+            ]);
+            setBrandKitId(created.data.id);
+            setMode('kit');
+            toast.success('Brand Kit creado y seleccionado');
           }}
           onClose={() => setAiOpen(false)}
         />
