@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 // rules-of-hooks se dispara por el prefijo "use".
 import { deletePresetAction, usePresetAction as applyPresetAction } from '@/server-actions/presets';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import { WavePlayer } from '@/components/generation/WavePlayer';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
@@ -335,8 +336,9 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
   }
 
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <div className="scroll-thin max-h-[90vh] overflow-y-auto">
         {/* Media */}
         <div className="relative bg-black">
           {loadingMedia ? (
@@ -365,7 +367,7 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-[16px] font-semibold text-foreground">{preset.name}</h2>
+              <DialogTitle className="text-[16px] font-semibold text-foreground">{preset.name}</DialogTitle>
               <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] text-muted-foreground/70">
                 <span className="inline-flex items-center gap-1">
                   <Icon className="size-3" />
@@ -421,8 +423,9 @@ function PreviewModal({ preset, onClose }: { preset: PresetRow; onClose: () => v
             )}
           </div>
         </div>
-      </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -28,6 +28,7 @@ import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
 
 const CAMPAIGN_NONE = '__none__';
@@ -357,14 +358,11 @@ function CompareModal({
   onClose: () => void;
 }) {
   return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose} onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <div className="scroll-thin mx-4 max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[16px] font-semibold text-foreground">Comparador A/B</h2>
-          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="size-5" aria-hidden />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="scroll-thin max-h-[90vh] overflow-y-auto p-6 sm:max-w-5xl">
+        <DialogHeader>
+          <DialogTitle>Comparador A/B</DialogTitle>
+        </DialogHeader>
         <div className={cn('grid gap-4', generations.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : generations.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4')}>
           {generations.map((g) => (
             <div key={g.id} className="space-y-2">
@@ -385,8 +383,8 @@ function CompareModal({
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

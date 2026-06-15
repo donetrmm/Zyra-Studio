@@ -15,7 +15,6 @@ import {
   Sparkles,
   Trash2,
   Trophy,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -950,32 +949,23 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
-          <h2 className="text-[15px] font-semibold text-foreground">Convertir en plantilla</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-            <X className="size-4.5" aria-hidden />
-          </button>
-        </div>
-        <p className="mt-2 text-[12.5px] text-muted-foreground">
-          La estructura, cámara, ritmo y estilo de este video quedan fijos; producto, escena y personaje
-          serán rotables al generar series.
-        </p>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Convertir en plantilla</DialogTitle>
+          <DialogDescription>
+            La estructura, cámara, ritmo y estilo de este video quedan fijos; producto, escena y
+            personaje serán rotables al generar series.
+          </DialogDescription>
+        </DialogHeader>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
           placeholder="Nombre de la plantilla"
-          className="mt-4 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
             Cancelar
           </button>
@@ -989,8 +979,8 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
             Crear plantilla
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1051,22 +1041,13 @@ function VariantDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div className="mx-4 w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
-          <h2 className="text-[15px] font-semibold text-foreground">Variante dirigida</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-            <X className="size-4.5" aria-hidden />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Variante dirigida</DialogTitle>
+        </DialogHeader>
 
-        <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-0.5">
+        <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-0.5">
           {(
             [
               { value: 'extend', label: 'Extender clip' },
@@ -1208,7 +1189,7 @@ function VariantDialog({
           </div>
         )}
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
             Cancelar
           </button>
@@ -1222,8 +1203,8 @@ function VariantDialog({
             Encolar variante
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1283,25 +1264,13 @@ function EditItemDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div
-        className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between">
-          <h2 className="text-[15px] font-semibold text-foreground">Editar creativo · {item.formatName}</h2>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-            <X className="size-4.5" aria-hidden />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar creativo · {item.formatName}</DialogTitle>
+        </DialogHeader>
 
-        <label htmlFor="edit-prompt" className="mt-4 block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="edit-prompt" className="block text-[12.5px] font-medium text-foreground/80">
           Acción de la escena
         </label>
         <textarea
@@ -1389,8 +1358,8 @@ function EditItemDialog({
             Guardar
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

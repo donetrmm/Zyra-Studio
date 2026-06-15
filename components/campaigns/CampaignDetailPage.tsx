@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Download, FolderKanban, ImageIcon, Loader2, Mic, Video, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 type Generation = {
   id: string;
@@ -138,17 +139,10 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm"
-      onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
-    >
-      <div
-        className="scroll-thin mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogTitle className="sr-only">Detalle del recurso</DialogTitle>
+        <div className="scroll-thin max-h-[90vh] overflow-y-auto">
         <div className="relative bg-black">
           {loading ? (
             <div className="grid aspect-video place-items-center">
@@ -201,7 +195,8 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
             </button>
           )}
         </div>
-      </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
