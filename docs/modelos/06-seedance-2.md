@@ -22,7 +22,9 @@ El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
   `reference_images` / `reference_videos` / `reference_audios` (arrays de URL, Base64 o
   `asset://<id>`). ANTES se enviaban como `image_urls`/`video_urls`/`audio_urls` (inferido) y
   Atlas los ignoraba en silencio → el producto no llegaba al modelo y se inventaba distinto en
-  cada clip. I2V (fotograma inicial) usa `image_url` singular (sin confirmar el de fin).
+  cada clip. I2V usa `image` (fotograma inicial) y `last_image` (fotograma final), confirmados con el "view
+code" oficial. Hay un flag `return_last_frame` (bool) para que la respuesta devuelva el último
+fotograma como imagen aparte (clave para encadenar clips de una secuencia).
 
 Los 6 slugs internos (`bytedance/seedance-2.0/...`) son la clave lógica en ambos casos.
 

@@ -266,7 +266,7 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
     expect(sent.image_urls).toBeUndefined();
   });
 
-  it('submitTask image2video manda image_url', async () => {
+  it('submitTask image2video manda image (y last_image) — contrato oficial', async () => {
     fetchMock.mockResolvedValue(mockJson(200, { data: { id: 'pred-2' } }));
     const { submitTask } = await import('./seedance');
     await submitTask({
@@ -274,9 +274,12 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
       model: 'bytedance/seedance-2.0/image-to-video',
       prompt: 'p',
       imageUrl: 'https://x/start.png',
+      endImageUrl: 'https://x/end.png',
     });
-    const [, opts] = fetchMock.mock.calls[0];
-    expect(JSON.parse(opts.body as string).image_url).toBe('https://x/start.png');
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+    expect(sent.image).toBe('https://x/start.png');
+    expect(sent.last_image).toBe('https://x/end.png');
+    expect(sent.image_url).toBeUndefined();
   });
 
   it('pollTask completed → completed con outputs[0]', async () => {

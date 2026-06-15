@@ -273,9 +273,11 @@ async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceRes
   if (params.duration !== undefined) body.duration = params.duration;
   if (params.seed !== undefined) body.seed = params.seed;
   if (params.operation === 'image2video') {
-    body.image_url = params.imageUrl;
-    // end_image_url: nombre inferido (I2V de fotograma final). Confirmar en smoke.
-    if (params.endImageUrl) body.end_image_url = params.endImageUrl;
+    // Campos confirmados con el "view code" oficial de AtlasCloud (2026-06-15):
+    // `image` (fotograma inicial) y `last_image` (fotograma final). ANTES se
+    // enviaban como image_url/end_image_url (inferido) → Atlas los ignoraba.
+    body.image = params.imageUrl;
+    if (params.endImageUrl) body.last_image = params.endImageUrl;
   }
   if (params.operation === 'reference2video') {
     // Campos confirmados con el "view code" oficial de AtlasCloud (2026-06-15):
