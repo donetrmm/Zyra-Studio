@@ -382,6 +382,49 @@ describe('matchIdeas', () => {
     expect(m.scenes[1].scenePrompt).toContain('museum');
   });
 
+  it('clampa la duración de una escena de secuencia a 8s (beat corto), sin tocar las menores', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'anuncio de 4 actos', formatId: 'f1', customFormat: null, sequenceLabel: 'Reveal',
+        scenes: [
+          { scenePrompt: 'A wall ignites and the artwork appears', durationS: 15 },
+          { scenePrompt: 'The camera pans across the artwork details', durationS: 6 },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'anuncio', formats: FORMATS });
+    expect(res.matches[0].scenes[0].durationS).toBe(8); // 15 → 8
+    expect(res.matches[0].scenes[1].durationS).toBe(6); // intacta
+  });
+
+  it('quita emojis del scenePrompt (no van dentro del video) y conserva el texto', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'cierre con fuego', formatId: 'f1', customFormat: null,
+        scenePrompt: 'The logo glows over the artwork 🔥🔥 and the brand name appears ✨',
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'cierre', formats: FORMATS });
+    expect(res.matches[0].scenePrompt).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(res.matches[0].scenePrompt).toContain('The logo glows over the artwork');
+    expect(res.matches[0].scenePrompt).toContain('the brand name appears');
+  });
+
+  it('quita emojis también en las escenas de una secuencia', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia con emoji', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [{ scenePrompt: 'Hands open the box 🎁 and lift the product', durationS: 5 }],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
+    expect(res.matches[0].scenes[0].scenePrompt).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(res.matches[0].scenes[0].scenePrompt).toContain('Hands open the box');
+  });
+
   it('descarta una escena malformada sin tirar la secuencia', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{

@@ -242,6 +242,36 @@ describe('buildDirectedPlan', () => {
     expect(items[0].scenePrompt).toBe('A dog carries the product through a park, tail wagging');
   });
 
+  it('las escenas de una secuencia no heredan fragmento de scene_library (autocontenido)', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('gran-pantalla'),
+            count: 1,
+            durationS: null,
+            scenePrompt: null,
+            sceneSummary: null,
+            characterIds: [],
+            invented: [],
+            scenes: [
+              { scenePrompt: 'A wall ignites and the artwork appears on it', durationS: 5, sceneSummary: null },
+              { scenePrompt: 'The artwork hangs above a sofa in a living room', durationS: 4, sceneSummary: null },
+            ],
+            sequenceLabel: 'Reveal',
+          },
+        ],
+      }),
+    );
+    expect(items).toHaveLength(2);
+    // sin fragmento impuesto: el setting vive en el scenePrompt autocontenido
+    expect(items.every((i) => i.scene === '')).toBe(true);
+    // siguen siendo una secuencia (mismo sequenceId, en orden)
+    expect(items[0].sequenceId).not.toBeNull();
+    expect(items[1].sequenceId).toBe(items[0].sequenceId);
+    expect(items.map((i) => i.sceneIndex)).toEqual([0, 1]);
+  });
+
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
       directedInput({

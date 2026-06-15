@@ -33,6 +33,11 @@ export type MatcherImage = { mimeType: string; dataBase64: string; label: string
 // compiler); solo evita strings patológicos y deja margen al andamiaje.
 const SCENE_PROMPT_MAX = 3000;
 
+// Tope de duración de UNA escena de secuencia: es un beat corto, no un clip
+// suelto. El modelo a veces devuelve 15 (el máximo de un clip) para un beat
+// trivial — un reveal de 15s sale lento y caro. Se clampa aquí.
+const SCENE_MAX_DURATION_S = 8;
+
 // Recorta en frontera de frase/palabra para no cortar a media palabra.
 function clampToWord(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -43,6 +48,24 @@ function clampToWord(text: string, max: number): string {
   return cut.slice(0, at).trim();
 }
 
+// Quita emojis (y selectores de variación / modificadores de tono) del prompt:
+// el modelo de video los renderiza deforme y la marca no usa emojis (CLAUDE.md).
+// Colapsa los espacios que deja, sin tocar saltos de línea (timelines).
+function stripEmoji(text: string): string {
+  return text
+    .replace(/[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{200D}️]/gu, '')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+// Saneo común del scenePrompt del modelo: no-string → null; quita emojis;
+// recorta en frontera de palabra si excede el techo. null descarta la escena.
+function sanitizeScenePrompt(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = stripEmoji(v).trim();
+  if (!t) return null;
+  return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
+}
+
 const InventedCharacterSchema = z.object({
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().min(1).max(300),
@@ -51,15 +74,18 @@ const InventedCharacterSchema = z.object({
 // Una escena de una secuencia: misma forma que un scenePrompt suelto, recortado
 // con el mismo clamp. Sin scenePrompt valido, la escena es descartable.
 const SceneSchema = z.object({
-  scenePrompt: z
-    .unknown()
-    .transform((v) => {
-      if (typeof v !== 'string') return null;
-      const t = v.trim();
-      if (!t) return null;
-      return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
-    }),
-  durationS: z.number().int().min(4).max(15).nullable().catch(null).default(null),
+  scenePrompt: z.unknown().transform(sanitizeScenePrompt),
+  // Una escena de secuencia es un beat corto: se clampa a SCENE_MAX_DURATION_S
+  // aunque el modelo pida más (evita un beat de 15s lento y caro).
+  durationS: z
+    .number()
+    .int()
+    .min(4)
+    .max(15)
+    .nullable()
+    .catch(null)
+    .default(null)
+    .transform((n) => (n == null ? null : Math.min(n, SCENE_MAX_DURATION_S))),
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
 });
 export type MatchedScene = { scenePrompt: string; durationS: number | null; sceneSummary: string | null };
@@ -80,15 +106,7 @@ const MatchSchema = z.object({
   // del usuario. Ahora se CONSERVA y, si excede el presupuesto, se recorta en
   // frontera de palabra — nunca a null (no-string sí cae a null). El techo duro
   // del prompt COMPILADO (4000) lo garantiza el compiler de Seedance.
-  scenePrompt: z
-    .unknown()
-    .transform((v) => {
-      if (typeof v !== 'string') return null;
-      const t = v.trim();
-      if (!t) return null;
-      return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
-    })
-    .default(null),
+  scenePrompt: z.unknown().transform(sanitizeScenePrompt).default(null),
   // Duración que la acción necesita (4-15s, 1 acción ≈ 4s). null = usar la
   // default del formato.
   durationS: z.number().int().min(4).max(15).nullable().catch(null).default(null),
@@ -231,7 +249,7 @@ Por cada idea distinta devuelve un match:
   clip de <=15s), pártela en escenas cortas: array de objetos
   {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
   (re-describe escenario y personaje, el modelo no recuerda entre clips)",
-  "durationS":entero 4-15,"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
+  "durationS":entero 4-8 (una escena es un beat corto),"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].
@@ -244,6 +262,10 @@ Por cada idea distinta devuelve un match:
   inventa su apariencia: {"name":"...","description":"apariencia concreta en
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
   no menciona. Si no aplica, [].
+NUNCA escribas texto en pantalla (subtítulos, carteles, "Text on screen", copy
+escrito) ni emojis dentro de scenePrompt ni en scenes: el modelo de video los
+renderiza deforme y la marca no usa emojis. La acción describe lo que se VE y
+se OYE; el copy y el CTA no van dentro del video.
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
 {"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"characterIds":[],"inventedCharacters":[]}]}`;
 

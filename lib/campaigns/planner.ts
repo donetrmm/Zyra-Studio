@@ -311,9 +311,10 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
       if (allowed === 0) return [];
       const sequenceId = crypto.randomUUID();
       const format = idea.format;
-      const scene = input.scenes[gIdx % Math.max(1, input.scenes.length)] ?? {
-        name: 'Estudio', fragment: 'a clean minimal studio setting with controlled soft light',
-      };
+      // Las escenas de una secuencia son AUTO-CONTENIDAS (el matcher re-describe
+      // escenario y personaje en cada scenePrompt). Imponerles un fragmento
+      // genérico de scene_library (p. ej. "cocina") contradice la acción
+      // (una pared, una sala) → se deja vacío y manda el scenePrompt.
       const fromIdea = idea.characterIds.filter((id) => input.characters.some((c) => c.id === id)).slice(0, 3);
       const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
       const needsCharacter = format.requiredRefs.includes('character');
@@ -331,7 +332,7 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           modelSlug: input.draftModelSlug,
           durationS: sc.durationS ?? format.defaultDurationS,
           aspectRatio: input.aspectRatio,
-          scene: scene.fragment,
+          scene: '', // autocontenido en scenePrompt; sin fragmento impuesto
           audio: format.defaultAudio,
           characterIds: fromIdea,
           scenePrompt,
