@@ -213,8 +213,10 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
       .eq('campaign_id', parsed.data.campaignId)
       .single();
     if (!item) return { ok: false, error: 'not_found' };
-    if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
-      return { ok: false, error: 'forbidden', message: 'El creativo ya está en producción' };
+    // draft_ready incluido: refinar un borrador y regenerarlo. Solo se bloquea
+    // mientras se está generando (sample/queued) o ya es final.
+    if (!['planned', 'skipped', 'failed', 'draft_ready'].includes(item.status as string)) {
+      return { ok: false, error: 'forbidden', message: 'El creativo está generándose o ya es final' };
     }
     existingCharacterIds = (item.character_ids as string[] | null) ?? [];
   }

@@ -895,8 +895,10 @@ export async function generateItemAction(itemId: string): Promise<Result<{ gener
     .single();
   const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
   if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
-  if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
-    return { ok: false, error: 'forbidden', message: 'La escena ya está en producción o lista' };
+  // draft_ready incluido: regenerar un borrador que no convenció (crea una nueva
+  // versión; la anterior queda en la biblioteca). En curso (sample/queued) no.
+  if (!['planned', 'skipped', 'failed', 'draft_ready'].includes(item.status as string)) {
+    return { ok: false, error: 'forbidden', message: 'La escena está generándose; espera a que termine' };
   }
 
   // RESUME (Tier 2): escena 'failed' por falta de créditos cuya generación de

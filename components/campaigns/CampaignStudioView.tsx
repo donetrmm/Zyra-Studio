@@ -14,6 +14,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  RefreshCw,
   Sparkles,
   Trash2,
   Trophy,
@@ -711,6 +712,18 @@ function ProductionView({
   // Visor inline del creativo generado (evita ir a la Biblioteca).
   const [viewing, setViewing] = useState<{ generationId: string; title: string } | null>(null);
 
+  async function handleRegenerate(itemId: string) {
+    setBusy(`regen:${itemId}`);
+    const res = await generateItemAction(itemId);
+    setBusy(null);
+    if (!res.ok) {
+      if (res.error === 'insufficient_credits') insufficientCreditsToast();
+      else toast.error(res.message ?? 'No se pudo regenerar la escena');
+      return;
+    }
+    toast.success('Regenerando la escena — reemplazará el borrador al terminar');
+  }
+
   async function handleWinner(item: StudioItem) {
     setBusy(`winner:${item.id}`);
     const res = await toggleWinnerAction(item.id);
@@ -891,6 +904,28 @@ function ProductionView({
                           Ver
                         </button>
                       )}
+                      <Link
+                        href={`/app/campaigns/${campaignId}/refine/${d.id}`}
+                        title="Refinar el prompt con el asistente"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        <Sparkles className="size-3" aria-hidden />
+                        Refinar
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => handleRegenerate(d.id)}
+                        title="Regenerar esta escena (reemplaza el borrador)"
+                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      >
+                        {busy === `regen:${d.id}` ? (
+                          <Loader2 className="size-3 animate-spin" aria-hidden />
+                        ) : (
+                          <RefreshCw className="size-3" aria-hidden />
+                        )}
+                        Regenerar
+                      </button>
                       <button
                         type="button"
                         disabled={busy !== null}
