@@ -205,18 +205,11 @@ function GeneratingState({
           Generando con {providerLabel}
         </div>
         <div className="relative h-[22px]">
-          {ROTATING_TIPS.map((t, i) => (
-            <div
-              key={t}
-              className="absolute inset-x-0 text-sm text-foreground transition-all duration-[400ms]"
-              style={{
-                opacity: i === tipIdx ? 1 : 0,
-                transform: i === tipIdx ? 'translateY(0)' : 'translateY(6px)',
-              }}
-            >
-              {t}…
-            </div>
-          ))}
+          {/* Un solo nodo reanimado con `key`: evita el solape de dos textos
+             crossfade en la misma posición (hallazgo UX usuario primerizo). */}
+          <div key={tipIdx} className="zyra-fade-up absolute inset-x-0 text-sm text-foreground">
+            {ROTATING_TIPS[tipIdx]}…
+          </div>
         </div>
         <div className="mt-2.5 font-mono text-[11.5px] text-muted-foreground/80">
           {String(elapsed).padStart(2, '0')}s · estimado ~{etaSeconds}s
