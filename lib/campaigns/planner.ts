@@ -254,6 +254,11 @@ function interleaveAndSchedule(
 // Techo demo (doc V2 §5.5): la arquitectura escala, el plan free no.
 export const MAX_PLAN_ITEMS = 30;
 
+// Tope de una ESCENA de secuencia: es un beat corto, no un clip suelto. Se
+// clampa la duración resuelta (venga del matcher o del default del formato —
+// un formato custom puede tener default 15s, pensado para clip único, no beat).
+export const SEQUENCE_SCENE_MAX_S = 8;
+
 // Plan dirigido por ideas: el usuario describió lo que quiere y el matcher
 // lo mapeó a formatos (existentes o recién creados). Aquí NO se rellena hasta
 // un volumen fijo — salen exactamente los creativos pedidos, uno por idea
@@ -330,7 +335,8 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           formatId: format.id,
           formatSlug: format.slug,
           modelSlug: input.draftModelSlug,
-          durationS: sc.durationS ?? format.defaultDurationS,
+          // Beat corto: clampa la duración resuelta (matcher o default del formato).
+          durationS: Math.min(sc.durationS ?? format.defaultDurationS, SEQUENCE_SCENE_MAX_S),
           aspectRatio: input.aspectRatio,
           scene: '', // autocontenido en scenePrompt; sin fragmento impuesto
           audio: format.defaultAudio,

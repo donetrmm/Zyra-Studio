@@ -272,6 +272,33 @@ describe('buildDirectedPlan', () => {
     expect(items.map((i) => i.sceneIndex)).toEqual([0, 1]);
   });
 
+  it('clampa la duración de la escena a 8s aunque venga del default del formato (custom 15s)', () => {
+    // Formato custom con default 15s (pensado para clip único); al partirse en
+    // secuencia, cada escena es un beat ≤8s aunque la escena no traiga durationS.
+    const customFmt: PlannerFormat = {
+      id: 'id-renace', slug: 'renace-tu-pared', name: 'Renace tu pared',
+      requiredRefs: ['product'], defaultDurationS: 15, defaultAudio: true,
+    };
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: customFmt, count: 1, durationS: null, scenePrompt: null, sceneSummary: null,
+            characterIds: [], invented: [],
+            scenes: [
+              { scenePrompt: 'A wall ignites and the artwork appears', durationS: 5, sceneSummary: null },
+              { scenePrompt: 'The logo glows over the illuminated artwork', durationS: null, sceneSummary: null },
+            ],
+            sequenceLabel: 'Renace tu pared',
+          },
+        ],
+      }),
+    );
+    expect(items).toHaveLength(2);
+    expect(items[0].durationS).toBe(5); // explícita, intacta
+    expect(items[1].durationS).toBe(8); // null → default 15 → clampada a 8
+  });
+
   it('sin scenePrompt usa las semillas del formato', () => {
     const items = buildDirectedPlan(
       directedInput({
