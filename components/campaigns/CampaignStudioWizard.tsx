@@ -28,6 +28,7 @@ import {
   type RefImage,
 } from '@/components/shared/ReferenceImagesUploader';
 import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
+import { CreationWizard } from '@/components/creation/CreationWizard';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
 
 type BrandKitOption = {
@@ -74,6 +75,7 @@ export function CampaignStudioWizard({
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
+  const [aiOpen, setAiOpen] = useState(false);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(brandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
@@ -210,13 +212,14 @@ export function CampaignStudioWizard({
                   ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
               )}
-              <Link
-                href="/app/brand/kits"
+              <button
+                type="button"
+                onClick={() => setAiOpen(true)}
                 className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-primary underline-offset-2 hover:underline"
               >
                 ¿No tienes una foto del producto? Créala con IA
                 <ArrowRight className="size-3" aria-hidden />
-              </Link>
+              </button>
             </div>
           ) : (
             <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
@@ -511,6 +514,22 @@ export function CampaignStudioWizard({
           )}
         </Button>
       </div>
+
+      {aiOpen && (
+        <CreationWizard
+          kind="product"
+          productFlow="create"
+          productPurpose="campaign"
+          onSave={async (result) => {
+            if (result.kind !== 'product-asset') return;
+            setMode('upload');
+            setProductImages((imgs) =>
+              [...imgs, { id: result.refId, previewUrl: result.previewUrl }].slice(0, 6),
+            );
+          }}
+          onClose={() => setAiOpen(false)}
+        />
+      )}
 
       <Dialog open={askIdeasOpen} onOpenChange={setAskIdeasOpen}>
         <DialogContent className="sm:max-w-md">
