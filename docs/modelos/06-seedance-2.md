@@ -17,9 +17,12 @@ El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
   auth y poll correctos). El `model` es nuestro slug **por operación** — pero **sin el tier
   `fast`**: Atlas no expone fast (es un id de ModelArk), y el slug `/fast/...` devuelve
   `400 {"msg":"not found"}`. El adapter mapea `/fast/` → estándar (`atlasModelId`). Body
-  análogo a ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`); I2V usa
-  `image_url`. ⚠️ El shape multi-referencia de R2V (`image_urls`/`video_urls`/`audio_urls`)
-  sigue **inferido** — pendiente de confirmar con un smoke de I2V/R2V.
+  análogo a ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`). **R2V
+  confirmado con el "view code" oficial (2026-06-15):** las referencias van en
+  `reference_images` / `reference_videos` / `reference_audios` (arrays de URL, Base64 o
+  `asset://<id>`). ANTES se enviaban como `image_urls`/`video_urls`/`audio_urls` (inferido) y
+  Atlas los ignoraba en silencio → el producto no llegaba al modelo y se inventaba distinto en
+  cada clip. I2V (fotograma inicial) usa `image_url` singular (sin confirmar el de fin).
 
 Los 6 slugs internos (`bytedance/seedance-2.0/...`) son la clave lógica en ambos casos.
 

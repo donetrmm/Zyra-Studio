@@ -278,11 +278,13 @@ async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceRes
     if (params.endImageUrl) body.end_image_url = params.endImageUrl;
   }
   if (params.operation === 'reference2video') {
-    // Arrays multi-referencia: nombres inferidos por consistencia con image_url
-    // (I2V). Confirmar en smoke; ajustar aquí si la API usa otra forma.
-    if (params.imageUrls?.length) body.image_urls = params.imageUrls;
-    if (params.videoUrls?.length) body.video_urls = params.videoUrls;
-    if (params.audioUrls?.length) body.audio_urls = params.audioUrls;
+    // Campos confirmados con el "view code" oficial de AtlasCloud (2026-06-15):
+    // reference_images / reference_videos / reference_audios (arrays de URLs).
+    // Antes se enviaban como image_urls/video_urls/audio_urls (inferido) y Atlas
+    // los IGNORABA en silencio → el producto de referencia no llegaba al modelo.
+    if (params.imageUrls?.length) body.reference_images = params.imageUrls;
+    if (params.videoUrls?.length) body.reference_videos = params.videoUrls;
+    if (params.audioUrls?.length) body.reference_audios = params.audioUrls;
   }
 
   let res: Response;

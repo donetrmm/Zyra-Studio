@@ -247,6 +247,25 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
     expect(JSON.parse(opts.body as string).model).toBe('bytedance/seedance-2.0/reference-to-video');
   });
 
+  it('R2V manda las referencias en reference_images/videos/audios (contrato oficial)', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { data: { id: 'pred-r' } }));
+    const { submitTask } = await import('./seedance');
+    await submitTask({
+      operation: 'reference2video',
+      model: 'bytedance/seedance-2.0/reference-to-video',
+      prompt: '@Image1 is the product',
+      imageUrls: ['https://x/product.png', 'https://x/p2.png'],
+      videoUrls: ['https://x/cam.mp4'],
+      audioUrls: ['https://x/bg.mp3'],
+    });
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body);
+    expect(sent.reference_images).toEqual(['https://x/product.png', 'https://x/p2.png']);
+    expect(sent.reference_videos).toEqual(['https://x/cam.mp4']);
+    expect(sent.reference_audios).toEqual(['https://x/bg.mp3']);
+    // ya no se usan los nombres inferidos previos
+    expect(sent.image_urls).toBeUndefined();
+  });
+
   it('submitTask image2video manda image_url', async () => {
     fetchMock.mockResolvedValue(mockJson(200, { data: { id: 'pred-2' } }));
     const { submitTask } = await import('./seedance');
