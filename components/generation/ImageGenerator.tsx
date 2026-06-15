@@ -13,7 +13,7 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { ControlsPanel } from './ControlsPanel';
 import { ChatThread } from './ChatThread';
-import { PreviewArea } from './PreviewArea';
+import { PreviewArea, type GenError } from './PreviewArea';
 import type { SelectedBrandKit } from './BrandKitSelector';
 import type { SelectedCampaign } from './CampaignSelector';
 import type { ReferenceClient } from './ReferencesPanel';
@@ -68,6 +68,7 @@ export function ImageGenerator(props: {
   const [campaign, setCampaign] = useState<SelectedCampaign>(null);
   const [session, setSession] = useState<SessionItem[]>([]);
   const [activeResult, setActiveResult] = useState<SessionItem | null>(null);
+  const [genError, setGenError] = useState<GenError | null>(null);
   const [pending, startTransition] = useTransition();
 
   const selection = useMemo<Selection>(() => {
@@ -201,18 +202,23 @@ export function ImageGenerator(props: {
   const handleGenerate = useCallback(() => {
     if (!canGenerate) return;
     const input = buildInput();
+    setGenError(null); // limpia el error previo al reintentar/generar
     startTransition(async () => {
       const res = await submitGenerationAction(input);
       if (!res.ok) {
-        const msg =
+        // Estado de error PERSISTENTE en el preview (no toast efímero): el
+        // usuario invirtió la espera y necesita causa + recuperación.
+        // insufficient_credits ocurre antes de cobrar (refunded=0); los demás
+        // fallos sí refundan el costo estimado.
+        const kind: GenError['kind'] =
+          res.error === 'safety' ? 'safety' : res.error === 'insufficient_credits' ? 'credits' : 'generic';
+        const message =
           res.error === 'insufficient_credits'
-            ? 'Créditos insuficientes para esta generación.'
-            : res.error === 'safety'
-              ? 'El proveedor rechazó el contenido por políticas de seguridad.'
-              : res.error === 'validation_error'
-                ? 'Parámetros inválidos. Revisa el prompt y los ajustes.'
-                : res.message || 'No se pudo generar la imagen.';
-        toast.error(msg);
+            ? 'No tienes saldo para esta generación. Compra créditos y vuelve a intentar.'
+            : res.error === 'validation_error'
+              ? 'Parámetros inválidos. Revisa el prompt y los ajustes, y reintenta.'
+              : res.message || 'Hubo un problema al generar. Reintenta en un momento.';
+        setGenError({ kind, message, refunded: kind === 'credits' ? 0 : cost });
         return;
       }
       const detail = await fetchGenerationDetail(res.data.generationId);
@@ -224,7 +230,7 @@ export function ImageGenerator(props: {
         toast.success('Imagen lista');
       }
     });
-  }, [canGenerate, buildInput, effectiveConversational]);
+  }, [canGenerate, buildInput, effectiveConversational, cost]);
 
   const providerLabel = labelForSelection(selection);
 
@@ -352,9 +358,11 @@ export function ImageGenerator(props: {
     <PreviewArea
       pending={pending}
       result={activeResult}
+      error={genError}
+      onRetry={handleGenerate}
       providerLabel={providerLabel}
       session={session}
-      onSelect={setActiveResult}
+      onSelect={(item) => { setGenError(null); setActiveResult(item); }}
       aspectRatio={aspectRatio}
       promptEcho={prompt}
       etaSeconds={etaSeconds}

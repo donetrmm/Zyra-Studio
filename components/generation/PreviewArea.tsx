@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import {
+  AlertTriangle,
   ChevronRight,
   Download,
   Library,
   Loader2,
   Maximize2,
+  RefreshCw,
   Shield,
   Sparkles,
 } from 'lucide-react';
@@ -36,9 +38,21 @@ const SAMPLE_PROMPTS = [
   'Paisaje cinemático al atardecer',
 ];
 
+// Error de generación con estado persistente en el preview (no toast efímero):
+// el usuario invirtió la espera y necesita causa + recuperación.
+export type GenError = {
+  // safety: rechazo de contenido (reformular). credits: sin saldo (comprar).
+  // generic: red/server/timeout (reintentable).
+  kind: 'safety' | 'credits' | 'generic';
+  message: string;
+  refunded: number; // créditos devueltos a mostrar (0 = no mostrar badge)
+};
+
 export function PreviewArea({
   pending,
   result,
+  error,
+  onRetry,
   providerLabel,
   session,
   onSelect,
@@ -50,6 +64,8 @@ export function PreviewArea({
 }: {
   pending: boolean;
   result: SessionItem | null;
+  error?: GenError | null;
+  onRetry?: () => void;
   providerLabel: string;
   session: SessionItem[];
   onSelect: (item: SessionItem) => void;
@@ -69,6 +85,8 @@ export function PreviewArea({
             providerLabel={providerLabel}
             etaSeconds={etaSeconds}
           />
+        ) : error ? (
+          <GenerationErrorState error={error} onRetry={onRetry} />
         ) : result ? (
           <ResultState
             result={result}
@@ -410,23 +428,49 @@ function ResultState({
   );
 }
 
-export function SafetyErrorState({ refunded }: { refunded: number }) {
+// Estado de error persistente del preview. Generaliza el antiguo SafetyErrorState
+// a los tres casos (safety / credits / generic) reusando su mismo look, y añade
+// recuperación (Reintentar) para los errores reintentables.
+function GenerationErrorState({ error, onRetry }: { error: GenError; onRetry?: () => void }) {
+  const safety = error.kind === 'safety';
+  const Icon = safety ? Shield : AlertTriangle;
+  const title = safety
+    ? 'El contenido no pasó la revisión de seguridad'
+    : error.kind === 'credits'
+      ? 'Créditos insuficientes'
+      : 'No se pudo generar la imagen';
+  const description = safety
+    ? 'El modelo rechazó este prompt. Reformúlalo evitando contenido sensible, personas reales o violencia explícita.'
+    : error.message;
+  // Reintentar solo donde tiene sentido: fallos transitorios. En safety reformular
+  // el mismo prompt fallaría igual; en credits no hay saldo.
+  const showRetry = error.kind === 'generic' && !!onRetry;
+
   return (
     <div className="grid h-full place-items-center p-8">
       <div className="max-w-[420px] text-center">
         <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
-          <Shield className="size-6" aria-hidden />
+          <Icon className="size-6" aria-hidden />
         </div>
-        <h3 className="font-heading text-[17px] font-medium text-foreground">
-          El contenido no pasó la revisión de seguridad
-        </h3>
-        <p className="mb-4 mt-2 text-[13px] leading-[1.55] text-muted-foreground">
-          El modelo rechazó este prompt. Intenta reformular evitando contenido
-          sensible, personas reales o violencia explícita.
-        </p>
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-400">
-          <span className="font-mono">+{refunded}</span> créditos devueltos a tu balance
-        </div>
+        <h3 className="font-heading text-[17px] font-medium text-foreground">{title}</h3>
+        <p className="mb-4 mt-2 text-[13px] leading-[1.55] text-muted-foreground">{description}</p>
+        {error.refunded > 0 && (
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-400">
+            <span className="font-mono">+{error.refunded}</span> créditos devueltos a tu balance
+          </div>
+        )}
+        {showRetry && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <RefreshCw className="size-3.5" aria-hidden />
+              Reintentar
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
