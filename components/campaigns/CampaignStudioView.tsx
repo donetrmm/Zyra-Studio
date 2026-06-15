@@ -26,6 +26,7 @@ import {
   deleteCampaignItemAction,
   distillTemplateAction,
   exportCampaignCsvAction,
+  generateItemAction,
   generateSeriesAction,
   mergeSequenceAction,
   previewItemPromptAction,
@@ -357,6 +358,19 @@ function PlanTable({
   onSequenceMerged: (sequenceId: string) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
+  const [generatingItem, setGeneratingItem] = useState<string | null>(null);
+
+  async function handleGenerateItem(item: StudioItem) {
+    setGeneratingItem(item.id);
+    const res = await generateItemAction(item.id);
+    setGeneratingItem(null);
+    if (!res.ok) {
+      if (res.error === 'insufficient_credits') insufficientCreditsToast();
+      else toast.error(res.message ?? 'No se pudo generar la escena');
+      return;
+    }
+    toast.success('Escena en cola — aparecerá en Producción');
+  }
 
   async function handleDelete(item: StudioItem) {
     const res = await deleteCampaignItemAction(item.id);
@@ -426,6 +440,20 @@ function PlanTable({
           <span className="inline-flex gap-1">
             {editable(item.status) && (
               <>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateItem(item)}
+                  disabled={generatingItem === item.id}
+                  title="Generar esta escena"
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                >
+                  {generatingItem === item.id ? (
+                    <Loader2 className="size-3 animate-spin" aria-hidden />
+                  ) : (
+                    <Play className="size-3" aria-hidden />
+                  )}
+                  Generar
+                </button>
                 <Link
                   href={`/app/campaigns/${campaignId}/refine/${item.id}`}
                   aria-label="Refinar con asistente"
@@ -603,6 +631,20 @@ function PlanTable({
                         <span className="inline-flex gap-1">
                           {editable(scene.status) && (
                             <>
+                              <button
+                                type="button"
+                                onClick={() => handleGenerateItem(scene)}
+                                disabled={generatingItem === scene.id}
+                                title="Generar esta escena (continúa desde la anterior)"
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                              >
+                                {generatingItem === scene.id ? (
+                                  <Loader2 className="size-3 animate-spin" aria-hidden />
+                                ) : (
+                                  <Play className="size-3" aria-hidden />
+                                )}
+                                Generar
+                              </button>
                               <Link
                                 href={`/app/campaigns/${campaignId}/refine/${scene.id}`}
                                 aria-label="Refinar con asistente"

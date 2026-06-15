@@ -874,6 +874,122 @@ export async function deleteCampaignItemAction(itemId: string): Promise<Result<{
   return { ok: true, data: { deleted: true } };
 }
 
+// Genera (o regenera) UNA sola escena, sin re-tirar el lote. Recupera escenas
+// planned/skipped/failed. Si la escena de una secuencia quedó 'failed' por falta
+// de créditos, RESUME su generación de continuación preservada (mantiene
+// [producto, fotograma previo] → continuidad real, Tier 2); en cualquier otro
+// caso la genera fresca con la referencia del producto (Tier 1).
+export async function generateItemAction(itemId: string): Promise<Result<{ generationId?: string }>> {
+  if (!z.string().uuid().safeParse(itemId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { user, workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select(
+      'id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, generation_id, campaigns!inner(workspace_id)',
+    )
+    .eq('id', itemId)
+    .single();
+  const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
+  if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
+  if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
+    return { ok: false, error: 'forbidden', message: 'La escena ya está en producción o lista' };
+  }
+
+  // RESUME (Tier 2): escena 'failed' por falta de créditos cuya generación de
+  // continuación quedó preservada → reservar + re-encolar (sin recompilar, así
+  // conserva las referencias [producto, fotograma del clip previo]).
+  if (item.status === 'failed' && item.generation_id) {
+    const { data: gen } = await supabase
+      .from('generations')
+      .select('id, status, credits_estimated, error_message, params')
+      .eq('id', item.generation_id as string)
+      .single();
+    const isChainGen = !!(gen?.params as { chain?: unknown } | null)?.chain;
+    if (gen && gen.status === 'failed' && gen.error_message === 'insufficient_credits' && isChainGen) {
+      const cost = (gen.credits_estimated as number) ?? 0;
+      const reserved = await reserveCredits(user.id, cost, gen.id as string);
+      if (!reserved) return { ok: false, error: 'insufficient_credits' };
+      const admin = createAdminClient();
+      await admin
+        .from('generations')
+        .update({
+          status: 'queued',
+          poll_attempts: 0,
+          error_message: null,
+          timeout_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+        })
+        .eq('id', gen.id as string);
+      await admin.from('campaign_items').update({ status: 'sample', warnings: [] }).eq('id', itemId);
+      await enqueueJob({ generationId: gen.id as string, action: 'submit', delaySeconds: 0 });
+      revalidatePath(`/app/campaigns/${item.campaign_id}`);
+      return { ok: true, data: { generationId: gen.id as string } };
+    }
+  }
+
+  // FRESH (Tier 1): generar la escena de cero con la referencia del producto,
+  // reusando el orquestador para un único item.
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select('id, brand_kit_id, product_brief, language, include_packaging')
+    .eq('id', item.campaign_id as string)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  // enqueueBatch solo toma items 'planned'/'failed'; resetear limpia la gen previa.
+  await supabase.from('campaign_items').update({ status: 'planned', generation_id: null }).eq('id', itemId);
+
+  const { data: formatRows } = item.format_id
+    ? await supabase
+        .from('formats')
+        .select('id, slug, name, register, camera_style, pacing, required_refs, default_duration_s, default_audio')
+        .eq('id', item.format_id as string)
+    : { data: [] };
+  const formatsMap = new Map(
+    (formatRows ?? []).map((f) => [
+      f.id as string,
+      {
+        id: f.id as string,
+        slug: f.slug as string,
+        name: f.name as string,
+        register: f.register as string | null,
+        camera_style: f.camera_style as string | null,
+        pacing: f.pacing as string | null,
+        required_refs: (f.required_refs as string[]) ?? [],
+        default_duration_s: f.default_duration_s as number,
+        default_audio: f.default_audio as boolean,
+      },
+    ]),
+  );
+
+  const result = await enqueueBatch({
+    userId: user.id,
+    workspaceId: workspace.id,
+    campaign: {
+      id: campaign.id as string,
+      brand_kit_id: campaign.brand_kit_id as string | null,
+      product_brief: campaign.product_brief as Record<string, unknown> | null,
+      language: campaign.language as string | null,
+      include_packaging: campaign.include_packaging as boolean | null,
+    },
+    items: [{ ...item, status: 'planned' }] as never,
+    formats: formatsMap as never,
+    mode: 'full',
+  });
+
+  if (result.enqueued === 0) {
+    if (result.skipped.some((s) => s.reason === 'insufficient_credits')) {
+      return { ok: false, error: 'insufficient_credits' };
+    }
+    return { ok: false, error: 'internal_error', message: result.skipped[0]?.reason ?? 'No se pudo generar la escena' };
+  }
+  revalidatePath(`/app/campaigns/${item.campaign_id}`);
+  return { ok: true, data: {} };
+}
+
 // Compuerta del lote: 'sample' genera 2 de muestra, 'full' el resto del formato.
 export async function approveBatchAction(
   input: unknown,

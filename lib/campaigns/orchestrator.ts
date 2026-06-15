@@ -371,10 +371,17 @@ export async function advanceSequenceChain(
 
   const reserved = await reserveCredits(gen.user_id, cost, nextGenId);
   if (!reserved) {
-    await admin.from('generations').delete().eq('id', nextGenId);
+    // Sin créditos: NO borrar la generación. Se deja 'failed' con sus referencias
+    // intactas ([producto, fotograma previo]) para que "Generar esta escena"
+    // pueda RESUMIRLA con continuidad real (reserva + re-encola). El item queda
+    // 'failed' apuntando a esa generación.
+    await admin
+      .from('generations')
+      .update({ status: 'failed', error_message: 'insufficient_credits' })
+      .eq('id', nextGenId);
     await admin
       .from('campaign_items')
-      .update({ status: 'skipped', generation_id: null, warnings: ['Sin créditos para continuar la secuencia'] })
+      .update({ status: 'failed', warnings: ['Sin créditos: regenera esta escena cuando tengas saldo'] })
       .eq('id', next.id);
     return;
   }
