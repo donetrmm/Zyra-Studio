@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
+import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
 
 export type StudioItem = {
@@ -665,6 +666,8 @@ function ProductionView({
   const [busy, setBusy] = useState<string | null>(null);
   const [distilling, setDistilling] = useState<StudioItem | null>(null);
   const [varianting, setVarianting] = useState<StudioItem | null>(null);
+  // Visor inline del creativo generado (evita ir a la Biblioteca).
+  const [viewing, setViewing] = useState<{ generationId: string; title: string } | null>(null);
 
   async function handleWinner(item: StudioItem) {
     setBusy(`winner:${item.id}`);
@@ -830,14 +833,31 @@ function ProductionView({
                     <p className="line-clamp-1 flex-1 text-muted-foreground/80">
                       {d.sceneSummary ?? d.scenePrompt}
                     </p>
-                    <button
-                      type="button"
-                      disabled={busy !== null}
-                      onClick={() => handleFinal(d.id)}
-                      className="shrink-0 rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
-                    >
-                      {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
-                    </button>
+                    <span className="flex shrink-0 gap-1.5">
+                      {d.generationId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewing({
+                              generationId: d.generationId as string,
+                              title: d.sceneSummary ?? d.scenePrompt,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <Play className="size-3" aria-hidden />
+                          Ver
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => handleFinal(d.id)}
+                        className="rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                      >
+                        {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
+                      </button>
+                    </span>
                   </div>
                 ))}
                 <button
@@ -861,6 +881,21 @@ function ProductionView({
                       {f.sceneSummary ?? f.scenePrompt}
                     </p>
                     <span className="flex shrink-0 gap-1.5">
+                      {f.generationId && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewing({
+                              generationId: f.generationId as string,
+                              title: f.sceneSummary ?? f.scenePrompt,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <Play className="size-3" aria-hidden />
+                          Ver
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={busy !== null}
@@ -906,8 +941,8 @@ function ProductionView({
       <ImagePackCard campaignId={campaignId} />
 
       <p className="text-[11.5px] text-muted-foreground/50">
-        Los lotes se encolan escalonados (20 s entre videos). Los resultados aparecen en la pestaña de la
-        campaña en la biblioteca; el borrador se genera en 480p y la versión final aprobada en 720p con la misma composición.
+        Los lotes se encolan escalonados (20 s entre videos). Cuando un creativo termina, ábrelo con
+        &ldquo;Ver&rdquo; aquí mismo; el borrador se genera en 480p y la versión final aprobada en 720p con la misma composición.
       </p>
 
       {distilling?.generationId && (
@@ -924,6 +959,13 @@ function ProductionView({
             .flatMap((g) => g.items)
             .filter((i) => i.status === 'final_ready' && i.generationId && i.id !== varianting.id)}
           onClose={() => setVarianting(null)}
+        />
+      )}
+      {viewing && (
+        <GenerationViewer
+          generationId={viewing.generationId}
+          title={viewing.title}
+          onClose={() => setViewing(null)}
         />
       )}
     </div>
