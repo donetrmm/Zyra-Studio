@@ -96,9 +96,17 @@ export function ReferenceImagesUploader({
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="grid size-16 place-items-center rounded-lg border border-dashed border-border text-muted-foreground/60 transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+            aria-label={`Subir ${label.toLowerCase()}`}
+            className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
           >
-            {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+            {uploading ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <>
+                <ImagePlus className="size-4" aria-hidden />
+                <span className="text-[11px] leading-none">Subir</span>
+              </>
+            )}
           </button>
         )}
       </div>
