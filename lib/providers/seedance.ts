@@ -234,6 +234,15 @@ async function pollModelArk(taskId: string): Promise<SeedancePollResult> {
 
 const ATLAS_BASE_URL = process.env.ATLASCLOUD_API_BASE_URL ?? 'https://api.atlascloud.ai/api/v1/model';
 
+// AtlasCloud no expone el tier 'fast' (es un id propio de ModelArk:
+// dreamina-seedance-2-0-fast-260128). Su catálogo usa el slug por operación sin
+// tier; el draft corre en el mismo modelo (es per-second, no por tier).
+// Confirmado en smoke: 'bytedance/seedance-2.0/text-to-video' genera OK, mientras
+// 'bytedance/seedance-2.0/fast/reference-to-video' devuelve 400 {"msg":"not found"}.
+function atlasModelId(model: SeedanceModel): string {
+  return model.replace('/seedance-2.0/fast/', '/seedance-2.0/');
+}
+
 function ensureAtlasKey(): string {
   const key = process.env.ATLASCLOUD_API_KEY;
   if (!key) throw new ProviderError('ATLASCLOUD_API_KEY no configurada', 'auth', false);
@@ -251,9 +260,10 @@ const AtlasPollResponse = z.object({
 
 async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceResolution): Promise<{ taskId: string }> {
   const apiKey = ensureAtlasKey();
-  // El `model` de AtlasCloud ES nuestro slug interno (sin traducción).
+  // El `model` de AtlasCloud es nuestro slug por operación, sin el tier 'fast'
+  // (que no existe en su catálogo — ver atlasModelId).
   const body: Record<string, unknown> = {
-    model: params.model,
+    model: atlasModelId(params.model),
     prompt: params.prompt,
     resolution,
     ratio: toRatio(params.aspectRatio),

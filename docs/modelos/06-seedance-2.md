@@ -12,11 +12,14 @@ El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
 - **AtlasCloud**: se activa con `SEEDANCE_PROVIDER=atlas` (usa `ATLASCLOUD_API_KEY`).
   Per-second, más barato (~3x vs fal) y sin waitlist/restricción regional.
   `POST https://api.atlascloud.ai/api/v1/model/generateVideo` → `{ data: { id } }`;
-  `GET .../prediction/{id}` → `{ data: { status, outputs:[url], error } }`. El `model`
-  del request **ES nuestro slug interno** tal cual (sin traducción). Body análogo al de
-  ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`); I2V usa
+  `GET .../prediction/{id}` → `{ data: { status, outputs:[url], error } }`. **Confirmado en
+  smoke (2026-06-15):** T2V con `bytedance/seedance-2.0/text-to-video` genera OK (endpoint,
+  auth y poll correctos). El `model` es nuestro slug **por operación** — pero **sin el tier
+  `fast`**: Atlas no expone fast (es un id de ModelArk), y el slug `/fast/...` devuelve
+  `400 {"msg":"not found"}`. El adapter mapea `/fast/` → estándar (`atlasModelId`). Body
+  análogo a ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`); I2V usa
   `image_url`. ⚠️ El shape multi-referencia de R2V (`image_urls`/`video_urls`/`audio_urls`)
-  está **inferido** — confirmar con un smoke de I2V/R2V antes de confiar en él.
+  sigue **inferido** — pendiente de confirmar con un smoke de I2V/R2V.
 
 Los 6 slugs internos (`bytedance/seedance-2.0/...`) son la clave lógica en ambos casos.
 

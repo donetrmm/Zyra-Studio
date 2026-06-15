@@ -226,11 +226,25 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
     expect(url).toBe('https://api.atlascloud.ai/api/v1/model/generateVideo');
     expect(opts.headers.Authorization).toBe('Bearer fake-atlas-key');
     const body = JSON.parse(opts.body as string);
-    expect(body.model).toBe('bytedance/seedance-2.0/fast/text-to-video');
+    // El tier 'fast' no existe en Atlas: el slug se mapea a la operación estándar.
+    expect(body.model).toBe('bytedance/seedance-2.0/text-to-video');
     expect(body.resolution).toBe('720p');
     expect(body.ratio).toBe('9:16');
     expect(body.duration).toBe(6);
     expect(body.watermark).toBe(false);
+  });
+
+  it('mapea el tier fast → estándar en el model (Atlas no tiene tier fast)', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { data: { id: 'pred-x' } }));
+    const { submitTask } = await import('./seedance');
+    await submitTask({
+      operation: 'reference2video',
+      model: 'bytedance/seedance-2.0/fast/reference-to-video',
+      prompt: 'p',
+      imageUrls: ['https://x/p.png'],
+    });
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(JSON.parse(opts.body as string).model).toBe('bytedance/seedance-2.0/reference-to-video');
   });
 
   it('submitTask image2video manda image_url', async () => {
