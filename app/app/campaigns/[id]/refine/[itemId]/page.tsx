@@ -38,7 +38,9 @@ export default async function RefineRoute({
       .eq('id', itemId)
       .eq('campaign_id', id)
       .single();
-    if (!item || !['planned', 'skipped', 'failed'].includes(item.status as string)) {
+    // draft_ready incluido: se puede refinar un borrador y regenerarlo. Solo se
+    // rebota si la escena se está generando (sample/queued) o ya es final.
+    if (!item || !['planned', 'skipped', 'failed', 'draft_ready'].includes(item.status as string)) {
       redirect(`/app/campaigns/${id}`);
     }
     // item is non-null here: redirect() returns never, so TS knows we continue only when item exists
