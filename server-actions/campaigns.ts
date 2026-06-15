@@ -17,7 +17,12 @@ import {
 } from '@/lib/campaigns/planner';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
-import { enqueueBatch, itemCharacterIds, loadCampaignContext } from '@/lib/campaigns/orchestrator';
+import {
+  buildContinuationPrompt,
+  enqueueBatch,
+  itemCharacterIds,
+  loadCampaignContext,
+} from '@/lib/campaigns/orchestrator';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -929,6 +934,78 @@ export async function generateItemAction(itemId: string): Promise<Result<{ gener
       await enqueueJob({ generationId: gen.id as string, action: 'submit', delaySeconds: 0 });
       revalidatePath(`/app/campaigns/${item.campaign_id}`);
       return { ok: true, data: { generationId: gen.id as string } };
+    }
+  }
+
+  // RE-GENERAR CON CONTINUIDAD (Tier 2): escena de secuencia (índice > 0) cuya
+  // generación previa fue de continuación → crea una NUEVA versión reutilizando
+  // sus referencias [producto, fotograma del clip previo] con el prompt ACTUAL
+  // del item (respeta refinados). Así regenerar un borrador de secuencia
+  // mantiene la continuidad cuadro-a-cuadro, no solo el producto.
+  if (item.generation_id && item.sequence_id && (item.scene_index ?? 0) > 0) {
+    const { data: prevGen } = await supabase
+      .from('generations')
+      .select('model_id, params, credits_estimated')
+      .eq('id', item.generation_id as string)
+      .single();
+    const pp = prevGen?.params as
+      | {
+          chain?: { productImagePaths?: string[] };
+          referenceImagePaths?: string[];
+          returnLastFrame?: boolean;
+          aspectRatio?: string;
+          resolution?: string;
+          duration?: number;
+          generateAudio?: boolean;
+        }
+      | undefined;
+    if (prevGen && pp?.chain && pp.referenceImagePaths?.length) {
+      const productCount = pp.chain.productImagePaths?.length ?? Math.max(0, pp.referenceImagePaths.length - 1);
+      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount);
+      const cost = (prevGen.credits_estimated as number) ?? 0;
+      const admin = createAdminClient();
+      const { data: inserted, error: insErr } = await admin
+        .from('generations')
+        .insert({
+          user_id: user.id,
+          workspace_id: workspace.id,
+          type: 'video',
+          provider: 'seedance',
+          model_id: prevGen.model_id as string,
+          prompt,
+          params: {
+            operation: 'reference2video',
+            aspectRatio: pp.aspectRatio ?? (item.aspect_ratio as string | null) ?? '9:16',
+            resolution: pp.resolution ?? '480p',
+            duration: pp.duration ?? (item.duration_s as number | null) ?? 5,
+            generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
+            referenceImagePaths: pp.referenceImagePaths,
+            returnLastFrame: pp.returnLastFrame ?? false,
+            chain: (prevGen.params as { chain?: unknown }).chain,
+          },
+          status: 'queued',
+          credits_estimated: cost,
+          campaign_id: item.campaign_id,
+          timeout_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+        })
+        .select('id')
+        .single();
+      if (insErr || !inserted) {
+        return { ok: false, error: 'internal_error', message: insErr?.message ?? 'No se pudo regenerar' };
+      }
+      const newGenId = inserted.id as string;
+      const reserved = await reserveCredits(user.id, cost, newGenId);
+      if (!reserved) {
+        await admin.from('generations').delete().eq('id', newGenId);
+        return { ok: false, error: 'insufficient_credits' };
+      }
+      await admin
+        .from('campaign_items')
+        .update({ status: 'sample', generation_id: newGenId, warnings: [] })
+        .eq('id', itemId);
+      await enqueueJob({ generationId: newGenId, action: 'submit', delaySeconds: 0 });
+      revalidatePath(`/app/campaigns/${item.campaign_id}`);
+      return { ok: true, data: { generationId: newGenId } };
     }
   }
 

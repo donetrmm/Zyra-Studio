@@ -248,7 +248,7 @@ type ChainParams = {
 // citan como @image{N} (1-based, minúscula — formato oficial de Atlas), en el
 // MISMO orden del array reference_images: primero el producto, luego el último
 // fotograma del plano anterior.
-function buildContinuationPrompt(scenePrompt: string, productCount: number): string {
+export function buildContinuationPrompt(scenePrompt: string, productCount: number): string {
   const refs: string[] = [];
   for (let i = 0; i < productCount; i++) {
     refs.push(`@image${i + 1} is the product — keep it identical (same colors, proportions, details).`);
