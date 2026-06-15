@@ -20,7 +20,12 @@ El adapter `lib/providers/seedance.ts` tiene dos backends con la misma interfaz:
   análogo a ModelArk (`resolution`/`ratio`/`duration`/`generate_audio`/`watermark`). **R2V
   confirmado con el "view code" oficial (2026-06-15):** las referencias van en
   `reference_images` / `reference_videos` / `reference_audios` (arrays de URL, Base64 o
-  `asset://<id>`). ANTES se enviaban como `image_urls`/`video_urls`/`audio_urls` (inferido) y
+  `asset://<id>`). Las referencias se citan en el prompt como **`@image{N}`/`@video{N}`/`@audio{N}`
+  en MINÚSCULA, índice 1-based en el orden del array** (confirmado con el view-code multi-imagen).
+  `reference_videos` admite un clip previo para continuación/extensión: clip previo en
+  `reference_videos` + producto en `reference_images` = continuación con referencia de sujeto
+  (Seedance 2.0 es el único que lo soporta, tabla 25 del paper). ANTES se enviaban como
+  `image_urls`/`video_urls`/`audio_urls` (inferido) y
   Atlas los ignoraba en silencio → el producto no llegaba al modelo y se inventaba distinto en
   cada clip. I2V usa `image` (fotograma inicial) y `last_image` (fotograma final), confirmados con el "view
 code" oficial. Hay un flag `return_last_frame` (bool) para que la respuesta devuelva el último

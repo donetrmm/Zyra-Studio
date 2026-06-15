@@ -235,14 +235,38 @@ function chainSupported(): boolean {
   return process.env.SEEDANCE_PROVIDER === 'atlas';
 }
 
-// Datos de cadena que viajan en generations.params.chain.
-type ChainParams = { campaignId: string; sequenceId: string; sceneIndex: number };
+// Datos de cadena que viajan en generations.params.chain. productImagePaths se
+// propaga desde el clip 1 para re-anclar el producto en CADA clip (evita drift).
+type ChainParams = {
+  campaignId: string;
+  sequenceId: string;
+  sceneIndex: number;
+  productImagePaths?: string[];
+};
 
-// Avanza la cadena de una secuencia: tras finalizar un clip, genera el
-// siguiente heredando su último fotograma como inicio (image-to-video). El
-// producto y el mundo persisten porque vienen DENTRO del fotograma. Idempotente:
-// si el siguiente item ya tiene generación, no hace nada. Best-effort: cualquier
-// fallo se loguea y corta la cadena sin tirar el clip ya finalizado.
+// Construye el prompt de continuación de un clip encadenado. Las referencias se
+// citan como @image{N} (1-based, minúscula — formato oficial de Atlas), en el
+// MISMO orden del array reference_images: primero el producto, luego el último
+// fotograma del plano anterior.
+function buildContinuationPrompt(scenePrompt: string, productCount: number): string {
+  const refs: string[] = [];
+  for (let i = 0; i < productCount; i++) {
+    refs.push(`@image${i + 1} is the product — keep it identical (same colors, proportions, details).`);
+  }
+  const frameIdx = productCount + 1;
+  refs.push(
+    `@image${frameIdx} is the final frame of the previous shot — continue seamlessly from it: same subject, lighting, palette and setting, as one continuous sequence.`,
+  );
+  return `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
+}
+
+// Avanza la cadena de una secuencia: tras finalizar un clip, genera el siguiente
+// como reference-to-video con DOS referencias — la imagen del producto (re-ancla,
+// evita drift) y el último fotograma del clip previo (continuidad). El producto y
+// el mundo persisten porque la referencia del producto viaja en CADA clip, no
+// solo en el primero. Idempotente: si el siguiente item ya tiene generación, no
+// hace nada. Best-effort: cualquier fallo se loguea y corta la cadena sin tirar
+// el clip ya finalizado.
 export async function advanceSequenceChain(
   gen: { id: string; user_id: string; workspace_id: string; model_id: string; params: Record<string, unknown> },
   lastFrameUrl: string,
@@ -283,13 +307,18 @@ export async function advanceSequenceChain(
     return;
   }
 
-  // Clip i2v desde el fotograma heredado (mismo tier que el clip previo).
-  const i2vModel = gen.model_id.replace(/\/(reference|text|image)-to-video$/, '/image-to-video');
+  // Clip de continuación: R2V con [producto..., fotograma previo]. El producto
+  // se cita @image1.. y el fotograma como la última imagen. Mismo modelo R2V que
+  // el clip 1 (no i2v): así el producto se re-ancla en cada clip.
+  const productPaths = (chain.productImagePaths ?? []).slice(0, 3);
+  const referenceImagePaths = [...productPaths, framePath];
+  const r2vModel = gen.model_id; // ya es .../reference-to-video
   const resolution = '480p' as const;
   const duration = nextRow.duration_s ?? 5;
   const pricing = await loadPricing();
-  const cost = seedanceCostPerItem(pricing, i2vModel, resolution, duration);
+  const cost = seedanceCostPerItem(pricing, r2vModel, resolution, duration);
   const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
+  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length);
 
   const { data: inserted, error: insErr } = await admin
     .from('generations')
@@ -298,17 +327,22 @@ export async function advanceSequenceChain(
       workspace_id: gen.workspace_id,
       type: 'video',
       provider: 'seedance',
-      model_id: i2vModel,
-      prompt: nextRow.scene_prompt,
+      model_id: r2vModel,
+      prompt,
       params: {
-        operation: 'image2video',
+        operation: 'reference2video',
         aspectRatio: nextRow.aspect_ratio ?? '9:16',
         resolution,
         duration,
         generateAudio: nextRow.audio ?? true,
-        referenceStoragePath: framePath,
+        referenceImagePaths,
         returnLastFrame: returnLast,
-        chain: { campaignId: chain.campaignId, sequenceId: chain.sequenceId, sceneIndex: next.sceneIndex } satisfies ChainParams,
+        chain: {
+          campaignId: chain.campaignId,
+          sequenceId: chain.sequenceId,
+          sceneIndex: next.sceneIndex,
+          productImagePaths: productPaths,
+        } satisfies ChainParams,
       },
       status: 'queued',
       credits_estimated: cost,
@@ -478,6 +512,8 @@ export async function enqueueBatch(params: {
                   campaignId: campaign.id,
                   sequenceId: item.sequence_id as string,
                   sceneIndex: item.scene_index ?? 0,
+                  // Refs del producto: se re-anclan en cada clip de la cadena.
+                  productImagePaths: refImages,
                 },
               }
             : {}),

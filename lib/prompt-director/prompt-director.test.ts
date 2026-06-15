@@ -65,10 +65,10 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     const { prompt, references, params } = res.compiled;
 
-    // Orden: producto (2 imágenes) → personaje (1) ⇒ @Image1..3
+    // Orden: producto (2 imágenes) → personaje (1) ⇒ @image1..3 (minúscula: formato oficial Atlas)
     expect(references.map((r) => r.role)).toEqual(['product', 'product', 'character']);
-    expect(prompt).toContain('@Image1 is the product');
-    expect(prompt).toContain('@Image3 is Maya');
+    expect(prompt).toContain('@image1 is the product');
+    expect(prompt).toContain('@image3 is Maya');
     // Fidelidad y escena
     expect(prompt).toContain('exact packaging');
     expect(prompt).toContain('sunlit home kitchen');
@@ -188,7 +188,7 @@ describe('compile seedance', () => {
     if (silent.ok) expect(silent.compiled.prompt).not.toContain('must be in Spanish');
   });
 
-  it('plantilla viva entra como @Video1 con rol camera_motion', () => {
+  it('plantilla viva entra como @video1 con rol camera_motion', () => {
     const ctx = { ...fullContext(), templateVideoPath: 'references/ws1/winner.mp4' };
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can rotates on marble', durationS: 6 },
@@ -198,7 +198,7 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     const video = res.compiled.references.find((r) => r.kind === 'video');
     expect(video?.role).toBe('camera_motion');
-    expect(res.compiled.prompt).toContain('@Video1 is the structural reference');
+    expect(res.compiled.prompt).toContain('@video1 is the structural reference');
   });
 
   it('sin referencias → operation text2video', () => {

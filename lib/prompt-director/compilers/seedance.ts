@@ -128,14 +128,14 @@ export function buildReferences(ctx: DirectorContext): {
     pushImage(
       path,
       'product',
-      (n) => `@Image${n} is the product — exact packaging, colors, logo placement and proportions.`,
+      (n) => `@image${n} is the product — exact packaging, colors, logo placement and proportions.`,
     );
   }
 
   // Empaque (solo si el formato lo exige está en el contexto).
   const packagingImages = ctx.product?.packagingImagePaths?.slice(0, 2) ?? [];
   for (const path of packagingImages) {
-    pushImage(path, 'packaging', (n) => `@Image${n} is the product packaging, shown exactly as in the reference.`);
+    pushImage(path, 'packaging', (n) => `@image${n} is the product packaging, shown exactly as in the reference.`);
   }
 
   // Personajes: presupuesto de ángulos según cuántos van en escena
@@ -148,17 +148,17 @@ export function buildReferences(ctx: DirectorContext): {
       character.masterImagePath,
       'character',
       (n) =>
-        `@Image${n} is ${character.name} — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
+        `@image${n} is ${character.name} — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
       'rostro, peinado y complexión; no la ropa ni el fondo',
     );
     for (const path of character.angleImagePaths?.slice(0, anglesPer) ?? []) {
-      pushImage(path, 'character', (n) => `@Image${n} shows ${character.name} from another angle, for consistency.`);
+      pushImage(path, 'character', (n) => `@image${n} shows ${character.name} from another angle, for consistency.`);
     }
   }
 
   // Referencias extra del refinado: entorno/estilo, última prioridad.
   for (const path of ctx.extraImagePaths ?? []) {
-    pushImage(path, 'environment', (n) => `@Image${n} is an additional scene reference — match its environment, mood and look.`);
+    pushImage(path, 'environment', (n) => `@image${n} is an additional scene reference — match its environment, mood and look.`);
   }
 
   if (droppedImages > 0) {
@@ -171,14 +171,14 @@ export function buildReferences(ctx: DirectorContext): {
   if (ctx.templateVideoPath) {
     references.push({ storagePath: ctx.templateVideoPath, kind: 'video', role: 'camera_motion' });
     lines.push(
-      '@Video1 is the structural reference — replicate its camera moves, shot structure, editing rhythm and color grading exactly; replace only the product and scene contents as described below.',
+      '@video1 is the structural reference — replicate its camera moves, shot structure, editing rhythm and color grading exactly; replace only the product and scene contents as described below.',
     );
   }
 
   // Audio de referencia: mood y ritmo.
   if (ctx.audioRefPath) {
     references.push({ storagePath: ctx.audioRefPath, kind: 'audio', role: 'audio_rhythm' });
-    lines.push('@Audio1 sets the background audio mood and rhythm; sync scene energy to its beats.');
+    lines.push('@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.');
   }
 
   if (references.length > 12) {

@@ -12,10 +12,16 @@ composición). Resultado: clips buenos sueltos que no empalman, imposibles de un
 
 ## Decisiones fijadas (no rediseñar sin confirmar)
 
-- **Mecanismo: heredar el último fotograma.** Clip 1 = reference-to-video con el producto. Clips
-  2…N = **image-to-video** con `image` = último fotograma del clip anterior. El producto persiste
-  porque viene DENTRO del fotograma heredado → no hace falta mandar init-frame + referencia juntos
-  (no confirmado que Atlas lo soporte).
+- **Mecanismo: continuación R2V con DOS referencias (corregido 2026-06-15).** Clip 1 =
+  reference-to-video con el producto + `return_last_frame`. Clips 2…N = **reference-to-video** con
+  `reference_images = [imagen del producto, último fotograma del clip previo]`, citadas en el
+  prompt como `@image1` (producto) y `@image2` (fotograma previo, "continúa desde él").
+  > **Por qué NO image-to-video desde el fotograma (intento previo):** i2v solo hereda el
+  > fotograma y PIERDE la referencia del producto → tras 2-3 saltos el producto deriva (bug
+  > observado: las escenas 3-4 perdían consistencia). Re-anclar el producto en CADA clip (R2V) lo
+  > evita. El paper (tabla 25) confirma "Continuation + Subject Image Reference" como capacidad
+  > propia de Seedance 2.0. El fotograma previo va como imagen de referencia (en bucket references,
+  > sin tocar el handler), no como `reference_videos`.
 - **Generación SECUENCIAL.** La secuencia deja de encolarse en lote: el clip i+1 se encola al
   **finalizar** el clip i. Trade-off aceptado: una secuencia de N tarda ~N× en total.
 - **Solo aplica a secuencias** (`sequence_id != null`). Los creativos sueltos siguen en paralelo,
