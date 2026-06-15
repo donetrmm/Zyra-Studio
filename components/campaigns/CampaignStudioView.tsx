@@ -741,6 +741,13 @@ function ProductionView({
             sequenceItems.map((i) => [i.sequenceId as string, i.sequenceLabel]),
           ).entries(),
         ];
+        // Creativos sueltos aún por generar: lo único que el muestreo parcial
+        // puede tocar. Sin ellos (grupo solo-secuencia) la muestra no aplica:
+        // una secuencia se genera completa y en orden (ver enqueueBatch).
+        const loosePending = group.items.filter(
+          (i) => i.sequenceId == null && ['planned', 'failed'].includes(i.status),
+        ).length;
+        const pureSequence = sequences.length > 0 && loosePending === 0;
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -773,7 +780,12 @@ function ProductionView({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={pending === 0 || busy !== null}
+                  disabled={pending === 0 || busy !== null || pureSequence}
+                  title={
+                    pureSequence
+                      ? 'Una secuencia se genera completa y en orden: usa «Lote completo».'
+                      : undefined
+                  }
                   onClick={() => handleBatch(group.formatId, 'sample')}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -804,8 +816,9 @@ function ProductionView({
               <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-[11.5px] leading-snug text-amber-300/90">
                 <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                 <span>
-                  «Muestra (2)» genera 2 escenas sueltas y rompe el orden del anuncio. Para una
-                  secuencia, usa «Lote completo».
+                  {pureSequence
+                    ? 'Una secuencia se genera completa y en orden. «Lote completo» encola las escenas del anuncio.'
+                    : '«Muestra (2)» aplica solo a los clips sueltos; la secuencia se genera completa con «Lote completo».'}
                 </span>
               </p>
             )}

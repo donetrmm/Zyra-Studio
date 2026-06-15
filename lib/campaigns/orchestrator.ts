@@ -6,13 +6,13 @@ import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { compile, fromFormatRow, type DirectorContext } from '@/lib/prompt-director';
 import { seedanceCostPerItem } from './estimate';
+import { selectBatchItems } from './batch-selection';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
 // ESCALONAMIENTO: delay incremental para no reventar rate limits del proveedor
 // (ModelArk para Seedance) ni invocaciones de Vercel Hobby (doc V2 §5.5).
 const STAGGER_SECONDS = 20;
-const SAMPLE_SIZE = 2;
 
 export type ItemRow = {
   id: string;
@@ -29,6 +29,10 @@ export type ItemRow = {
   reference_ids: string[] | null;
   scene_prompt: string;
   status: string;
+  // Secuencia: las escenas de un mismo anuncio comparten sequence_id y se
+  // ordenan por scene_index. null en creativos sueltos.
+  sequence_id: string | null;
+  scene_index: number | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -242,23 +246,8 @@ export async function enqueueBatch(params: {
   const { userId, workspaceId, campaign, formats, mode } = params;
   const pending = params.items.filter((i) => i.status === 'planned' || i.status === 'failed');
 
-  let selected: ItemRow[];
-  if (mode === 'sample') {
-    // Escenas distintas para que la muestra sea representativa.
-    const seen = new Set<string>();
-    selected = [];
-    for (const item of pending) {
-      const key = item.scene ?? item.id;
-      if (!seen.has(key)) {
-        seen.add(key);
-        selected.push(item);
-      }
-      if (selected.length >= SAMPLE_SIZE) break;
-    }
-    if (selected.length < SAMPLE_SIZE) selected = pending.slice(0, SAMPLE_SIZE);
-  } else {
-    selected = pending;
-  }
+  // Regla de selección (atómica para secuencias) extraída a módulo puro.
+  const selected = selectBatchItems(pending, mode);
   if (selected.length === 0) return { enqueued: 0, skipped: [], creditsReserved: 0 };
 
   const characterIds = [...new Set(selected.flatMap((i) => itemCharacterIds(i)))];
