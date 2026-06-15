@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -205,11 +205,18 @@ export function CampaignStudioWizard({
                 <button
                   type="button"
                   onClick={() => setMode('kit')}
-                  className="mt-3 text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                  className="mt-3 block text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
                 >
                   ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
               )}
+              <Link
+                href="/app/brand/kits"
+                className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-primary underline-offset-2 hover:underline"
+              >
+                ¿No tienes una foto del producto? Créala con IA
+                <ArrowRight className="size-3" aria-hidden />
+              </Link>
             </div>
           ) : (
             <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
