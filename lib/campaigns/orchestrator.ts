@@ -7,6 +7,8 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { compile, fromFormatRow, type DirectorContext } from '@/lib/prompt-director';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
+import { nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
+import { uploadReference } from '@/lib/supabase/storage';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -227,6 +229,124 @@ export type BatchResult = {
   creditsReserved: number;
 };
 
+// ¿Backend con encadenado soportado? Solo AtlasCloud devuelve el último
+// fotograma (return_last_frame). En ModelArk la secuencia cae al modo paralelo.
+function chainSupported(): boolean {
+  return process.env.SEEDANCE_PROVIDER === 'atlas';
+}
+
+// Datos de cadena que viajan en generations.params.chain.
+type ChainParams = { campaignId: string; sequenceId: string; sceneIndex: number };
+
+// Avanza la cadena de una secuencia: tras finalizar un clip, genera el
+// siguiente heredando su último fotograma como inicio (image-to-video). El
+// producto y el mundo persisten porque vienen DENTRO del fotograma. Idempotente:
+// si el siguiente item ya tiene generación, no hace nada. Best-effort: cualquier
+// fallo se loguea y corta la cadena sin tirar el clip ya finalizado.
+export async function advanceSequenceChain(
+  gen: { id: string; user_id: string; workspace_id: string; model_id: string; params: Record<string, unknown> },
+  lastFrameUrl: string,
+): Promise<void> {
+  const chain = gen.params.chain as ChainParams | undefined;
+  if (!chain) return;
+  const admin = createAdminClient();
+
+  const { data: itemRows } = await admin
+    .from('campaign_items')
+    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id')
+    .eq('campaign_id', chain.campaignId)
+    .eq('sequence_id', chain.sequenceId);
+  if (!itemRows?.length) return;
+
+  const chainItems = itemRows.map((r) => ({ id: r.id as string, sceneIndex: r.scene_index as number }));
+  const next = nextSceneItem(chainItems, chain.sceneIndex);
+  if (!next) return; // era el último clip de la secuencia
+  const nextRow = itemRows.find((r) => r.id === next.id);
+  if (!nextRow || nextRow.generation_id) return; // ya avanzado (duplicado de QStash)
+
+  // Heredar el último fotograma: descargar de Atlas y subir a references.
+  let framePath: string;
+  try {
+    const res = await fetch(lastFrameUrl);
+    if (!res.ok) throw new Error(`fetch fotograma ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const mime = res.headers.get('content-type') ?? 'image/png';
+    const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
+    framePath = await uploadReference(
+      gen.workspace_id,
+      `chain/${chain.sequenceId}/${next.sceneIndex}.${ext}`,
+      buf,
+      mime,
+    );
+  } catch (err) {
+    console.error('[chain] heredar fotograma falló', { sequenceId: chain.sequenceId, err });
+    return;
+  }
+
+  // Clip i2v desde el fotograma heredado (mismo tier que el clip previo).
+  const i2vModel = gen.model_id.replace(/\/(reference|text|image)-to-video$/, '/image-to-video');
+  const resolution = '480p' as const;
+  const duration = nextRow.duration_s ?? 5;
+  const pricing = await loadPricing();
+  const cost = seedanceCostPerItem(pricing, i2vModel, resolution, duration);
+  const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
+
+  const { data: inserted, error: insErr } = await admin
+    .from('generations')
+    .insert({
+      user_id: gen.user_id,
+      workspace_id: gen.workspace_id,
+      type: 'video',
+      provider: 'seedance',
+      model_id: i2vModel,
+      prompt: nextRow.scene_prompt,
+      params: {
+        operation: 'image2video',
+        aspectRatio: nextRow.aspect_ratio ?? '9:16',
+        resolution,
+        duration,
+        generateAudio: nextRow.audio ?? true,
+        referenceStoragePath: framePath,
+        returnLastFrame: returnLast,
+        chain: { campaignId: chain.campaignId, sequenceId: chain.sequenceId, sceneIndex: next.sceneIndex } satisfies ChainParams,
+      },
+      status: 'queued',
+      credits_estimated: cost,
+      campaign_id: chain.campaignId,
+      timeout_at: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insErr || !inserted) {
+    console.error('[chain] insert generación falló', { itemId: next.id, err: insErr?.message });
+    return;
+  }
+  const nextGenId = inserted.id as string;
+
+  // Claim idempotente del item: solo si sigue sin generación. Si otro avance
+  // ganó la carrera, borrar la generación huérfana y salir.
+  const { count } = await admin
+    .from('campaign_items')
+    .update({ status: 'sample', generation_id: nextGenId }, { count: 'exact' })
+    .eq('id', next.id)
+    .is('generation_id', null);
+  if (count === 0) {
+    await admin.from('generations').delete().eq('id', nextGenId);
+    return;
+  }
+
+  const reserved = await reserveCredits(gen.user_id, cost, nextGenId);
+  if (!reserved) {
+    await admin.from('generations').delete().eq('id', nextGenId);
+    await admin
+      .from('campaign_items')
+      .update({ status: 'skipped', generation_id: null, warnings: ['Sin créditos para continuar la secuencia'] })
+      .eq('id', next.id);
+    return;
+  }
+  await enqueueJob({ generationId: nextGenId, action: 'submit', delaySeconds: 0 });
+}
+
 // Encola los items de un lote. mode='sample' toma SAMPLE_SIZE items con
 // escenas distintas; el resto queda 'planned' para el lote completo.
 export async function enqueueBatch(params: {
@@ -262,10 +382,39 @@ export async function enqueueBatch(params: {
   const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
   const itemStatus = mode === 'sample' ? 'sample' : 'queued';
 
+  // Encadenado de secuencias (specs/v2/09, solo Atlas): de una secuencia
+  // multi-escena se encola SOLO la 1ª escena; las demás las genera el avance de
+  // cadena (advanceSequenceChain) al finalizar cada clip, heredando su último
+  // fotograma. Por sequence_id: los scene_index presentes en este lote.
+  const chaining = chainSupported();
+  const seqGroups = new Map<string, number[]>();
+  if (chaining) {
+    for (const it of selected) {
+      if (it.sequence_id) {
+        const arr = seqGroups.get(it.sequence_id) ?? [];
+        arr.push(it.scene_index ?? 0);
+        seqGroups.set(it.sequence_id, arr);
+      }
+    }
+  }
+  function chainRole(item: ItemRow): { skip: boolean; isFirst: boolean; returnLastFrame: boolean } {
+    if (!chaining || !item.sequence_id) return { skip: false, isFirst: false, returnLastFrame: false };
+    const idxs = seqGroups.get(item.sequence_id) ?? [];
+    if (idxs.length <= 1) return { skip: false, isFirst: false, returnLastFrame: false }; // secuencia de 1 → normal
+    const min = Math.min(...idxs);
+    const max = Math.max(...idxs);
+    const myIdx = item.scene_index ?? 0;
+    return { skip: myIdx !== min, isFirst: myIdx === min, returnLastFrame: myIdx !== max };
+  }
+
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
 
   for (let idx = 0; idx < selected.length; idx++) {
     const item = selected[idx];
+    const role = chainRole(item);
+    // Clip encadenado (no el primero): lo genera el avance de cadena al
+    // finalizar el clip previo. Se deja en 'planned' sin tocar.
+    if (role.skip) continue;
     const format = item.format_id ? (formats.get(item.format_id) ?? null) : null;
 
     const compiled = compile(
@@ -322,6 +471,16 @@ export async function enqueueBatch(params: {
           referenceImagePaths: refImages,
           referenceVideoPaths: refVideos,
           referenceAudioPaths: refAudios,
+          ...(role.isFirst
+            ? {
+                returnLastFrame: role.returnLastFrame,
+                chain: {
+                  campaignId: campaign.id,
+                  sequenceId: item.sequence_id as string,
+                  sceneIndex: item.scene_index ?? 0,
+                },
+              }
+            : {}),
         },
         reference_ids: [],
         status: 'queued',

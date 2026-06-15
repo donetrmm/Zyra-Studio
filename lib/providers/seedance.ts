@@ -46,11 +46,16 @@ export type SeedanceSubmitParams = {
   resolution?: SeedanceResolution;
   generateAudio?: boolean;
   seed?: number;
+  // Pedir el último fotograma como imagen aparte (encadenado de secuencias):
+  // se hereda como fotograma inicial del clip siguiente. Ver specs/v2/09.
+  returnLastFrame?: boolean;
 };
 
 export type SeedancePollResult = {
   status: 'processing' | 'completed' | 'failed';
   videoUrl?: string;
+  // Último fotograma como imagen, cuando se pidió returnLastFrame (solo Atlas).
+  lastFrameUrl?: string;
   seed?: number;
   error?: string;
 };
@@ -272,6 +277,9 @@ async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceRes
   };
   if (params.duration !== undefined) body.duration = params.duration;
   if (params.seed !== undefined) body.seed = params.seed;
+  // Encadenado de secuencias: pedir el último fotograma para heredarlo al
+  // clip siguiente (ver specs/v2/09). La respuesta lo anexa a outputs.
+  if (params.returnLastFrame) body.return_last_frame = true;
   if (params.operation === 'image2video') {
     // Campos confirmados con el "view code" oficial de AtlasCloud (2026-06-15):
     // `image` (fotograma inicial) y `last_image` (fotograma final). ANTES se
@@ -325,7 +333,9 @@ async function pollAtlas(taskId: string): Promise<SeedancePollResult> {
   if (status === 'completed' || status === 'succeeded') {
     const videoUrl = data.outputs?.[0];
     if (!videoUrl) return { status: 'failed', error: 'completed sin outputs[0]' };
-    return { status: 'completed', videoUrl };
+    // Con return_last_frame, Atlas anexa el fotograma a outputs → outputs[1].
+    const lastFrameUrl = data.outputs && data.outputs.length > 1 ? data.outputs[1] : undefined;
+    return { status: 'completed', videoUrl, ...(lastFrameUrl ? { lastFrameUrl } : {}) };
   }
   if (status === 'failed' || status === 'canceled' || status === 'cancelled') {
     return { status: 'failed', error: data.error ?? `AtlasCloud status: ${data.status}` };

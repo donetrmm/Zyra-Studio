@@ -24,6 +24,24 @@ export async function uploadOutput(
   return path;
 }
 
+// Sube una imagen al bucket de referencias (p. ej. el último fotograma heredado
+// en el encadenado de secuencias) y devuelve su path interno. `key` es la ruta
+// dentro del workspace (sin el prefijo de workspace).
+export async function uploadReference(
+  workspaceId: string,
+  key: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<string> {
+  const admin = createAdminClient();
+  const path = `${workspaceId}/${key}`;
+  const { error } = await admin.storage
+    .from(REFERENCES_BUCKET)
+    .upload(path, buffer, { contentType: mimeType, upsert: true });
+  if (error) throw new Error(`upload reference failed: ${error.message}`);
+  return path;
+}
+
 export async function uploadThumbnail(
   workspaceId: string,
   generationId: string,

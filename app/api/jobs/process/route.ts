@@ -6,6 +6,7 @@ import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
+import { advanceSequenceChain } from '@/lib/campaigns/orchestrator';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
@@ -176,6 +177,16 @@ export async function POST(req: Request) {
       processingMs,
       metadata: result.metadata,
     });
+    // Encadenado de secuencias (specs/v2/09): si este clip es parte de una
+    // cadena y el proveedor devolvió su último fotograma, generar el siguiente
+    // heredándolo. Best-effort: un fallo aquí no debe tirar el clip ya servido.
+    if (generation.params?.chain && result.lastFrameUrl) {
+      try {
+        await advanceSequenceChain(generation, result.lastFrameUrl);
+      } catch (err) {
+        console.error('[worker] avance de cadena falló', { generationId, err });
+      }
+    }
     return NextResponse.json({ ok: true, ack: 'finalized' });
   } catch (err) {
     console.error('[worker] finalize falló', { generationId, err });

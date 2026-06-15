@@ -32,6 +32,8 @@ type SeedanceParams = {
   referenceImagePaths?: string[];
   referenceVideoPaths?: string[];
   referenceAudioPaths?: string[];
+  // Encadenado de secuencias (specs/v2/09): pedir el último fotograma.
+  returnLastFrame?: boolean;
 };
 
 function nextDelay(attempts: number): number {
@@ -80,6 +82,7 @@ export const seedanceHandler: JobHandler = {
           resolution: params.resolution,
           generateAudio: params.generateAudio,
           seed: params.seed,
+          returnLastFrame: params.returnLastFrame,
         });
         return {
           kind: 'continue',
@@ -114,6 +117,7 @@ export const seedanceHandler: JobHandler = {
         outputBuffer: buffer,
         mimeType,
         metadata: poll.seed !== undefined ? { seed: poll.seed } : undefined,
+        lastFrameUrl: poll.lastFrameUrl,
       };
     } catch (err) {
       if (err instanceof ProviderError) {

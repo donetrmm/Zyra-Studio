@@ -15,6 +15,9 @@ export type JobResult =
       outputBuffer: Buffer;
       mimeType: string;
       metadata?: Record<string, unknown>;
+      // URL del último fotograma del clip (encadenado de secuencias, specs/v2/09).
+      // Solo presente cuando se pidió returnLastFrame y el proveedor lo devolvió.
+      lastFrameUrl?: string;
     }
   | {
       kind: 'fail';

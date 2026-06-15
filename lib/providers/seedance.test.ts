@@ -288,8 +288,32 @@ describe('seedance provider (toggle SEEDANCE_PROVIDER=atlas)', () => {
     const res = await pollTask('pred-1');
     expect(res.status).toBe('completed');
     expect(res.videoUrl).toBe('https://atlas/x.mp4');
+    expect(res.lastFrameUrl).toBeUndefined();
     const [url] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.atlascloud.ai/api/v1/model/prediction/pred-1');
+  });
+
+  it('returnLastFrame manda return_last_frame y pollTask extrae outputs[1] como lastFrameUrl', async () => {
+    fetchMock.mockResolvedValue(mockJson(200, { data: { id: 'pred-lf' } }));
+    const { submitTask, pollTask } = await import('./seedance');
+    await submitTask({
+      operation: 'reference2video',
+      model: 'bytedance/seedance-2.0/reference-to-video',
+      prompt: 'p',
+      imageUrls: ['https://x/p.png'],
+      returnLastFrame: true,
+    });
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body).return_last_frame).toBe(true);
+
+    fetchMock.mockResolvedValue(
+      mockJson(200, {
+        data: { id: 'pred-lf', status: 'completed', outputs: ['https://atlas/clip.mp4', 'https://atlas/frame.png'], error: null },
+      }),
+    );
+    const res = await pollTask('pred-lf');
+    expect(res.status).toBe('completed');
+    expect(res.videoUrl).toBe('https://atlas/clip.mp4');
+    expect(res.lastFrameUrl).toBe('https://atlas/frame.png');
   });
 
   it('pollTask processing → processing', async () => {
