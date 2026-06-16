@@ -337,8 +337,20 @@ async function pollAtlas(taskId: string): Promise<SeedancePollResult> {
     const lastFrameUrl = data.outputs && data.outputs.length > 1 ? data.outputs[1] : undefined;
     return { status: 'completed', videoUrl, ...(lastFrameUrl ? { lastFrameUrl } : {}) };
   }
-  if (status === 'failed' || status === 'canceled' || status === 'cancelled') {
+  if (
+    status === 'failed' || status === 'canceled' || status === 'cancelled' ||
+    status === 'expired' || status === 'error' || status === 'rejected' ||
+    status === 'timeout' || status === 'timed_out'
+  ) {
     return { status: 'failed', error: data.error ?? `AtlasCloud status: ${data.status}` };
+  }
+  // Estados en vuelo conocidos. Cualquier otro NO esperado: log + tratar como
+  // processing (no fast-fail, para no matar un job vivo por una etiqueta nueva);
+  // timeout_at / MAX_POLLS lo cortan si de verdad murió.
+  if (
+    !['starting', 'processing', 'queued', 'running', 'pending', 'in_queue', 'in_progress', 'submitted'].includes(status)
+  ) {
+    console.warn('[seedance:atlas] status no reconocido, tratado como processing', { status: data.status });
   }
   return { status: 'processing' };
 }
@@ -358,10 +370,28 @@ export async function pollTask(taskId: string): Promise<SeedancePollResult> {
 }
 
 export async function downloadVideo(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new ProviderError(`No se pudo descargar el video del proveedor (${res.status})`, 'server', false);
+  // Sin timeout, un CDN lento del proveedor puede colgar la función cerca del
+  // tope de Vercel. AbortController corta a 45s para fallar rápido en vez de
+  // consumir todo el presupuesto (el clip ya está hecho; el próximo poll, si
+  // aplica, reintenta).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      throw new ProviderError(`No se pudo descargar el video del proveedor (${res.status})`, 'server', false);
+    }
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return { buffer, mimeType: res.headers.get('content-type') ?? 'video/mp4' };
+  } catch (err) {
+    if (err instanceof ProviderError) throw err;
+    const aborted = (err as Error)?.name === 'AbortError';
+    throw new ProviderError(
+      aborted ? 'Descarga del video excedió 45s' : `Descarga del video falló: ${(err as Error).message}`,
+      'server',
+      false,
+    );
+  } finally {
+    clearTimeout(timer);
   }
-  const buffer = Buffer.from(await res.arrayBuffer());
-  return { buffer, mimeType: res.headers.get('content-type') ?? 'video/mp4' };
 }
