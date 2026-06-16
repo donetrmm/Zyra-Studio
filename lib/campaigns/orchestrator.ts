@@ -491,12 +491,15 @@ export async function enqueueBatch(params: {
     const max = Math.max(...idxs);
     const myIdx = item.scene_index ?? 0;
     // Solo el primer clip (min) se encola; los demás los produce el avance de
-    // cadena. Si esta escena no es la cabecera y la cabecera ya pasó de
-    // 'planned'/'sample'/'queued' (no la va a regenerar ni está en vuelo), la
-    // cadena no la va a producir: hay que regenerarla individualmente (Tier-2).
+    // cadena. Esta escena (no-cabecera) solo es huérfana si la cadena NO la va a
+    // producir: la cabecera no entra a este lote (no se re-encola como primer
+    // clip) Y tampoco está en vuelo ('sample'/'queued'). Si la cabecera está
+    // pendiente (planned/failed → seleccionada), se re-encola y arrastra la
+    // cadena, así que esta escena NO es huérfana.
+    const headPending = seqPending.get(item.sequence_id)?.has(min) ?? false;
     const headStatus = seqHeadStatus.get(item.sequence_id);
-    const headInFlight = headStatus === 'planned' || headStatus === 'sample' || headStatus === 'queued';
-    const orphanResume = myIdx !== min && !headInFlight;
+    const headInFlight = headStatus === 'sample' || headStatus === 'queued';
+    const orphanResume = myIdx !== min && !headPending && !headInFlight;
     return { skip: myIdx !== min, isFirst: myIdx === min, returnLastFrame: myIdx !== max, orphanResume };
   }
 
