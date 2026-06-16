@@ -269,6 +269,13 @@ type ChainParams = {
   sequenceId: string;
   sceneIndex: number;
   productImagePaths?: string[];
+  // Hoja maestra de cada personaje, re-anclada en CADA clip (evita drift de
+  // identidad). Se propaga clip a clip igual que productImagePaths.
+  characterImagePaths?: string[];
+  // Último fotograma del clip previo (heredado como continuidad). Se guarda
+  // explícito para que la regeneración lo recupere sin depender del orden del
+  // array referenceImagePaths.
+  prevFramePath?: string;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -357,14 +364,15 @@ export async function advanceSequenceChain(
   // se cita @image1.. y el fotograma como la última imagen. Mismo modelo R2V que
   // el clip 1 (no i2v): así el producto se re-ancla en cada clip.
   const productPaths = (chain.productImagePaths ?? []).slice(0, 3);
-  const referenceImagePaths = [...productPaths, framePath];
+  const characterPaths = (chain.characterImagePaths ?? []).slice(0, 3);
+  const referenceImagePaths = [...productPaths, ...characterPaths, framePath];
   const r2vModel = gen.model_id; // ya es .../reference-to-video
   const resolution = '480p' as const;
   const duration = nextRow.duration_s ?? 5;
   const pricing = await loadPricing();
   const cost = seedanceCostPerItem(pricing, r2vModel, resolution, duration);
   const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
-  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length, 0);
+  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length, characterPaths.length);
 
   const { data: inserted, error: insErr } = await admin
     .from('generations')
@@ -388,6 +396,8 @@ export async function advanceSequenceChain(
           sequenceId: chain.sequenceId,
           sceneIndex: next.sceneIndex,
           productImagePaths: productPaths,
+          characterImagePaths: characterPaths,
+          prevFramePath: framePath,
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -611,6 +621,13 @@ export async function enqueueBatch(params: {
       .map((r) => r.storagePath);
     const refVideos = compiled.compiled.references.filter((r) => r.kind === 'video').map((r) => r.storagePath);
     const refAudios = compiled.compiled.references.filter((r) => r.kind === 'audio').map((r) => r.storagePath);
+    // Hoja maestra de cada personaje del clip: se re-ancla en CADA clip de la
+    // cadena (igual que el producto) para que la identidad no derive. Se toma de
+    // ctx.characters (master explícita), no de las refs compiladas (que mezclan
+    // master y ángulos).
+    const characterMasterPaths = itemCharacterIds(item)
+      .map((id) => ctx.characters.get(id)?.masterImagePath)
+      .filter((p): p is string => !!p);
 
     const { data: inserted, error: insertErr } = await supabase
       .from('generations')
@@ -638,8 +655,9 @@ export async function enqueueBatch(params: {
                   campaignId: campaign.id,
                   sequenceId: item.sequence_id as string,
                   sceneIndex: item.scene_index ?? 0,
-                  // Refs del producto: se re-anclan en cada clip de la cadena.
+                  // Refs del producto y del personaje: se re-anclan en cada clip.
                   productImagePaths: productImages,
+                  characterImagePaths: characterMasterPaths,
                 },
               }
             : {}),
