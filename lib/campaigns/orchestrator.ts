@@ -369,23 +369,43 @@ export async function advanceSequenceChain(
     return;
   }
 
-  const reserved = await reserveCredits(gen.user_id, cost, nextGenId);
-  if (!reserved) {
-    // Sin créditos: NO borrar la generación. Se deja 'failed' con sus referencias
-    // intactas ([producto, fotograma previo]) para que "Generar esta escena"
-    // pueda RESUMIRLA con continuidad real (reserva + re-encola). El item queda
-    // 'failed' apuntando a esa generación.
-    await admin
-      .from('generations')
-      .update({ status: 'failed', error_message: 'insufficient_credits' })
-      .eq('id', nextGenId);
+  // El item ya quedó reclamado ('sample', generation_id=nextGenId) y la
+  // generación insertada 'queued'. Si reserveCredits o enqueueJob LANZAN, sin
+  // este try/catch el item quedaría colgado para siempre: nadie la encola →
+  // nadie la pollea → su timeout_at nunca se evalúa. En cualquier fallo se
+  // libera dejando la generación 'failed' (refund solo si se reservó) y el item
+  // 'failed', reanudable con sus referencias intactas.
+  let reserved = false;
+  try {
+    reserved = await reserveCredits(gen.user_id, cost, nextGenId);
+    if (!reserved) {
+      // Sin créditos: NO borrar la generación. Se deja 'failed' con sus referencias
+      // intactas ([producto, fotograma previo]) para que "Generar esta escena"
+      // pueda RESUMIRLA con continuidad real (reserva + re-encola). El item queda
+      // 'failed' apuntando a esa generación.
+      await admin
+        .from('generations')
+        .update({ status: 'failed', error_message: 'insufficient_credits' })
+        .eq('id', nextGenId);
+      await admin
+        .from('campaign_items')
+        .update({ status: 'failed', warnings: ['Sin créditos: regenera esta escena cuando tengas saldo'] })
+        .eq('id', next.id);
+      return;
+    }
+    await enqueueJob({ generationId: nextGenId, action: 'submit', delaySeconds: 0 });
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'unknown';
+    try {
+      await failGeneration(gen.user_id, nextGenId, reserved ? cost : 0, `chain_advance: ${message}`);
+    } catch (failErr) {
+      console.error('[chain:fail_generation]', { itemId: next.id, error: message, failError: (failErr as Error)?.message });
+    }
     await admin
       .from('campaign_items')
-      .update({ status: 'failed', warnings: ['Sin créditos: regenera esta escena cuando tengas saldo'] })
+      .update({ status: 'failed', warnings: ['Error al continuar la secuencia: regenera esta escena'] })
       .eq('id', next.id);
-    return;
   }
-  await enqueueJob({ generationId: nextGenId, action: 'submit', delaySeconds: 0 });
 }
 
 // Encola los items de un lote. mode='sample' toma SAMPLE_SIZE items con
@@ -428,24 +448,56 @@ export async function enqueueBatch(params: {
   // cadena (advanceSequenceChain) al finalizar cada clip, heredando su último
   // fotograma. Por sequence_id: los scene_index presentes en este lote.
   const chaining = chainSupported();
+  // min/max se calculan sobre TODA la secuencia (params.items), no solo el
+  // subconjunto pendiente: si una escena intermedia se evaluara como 'primer
+  // clip' (porque la cabecera ya generada quedó fuera de lo pendiente) se
+  // generaría como R2V fresco y rompería la continuidad. seqPending registra qué
+  // escenas entran a este lote y seqHeadStatus el estado de la cabecera, para
+  // detectar reanudaciones que el lote no puede producir.
   const seqGroups = new Map<string, number[]>();
+  const seqPending = new Map<string, Set<number>>();
+  const seqHeadStatus = new Map<string, string>();
   if (chaining) {
+    for (const it of params.items) {
+      if (!it.sequence_id) continue;
+      const arr = seqGroups.get(it.sequence_id) ?? [];
+      arr.push(it.scene_index ?? 0);
+      seqGroups.set(it.sequence_id, arr);
+    }
     for (const it of selected) {
-      if (it.sequence_id) {
-        const arr = seqGroups.get(it.sequence_id) ?? [];
-        arr.push(it.scene_index ?? 0);
-        seqGroups.set(it.sequence_id, arr);
-      }
+      if (!it.sequence_id) continue;
+      const set = seqPending.get(it.sequence_id) ?? new Set<number>();
+      set.add(it.scene_index ?? 0);
+      seqPending.set(it.sequence_id, set);
+    }
+    for (const [seqId, idxs] of seqGroups) {
+      const min = Math.min(...idxs);
+      const head = params.items.find((it) => it.sequence_id === seqId && (it.scene_index ?? 0) === min);
+      if (head) seqHeadStatus.set(seqId, head.status);
     }
   }
-  function chainRole(item: ItemRow): { skip: boolean; isFirst: boolean; returnLastFrame: boolean } {
-    if (!chaining || !item.sequence_id) return { skip: false, isFirst: false, returnLastFrame: false };
+  function chainRole(item: ItemRow): {
+    skip: boolean;
+    isFirst: boolean;
+    returnLastFrame: boolean;
+    orphanResume: boolean;
+  } {
+    if (!chaining || !item.sequence_id)
+      return { skip: false, isFirst: false, returnLastFrame: false, orphanResume: false };
     const idxs = seqGroups.get(item.sequence_id) ?? [];
-    if (idxs.length <= 1) return { skip: false, isFirst: false, returnLastFrame: false }; // secuencia de 1 → normal
+    if (idxs.length <= 1)
+      return { skip: false, isFirst: false, returnLastFrame: false, orphanResume: false }; // secuencia de 1 → normal
     const min = Math.min(...idxs);
     const max = Math.max(...idxs);
     const myIdx = item.scene_index ?? 0;
-    return { skip: myIdx !== min, isFirst: myIdx === min, returnLastFrame: myIdx !== max };
+    // Solo el primer clip (min) se encola; los demás los produce el avance de
+    // cadena. Si esta escena no es la cabecera y la cabecera ya pasó de
+    // 'planned'/'sample'/'queued' (no la va a regenerar ni está en vuelo), la
+    // cadena no la va a producir: hay que regenerarla individualmente (Tier-2).
+    const headStatus = seqHeadStatus.get(item.sequence_id);
+    const headInFlight = headStatus === 'planned' || headStatus === 'sample' || headStatus === 'queued';
+    const orphanResume = myIdx !== min && !headInFlight;
+    return { skip: myIdx !== min, isFirst: myIdx === min, returnLastFrame: myIdx !== max, orphanResume };
   }
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
@@ -454,8 +506,19 @@ export async function enqueueBatch(params: {
     const item = selected[idx];
     const role = chainRole(item);
     // Clip encadenado (no el primero): lo genera el avance de cadena al
-    // finalizar el clip previo. Se deja en 'planned' sin tocar.
-    if (role.skip) continue;
+    // finalizar el clip previo. Se deja en 'planned' sin tocar. Si la cabecera
+    // de la secuencia ya pasó (orphanResume), la cadena no lo va a producir: se
+    // reporta como skipped para que la UI invite a regenerarlo individualmente
+    // en vez de quedar en silencio sin generarse nunca.
+    if (role.skip) {
+      if (role.orphanResume) {
+        result.skipped.push({
+          itemId: item.id,
+          reason: 'La secuencia ya empezó: regenera esta escena para continuarla',
+        });
+      }
+      continue;
+    }
     const format = item.format_id ? (formats.get(item.format_id) ?? null) : null;
 
     const compiled = compile(
@@ -490,6 +553,13 @@ export async function enqueueBatch(params: {
     const cost = seedanceCostPerItem(pricing, item.model_slug, resolution, durationS);
 
     const refImages = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+    // Solo las imágenes de PRODUCTO se re-anclan en cada clip de la cadena: el
+    // prompt de continuación las cita como "this is the product, keep identical".
+    // Pasar packaging/environment aquí haría que el modelo trate esas refs como
+    // el producto y derive la secuencia.
+    const productImages = compiled.compiled.references
+      .filter((r) => r.kind === 'image' && r.role === 'product')
+      .map((r) => r.storagePath);
     const refVideos = compiled.compiled.references.filter((r) => r.kind === 'video').map((r) => r.storagePath);
     const refAudios = compiled.compiled.references.filter((r) => r.kind === 'audio').map((r) => r.storagePath);
 
@@ -520,7 +590,7 @@ export async function enqueueBatch(params: {
                   sequenceId: item.sequence_id as string,
                   sceneIndex: item.scene_index ?? 0,
                   // Refs del producto: se re-anclan en cada clip de la cadena.
-                  productImagePaths: refImages,
+                  productImagePaths: productImages,
                 },
               }
             : {}),
