@@ -293,7 +293,14 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
   const charged = await chargeCredits(user.id, cost, 'refine_session', {
     campaign_id: parsed.data.campaignId,
   });
-  if (!charged) return { ok: false, error: 'insufficient_credits' };
+  if (!charged) {
+    // Sin créditos: limpiar el formato custom recién creado para no dejarlo
+    // huérfano en /app/formats por un creativo que nunca se persistió.
+    if (createdCustomFormat && formatId) {
+      await supabase.from('formats').delete().eq('id', formatId);
+    }
+    return { ok: false, error: 'insufficient_credits' };
+  }
 
   const row = {
     format_id: formatId,
@@ -334,6 +341,11 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
     await refundCharge(user.id, cost, 'refine_session_refund', {
       campaign_id: parsed.data.campaignId,
     }).catch(() => {});
+    // Mismo motivo que en el path sin créditos: el formato custom no debe
+    // sobrevivir a un creativo que no se persistió.
+    if (createdCustomFormat && formatId) {
+      await supabase.from('formats').delete().eq('id', formatId);
+    }
     return { ok: false, error: 'internal_error', message: persisted.error?.message };
   }
 
