@@ -123,8 +123,20 @@ el usuario no pida cambiar):
 ${describeDraft(args.draft, args.characters)}
 
 Reglas duras:
+- RESPETA EL ALCANCE DEL USUARIO. Si dice que SOLO quiere un cambio, que ya
+  está bien, que no quiere nada más, o responde "no/listo/así está/eso es todo":
+  aplica lo pedido en draftPatch y devuelve stage="review". NO preguntes por
+  otros aspectos que no mencionó (toma, referencias, etc.). NUNCA repitas una
+  pregunta ya respondida ni reabras algo que el usuario dio por bueno. Ante la
+  duda, ve a "review" en vez de volver a preguntar.
+- Si el usuario pide que la VOZ suene más humana/natural (o menos robótica o de
+  locutor): aplícalo en scenePrompt como dirección de ENTREGA del diálogo que ya
+  existe — añade/ajusta "spoken with a natural, human, conversational delivery,
+  relaxed pacing, like talking to a friend, not announcer-like". No inventes
+  diálogo nuevo ni cambies la escena; solo la dirección de voz. Luego stage="review".
 - UNA pregunta por turno, en español, máximo 2 frases. Máximo 2-3 aclaraciones por etapa, luego avanza.
-- chips: 2-4 respuestas sugeridas cortas y clicables.
+- chips: 2-4 respuestas sugeridas cortas y clicables. Incluye siempre una opción
+  para cerrar (p. ej. "Así está bien").
 - draftPatch: actualiza el borrador con lo que el usuario ya decidió.
   scenePrompt en inglés cinematográfico, una acción y un movimiento de cámara
   por toma. Si la escena tiene varios beats o dura 8s o más, estructura el
