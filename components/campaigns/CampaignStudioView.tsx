@@ -181,7 +181,10 @@ export function CampaignStudioView({
                   ...it,
                   status: r.status,
                   warnings: (r.warnings as string[]) ?? it.warnings,
-                  generationId: r.generation_id ?? it.generationId,
+                  // El payload trae la fila nueva completa: un generation_id
+                  // null es un reset real (redoSamples/regenerar) y debe
+                  // limpiarse, no conservar el id viejo (botón "Ver" muerto).
+                  generationId: r.generation_id !== undefined ? r.generation_id : it.generationId,
                 }
               : it,
           ),
@@ -313,7 +316,10 @@ export function CampaignStudioView({
           }
         />
       ) : tab === 'plantillas' ? (
-        <TemplatesView templates={templates} />
+        <TemplatesView
+          templates={templates}
+          onSeriesCreated={(created) => setItems((prev) => [...prev, ...created])}
+        />
       ) : (
         <CalendarView
           items={items}
@@ -329,7 +335,9 @@ export function CampaignStudioView({
           characterOptions={characterOptions}
           onClose={() => setEditing(null)}
           onSaved={(patch) => {
-            setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...patch, status: 'planned' } : i)));
+            // patch.status viene del server (autoritativo): no forzar 'planned'
+            // aquí, así no se pisa una transición concurrente de realtime.
+            setItems((prev) => prev.map((i) => (i.id === editing.id ? { ...i, ...patch } : i)));
             setEditing(null);
           }}
         />
@@ -1049,7 +1057,13 @@ function ProductionView({
   );
 }
 
-function TemplatesView({ templates }: { templates: StudioTemplate[] }) {
+function TemplatesView({
+  templates,
+  onSeriesCreated,
+}: {
+  templates: StudioTemplate[];
+  onSeriesCreated: (created: StudioItem[]) => void;
+}) {
   const [busy, setBusy] = useState<string | null>(null);
   const [count, setCount] = useState(3);
   const [rotateCharacters, setRotateCharacters] = useState(false);
@@ -1062,6 +1076,9 @@ function TemplatesView({ templates }: { templates: StudioTemplate[] }) {
       toast.error(res.message ?? 'No se pudo generar la serie');
       return;
     }
+    // El canal realtime solo escucha UPDATE: agregar los items nuevos al estado
+    // para que aparezcan sin recargar (evita el re-click que duplicaba la serie).
+    onSeriesCreated(res.data.created);
     toast.success(`Serie creada: ${res.data.items} items en el plan — apruébalos desde Producción`);
   }
 
@@ -1465,6 +1482,9 @@ function EditItemDialog({
         : item.characterNames,
       caption: caption || null,
       scheduledDate: scheduledDate || item.scheduledDate,
+      // Estado autoritativo del server: 'planned' si se tocó producción, o el
+      // estado real conservado para ediciones de solo caption/fecha.
+      status: res.data.status,
     });
   }
 

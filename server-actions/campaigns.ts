@@ -483,22 +483,53 @@ export async function generatePlanAction(input: unknown): Promise<
             });
             continue;
           }
-          const { data: created } = await supabase
-            .from('formats')
-            .insert({
-              slug: cf.slug, name: cf.name, description: cf.description,
-              register: cf.register, camera_style: cf.cameraStyle, pacing: cf.pacing,
-              required_refs: cf.requiredRefs, default_duration_s: cf.defaultDurationS,
-              default_audio: cf.defaultAudio, is_system: false, workspace_id: workspace.id,
-            })
-            .select('id, slug')
-            .single();
+          // formats.slug tiene UNIQUE global: si choca, recuperar el formato del
+          // workspace (re-plan) o uniquificar el slug y reintentar, para NO
+          // descartar en silencio la idea que el usuario describió.
+          const toPlannerFormat = (id: string, slug: string): PlannerFormat => ({
+            id, slug, name: cf.name,
+            requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS, defaultAudio: cf.defaultAudio,
+          });
+          const insertCustomFormat = (slug: string) =>
+            supabase
+              .from('formats')
+              .insert({
+                slug, name: cf.name, description: cf.description,
+                register: cf.register, camera_style: cf.cameraStyle, pacing: cf.pacing,
+                required_refs: cf.requiredRefs, default_duration_s: cf.defaultDurationS,
+                default_audio: cf.defaultAudio, is_system: false, workspace_id: workspace.id,
+              })
+              .select('id, slug')
+              .single();
+
+          let pf: PlannerFormat | null = null;
+          const { data: created, error: cfErr } = await insertCustomFormat(cf.slug);
           if (created) {
-            const pf: PlannerFormat = {
-              id: created.id as string, slug: created.slug as string, name: cf.name,
-              requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS,
-              defaultAudio: cf.defaultAudio,
-            };
+            pf = toPlannerFormat(created.id as string, created.slug as string);
+            createdCustom = true;
+          } else if (cfErr?.code === '23505') {
+            // Slug ocupado globalmente. ¿Ya lo tiene este workspace (plan
+            // anterior), bajo el slug base o el uniquificado? Reusar.
+            const retrySlug = `${cf.slug}-${workspace.id.slice(0, 8)}`;
+            const { data: owned } = await supabase
+              .from('formats')
+              .select('id, slug')
+              .eq('workspace_id', workspace.id)
+              .in('slug', [cf.slug, retrySlug])
+              .limit(1)
+              .maybeSingle();
+            if (owned) {
+              pf = toPlannerFormat(owned.id as string, owned.slug as string);
+            } else {
+              // Pertenece a otro workspace: uniquificar y reintentar.
+              const { data: retried } = await insertCustomFormat(retrySlug);
+              if (retried) {
+                pf = toPlannerFormat(retried.id as string, retried.slug as string);
+                createdCustom = true;
+              }
+            }
+          }
+          if (pf) {
             formats.push(pf);
             directed.push({
               format: pf,
@@ -511,7 +542,11 @@ export async function generatePlanAction(input: unknown): Promise<
               scenes: m.scenes,
               sequenceLabel: m.sequenceLabel,
             });
-            createdCustom = true;
+          } else {
+            console.error('[generatePlanAction] formato custom no creado; idea descartada', {
+              slug: cf.slug,
+              err: cfErr?.message,
+            });
           }
         }
       }
@@ -664,7 +699,7 @@ export async function generatePlanAction(input: unknown): Promise<
   };
 }
 
-export async function updateCampaignItemAction(input: unknown): Promise<Result<{ updated: true }>> {
+export async function updateCampaignItemAction(input: unknown): Promise<Result<{ updated: true; status: string }>> {
   const parsed = UpdateCampaignItemSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -729,11 +764,16 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   }
   if (parsed.data.caption !== undefined) patch.caption = parsed.data.caption;
   if (touchesProduction) patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
+  // Status resultante autoritativo: solo cambia a 'planned' si se tocó
+  // producción; para ediciones de caption/fecha conserva el estado real. El
+  // cliente lo refleja en vez de asumir 'planned' (que pisaría una transición
+  // concurrente a 'queued'/'sample' e invitaría a un re-encolado duplicado).
+  const nextStatus = touchesProduction ? 'planned' : (item.status as string);
 
   const { error } = await supabase.from('campaign_items').update(patch).eq('id', parsed.data.itemId);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
-  return { ok: true, data: { updated: true } };
+  return { ok: true, data: { updated: true, status: nextStatus } };
 }
 
 // Agrega un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
@@ -1363,9 +1403,35 @@ export async function toggleWinnerAction(itemId: string): Promise<Result<{ isWin
 // Genera una serie desde la plantilla: N items nuevos en la campaña de origen
 // rotando escena (y opcionalmente personaje); estructura fija vía @Video1.
 // Pasan por el flujo normal de lotes/compuertas.
+// Forma de un item recién creado por la serie, idéntica a StudioItem (el cliente
+// la agrega al estado). Se mantiene aquí para no importar tipos de un componente
+// 'use client' en un módulo server.
+type SeriesCreatedItem = {
+  id: string;
+  formatId: string | null;
+  formatName: string;
+  formatDescription: string;
+  templateId: string | null;
+  durationS: number | null;
+  aspectRatio: string | null;
+  scene: string | null;
+  scenePrompt: string;
+  sceneSummary: string | null;
+  caption: string | null;
+  characterNames: string[];
+  scheduledDate: string | null;
+  status: string;
+  warnings: string[];
+  generationId: string | null;
+  isWinner: boolean;
+  sequenceId: string | null;
+  sceneIndex: number | null;
+  sequenceLabel: string | null;
+};
+
 export async function generateSeriesAction(
   input: unknown,
-): Promise<Result<{ items: number; campaignId: string }>> {
+): Promise<Result<{ items: number; campaignId: string; created: SeriesCreatedItem[] }>> {
   const parsed = GenerateSeriesSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -1408,13 +1474,17 @@ export async function generateSeriesAction(
     ? campaignRow?.goal
     : 'mixed') as 'awareness' | 'conversion' | 'mixed';
   let seriesFormatSlug = '';
+  let seriesFormatName = 'Formato';
+  let seriesFormatDescription = '';
   if (template.format_id) {
     const { data: fmt } = await supabase
       .from('formats')
-      .select('slug')
+      .select('slug, name, description')
       .eq('id', template.format_id as string)
       .single();
     seriesFormatSlug = (fmt?.slug as string) ?? '';
+    seriesFormatName = (fmt?.name as string) ?? 'Formato';
+    seriesFormatDescription = (fmt?.description as string | null) ?? '';
   }
 
   // La serie se programa DESPUÉS del último creativo del calendario existente
@@ -1461,29 +1531,34 @@ export async function generateSeriesAction(
   });
   if (items.length === 0) return { ok: false, error: 'validation_error', message: 'Sin escenas para rotar' };
 
-  const { error: insertErr } = await supabase.from('campaign_items').insert(
-    items.map((i, idx) => ({
-      campaign_id: campaignId,
-      format_id: i.formatId,
-      template_id: i.templateId,
-      model_slug: i.modelSlug,
-      duration_s: i.durationS,
-      aspect_ratio: i.aspectRatio,
-      scene: i.scene,
-      audio: i.audio,
-      character_id: i.characterId,
-      character_ids: i.characterId ? [i.characterId] : [],
-      scene_prompt: i.scenePrompt,
-      caption: buildCaption({
-        productName: seriesProduct,
-        formatSlug: seriesFormatSlug,
-        goal: seriesGoal,
-        index: idx,
-      }),
-      scheduled_date: i.scheduledDate,
-      status: 'planned',
-    })),
-  );
+  const { data: insertedRows, error: insertErr } = await supabase
+    .from('campaign_items')
+    .insert(
+      items.map((i, idx) => ({
+        campaign_id: campaignId,
+        format_id: i.formatId,
+        template_id: i.templateId,
+        model_slug: i.modelSlug,
+        duration_s: i.durationS,
+        aspect_ratio: i.aspectRatio,
+        scene: i.scene,
+        audio: i.audio,
+        character_id: i.characterId,
+        character_ids: i.characterId ? [i.characterId] : [],
+        scene_prompt: i.scenePrompt,
+        caption: buildCaption({
+          productName: seriesProduct,
+          formatSlug: seriesFormatSlug,
+          goal: seriesGoal,
+          index: idx,
+        }),
+        scheduled_date: i.scheduledDate,
+        status: 'planned',
+      })),
+    )
+    .select(
+      'id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label',
+    );
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
 
   await supabase
@@ -1491,8 +1566,37 @@ export async function generateSeriesAction(
     .update({ uses_count: ((template.uses_count as number) ?? 0) + 1 })
     .eq('id', template.id);
 
+  // Devolver los items ya formados (misma forma que el loader del page) para que
+  // el cliente los agregue al estado sin recargar — el canal realtime solo
+  // escucha UPDATE, no INSERT. Mantener en sync con StudioItem.
+  const characterNameById = new Map(characters.map((c) => [c.id, c.name]));
+  const created: SeriesCreatedItem[] = (insertedRows ?? []).map((r) => ({
+    id: r.id as string,
+    formatId: (r.format_id as string | null) ?? null,
+    formatName: r.format_id ? seriesFormatName : 'Formato',
+    formatDescription: r.format_id ? seriesFormatDescription : '',
+    templateId: (r.template_id as string | null) ?? null,
+    durationS: (r.duration_s as number | null) ?? null,
+    aspectRatio: (r.aspect_ratio as string | null) ?? null,
+    scene: (r.scene as string | null) ?? null,
+    scenePrompt: r.scene_prompt as string,
+    sceneSummary: (r.scene_summary as string | null) ?? null,
+    caption: (r.caption as string | null) ?? null,
+    characterNames: ((r.character_ids as string[] | null) ?? (r.character_id ? [r.character_id as string] : []))
+      .map((id) => characterNameById.get(id))
+      .filter((n): n is string => !!n),
+    scheduledDate: (r.scheduled_date as string | null) ?? null,
+    status: r.status as string,
+    warnings: (r.warnings as string[]) ?? [],
+    generationId: (r.generation_id as string | null) ?? null,
+    isWinner: (r.is_winner as boolean) ?? false,
+    sequenceId: (r.sequence_id as string | null) ?? null,
+    sceneIndex: (r.scene_index as number | null) ?? null,
+    sequenceLabel: (r.sequence_label as string | null) ?? null,
+  }));
+
   revalidatePath(`/app/campaigns/${campaignId}`);
-  return { ok: true, data: { items: items.length, campaignId } };
+  return { ok: true, data: { items: items.length, campaignId, created } };
 }
 
 // Variante dirigida sobre un video terminado: extender la acción o reemplazar
@@ -2066,21 +2170,33 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
     rows.map((r) => ({ scene_prompt: r.scene_prompt as string, duration_s: r.duration_s as number | null })),
   );
 
+  // Insertar PRIMERO el item fusionado y borrar las escenas originales después.
+  // Sin transacción, este orden evita la pérdida de datos: si el insert falla,
+  // las escenas originales quedan intactas; el item fusionado nace con
+  // sequence_id null, así que el delete por sequence_id no lo toca.
+  const { data: mergedRow, error: insErr } = await supabase
+    .from('campaign_items')
+    .insert({
+      campaign_id: parsed.data.campaignId,
+      format_id: first.format_id, model_slug: first.model_slug, duration_s: mergedDuration,
+      aspect_ratio: first.aspect_ratio, scene: first.scene, audio: first.audio,
+      character_id: first.character_id, character_ids: first.character_ids,
+      scene_prompt: joinedPrompt, scene_summary: null, caption: first.caption,
+      scheduled_date: first.scheduled_date, status: 'planned',
+      sequence_id: null, scene_index: null, sequence_label: null,
+    })
+    .select('id')
+    .single();
+  if (insErr || !mergedRow) return { ok: false, error: 'internal_error', message: insErr?.message ?? 'No se pudo crear el clip fusionado' };
+
   const { error: delErr } = await supabase
     .from('campaign_items').delete()
     .eq('campaign_id', parsed.data.campaignId).eq('sequence_id', parsed.data.sequenceId);
-  if (delErr) return { ok: false, error: 'internal_error', message: delErr.message };
-
-  const { error: insErr } = await supabase.from('campaign_items').insert({
-    campaign_id: parsed.data.campaignId,
-    format_id: first.format_id, model_slug: first.model_slug, duration_s: mergedDuration,
-    aspect_ratio: first.aspect_ratio, scene: first.scene, audio: first.audio,
-    character_id: first.character_id, character_ids: first.character_ids,
-    scene_prompt: joinedPrompt, scene_summary: null, caption: first.caption,
-    scheduled_date: first.scheduled_date, status: 'planned',
-    sequence_id: null, scene_index: null, sequence_label: null,
-  });
-  if (insErr) return { ok: false, error: 'internal_error', message: insErr.message };
+  if (delErr) {
+    // Revertir el item fusionado para no dejar fusionado + originales duplicados.
+    await supabase.from('campaign_items').delete().eq('id', mergedRow.id as string);
+    return { ok: false, error: 'internal_error', message: delErr.message };
+  }
 
   revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
   return { ok: true, data: { merged: true } };
