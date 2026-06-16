@@ -43,6 +43,33 @@ export function itemCharacterIds(item: Pick<ItemRow, 'character_id' | 'character
   return item.character_id ? [item.character_id] : [];
 }
 
+// Resuelve la imagen MAESTRA (hoja de identidad) de cada personaje a su storage
+// path, 1 por personaje y máx 3, preservando el orden de `characterIds`. Se usa
+// para re-anclar al personaje en cada clip de una secuencia (encadenado y
+// regeneración): sin esto el personaje solo persiste por arrastre del último
+// fotograma y deriva. Valida ownership por workspace.
+export async function resolveCharacterMasterPaths(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  characterIds: string[],
+): Promise<string[]> {
+  const ids = characterIds.slice(0, 3);
+  if (ids.length === 0) return [];
+  const { data: rows } = await supabase
+    .from('characters')
+    .select('id, workspace_id, master_image_id, reference_image_ids')
+    .in('id', ids);
+  const byId = new Map<string, string>(); // characterId -> masterImageId
+  for (const c of rows ?? []) {
+    if (c.workspace_id !== workspaceId) continue;
+    const masterId = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
+    if (masterId) byId.set(c.id as string, masterId);
+  }
+  const orderedMasterIds = ids.map((id) => byId.get(id)).filter((m): m is string => !!m);
+  const paths = await resolvePaths(supabase, workspaceId, orderedMasterIds);
+  return orderedMasterIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+}
+
 type FormatRow = {
   id: string;
   slug: string;
