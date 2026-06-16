@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
-import { downloadReferenceBuffer } from '@/lib/supabase/storage';
+import { downloadReferenceBuffer, REFERENCES_BUCKET } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { analyzeProductBrief, fetchProductPageText } from '@/lib/campaigns/brief';
 import {
@@ -1000,6 +1000,7 @@ export async function generateItemAction(
       // bidireccional). Si no hay siguiente o falla la extracción, cae a solo-init.
       let closingRef: string | null = null;
       let anchored = false;
+      let anchorAttemptedButFailed = false;
       if (mode === 'only-this') {
         const next = nextSceneItem(chainItems, item.scene_index as number);
         const nextRow = next ? (seqRows ?? []).find((r) => r.id === next.id) : null;
@@ -1017,6 +1018,9 @@ export async function generateItemAction(
               nextOutputPath: nextGen.output_url as string,
             });
             anchored = closingRef !== null;
+            anchorAttemptedButFailed = closingRef === null; // extracción falló
+          } else {
+            anchorAttemptedButFailed = true; // el siguiente aún no está listo
           }
         }
       }
@@ -1064,6 +1068,12 @@ export async function generateItemAction(
       const reserved = await reserveCredits(user.id, cost, newGenId);
       if (!reserved) {
         await admin.from('generations').delete().eq('id', newGenId);
+        if (closingRef) {
+          await admin.storage
+            .from(REFERENCES_BUCKET)
+            .remove([closingRef])
+            .catch(() => {});
+        }
         return { ok: false, error: 'insufficient_credits' };
       }
       await admin
@@ -1071,7 +1081,11 @@ export async function generateItemAction(
         .update({
           status: 'sample',
           generation_id: newGenId,
-          warnings: anchored ? ['Anclado al inicio del clip siguiente — revisa la transición'] : [],
+          warnings: anchored
+            ? ['Anclado al inicio del clip siguiente — revisa la transición']
+            : anchorAttemptedButFailed
+              ? ['No se pudo anclar al clip siguiente (aún no está listo) — se regeneró sin anclaje']
+              : [],
         })
         .eq('id', itemId);
 
