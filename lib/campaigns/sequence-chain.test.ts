@@ -42,3 +42,32 @@ describe('sequence-chain', () => {
     expect(nextSceneItem(one, 0)).toBeNull();
   });
 });
+
+import { regenModesFor } from './sequence-chain';
+
+describe('regenModesFor', () => {
+  const items = [
+    { id: 'a', sceneIndex: 0 },
+    { id: 'b', sceneIndex: 1 },
+    { id: 'c', sceneIndex: 2 },
+  ];
+
+  it('clip del medio: ofrece anclaje y cascada', () => {
+    expect(regenModesFor(items, 1)).toEqual({ onlyThis: true, thisAndForward: true });
+  });
+
+  it('primer clip: ningún modo especial (no tiene clip previo; se regenera normal)', () => {
+    expect(regenModesFor(items, 0)).toEqual({ onlyThis: false, thisAndForward: false });
+  });
+
+  it('último clip: sin anclaje ni cascada (no hay siguiente)', () => {
+    expect(regenModesFor(items, 2)).toEqual({ onlyThis: false, thisAndForward: false });
+  });
+
+  it('secuencia de un solo clip: ningún modo de secuencia', () => {
+    expect(regenModesFor([{ id: 'x', sceneIndex: 0 }], 0)).toEqual({
+      onlyThis: false,
+      thisAndForward: false,
+    });
+  });
+});

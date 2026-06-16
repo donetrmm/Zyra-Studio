@@ -30,3 +30,19 @@ export function shouldReturnLastFrame<T extends ChainItem>(
 ): boolean {
   return nextSceneItem(items, sceneIndex) !== null;
 }
+
+// Modos de regeneración disponibles para un clip según su posición en la cadena.
+// Solo aplican a clips con clip PREVIO (no el primero): su generación de
+// continuación tiene la estructura [producto, fotograma previo] que estos modos
+// reutilizan. El primer clip (estructura de referencias distinta) y el último
+// (sin siguiente) se regeneran de forma normal.
+export function regenModesFor<T extends ChainItem>(
+  items: T[],
+  sceneIndex: number,
+): { onlyThis: boolean; thisAndForward: boolean } {
+  const ordered = orderedSceneItems(items);
+  const isFirst = ordered[0]?.sceneIndex === sceneIndex;
+  const hasNext = nextSceneItem(items, sceneIndex) !== null;
+  const available = hasNext && !isFirst;
+  return { onlyThis: available, thisAndForward: available };
+}
