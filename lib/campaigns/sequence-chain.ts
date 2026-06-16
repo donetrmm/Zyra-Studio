@@ -30,3 +30,15 @@ export function shouldReturnLastFrame<T extends ChainItem>(
 ): boolean {
   return nextSceneItem(items, sceneIndex) !== null;
 }
+
+// Modos de regeneración disponibles para un clip según su posición en la cadena.
+// onlyThis (anclaje bidireccional): solo aplica si hay clip siguiente cuyo primer
+// fotograma sirva de cierre. thisAndForward (cascada): solo si hay algo después
+// que re-encadenar. Un clip sin siguiente no ofrece ningún modo de secuencia.
+export function regenModesFor<T extends ChainItem>(
+  items: T[],
+  sceneIndex: number,
+): { onlyThis: boolean; thisAndForward: boolean } {
+  const hasNext = nextSceneItem(items, sceneIndex) !== null;
+  return { onlyThis: hasNext, thisAndForward: hasNext };
+}
