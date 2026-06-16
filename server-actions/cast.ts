@@ -108,18 +108,23 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
   const description =
     parsed.data.description ?? (await describeFromMaster(supabase, parsed.data.masterImageId));
 
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('characters')
-    .update({
-      name: parsed.data.name,
-      description: description ?? null,
-      master_image_id: parsed.data.masterImageId,
-      angle_image_ids: parsed.data.angleImageIds,
-      reference_image_ids: allIds,
-    })
+    .update(
+      {
+        name: parsed.data.name,
+        description: description ?? null,
+        master_image_id: parsed.data.masterImageId,
+        angle_image_ids: parsed.data.angleImageIds,
+        reference_image_ids: allIds,
+      },
+      { count: 'exact' },
+    )
     .eq('id', id)
     .eq('workspace_id', workspace.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
+  // count 0 = id inexistente o de otro workspace: no es éxito, es not_found.
+  if (!count) return { ok: false, error: 'not_found' };
   revalidatePath('/app/brand/cast');
   return { ok: true, data: { updated: true } };
 }
