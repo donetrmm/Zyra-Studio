@@ -990,7 +990,7 @@ export async function generateItemAction(
         }
       | undefined;
     if (prevGen && pp?.chain && pp.referenceImagePaths?.length) {
-      const productPaths = pp.chain.productImagePaths ?? [];
+      const productPaths = (pp.chain.productImagePaths ?? []).slice(0, 3);
 
       // Consulta compartida de la secuencia (la usan modo A y, en una tarea
       // posterior, modo B). Se eleva fuera del branching de modo.

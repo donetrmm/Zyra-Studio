@@ -612,10 +612,9 @@ export async function enqueueBatch(params: {
     const cost = seedanceCostPerItem(pricing, item.model_slug, resolution, durationS);
 
     const refImages = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
-    // Solo las imágenes de PRODUCTO se re-anclan en cada clip de la cadena: el
-    // prompt de continuación las cita como "this is the product, keep identical".
-    // Pasar packaging/environment aquí haría que el modelo trate esas refs como
-    // el producto y derive la secuencia.
+    // Producto y personaje se re-anclan en cada clip de la cadena (ver
+    // characterMasterPaths abajo). Packaging/environment NO: hacerlo haría que el
+    // modelo trate esas refs como "el producto" y derive la secuencia.
     const productImages = compiled.compiled.references
       .filter((r) => r.kind === 'image' && r.role === 'product')
       .map((r) => r.storagePath);
