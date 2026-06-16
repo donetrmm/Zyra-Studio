@@ -56,8 +56,8 @@ describe('regenModesFor', () => {
     expect(regenModesFor(items, 1)).toEqual({ onlyThis: true, thisAndForward: true });
   });
 
-  it('primer clip: sin anclaje (no hay previo que herede el cierre), con cascada', () => {
-    expect(regenModesFor(items, 0)).toEqual({ onlyThis: true, thisAndForward: true });
+  it('primer clip: ningún modo especial (no tiene clip previo; se regenera normal)', () => {
+    expect(regenModesFor(items, 0)).toEqual({ onlyThis: false, thisAndForward: false });
   });
 
   it('último clip: sin anclaje ni cascada (no hay siguiente)', () => {
