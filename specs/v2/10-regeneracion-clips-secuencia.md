@@ -67,6 +67,14 @@ y dejar que el usuario elija según el caso.
   que el modelo "no aterrizó" en el frame siguiente. El clip regenerado en modo A se marca con un
   warning UI ("Anclado al inicio del clip siguiente — revisa la transición") y el reintento queda a
   un clic. La validación final es visual, del usuario.
+- **La regeneración re-ancla al personaje desde la campaña (fix 2026-06-16).** Al regenerar (cualquier
+  modo de la rama de continuidad) se resuelve la hoja maestra de cada personaje del item vía
+  `resolveCharacterMasterPaths` y se incluye en `reference_images`, en vez de confiar en el `chain`
+  heredado. Esto corrige el drift de personaje **también en secuencias ya generadas** (cuyo `chain`
+  viejo no tiene `characterImagePaths`). El array reconstruido es
+  `[producto(s), personaje(s), fotograma previo, (cierre en modo A)]`; el fotograma previo se toma de
+  `chain.prevFramePath` (gens nuevas) o se infiere del array heredado (gens viejas). Ver
+  [09-encadenado-secuencias.md](./09-encadenado-secuencias.md) para el re-anclaje en el encadenado.
 
 ## Contrato del proveedor (AtlasCloud, confirmado por ejemplo oficial 2026-06-16)
 

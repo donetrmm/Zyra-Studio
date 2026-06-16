@@ -12,10 +12,20 @@ composición). Resultado: clips buenos sueltos que no empalman, imposibles de un
 
 ## Decisiones fijadas (no rediseñar sin confirmar)
 
-- **Mecanismo: continuación R2V con DOS referencias (corregido 2026-06-15).** Clip 1 =
-  reference-to-video con el producto + `return_last_frame`. Clips 2…N = **reference-to-video** con
-  `reference_images = [imagen del producto, último fotograma del clip previo]`, citadas en el
-  prompt como `@image1` (producto) y `@image2` (fotograma previo, "continúa desde él").
+- **Mecanismo: continuación R2V re-anclando producto Y personaje (corregido 2026-06-15;
+  personaje añadido 2026-06-16).** Clip 1 = reference-to-video con el producto + personaje(s) +
+  `return_last_frame`. Clips 2…N = **reference-to-video** con
+  `reference_images = [imagen(es) del producto, hoja(s) maestra(s) del personaje, último fotograma
+  del clip previo]`, citadas en el prompt en ese orden: producto(s), personaje(s) ("misma cara,
+  pelo y complexión"), y fotograma previo ("continúa desde él").
+  > **Por qué se re-ancla también el personaje (2026-06-16):** la versión inicial solo propagaba
+  > `chain.productImagePaths` (refs con `role === 'product'`); las refs de personaje
+  > (`role === 'character'`) quedaban solo en el clip 1 y el personaje **derivaba** clip a clip (solo
+  > sobrevivía por arrastre del último fotograma). El fix añade `chain.characterImagePaths` (la hoja
+  > maestra de cada personaje) y `chain.prevFramePath` (fotograma previo explícito), re-anclando la
+  > identidad en CADA clip igual que el producto. Tope de 9 imágenes respetado: producto ≤3 +
+  > personaje ≤3 + fotograma previo = ≤7. Packaging/environment siguen SIN re-anclarse (confundirían
+  > al modelo como "el producto").
   > **Por qué NO image-to-video desde el fotograma (intento previo):** i2v solo hereda el
   > fotograma y PIERDE la referencia del producto → tras 2-3 saltos el producto deriva (bug
   > observado: las escenas 3-4 perdían consistencia). Re-anclar el producto en CADA clip (R2V) lo
