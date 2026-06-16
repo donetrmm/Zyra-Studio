@@ -1029,7 +1029,7 @@ export async function generateItemAction(
         ? [...pp.referenceImagePaths, closingRef]
         : pp.referenceImagePaths;
 
-      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount, {
+      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount, 0, {
         withClosingFrame: anchored,
       });
       const cost = (prevGen.credits_estimated as number) ?? 0;

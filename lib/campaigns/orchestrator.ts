@@ -251,20 +251,29 @@ type ChainParams = {
 export function buildContinuationPrompt(
   scenePrompt: string,
   productCount: number,
+  characterCount: number,
   opts?: { withClosingFrame?: boolean },
 ): string {
   const refs: string[] = [];
+  let idx = 0;
   for (let i = 0; i < productCount; i++) {
-    refs.push(`@image${i + 1} is the product — keep it identical (same colors, proportions, details).`);
+    idx++;
+    refs.push(`@image${idx} is the product — keep it identical (same colors, proportions, details).`);
   }
-  const frameIdx = productCount + 1;
+  for (let i = 0; i < characterCount; i++) {
+    idx++;
+    refs.push(
+      `@image${idx} is a main character — keep the exact same face, hair and build, identical in every shot; only wardrobe and expression follow the scene.`,
+    );
+  }
+  idx++;
   refs.push(
-    `@image${frameIdx} is the final frame of the previous shot — continue seamlessly from it: same subject, lighting, palette and setting, as one continuous sequence.`,
+    `@image${idx} is the final frame of the previous shot — continue seamlessly from it: same subject, lighting, palette and setting, as one continuous sequence.`,
   );
   if (opts?.withClosingFrame) {
-    const closingIdx = frameIdx + 1;
+    idx++;
     refs.push(
-      `@image${closingIdx} is the target final frame — end the shot exactly on it, matching its composition, framing and pose so the next shot continues seamlessly.`,
+      `@image${idx} is the target final frame — end the shot exactly on it, matching its composition, framing and pose so the next shot continues seamlessly.`,
     );
   }
   return `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
@@ -328,7 +337,7 @@ export async function advanceSequenceChain(
   const pricing = await loadPricing();
   const cost = seedanceCostPerItem(pricing, r2vModel, resolution, duration);
   const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
-  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length);
+  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length, 0);
 
   const { data: inserted, error: insErr } = await admin
     .from('generations')
