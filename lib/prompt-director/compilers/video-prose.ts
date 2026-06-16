@@ -25,16 +25,21 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
   if (generateAudio && sceneHasVoice(req.scenePrompt)) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
   }
-  sections.push('No on-screen text, captions or watermarks.');
 
-  let prose = sections.filter(Boolean).join(' ');
-  if (prose.length > maxChars) {
+  // El guard anti-texto es obligatorio (evita captions/watermarks renderizados).
+  // Va SIEMPRE al final y nunca se recorta: si la prosa excede el presupuesto se
+  // trunca solo el cuerpo, reservando espacio para el guard. Antes el guard era
+  // la última sección y cualquier recorte por presupuesto se lo comía.
+  const guard = 'No on-screen text, captions or watermarks.';
+  let body = sections.filter(Boolean).join(' ');
+  if (body.length + 1 + guard.length > maxChars) {
+    const budget = Math.max(0, maxChars - guard.length - 1);
+    body = body.slice(0, budget);
     // Recortar en el límite de la última oración completa que quepa.
-    prose = prose.slice(0, maxChars);
-    const lastStop = prose.lastIndexOf('.');
-    if (lastStop > maxChars * 0.5) prose = prose.slice(0, lastStop + 1);
+    const lastStop = body.lastIndexOf('.');
+    if (lastStop > budget * 0.5) body = body.slice(0, lastStop + 1);
   }
-  return prose;
+  return body ? `${body} ${guard}` : guard;
 }
 
 export function firstProductReference(ctx: DirectorContext): CompiledReference[] {
