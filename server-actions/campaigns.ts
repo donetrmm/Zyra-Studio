@@ -2104,33 +2104,26 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
     rows.map((r) => ({ scene_prompt: r.scene_prompt as string, duration_s: r.duration_s as number | null })),
   );
 
-  // Insertar PRIMERO el item fusionado y borrar las escenas originales después.
-  // Sin transacción, este orden evita la pérdida de datos: si el insert falla,
-  // las escenas originales quedan intactas; el item fusionado nace con
-  // sequence_id null, así que el delete por sequence_id no lo toca.
-  const { data: mergedRow, error: insErr } = await supabase
-    .from('campaign_items')
-    .insert({
-      campaign_id: parsed.data.campaignId,
-      format_id: first.format_id, model_slug: first.model_slug, duration_s: mergedDuration,
-      aspect_ratio: first.aspect_ratio, scene: first.scene, audio: first.audio,
-      character_id: first.character_id, character_ids: first.character_ids,
-      scene_prompt: joinedPrompt, scene_summary: null, caption: first.caption,
-      scheduled_date: first.scheduled_date, status: 'planned',
-      sequence_id: null, scene_index: null, sequence_label: null,
-    })
-    .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label')
-    .single();
-  if (insErr || !mergedRow) return { ok: false, error: 'internal_error', message: insErr?.message ?? 'No se pudo crear el clip fusionado' };
-
-  const { error: delErr } = await supabase
-    .from('campaign_items').delete()
-    .eq('campaign_id', parsed.data.campaignId).eq('sequence_id', parsed.data.sequenceId);
-  if (delErr) {
-    // Revertir el item fusionado para no dejar fusionado + originales duplicados.
-    await supabase.from('campaign_items').delete().eq('id', mergedRow.id as string);
-    return { ok: false, error: 'internal_error', message: delErr.message };
+  // Fusión atómica vía RPC (migración 036): INSERT del clip fusionado + DELETE de
+  // las escenas, en una sola transacción. Cierra la ventana en que, si el proceso
+  // moría entre ambos commits, quedaban fusionado + originales duplicados.
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('merge_sequence', {
+    p_campaign_id: parsed.data.campaignId,
+    p_sequence_id: parsed.data.sequenceId,
+    p_joined_prompt: joinedPrompt,
+    p_merged_duration: mergedDuration,
+  });
+  if (rpcErr) {
+    // P0001 = carrera: alguna escena dejó de estar 'planned' tras el chequeo previo.
+    if (rpcErr.code === 'P0001') {
+      return { ok: false, error: 'validation_error', message: 'No se puede unir: alguna escena ya se generó' };
+    }
+    // 42501 (no autorizado) / P0002 (secuencia vacía) → not_found para no filtrar.
+    if (rpcErr.code === '42501' || rpcErr.code === 'P0002') return { ok: false, error: 'not_found' };
+    return { ok: false, error: 'internal_error', message: rpcErr.message };
   }
+  const mergedRow = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as Record<string, unknown> | null;
+  if (!mergedRow) return { ok: false, error: 'internal_error', message: 'No se pudo unir la secuencia' };
 
   // Proyectar el item fusionado a la forma del cliente (toStudioItem, igual que
   // el loader y la serie): el canal realtime solo escucha UPDATE, así que sin
