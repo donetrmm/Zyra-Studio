@@ -37,6 +37,7 @@ import {
   updateCampaignItemAction,
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
+import type { StudioItem } from '@/lib/campaigns/studio-item';
 import {
   Dialog,
   DialogContent,
@@ -49,29 +50,9 @@ import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
 
-export type StudioItem = {
-  id: string;
-  formatId: string | null;
-  formatName: string;
-  formatDescription: string;
-  templateId: string | null;
-  durationS: number | null;
-  aspectRatio: string | null;
-  scene: string | null;
-  scenePrompt: string;
-  // Resumen display en el idioma de la campaña (033); null cae a scenePrompt.
-  sceneSummary: string | null;
-  caption: string | null;
-  characterNames: string[];
-  scheduledDate: string | null;
-  status: string;
-  warnings: string[];
-  generationId: string | null;
-  isWinner: boolean;
-  sequenceId: string | null;
-  sceneIndex: number | null;
-  sequenceLabel: string | null;
-};
+// StudioItem vive en lib/campaigns/studio-item (compartido con el loader y las
+// server actions); se re-exporta para no romper imports existentes.
+export type { StudioItem };
 
 export type StudioTemplate = {
   id: string;

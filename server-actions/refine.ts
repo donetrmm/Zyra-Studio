@@ -13,6 +13,7 @@ import { SHOTS } from '@/lib/shots/catalog';
 import { AcceptRefineInputSchema, RefineTurnInputSchema } from '@/lib/schemas/refine';
 import type { FormatDirection } from '@/lib/prompt-director/types';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
+import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
@@ -245,46 +246,24 @@ export async function acceptRefinedItemAction(input: unknown): Promise<Result<{ 
   let formatId = parsed.data.draft.formatId;
   let createdCustomFormat = false;
   if (!formatId && parsed.data.draft.customFormat) {
-    const cf = parsed.data.draft.customFormat;
-    const { data: created, error } = await supabase
-      .from('formats')
-      .insert({
-        slug: cf.slug,
-        name: cf.name,
-        description: cf.description,
-        register: cf.register,
-        camera_style: cf.cameraStyle,
-        pacing: cf.pacing,
-        required_refs: cf.requiredRefs,
-        default_duration_s: cf.defaultDurationS,
-        default_audio: cf.defaultAudio,
-        is_system: false,
-        workspace_id: workspace.id,
-      })
-      .select('id')
-      .single();
-    if (error && error.code !== '23505') return { ok: false, error: 'internal_error', message: error.message };
-    if (created) {
-      formatId = created.id as string;
-      createdCustomFormat = true;
-    } else {
-      // 23505: slug ya existe globalmente. Intentar recuperar si pertenece a este workspace.
-      const { data: existing } = await supabase
-        .from('formats')
-        .select('id')
-        .eq('slug', cf.slug)
-        .eq('workspace_id', workspace.id)
-        .single();
-      formatId = (existing?.id as string) ?? null;
-      if (!formatId) {
-        // El slug pertenece al sistema u otro workspace — colisión irrecuperable.
-        return {
-          ok: false,
-          error: 'conflict',
-          message: 'Ya existe un formato con ese nombre; renómbralo en la conversación',
-        };
-      }
+    // El refinado NO uniquifica: si el slug pertenece a otro workspace, surface
+    // un conflicto para que el usuario lo renombre en la conversación.
+    const outcome = await insertOrRecoverCustomFormat(
+      supabase,
+      workspace.id,
+      parsed.data.draft.customFormat,
+      { uniquifyOnConflict: false },
+    );
+    if (outcome.status === 'error') return { ok: false, error: 'internal_error', message: outcome.message };
+    if (outcome.status === 'conflict') {
+      return {
+        ok: false,
+        error: 'conflict',
+        message: 'Ya existe un formato con ese nombre; renómbralo en la conversación',
+      };
     }
+    formatId = outcome.id;
+    createdCustomFormat = outcome.status === 'created';
   }
   if (!formatId) return { ok: false, error: 'validation_error', message: 'El creativo no tiene formato' };
 

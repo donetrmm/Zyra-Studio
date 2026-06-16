@@ -39,6 +39,8 @@ import {
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
 import { mergeScenes } from '@/lib/campaigns/merge';
+import { type StudioItem, toStudioItem } from '@/lib/campaigns/studio-item';
+import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { buildSeries, buildTemplateParams, type TemplateFixedParams, type TemplateSlots } from '@/lib/campaigns/distill';
 import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
@@ -483,51 +485,19 @@ export async function generatePlanAction(input: unknown): Promise<
             });
             continue;
           }
-          // formats.slug tiene UNIQUE global: si choca, recuperar el formato del
-          // workspace (re-plan) o uniquificar el slug y reintentar, para NO
+          // formats.slug tiene UNIQUE global: el helper inserta, recupera el del
+          // workspace si choca, o uniquifica el slug (uniquifyOnConflict) para NO
           // descartar en silencio la idea que el usuario describió.
-          const toPlannerFormat = (id: string, slug: string): PlannerFormat => ({
-            id, slug, name: cf.name,
-            requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS, defaultAudio: cf.defaultAudio,
+          const outcome = await insertOrRecoverCustomFormat(supabase, workspace.id, cf, {
+            uniquifyOnConflict: true,
           });
-          const insertCustomFormat = (slug: string) =>
-            supabase
-              .from('formats')
-              .insert({
-                slug, name: cf.name, description: cf.description,
-                register: cf.register, camera_style: cf.cameraStyle, pacing: cf.pacing,
-                required_refs: cf.requiredRefs, default_duration_s: cf.defaultDurationS,
-                default_audio: cf.defaultAudio, is_system: false, workspace_id: workspace.id,
-              })
-              .select('id, slug')
-              .single();
-
           let pf: PlannerFormat | null = null;
-          const { data: created, error: cfErr } = await insertCustomFormat(cf.slug);
-          if (created) {
-            pf = toPlannerFormat(created.id as string, created.slug as string);
-            createdCustom = true;
-          } else if (cfErr?.code === '23505') {
-            // Slug ocupado globalmente. ¿Ya lo tiene este workspace (plan
-            // anterior), bajo el slug base o el uniquificado? Reusar.
-            const retrySlug = `${cf.slug}-${workspace.id.slice(0, 8)}`;
-            const { data: owned } = await supabase
-              .from('formats')
-              .select('id, slug')
-              .eq('workspace_id', workspace.id)
-              .in('slug', [cf.slug, retrySlug])
-              .limit(1)
-              .maybeSingle();
-            if (owned) {
-              pf = toPlannerFormat(owned.id as string, owned.slug as string);
-            } else {
-              // Pertenece a otro workspace: uniquificar y reintentar.
-              const { data: retried } = await insertCustomFormat(retrySlug);
-              if (retried) {
-                pf = toPlannerFormat(retried.id as string, retried.slug as string);
-                createdCustom = true;
-              }
-            }
+          if (outcome.status === 'created' || outcome.status === 'recovered') {
+            pf = {
+              id: outcome.id, slug: outcome.slug, name: cf.name,
+              requiredRefs: cf.requiredRefs, defaultDurationS: cf.defaultDurationS, defaultAudio: cf.defaultAudio,
+            };
+            if (outcome.status === 'created') createdCustom = true;
           }
           if (pf) {
             formats.push(pf);
@@ -545,7 +515,8 @@ export async function generatePlanAction(input: unknown): Promise<
           } else {
             console.error('[generatePlanAction] formato custom no creado; idea descartada', {
               slug: cf.slug,
-              err: cfErr?.message,
+              outcome: outcome.status,
+              err: outcome.status === 'error' ? outcome.message : undefined,
             });
           }
         }
@@ -1407,35 +1378,9 @@ export async function toggleWinnerAction(itemId: string): Promise<Result<{ isWin
 // Genera una serie desde la plantilla: N items nuevos en la campaña de origen
 // rotando escena (y opcionalmente personaje); estructura fija vía @Video1.
 // Pasan por el flujo normal de lotes/compuertas.
-// Forma de un campaign_item ya proyectado, idéntica a StudioItem (el cliente la
-// agrega al estado tras crear serie o fusionar secuencia). Se mantiene aquí para
-// no importar tipos de un componente 'use client' en un módulo server.
-type StudioItemDTO = {
-  id: string;
-  formatId: string | null;
-  formatName: string;
-  formatDescription: string;
-  templateId: string | null;
-  durationS: number | null;
-  aspectRatio: string | null;
-  scene: string | null;
-  scenePrompt: string;
-  sceneSummary: string | null;
-  caption: string | null;
-  characterNames: string[];
-  scheduledDate: string | null;
-  status: string;
-  warnings: string[];
-  generationId: string | null;
-  isWinner: boolean;
-  sequenceId: string | null;
-  sceneIndex: number | null;
-  sequenceLabel: string | null;
-};
-
 export async function generateSeriesAction(
   input: unknown,
-): Promise<Result<{ items: number; campaignId: string; created: StudioItemDTO[] }>> {
+): Promise<Result<{ items: number; campaignId: string; created: StudioItem[] }>> {
   const parsed = GenerateSeriesSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -1570,34 +1515,19 @@ export async function generateSeriesAction(
     .update({ uses_count: ((template.uses_count as number) ?? 0) + 1 })
     .eq('id', template.id);
 
-  // Devolver los items ya formados (misma forma que el loader del page) para que
+  // Devolver los items ya formados (toStudioItem, igual que el loader) para que
   // el cliente los agregue al estado sin recargar — el canal realtime solo
-  // escucha UPDATE, no INSERT. Mantener en sync con StudioItem.
+  // escucha UPDATE, no INSERT. Todos comparten un único formato (la plantilla).
   const characterNameById = new Map(characters.map((c) => [c.id, c.name]));
-  const created: StudioItemDTO[] = (insertedRows ?? []).map((r) => ({
-    id: r.id as string,
-    formatId: (r.format_id as string | null) ?? null,
-    formatName: r.format_id ? seriesFormatName : 'Formato',
-    formatDescription: r.format_id ? seriesFormatDescription : '',
-    templateId: (r.template_id as string | null) ?? null,
-    durationS: (r.duration_s as number | null) ?? null,
-    aspectRatio: (r.aspect_ratio as string | null) ?? null,
-    scene: (r.scene as string | null) ?? null,
-    scenePrompt: r.scene_prompt as string,
-    sceneSummary: (r.scene_summary as string | null) ?? null,
-    caption: (r.caption as string | null) ?? null,
-    characterNames: ((r.character_ids as string[] | null) ?? (r.character_id ? [r.character_id as string] : []))
-      .map((id) => characterNameById.get(id))
-      .filter((n): n is string => !!n),
-    scheduledDate: (r.scheduled_date as string | null) ?? null,
-    status: r.status as string,
-    warnings: (r.warnings as string[]) ?? [],
-    generationId: (r.generation_id as string | null) ?? null,
-    isWinner: (r.is_winner as boolean) ?? false,
-    sequenceId: (r.sequence_id as string | null) ?? null,
-    sceneIndex: (r.scene_index as number | null) ?? null,
-    sequenceLabel: (r.sequence_label as string | null) ?? null,
-  }));
+  const formatNames = template.format_id
+    ? new Map([[template.format_id as string, seriesFormatName]])
+    : new Map<string, string>();
+  const formatDescriptions = template.format_id
+    ? new Map([[template.format_id as string, seriesFormatDescription]])
+    : new Map<string, string>();
+  const created: StudioItem[] = (insertedRows ?? []).map((r) =>
+    toStudioItem(r, formatNames, formatDescriptions, characterNameById),
+  );
 
   revalidatePath(`/app/campaigns/${campaignId}`);
   return { ok: true, data: { items: items.length, campaignId, created } };
@@ -2147,7 +2077,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
 // Colapsa todas las escenas de una secuencia (sequence_id) en un único
 // campaign_item: los prompts se concatenan y la duracion total se capa a 15s.
 // Solo funciona si TODAS las escenas estan en estado 'planned'.
-export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true; item: StudioItemDTO }>> {
+export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true; item: StudioItem }>> {
   const parsed = MergeSequenceSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -2189,7 +2119,7 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
       scheduled_date: first.scheduled_date, status: 'planned',
       sequence_id: null, scene_index: null, sequence_label: null,
     })
-    .select('id')
+    .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label')
     .single();
   if (insErr || !mergedRow) return { ok: false, error: 'internal_error', message: insErr?.message ?? 'No se pudo crear el clip fusionado' };
 
@@ -2202,9 +2132,9 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
     return { ok: false, error: 'internal_error', message: delErr.message };
   }
 
-  // Proyectar el item fusionado a la forma del cliente (igual que el loader del
-  // page y generateSeriesAction): el canal realtime solo escucha UPDATE, así que
-  // sin esto el clip fusionado no aparece hasta recargar.
+  // Proyectar el item fusionado a la forma del cliente (toStudioItem, igual que
+  // el loader y la serie): el canal realtime solo escucha UPDATE, así que sin
+  // esto el clip fusionado no aparece hasta recargar.
   let mergedFormatName = 'Formato';
   let mergedFormatDescription = '';
   if (first.format_id) {
@@ -2215,35 +2145,19 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
   }
   const mergedCharIds =
     (first.character_ids as string[] | null) ?? (first.character_id ? [first.character_id as string] : []);
-  let mergedCharacterNames: string[] = [];
+  const characterNameById = new Map<string, string>();
   if (mergedCharIds.length) {
     const { data: chars } = await supabase
       .from('characters').select('id, name').in('id', mergedCharIds).eq('workspace_id', workspace.id);
-    const nameById = new Map((chars ?? []).map((c) => [c.id as string, c.name as string]));
-    mergedCharacterNames = mergedCharIds.map((id) => nameById.get(id)).filter((n): n is string => !!n);
+    for (const c of chars ?? []) characterNameById.set(c.id as string, c.name as string);
   }
-  const mergedItem: StudioItemDTO = {
-    id: mergedRow.id as string,
-    formatId: (first.format_id as string | null) ?? null,
-    formatName: first.format_id ? mergedFormatName : 'Formato',
-    formatDescription: first.format_id ? mergedFormatDescription : '',
-    templateId: null,
-    durationS: mergedDuration,
-    aspectRatio: (first.aspect_ratio as string | null) ?? null,
-    scene: (first.scene as string | null) ?? null,
-    scenePrompt: joinedPrompt,
-    sceneSummary: null,
-    caption: (first.caption as string | null) ?? null,
-    characterNames: mergedCharacterNames,
-    scheduledDate: (first.scheduled_date as string | null) ?? null,
-    status: 'planned',
-    warnings: [],
-    generationId: null,
-    isWinner: false,
-    sequenceId: null,
-    sceneIndex: null,
-    sequenceLabel: null,
-  };
+  const formatNames = first.format_id
+    ? new Map([[first.format_id as string, mergedFormatName]])
+    : new Map<string, string>();
+  const formatDescriptions = first.format_id
+    ? new Map([[first.format_id as string, mergedFormatDescription]])
+    : new Map<string, string>();
+  const mergedItem = toStudioItem(mergedRow, formatNames, formatDescriptions, characterNameById);
 
   revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
   return { ok: true, data: { merged: true, item: mergedItem } };

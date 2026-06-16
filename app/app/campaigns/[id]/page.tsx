@@ -7,6 +7,7 @@ import {
   type StudioItem,
   type StudioTemplate,
 } from '@/components/campaigns/CampaignStudioView';
+import { toStudioItem } from '@/lib/campaigns/studio-item';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -55,30 +56,9 @@ export default async function CampaignDetailRoute({
     );
     const characterNameById = new Map((characterRows ?? []).map((c) => [c.id as string, c.name as string]));
 
-    const items: StudioItem[] = (itemRows ?? []).map((r) => ({
-      id: r.id as string,
-      formatId: (r.format_id as string | null) ?? null,
-      formatName: r.format_id ? (formatNames.get(r.format_id as string) ?? 'Formato') : 'Formato',
-      formatDescription: r.format_id ? (formatDescriptions.get(r.format_id as string) ?? '') : '',
-      templateId: (r.template_id as string | null) ?? null,
-      durationS: (r.duration_s as number | null) ?? null,
-      aspectRatio: (r.aspect_ratio as string | null) ?? null,
-      scene: (r.scene as string | null) ?? null,
-      scenePrompt: r.scene_prompt as string,
-      sceneSummary: (r.scene_summary as string | null) ?? null,
-      caption: (r.caption as string | null) ?? null,
-      characterNames: ((r.character_ids as string[] | null) ?? (r.character_id ? [r.character_id as string] : []))
-        .map((id) => characterNameById.get(id))
-        .filter((n): n is string => !!n),
-      scheduledDate: (r.scheduled_date as string | null) ?? null,
-      status: r.status as string,
-      warnings: (r.warnings as string[]) ?? [],
-      generationId: (r.generation_id as string | null) ?? null,
-      isWinner: (r.is_winner as boolean) ?? false,
-      sequenceId: (r.sequence_id as string | null) ?? null,
-      sceneIndex: (r.scene_index as number | null) ?? null,
-      sequenceLabel: (r.sequence_label as string | null) ?? null,
-    }));
+    const items: StudioItem[] = (itemRows ?? []).map((r) =>
+      toStudioItem(r, formatNames, formatDescriptions, characterNameById),
+    );
 
     const templates: StudioTemplate[] = (templateRows ?? []).map((t) => ({
       id: t.id as string,
