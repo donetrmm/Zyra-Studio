@@ -32,9 +32,15 @@ y dejar que el usuario elija según el caso.
   - Clip **del medio** (`0 < i < último`): A + B.
   - **Último clip** (`i == último`): solo regeneración normal (no hay siguiente al cual anclar;
     hereda del anterior como hoy). No se ofrece B (no hay nada después).
-  - **Primer clip** (`i == 0`): regeneración normal (re-siembra desde el producto, como hoy) + B si
-    hay posteriores. El modo A para el clip 0 ancla su **final** al inicio del clip 1 y mantiene el
-    producto como init (no hay clip previo).
+  - **Primer clip** (`i == 0`): **solo regeneración normal** (re-siembra desde el producto). Los modos
+    A y B NO se ofrecen para el clip 0. **Decisión 2026-06-16** (revisada respecto al borrador inicial
+    que sí los contemplaba): el clip 0 se genera FRESH (Tier 1) y su generación **no lleva** `chain`
+    con `productImagePaths` ni un "fotograma previo" en `referenceImagePaths` (su array es
+    `[producto, packaging, environment…]`, estructura distinta a los clips i>0). Por eso la rama de
+    regeneración con continuidad —donde viven ambos modos— se limita a `scene_index > 0`. Soportar el
+    clip 0 exigiría sembrar `chain` en su gen FRESH y un prompt sin "fotograma previo"; se descarta por
+    riesgo/beneficio (regenerar el clip 0 con cascada equivale casi a rehacer la secuencia entera).
+    Queda como posible mejora aislada futura.
 - **Anclaje bidireccional vía R2V multi-referencia + prompt (NO i2v, NO `last_image`).** El ejemplo
   oficial de AtlasCloud confirma que la rama `reference-to-video` **no acepta `last_image`** (es campo
   exclusivo de i2v) y que el encadenamiento se expresa pasando **varias `reference_images`** citadas
@@ -92,8 +98,10 @@ y dejar que el usuario elija según el caso.
   de producto idéntico.
 
 ### 4. Server action `server-actions/campaigns.ts` — `generateItemAction`
-- En la rama "RE-GENERAR CON CONTINUIDAD" (`:955`), aceptar un parámetro de **modo** (`'only-this'`
-  | `'this-and-forward'`).
+- Aceptar un parámetro de **modo** (`'auto'` | `'only-this'` | `'this-and-forward'`; default `'auto'`
+  preserva los call sites existentes). Ambos modos especiales viven en la rama "RE-GENERAR CON
+  CONTINUIDAD", que aplica solo a clips con `scene_index > 0` (clip con previo). El clip 0 cae a la
+  rama FRESH y los modos especiales se ignoran (ver decisión del clip 0 arriba).
 - **Modo A (`only-this`)**, solo si existe clip siguiente en la secuencia:
   1. Localizar el item i+1 (`sequence_id`, `scene_index + 1`) y su generación completada.
   2. Descargar su `output_url` (video) → `extractFrameFull(buffer, 0)` → subir a references → path interno.
@@ -114,9 +122,9 @@ y dejar que el usuario elija según el caso.
 ### 6. UI — `components/campaigns/` (recuadro de secuencia / Producción)
 - El control de regeneración de un clip de secuencia pasa de botón único a **menú** cuyas opciones
   se calculan según la posición (módulo puro de secuencia, reutilizar `sequence-chain.ts`):
-  - medio → "Regenerar solo este" + "Regenerar este y los siguientes"
+  - medio → "Regenerar solo este" + "Este y los siguientes"
   - último → "Regenerar"
-  - primero → "Regenerar" + "Regenerar este y los siguientes" (si hay posteriores)
+  - primero → "Regenerar" (solo regeneración normal; sin modos especiales — ver decisión del clip 0)
 - Mostrar el warning de anclaje en la card del clip regenerado en modo A.
 
 ## Casos borde
