@@ -248,7 +248,11 @@ type ChainParams = {
 // citan como @image{N} (1-based, minúscula — formato oficial de Atlas), en el
 // MISMO orden del array reference_images: primero el producto, luego el último
 // fotograma del plano anterior.
-export function buildContinuationPrompt(scenePrompt: string, productCount: number): string {
+export function buildContinuationPrompt(
+  scenePrompt: string,
+  productCount: number,
+  opts?: { withClosingFrame?: boolean },
+): string {
   const refs: string[] = [];
   for (let i = 0; i < productCount; i++) {
     refs.push(`@image${i + 1} is the product — keep it identical (same colors, proportions, details).`);
@@ -257,6 +261,12 @@ export function buildContinuationPrompt(scenePrompt: string, productCount: numbe
   refs.push(
     `@image${frameIdx} is the final frame of the previous shot — continue seamlessly from it: same subject, lighting, palette and setting, as one continuous sequence.`,
   );
+  if (opts?.withClosingFrame) {
+    const closingIdx = frameIdx + 1;
+    refs.push(
+      `@image${closingIdx} is the target final frame — end the shot exactly on it, matching its composition, framing and pose so the next shot continues seamlessly.`,
+    );
+  }
   return `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
 }
 
