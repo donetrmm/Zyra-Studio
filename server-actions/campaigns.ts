@@ -1031,24 +1031,6 @@ export async function generateItemAction(
       const cost = (prevGen.credits_estimated as number) ?? 0;
       const admin = createAdminClient();
 
-      // Modo B (cascada): resetear los clips posteriores de la secuencia para que
-      // el avance de cadena (advanceSequenceChain) los re-encadene al finalizar
-      // cada clip. La guarda idempotente de la cadena avanza solo si
-      // generation_id es null; el reset lo habilita. Las generaciones viejas
-      // quedan huérfanas (sin item que las apunte) — es aceptable: no se cobran
-      // de nuevo y la cadena produce versiones frescas.
-      if (mode === 'this-and-forward') {
-        const laterIds = (seqRows ?? [])
-          .filter((r) => (r.scene_index as number) > (item.scene_index as number))
-          .map((r) => r.id as string);
-        if (laterIds.length) {
-          await admin
-            .from('campaign_items')
-            .update({ status: 'planned', generation_id: null, warnings: [] })
-            .in('id', laterIds);
-        }
-      }
-
       const { data: inserted, error: insErr } = await admin
         .from('generations')
         .insert({
@@ -1092,6 +1074,27 @@ export async function generateItemAction(
           warnings: anchored ? ['Anclado al inicio del clip siguiente — revisa la transición'] : [],
         })
         .eq('id', itemId);
+
+      // Modo B (cascada): una vez asegurada la regeneración del clip i (créditos
+      // reservados, item actualizado), resetear los clips posteriores para que el
+      // avance de cadena (advanceSequenceChain) los re-encadene al finalizar cada
+      // clip. La guarda idempotente de la cadena avanza solo si generation_id es
+      // null; el reset lo habilita. Las generaciones viejas quedan huérfanas (sin
+      // item que las apunte) — aceptable: no se cobran de nuevo y la cadena
+      // produce versiones frescas. Se hace DESPUÉS de la reserva: si el clip i no
+      // tuviera créditos, no se toca a los posteriores ya generados.
+      if (mode === 'this-and-forward') {
+        const laterIds = (seqRows ?? [])
+          .filter((r) => (r.scene_index as number) > (item.scene_index as number))
+          .map((r) => r.id as string);
+        if (laterIds.length) {
+          await admin
+            .from('campaign_items')
+            .update({ status: 'planned', generation_id: null, warnings: [] })
+            .in('id', laterIds);
+        }
+      }
+
       await enqueueJob({ generationId: newGenId, action: 'submit', delaySeconds: 0 });
       revalidatePath(`/app/campaigns/${item.campaign_id}`);
       return { ok: true, data: { generationId: newGenId } };
