@@ -17,6 +17,8 @@ import {
 } from '@/lib/campaigns/planner';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
+import { buildClosingFrameRef } from '@/lib/campaigns/closing-frame';
+import { nextSceneItem } from '@/lib/campaigns/sequence-chain';
 import {
   buildContinuationPrompt,
   enqueueBatch,
@@ -899,7 +901,12 @@ export async function deleteCampaignItemAction(itemId: string): Promise<Result<{
 // de créditos, RESUME su generación de continuación preservada (mantiene
 // [producto, fotograma previo] → continuidad real, Tier 2); en cualquier otro
 // caso la genera fresca con la referencia del producto (Tier 1).
-export async function generateItemAction(itemId: string): Promise<Result<{ generationId?: string }>> {
+export type RegenMode = 'auto' | 'only-this' | 'this-and-forward';
+
+export async function generateItemAction(
+  itemId: string,
+  mode: RegenMode = 'auto',
+): Promise<Result<{ generationId?: string }>> {
   if (!z.string().uuid().safeParse(itemId).success) {
     return { ok: false, error: 'validation_error' };
   }
@@ -976,7 +983,51 @@ export async function generateItemAction(itemId: string): Promise<Result<{ gener
       | undefined;
     if (prevGen && pp?.chain && pp.referenceImagePaths?.length) {
       const productCount = pp.chain.productImagePaths?.length ?? Math.max(0, pp.referenceImagePaths.length - 1);
-      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount);
+
+      // Consulta compartida de la secuencia (la usan modo A y, en una tarea
+      // posterior, modo B). Se eleva fuera del branching de modo.
+      const { data: seqRows } = await supabase
+        .from('campaign_items')
+        .select('id, scene_index, generation_id')
+        .eq('sequence_id', item.sequence_id as string);
+      const chainItems = (seqRows ?? []).map((r) => ({
+        id: r.id as string,
+        sceneIndex: r.scene_index as number,
+      }));
+
+      // Modo A: si el usuario pide "solo este" y existe clip siguiente ya
+      // generado, añadir su primer fotograma como cuadro de cierre (anclaje
+      // bidireccional). Si no hay siguiente o falla la extracción, cae a solo-init.
+      let closingRef: string | null = null;
+      let anchored = false;
+      if (mode === 'only-this') {
+        const next = nextSceneItem(chainItems, item.scene_index as number);
+        const nextRow = next ? (seqRows ?? []).find((r) => r.id === next.id) : null;
+        if (nextRow?.generation_id) {
+          const { data: nextGen } = await supabase
+            .from('generations')
+            .select('output_url')
+            .eq('id', nextRow.generation_id as string)
+            .single();
+          if (nextGen?.output_url) {
+            closingRef = await buildClosingFrameRef({
+              workspaceId: workspace.id,
+              sequenceId: item.sequence_id as string,
+              sceneIndex: item.scene_index as number,
+              nextOutputPath: nextGen.output_url as string,
+            });
+            anchored = closingRef !== null;
+          }
+        }
+      }
+
+      const referenceImagePaths = closingRef
+        ? [...pp.referenceImagePaths, closingRef]
+        : pp.referenceImagePaths;
+
+      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount, {
+        withClosingFrame: anchored,
+      });
       const cost = (prevGen.credits_estimated as number) ?? 0;
       const admin = createAdminClient();
       const { data: inserted, error: insErr } = await admin
@@ -994,7 +1045,7 @@ export async function generateItemAction(itemId: string): Promise<Result<{ gener
             resolution: pp.resolution ?? '480p',
             duration: pp.duration ?? (item.duration_s as number | null) ?? 5,
             generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
-            referenceImagePaths: pp.referenceImagePaths,
+            referenceImagePaths,
             returnLastFrame: pp.returnLastFrame ?? false,
             chain: (prevGen.params as { chain?: unknown }).chain,
           },
@@ -1016,7 +1067,11 @@ export async function generateItemAction(itemId: string): Promise<Result<{ gener
       }
       await admin
         .from('campaign_items')
-        .update({ status: 'sample', generation_id: newGenId, warnings: [] })
+        .update({
+          status: 'sample',
+          generation_id: newGenId,
+          warnings: anchored ? ['Anclado al inicio del clip siguiente — revisa la transición'] : [],
+        })
         .eq('id', itemId);
       await enqueueJob({ generationId: newGenId, action: 'submit', delaySeconds: 0 });
       revalidatePath(`/app/campaigns/${item.campaign_id}`);
