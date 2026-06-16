@@ -16,7 +16,9 @@ export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
   generationId: z.string().uuid(),
-  action: z.enum(['submit', 'poll']),
+  action: z.enum(['submit', 'poll', 'advance_chain']),
+  // Solo para 'advance_chain': URL del fotograma del clip previo a heredar.
+  lastFrameUrl: z.string().url().optional(),
 });
 
 const TERMINAL_STATUSES = new Set(['done', 'failed', 'canceled']);
@@ -70,6 +72,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ack: 'not_found' });
   }
   const generation = gen as unknown as GenerationRow;
+
+  // 3.5. Avance de cadena (specs/v2/09): job dedicado. La gen aquí ya está
+  // 'done' (terminal), así que se intercepta ANTES del guard terminal. Corre el
+  // avance en su propia invocación con presupuesto fresco; ejecutarlo inline en
+  // la invocación de finalize arriesgaba que un kill por maxDuration dejara la
+  // próxima escena colgada en 'sample'.
+  if (action === 'advance_chain') {
+    try {
+      if (generation.params?.chain && parsed.lastFrameUrl) {
+        await advanceSequenceChain(generation, parsed.lastFrameUrl);
+      }
+    } catch (err) {
+      console.error('[worker] avance de cadena falló', { generationId, err });
+    }
+    return NextResponse.json({ ok: true, ack: 'chain_advanced' });
+  }
 
   // 4. Guard: status terminal → ack
   if (TERMINAL_STATUSES.has(generation.status)) {
@@ -178,13 +196,19 @@ export async function POST(req: Request) {
       metadata: result.metadata,
     });
     // Encadenado de secuencias (specs/v2/09): si este clip es parte de una
-    // cadena y el proveedor devolvió su último fotograma, generar el siguiente
-    // heredándolo. Best-effort: un fallo aquí no debe tirar el clip ya servido.
+    // cadena y el proveedor devolvió su último fotograma, encolar el avance como
+    // su PROPIO job (presupuesto fresco). Best-effort: un fallo al encolar no
+    // debe tirar el clip ya servido (la escena queda 'planned', regenerable).
     if (generation.params?.chain && result.lastFrameUrl) {
       try {
-        await advanceSequenceChain(generation, result.lastFrameUrl);
+        await enqueueJob({
+          generationId: generation.id,
+          action: 'advance_chain',
+          lastFrameUrl: result.lastFrameUrl,
+          delaySeconds: 0,
+        });
       } catch (err) {
-        console.error('[worker] avance de cadena falló', { generationId, err });
+        console.error('[worker] no se pudo encolar el avance de cadena', { generationId, err });
       }
     }
     return NextResponse.json({ ok: true, ack: 'finalized' });

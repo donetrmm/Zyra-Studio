@@ -20,8 +20,11 @@ function getClient(): Client {
 
 export type EnqueueJobInput = {
   generationId: string;
-  action: 'submit' | 'poll';
+  action: 'submit' | 'poll' | 'advance_chain';
   delaySeconds?: number;
+  // Solo para 'advance_chain': la URL del último fotograma del clip ya
+  // terminado, que el job de avance descarga y hereda al siguiente clip.
+  lastFrameUrl?: string;
 };
 
 // Encola un mensaje POST al worker /api/jobs/process. El worker se re-encola
@@ -36,7 +39,11 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<{ messageId: s
   const client = getClient();
   const res = await client.publishJSON({
     url: `${baseUrl}/api/jobs/process`,
-    body: { generationId: input.generationId, action: input.action },
+    body: {
+      generationId: input.generationId,
+      action: input.action,
+      ...(input.lastFrameUrl ? { lastFrameUrl: input.lastFrameUrl } : {}),
+    },
     delay: input.delaySeconds ?? 0,
     retries: 3,
   });
