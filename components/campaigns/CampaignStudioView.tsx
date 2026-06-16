@@ -35,8 +35,10 @@ import {
   requestFinalAction,
   toggleWinnerAction,
   updateCampaignItemAction,
+  type RegenMode,
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
+import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
 import {
   Dialog,
@@ -701,16 +703,20 @@ function ProductionView({
   // Visor inline del creativo generado (evita ir a la Biblioteca).
   const [viewing, setViewing] = useState<{ generationId: string; title: string } | null>(null);
 
-  async function handleRegenerate(itemId: string) {
+  async function handleRegenerate(itemId: string, mode: RegenMode = 'auto') {
     setBusy(`regen:${itemId}`);
-    const res = await generateItemAction(itemId);
+    const res = await generateItemAction(itemId, mode);
     setBusy(null);
     if (!res.ok) {
       if (res.error === 'insufficient_credits') insufficientCreditsToast();
       else toast.error(res.message ?? 'No se pudo regenerar la escena');
       return;
     }
-    toast.success('Regenerando la escena — reemplazará el borrador al terminar');
+    toast.success(
+      mode === 'this-and-forward'
+        ? 'Regenerando este clip y los siguientes en cadena'
+        : 'Regenerando la escena — reemplazará el borrador al terminar',
+    );
   }
 
   async function handleWinner(item: StudioItem) {
@@ -872,60 +878,101 @@ function ProductionView({
 
             {drafts.length > 0 && (
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
-                {drafts.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-3 text-[12.5px]">
-                    <p className="line-clamp-1 flex-1 text-muted-foreground/80">
-                      {d.sceneSummary ?? d.scenePrompt}
-                    </p>
-                    <span className="flex shrink-0 gap-1.5">
-                      {d.generationId && (
+                {drafts.map((d) => {
+                  const seqGroup = group.items.filter(
+                    (i) => i.sequenceId != null && i.sequenceId === d.sequenceId,
+                  );
+                  const modes =
+                    d.sequenceId != null && d.sceneIndex != null
+                      ? regenModesFor(
+                          seqGroup.map((i) => ({ id: i.id, sceneIndex: i.sceneIndex as number })),
+                          d.sceneIndex,
+                        )
+                      : { onlyThis: false, thisAndForward: false };
+                  const isSeqMiddle = modes.onlyThis || modes.thisAndForward;
+                  return (
+                    <div key={d.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                      <p className="line-clamp-1 flex-1 text-muted-foreground/80">
+                        {d.sceneSummary ?? d.scenePrompt}
+                      </p>
+                      <span className="flex shrink-0 gap-1.5">
+                        {d.generationId && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewing({
+                                generationId: d.generationId as string,
+                                title: d.sceneSummary ?? d.scenePrompt,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Play className="size-3" aria-hidden />
+                            Ver
+                          </button>
+                        )}
+                        <Link
+                          href={`/app/campaigns/${campaignId}/refine/${d.id}`}
+                          title="Refinar el prompt con el asistente"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
+                        >
+                          <Sparkles className="size-3" aria-hidden />
+                          Refinar
+                        </Link>
+                        {isSeqMiddle ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busy !== null}
+                              onClick={() => handleRegenerate(d.id, 'only-this')}
+                              title="Rehace solo este clip, conservando los vecinos (lo ancla al inicio del siguiente)"
+                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                            >
+                              {busy === `regen:${d.id}` ? (
+                                <Loader2 className="size-3 animate-spin" aria-hidden />
+                              ) : (
+                                <RefreshCw className="size-3" aria-hidden />
+                              )}
+                              Regenerar solo este
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy !== null}
+                              onClick={() => handleRegenerate(d.id, 'this-and-forward')}
+                              title="Rehace este clip y vuelve a encadenar los siguientes"
+                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                            >
+                              Este y los siguientes
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy !== null}
+                            onClick={() => handleRegenerate(d.id)}
+                            title="Regenerar esta escena (reemplaza el borrador)"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                          >
+                            {busy === `regen:${d.id}` ? (
+                              <Loader2 className="size-3 animate-spin" aria-hidden />
+                            ) : (
+                              <RefreshCw className="size-3" aria-hidden />
+                            )}
+                            Regenerar
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() =>
-                            setViewing({
-                              generationId: d.generationId as string,
-                              title: d.sceneSummary ?? d.scenePrompt,
-                            })
-                          }
-                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                          disabled={busy !== null}
+                          onClick={() => handleFinal(d.id)}
+                          className="rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
                         >
-                          <Play className="size-3" aria-hidden />
-                          Ver
+                          {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
                         </button>
-                      )}
-                      <Link
-                        href={`/app/campaigns/${campaignId}/refine/${d.id}`}
-                        title="Refinar el prompt con el asistente"
-                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
-                      >
-                        <Sparkles className="size-3" aria-hidden />
-                        Refinar
-                      </Link>
-                      <button
-                        type="button"
-                        disabled={busy !== null}
-                        onClick={() => handleRegenerate(d.id)}
-                        title="Regenerar esta escena (reemplaza el borrador)"
-                        className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-                      >
-                        {busy === `regen:${d.id}` ? (
-                          <Loader2 className="size-3 animate-spin" aria-hidden />
-                        ) : (
-                          <RefreshCw className="size-3" aria-hidden />
-                        )}
-                        Regenerar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy !== null}
-                        onClick={() => handleFinal(d.id)}
-                        className="rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
-                      >
-                        {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
-                      </button>
-                    </span>
-                  </div>
-                ))}
+                      </span>
+                    </div>
+                  );
+                })}
                 <button
                   type="button"
                   disabled={busy !== null}
