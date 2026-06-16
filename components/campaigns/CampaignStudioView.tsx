@@ -292,8 +292,8 @@ export function CampaignStudioView({
             onEdit={setEditing}
             onPreview={handlePreviewPrompt}
             onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
-            onSequenceMerged={(sequenceId) =>
-              setItems((p) => p.filter((i) => i.sequenceId !== sequenceId))
+            onSequenceMerged={(sequenceId, merged) =>
+              setItems((p) => [...p.filter((i) => i.sequenceId !== sequenceId), merged])
             }
           />
         </>
@@ -364,7 +364,7 @@ function PlanTable({
   onEdit: (item: StudioItem) => void;
   onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
-  onSequenceMerged: (sequenceId: string) => void;
+  onSequenceMerged: (sequenceId: string, merged: StudioItem) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
@@ -393,7 +393,7 @@ function PlanTable({
   async function handleMergeSequence(sequenceId: string) {
     const res = await mergeSequenceAction({ sequenceId, campaignId });
     if (res.ok) {
-      onSequenceMerged(sequenceId);
+      onSequenceMerged(sequenceId, res.data.item);
     } else {
       toast.error(res.message ?? 'No se pudo unir la secuencia');
     }

@@ -764,16 +764,20 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   }
   if (parsed.data.caption !== undefined) patch.caption = parsed.data.caption;
   if (touchesProduction) patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
-  // Status resultante autoritativo: solo cambia a 'planned' si se tocó
-  // producción; para ediciones de caption/fecha conserva el estado real. El
-  // cliente lo refleja en vez de asumir 'planned' (que pisaría una transición
-  // concurrente a 'queued'/'sample' e invitaría a un re-encolado duplicado).
-  const nextStatus = touchesProduction ? 'planned' : (item.status as string);
 
-  const { error } = await supabase.from('campaign_items').update(patch).eq('id', parsed.data.itemId);
-  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  // Devolver el status REAL post-update (no el snapshot pre-lectura): en una
+  // edición de solo caption/fecha refleja una transición concurrente a
+  // 'queued'/'sample' en vez de pisarla con un valor viejo. El cliente lo aplica
+  // tal cual, evitando re-habilitar los botones de generar y un doble cobro.
+  const { data: updated, error } = await supabase
+    .from('campaign_items')
+    .update(patch)
+    .eq('id', parsed.data.itemId)
+    .select('status')
+    .single();
+  if (error || !updated) return { ok: false, error: 'internal_error', message: error?.message };
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
-  return { ok: true, data: { updated: true, status: nextStatus } };
+  return { ok: true, data: { updated: true, status: updated.status as string } };
 }
 
 // Agrega un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
@@ -1403,10 +1407,10 @@ export async function toggleWinnerAction(itemId: string): Promise<Result<{ isWin
 // Genera una serie desde la plantilla: N items nuevos en la campaña de origen
 // rotando escena (y opcionalmente personaje); estructura fija vía @Video1.
 // Pasan por el flujo normal de lotes/compuertas.
-// Forma de un item recién creado por la serie, idéntica a StudioItem (el cliente
-// la agrega al estado). Se mantiene aquí para no importar tipos de un componente
-// 'use client' en un módulo server.
-type SeriesCreatedItem = {
+// Forma de un campaign_item ya proyectado, idéntica a StudioItem (el cliente la
+// agrega al estado tras crear serie o fusionar secuencia). Se mantiene aquí para
+// no importar tipos de un componente 'use client' en un módulo server.
+type StudioItemDTO = {
   id: string;
   formatId: string | null;
   formatName: string;
@@ -1431,7 +1435,7 @@ type SeriesCreatedItem = {
 
 export async function generateSeriesAction(
   input: unknown,
-): Promise<Result<{ items: number; campaignId: string; created: SeriesCreatedItem[] }>> {
+): Promise<Result<{ items: number; campaignId: string; created: StudioItemDTO[] }>> {
   const parsed = GenerateSeriesSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -1570,7 +1574,7 @@ export async function generateSeriesAction(
   // el cliente los agregue al estado sin recargar — el canal realtime solo
   // escucha UPDATE, no INSERT. Mantener en sync con StudioItem.
   const characterNameById = new Map(characters.map((c) => [c.id, c.name]));
-  const created: SeriesCreatedItem[] = (insertedRows ?? []).map((r) => ({
+  const created: StudioItemDTO[] = (insertedRows ?? []).map((r) => ({
     id: r.id as string,
     formatId: (r.format_id as string | null) ?? null,
     formatName: r.format_id ? seriesFormatName : 'Formato',
@@ -2143,7 +2147,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
 // Colapsa todas las escenas de una secuencia (sequence_id) en un único
 // campaign_item: los prompts se concatenan y la duracion total se capa a 15s.
 // Solo funciona si TODAS las escenas estan en estado 'planned'.
-export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true }>> {
+export async function mergeSequenceAction(input: unknown): Promise<Result<{ merged: true; item: StudioItemDTO }>> {
   const parsed = MergeSequenceSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
@@ -2198,6 +2202,49 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
     return { ok: false, error: 'internal_error', message: delErr.message };
   }
 
+  // Proyectar el item fusionado a la forma del cliente (igual que el loader del
+  // page y generateSeriesAction): el canal realtime solo escucha UPDATE, así que
+  // sin esto el clip fusionado no aparece hasta recargar.
+  let mergedFormatName = 'Formato';
+  let mergedFormatDescription = '';
+  if (first.format_id) {
+    const { data: fmt } = await supabase
+      .from('formats').select('name, description').eq('id', first.format_id as string).single();
+    mergedFormatName = (fmt?.name as string) ?? 'Formato';
+    mergedFormatDescription = (fmt?.description as string | null) ?? '';
+  }
+  const mergedCharIds =
+    (first.character_ids as string[] | null) ?? (first.character_id ? [first.character_id as string] : []);
+  let mergedCharacterNames: string[] = [];
+  if (mergedCharIds.length) {
+    const { data: chars } = await supabase
+      .from('characters').select('id, name').in('id', mergedCharIds).eq('workspace_id', workspace.id);
+    const nameById = new Map((chars ?? []).map((c) => [c.id as string, c.name as string]));
+    mergedCharacterNames = mergedCharIds.map((id) => nameById.get(id)).filter((n): n is string => !!n);
+  }
+  const mergedItem: StudioItemDTO = {
+    id: mergedRow.id as string,
+    formatId: (first.format_id as string | null) ?? null,
+    formatName: first.format_id ? mergedFormatName : 'Formato',
+    formatDescription: first.format_id ? mergedFormatDescription : '',
+    templateId: null,
+    durationS: mergedDuration,
+    aspectRatio: (first.aspect_ratio as string | null) ?? null,
+    scene: (first.scene as string | null) ?? null,
+    scenePrompt: joinedPrompt,
+    sceneSummary: null,
+    caption: (first.caption as string | null) ?? null,
+    characterNames: mergedCharacterNames,
+    scheduledDate: (first.scheduled_date as string | null) ?? null,
+    status: 'planned',
+    warnings: [],
+    generationId: null,
+    isWinner: false,
+    sequenceId: null,
+    sceneIndex: null,
+    sequenceLabel: null,
+  };
+
   revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
-  return { ok: true, data: { merged: true } };
+  return { ok: true, data: { merged: true, item: mergedItem } };
 }
