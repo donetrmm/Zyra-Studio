@@ -4,7 +4,7 @@ import { verifyQStashSignature } from '@/lib/jobs/receiver';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { failGeneration } from '@/lib/credits/operations';
+import { confirmCredits, failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
 import { advanceSequenceChain } from '@/lib/campaigns/orchestrator';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
@@ -190,11 +190,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ack: 'finalized' });
   } catch (err) {
     console.error('[worker] finalize falló', { generationId, err });
-    // Si finalize falla, marcar la generación failed pero NO refundear el cost
-    // (la imagen/video ya fue generada y consumida del provider). El usuario
-    // pagó por un output que no logramos servir. Operacionalmente: log + alert
-    // manual; en una fase futura se podría reintentar el upload.
-    //
+    // Si finalize falla, marcar la generación failed pero NO refundear: el
+    // provider ya generó y cobró su cuota, el usuario pagó por un output que no
+    // logramos servir. Pero hay que CONFIRMAR el cargo (mueve la reserva de
+    // pending a spent): un UPDATE crudo dejaba el cost colgado en pending para
+    // siempre. confirm_credits es idempotente (no-op si ya estaba confirmada).
+    try {
+      await confirmCredits(generation.user_id, generation.credits_estimated, generation.id);
+    } catch (confErr) {
+      console.error('[worker] confirm_credits en finalize-fail falló', { generationId, confErr });
+    }
     // WHERE status IN ('queued','processing'): si un duplicado de QStash ya
     // ejecutó finalize con éxito y dejó status='done', NO degradar a 'failed'.
     await admin
