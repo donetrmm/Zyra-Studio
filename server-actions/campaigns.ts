@@ -24,6 +24,7 @@ import {
   enqueueBatch,
   itemCharacterIds,
   loadCampaignContext,
+  resolveCharacterMasterPaths,
 } from '@/lib/campaigns/orchestrator';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
@@ -972,7 +973,14 @@ export async function generateItemAction(
       .single();
     const pp = prevGen?.params as
       | {
-          chain?: { productImagePaths?: string[] };
+          chain?: {
+            campaignId?: string;
+            sequenceId?: string;
+            sceneIndex?: number;
+            productImagePaths?: string[];
+            characterImagePaths?: string[];
+            prevFramePath?: string;
+          };
           referenceImagePaths?: string[];
           returnLastFrame?: boolean;
           aspectRatio?: string;
@@ -982,7 +990,7 @@ export async function generateItemAction(
         }
       | undefined;
     if (prevGen && pp?.chain && pp.referenceImagePaths?.length) {
-      const productCount = pp.chain.productImagePaths?.length ?? Math.max(0, pp.referenceImagePaths.length - 1);
+      const productPaths = pp.chain.productImagePaths ?? [];
 
       // Consulta compartida de la secuencia (la usan modo A y, en una tarea
       // posterior, modo B). Se eleva fuera del branching de modo.
@@ -1025,13 +1033,31 @@ export async function generateItemAction(
         }
       }
 
-      const referenceImagePaths = closingRef
-        ? [...pp.referenceImagePaths, closingRef]
-        : pp.referenceImagePaths;
+      // Re-anclar al personaje: resolver su hoja maestra desde la campaña (no del
+      // chain heredado, que en secuencias viejas no la tiene). Corrige el drift de
+      // personaje también en secuencias ya generadas.
+      const characterPaths = await resolveCharacterMasterPaths(
+        supabase,
+        workspace.id,
+        itemCharacterIds(item),
+      );
+      // Fotograma del shot previo: explícito en chain.prevFramePath (gens nuevas);
+      // en gens viejas se infiere como lo que sigue a los productos en el array.
+      const framePrev =
+        pp.chain.prevFramePath ?? pp.referenceImagePaths.slice(productPaths.length)[0];
+      const referenceImagePaths = [
+        ...productPaths,
+        ...characterPaths,
+        ...(framePrev ? [framePrev] : []),
+        ...(closingRef ? [closingRef] : []),
+      ];
 
-      const prompt = buildContinuationPrompt(item.scene_prompt as string, productCount, 0, {
-        withClosingFrame: anchored,
-      });
+      const prompt = buildContinuationPrompt(
+        item.scene_prompt as string,
+        productPaths.length,
+        characterPaths.length,
+        { withClosingFrame: anchored },
+      );
       const cost = (prevGen.credits_estimated as number) ?? 0;
       const admin = createAdminClient();
 
@@ -1052,7 +1078,11 @@ export async function generateItemAction(
             generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
             referenceImagePaths,
             returnLastFrame: mode === 'this-and-forward' ? true : (pp.returnLastFrame ?? false),
-            chain: (prevGen.params as { chain?: unknown }).chain,
+            chain: {
+              ...pp.chain,
+              characterImagePaths: characterPaths,
+              ...(framePrev ? { prevFramePath: framePrev } : {}),
+            },
           },
           status: 'queued',
           credits_estimated: cost,
