@@ -182,6 +182,51 @@ const PROMPTS: { icon: LucideIcon; title: string; bad: string; good: string }[] 
   },
 ];
 
+// Framework CRAFT para video (de las guías de Seedance en ZyraStudioV2).
+const CRAFT: { k: string; name: string; desc: string }[] = [
+  { k: 'C', name: 'Contexto', desc: 'Dónde y cuándo: lugar, hora, clima, calidad de luz y mood general.' },
+  { k: 'R', name: 'Referencias', desc: 'Cada referencia con su función exacta — y qué NO usar de ella si tiene varios elementos.' },
+  { k: 'A', name: 'Acción', desc: 'Los verbos: qué hace el sujeto, gestos, interacciones con el producto, en orden.' },
+  { k: 'F', name: 'Encuadre (Framing)', desc: 'Plano, movimiento y ángulo de cámara con términos precisos.' },
+  { k: 'T', name: 'Tiempo', desc: 'Marcadores por segundos (0-3 s, 3-7 s…) que controlan el ritmo y sincronizan el audio.' },
+];
+
+const REF_RULES: string[] = [
+  'Declara el propósito de cada referencia: «como fotograma inicial», «para el movimiento de cámara», «para la apariencia del personaje».',
+  'Acota qué parte usar: «solo el rostro y peinado de la referencia, no la ropa ni el fondo».',
+  'El error #1 es dejar una referencia sin propósito (subirla «a secas»): el modelo no adivina para qué la quieres.',
+];
+
+const CHARACTER_STEPS: string[] = [
+  'Crea una hoja maestra del personaje en Marca › Cast: foto frontal, expresión neutra, luz pareja, alta resolución.',
+  'Reúsala en cada generación donde aparezca y nómbralo en tus ideas («María hace el unboxing»).',
+  'Pide mantener «la apariencia exacta: mismo rostro, peinado y complexión».',
+  'Las variaciones (otra ropa, otra expresión) se describen en texto; los rasgos identificadores no cambian.',
+];
+
+const CAMERA: { group: string; items: string }[] = [
+  { group: 'Planos', items: 'wide / general, plano medio, close-up, extreme close-up, over-the-shoulder, POV' },
+  { group: 'Movimientos', items: 'dolly in/out, tracking, paneo, tilt, grúa, handheld, steadicam' },
+  { group: 'Ángulos', items: 'a nivel de ojos, contrapicado (low angle), picado (high angle), dutch angle' },
+];
+
+const IMAGE_KEYS: string[] = [
+  'Describe lo que QUIERES, no lo que no quieres: los prompts negativos («sin manos») no ayudan.',
+  'La iluminación es la palanca de calidad #1: nómbrala (hora dorada, luz lateral suave, difusa).',
+  'En producto, describe el entorno y la luz más que el objeto: el modelo ya conoce los productos.',
+  'Si la imagen lleva texto, ponlo entre comillas exactas: «OFERTA 50%».',
+  'Itera un cambio a la vez (Refinar o modo chat) en vez de regenerar desde cero.',
+];
+
+const DONTS: string[] = [
+  'Referencia vaga («usa esta imagen»): di el aspecto exacto y qué excluir.',
+  'Instrucciones que se contradicen: acción frenética + cámara lenta + música calmada.',
+  'Amontonar referencias de bajo impacto: pocas y buenas, con estructura clara, rinden más.',
+  'Pedir 30 s de acción en un clip corto: divide en varias escenas o simplifica.',
+  '«Que se vea bien» o «cinematográfico» a secas: el modelo ejecuta instrucciones, no adivina intenciones.',
+  'Tratar el audio como adorno («agrega música»): di su función, su mood y los momentos de sincronía.',
+];
+
 const GLOSSARY: { term: string; def: string }[] = [
   { term: 'Campaña', def: 'Proyecto con plan y producción: del producto a varios anuncios listos.' },
   { term: 'Creativo', def: 'Cada pieza dentro de una campaña (un video o imagen planificado).' },
@@ -316,10 +361,31 @@ export function GuideView() {
       {/* Prompting */}
       <H2 id="prompting">Prompting que funciona</H2>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
-        Sé específico: sujeto, acción, escena, estilo y encuadre. Las referencias fijan lo que no
-        quieres dejar al azar. ¿Sin inspiración? El botón <em>«Mejorar con IA»</em> reescribe tu prompt.
+        Piensa como director, no como «prompt engineer». Cada prompt define tres cosas:{' '}
+        <strong className="text-foreground/90">qué referenciar, cómo usarlo y qué debe sentir la
+        audiencia</strong>. La intención clara gana a la jerga. ¿Sin inspiración? El botón{' '}
+        <em>«Mejorar con IA»</em> reescribe tu prompt.
       </p>
-      <div className="mt-4 space-y-3">
+
+      {/* CRAFT */}
+      <div className="mt-4 rounded-xl border border-border bg-card/50 p-4">
+        <h3 className="text-[14px] font-medium text-foreground">Estructura un prompt de video: CRAFT</h3>
+        <ul className="mt-3 space-y-2">
+          {CRAFT.map((c) => (
+            <li key={c.k} className="flex gap-3">
+              <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 font-mono text-[12px] font-semibold text-primary">
+                {c.k}
+              </span>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                <strong className="text-foreground/90">{c.name}.</strong> {c.desc}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Ejemplos bueno/malo por tipo */}
+      <div className="mt-3 space-y-3">
         {PROMPTS.map((p) => {
           const Icon = p.icon;
           return (
@@ -342,6 +408,45 @@ export function GuideView() {
           );
         })}
       </div>
+
+      {/* Referencias + consistencia */}
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card/50 p-4">
+          <h3 className="text-[14px] font-medium text-foreground">Referencias con propósito</h3>
+          <Bullets items={REF_RULES} />
+        </div>
+        <div className="rounded-xl border border-border bg-card/50 p-4">
+          <h3 className="text-[14px] font-medium text-foreground">Consistencia de personaje</h3>
+          <Bullets items={CHARACTER_STEPS} />
+        </div>
+      </div>
+
+      {/* Vocabulario de cámara */}
+      <div className="mt-3 rounded-xl border border-border bg-card/50 p-4">
+        <h3 className="text-[14px] font-medium text-foreground">Vocabulario de cámara</h3>
+        <dl className="mt-2.5 space-y-1.5">
+          {CAMERA.map((c) => (
+            <div key={c.group} className="text-[12.5px] leading-relaxed">
+              <dt className="inline font-medium text-foreground/90">{c.group}: </dt>
+              <dd className="inline text-muted-foreground">{c.items}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      {/* Claves de imagen */}
+      <div className="mt-3 rounded-xl border border-border bg-card/50 p-4">
+        <h3 className="text-[14px] font-medium text-foreground">Claves para imagen</h3>
+        <Bullets items={IMAGE_KEYS} />
+      </div>
+
+      {/* Qué NO hacer */}
+      <div className="mt-3 rounded-xl border border-destructive/25 bg-destructive/[0.05] p-4">
+        <h3 className="text-[13px] font-medium text-destructive/90">Qué no hacer</h3>
+        <Bullets dot="bg-destructive/70" items={DONTS} />
+      </div>
+
+      <SectionCta links={[{ href: '/app/create', label: 'Probar en Creación rápida' }]} />
 
       {/* Créditos y costos */}
       <H2 id="costos">Créditos y costos</H2>
