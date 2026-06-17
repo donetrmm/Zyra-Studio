@@ -86,6 +86,17 @@ function generationToModelKey(g: { provider: string; model: string }): string {
   return 'auto';
 }
 
+function extFromMime(type: string): string {
+  if (type.includes('png')) return 'png';
+  if (type.includes('webp')) return 'webp';
+  if (type.includes('mp4')) return 'mp4';
+  if (type.includes('webm')) return 'webm';
+  if (type.includes('mpeg') || type.includes('mp3')) return 'mp3';
+  if (type.includes('wav')) return 'wav';
+  if (type.includes('ogg')) return 'ogg';
+  return 'jpg';
+}
+
 function batchLabel(kind: string): string {
   switch (kind) {
     case 'storyboard': return 'SB';
@@ -253,20 +264,65 @@ export function LibraryView({
       toast.error('Nada que descargar en la selección');
       return;
     }
-    toast.info(`Descargando ${items.length} archivo${items.length === 1 ? '' : 's'}…`);
-    let failed = 0;
-    for (const g of items) {
+    // Un solo archivo: descarga directa, sin zip.
+    if (items.length === 1) {
       try {
-        const res = await fetch(`/api/generations/${g.id}`, { cache: 'no-store' });
+        const res = await fetch(`/api/generations/${items[0].id}`, { cache: 'no-store' });
         const data = (await res.json()) as { outputUrl?: string };
         if (!data.outputUrl) throw new Error('sin output');
-        await downloadGenerationFile(data.outputUrl, `1to1-${g.id.slice(0, 8)}`);
+        await downloadGenerationFile(data.outputUrl, `1to1-${items[0].id.slice(0, 8)}`);
       } catch {
-        failed += 1;
+        toast.error('No se pudo descargar');
       }
+      return;
     }
-    if (failed > 0) toast.error(`${failed} no se pudieron descargar`);
-    else toast.success('Descarga completa');
+    // Varios: empaquetar en un único .zip. El navegador bloquea las descargas
+    // múltiples automáticas (se pierde el gesto del usuario tras el primer
+    // archivo), así que un solo zip es lo fiable. JSZip se carga on-demand.
+    const toastId = toast.loading(`Preparando ${items.length} archivos…`);
+    try {
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      let added = 0;
+      for (let i = 0; i < items.length; i++) {
+        const g = items[i];
+        try {
+          const res = await fetch(`/api/generations/${g.id}`, { cache: 'no-store' });
+          const data = (await res.json()) as { outputUrl?: string };
+          if (!data.outputUrl) continue;
+          const fileRes = await fetch(data.outputUrl);
+          if (!fileRes.ok) continue;
+          const blob = await fileRes.blob();
+          zip.file(
+            `${String(i + 1).padStart(2, '0')}-1to1-${g.id.slice(0, 8)}.${extFromMime(blob.type)}`,
+            blob,
+          );
+          added += 1;
+        } catch {
+          // saltar este archivo, seguir con el resto
+        }
+      }
+      if (added === 0) {
+        toast.error('No se pudo descargar la selección', { id: toastId });
+        return;
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '1to1-biblioteca.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      const skipped = items.length - added;
+      toast.success(
+        `${added} archivo${added === 1 ? '' : 's'} en un zip${skipped > 0 ? ` · ${skipped} omitido${skipped === 1 ? '' : 's'}` : ''}`,
+        { id: toastId },
+      );
+    } catch {
+      toast.error('No se pudo preparar la descarga', { id: toastId });
+    }
   }
 
   async function handleDeleteOne(id: string) {
@@ -634,7 +690,7 @@ function LibHeader({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex gap-0.5 rounded-[10px] border border-border bg-muted/30 p-[3px]">
             {TABS.map((t) => {
               const active = tab === t.id;
@@ -672,7 +728,7 @@ function LibHeader({
           </button>
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-2 lg:max-w-[540px]">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:flex-1 lg:max-w-[540px]">
           <div className="relative flex-1">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70"
