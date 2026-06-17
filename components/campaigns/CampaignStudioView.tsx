@@ -944,16 +944,16 @@ function ProductionView({
     );
   }
 
-  async function handleFinal(itemId: string) {
-    setBusy(`final:${itemId}`);
-    const res = await requestFinalAction({ itemId });
+  async function handleFinal(itemId: string, resolution: '720p' | '1080p') {
+    setBusy(`final:${itemId}:${resolution}`);
+    const res = await requestFinalAction({ itemId, resolution });
     setBusy(null);
     if (!res.ok) {
       if (res.error === 'insufficient_credits') insufficientCreditsToast();
       else toast.error(res.message ?? 'No se pudo encolar el final');
       return;
     }
-    toast.success('Versión final en cola (720p, misma composición)');
+    toast.success(`Versión final en cola (${resolution}, misma composición)`);
   }
 
   async function handleRedoSamples(formatId: string) {
@@ -1184,14 +1184,28 @@ function ProductionView({
                             Regenerar
                           </button>
                         )}
-                        <button
-                          type="button"
-                          disabled={busy !== null}
-                          onClick={() => handleFinal(d.id)}
-                          className="rounded-lg border border-sky-400/40 px-2.5 py-1 text-[11.5px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                        <span
+                          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-sky-400/40 text-[11.5px]"
+                          title="Aprobar y renderizar la versión final con la misma composición"
                         >
-                          {busy === `final:${d.id}` ? 'Encolando…' : 'Aprobar versión final (720p)'}
-                        </button>
+                          <span className="px-2 py-1 text-sky-300/70">Final</span>
+                          <button
+                            type="button"
+                            disabled={busy !== null}
+                            onClick={() => handleFinal(d.id, '720p')}
+                            className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                          >
+                            {busy === `final:${d.id}:720p` ? '…' : '720p'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy !== null}
+                            onClick={() => handleFinal(d.id, '1080p')}
+                            className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                          >
+                            {busy === `final:${d.id}:1080p` ? '…' : '1080p'}
+                          </button>
+                        </span>
                       </span>
                     </div>
                   );

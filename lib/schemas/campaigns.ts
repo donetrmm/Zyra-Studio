@@ -114,6 +114,8 @@ export const ApproveBatchSchema = z.object({
 
 export const RequestFinalSchema = z.object({
   itemId: z.string().uuid(),
+  // Tier standard del final: 720p (default) o 1080p. 480p es solo del draft.
+  resolution: z.enum(['720p', '1080p']).default('720p'),
 });
 
 // ============ Fase D: plantillas vivas y variantes ============

@@ -1344,10 +1344,11 @@ export async function approveBatchAction(
 }
 
 // Draft aprobado → render final: re-encola el MISMO prompt con tier standard
-// 720p y el seed real del draft (composición estable, doc V2 §4.6).
+// (720p o 1080p, elegible) y el seed real del draft (composición estable, doc V2 §4.6).
 export async function requestFinalAction(input: unknown): Promise<Result<{ generationId: string }>> {
   const parsed = RequestFinalSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const resolution = parsed.data.resolution;
   const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -1374,7 +1375,7 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
   const durationS = (draftParams.duration as number | undefined) ?? item.duration_s ?? 8;
 
   const pricing = await loadPricing();
-  const cost = seedanceCostPerItem(pricing, FINAL_MODEL, '720p', durationS);
+  const cost = seedanceCostPerItem(pricing, FINAL_MODEL, resolution, durationS);
 
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
@@ -1387,7 +1388,7 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
       prompt: draft.prompt,
       params: {
         ...draftParams,
-        resolution: '720p',
+        resolution,
         ...(payload.seed !== undefined ? { seed: payload.seed } : {}),
       },
       reference_ids: [],
