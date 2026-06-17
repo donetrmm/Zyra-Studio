@@ -32,6 +32,8 @@ import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
+import { usePreflight } from '@/components/ui/preflight-checklist';
+import { CAMPAIGN_CHECKLIST } from '@/lib/checklists';
 
 type BrandKitOption = {
   id: string;
@@ -106,8 +108,12 @@ export function CampaignStudioWizard({
   const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
   const canSubmit = name.trim().length > 0 && productReady && !submitting;
 
-  function handleCreate() {
+  const preflight = usePreflight();
+
+  async function handleCreate() {
     if (!canSubmit) return;
+    // Checklist informativo de restricciones/buenas prácticas (siempre en campañas).
+    if (!(await preflight(CAMPAIGN_CHECKLIST))) return;
     // Sin ideas, el plan saldría genérico: preguntar antes de generar.
     if (!ideas.trim()) {
       setAskIdeasOpen(true);

@@ -9,6 +9,8 @@ import { applyBrandKit } from '@/lib/brand-kit/apply';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { selectImageModel, type ImageIntent } from '@/lib/router/model-selector';
 import { submitGenerationAction } from '@/server-actions/generations';
+import { usePreflight } from '@/components/ui/preflight-checklist';
+import { MANUAL_CHECKLIST } from '@/lib/checklists';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { ControlsPanel } from './ControlsPanel';
@@ -200,8 +202,11 @@ export function ImageGenerator(props: {
     campaign,
   ]);
 
-  const handleGenerate = useCallback(() => {
+  const preflight = usePreflight();
+
+  const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
+    if (!(await preflight(MANUAL_CHECKLIST))) return;
     const input = buildInput();
     setGenError(null); // limpia el error previo al reintentar/generar
     startTransition(async () => {
@@ -222,7 +227,7 @@ export function ImageGenerator(props: {
         toast.success('Imagen lista');
       }
     });
-  }, [canGenerate, buildInput, effectiveConversational, cost]);
+  }, [canGenerate, buildInput, effectiveConversational, cost, preflight]);
 
   const providerLabel = labelForSelection(selection);
 

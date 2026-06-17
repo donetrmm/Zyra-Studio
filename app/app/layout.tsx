@@ -3,6 +3,7 @@ import { Topbar } from "@/components/layout/Topbar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { PreflightProvider } from "@/components/ui/preflight-checklist";
 import { requireWorkspace } from "@/lib/auth/dal";
 
 export default async function AppLayout({
@@ -14,6 +15,7 @@ export default async function AppLayout({
 
   return (
     <ConfirmProvider>
+      <PreflightProvider>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-[13px] focus:font-medium focus:text-primary-foreground"
@@ -29,6 +31,7 @@ export default async function AppLayout({
         </div>
         <Toaster richColors theme="dark" />
       </div>
+      </PreflightProvider>
     </ConfirmProvider>
   );
 }
