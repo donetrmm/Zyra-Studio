@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import {
@@ -16,11 +16,17 @@ import {
 // un tour: es un punto de partida que el usuario puede saltar.
 
 const KEY = 'welcome:seen';
+const EVENT = 'welcome:change';
 
-// Lee "ya visto" de localStorage vía useSyncExternalStore: el snapshot de
-// servidor devuelve `true` (no mostrar en SSR) y el cliente lee el valor real
-// tras hidratar, sin mismatch ni setState en efecto.
-const subscribe = () => () => {};
+// Estado "ya visto" en localStorage, leído con useSyncExternalStore: el snapshot
+// de servidor devuelve `true` (no mostrar en SSR) y el cliente lee el valor real
+// tras hidratar, sin mismatch ni setState en efecto. Un evento del window notifica
+// los cambios (descartar o reabrir) para que el modal reaccione sin recargar.
+function subscribe(cb: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(EVENT, cb);
+  return () => window.removeEventListener(EVENT, cb);
+}
 function getSnapshot(): boolean {
   try {
     return localStorage.getItem(KEY) === '1';
@@ -29,6 +35,16 @@ function getSnapshot(): boolean {
   }
 }
 const getServerSnapshot = (): boolean => true;
+
+// Reabre la bienvenida (desde el menú de usuario): borra el flag y notifica.
+export function resetWelcome() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    // sin persistencia: no es crítico.
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT));
+}
 
 const STEPS = [
   {
@@ -51,8 +67,7 @@ const STEPS = [
 
 export function WelcomeModal() {
   const seen = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const [dismissed, setDismissed] = useState(false);
-  const open = !seen && !dismissed;
+  const open = !seen;
 
   function dismiss() {
     try {
@@ -60,7 +75,7 @@ export function WelcomeModal() {
     } catch {
       // sin persistencia: el modal podría reaparecer, no es crítico.
     }
-    setDismissed(true);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT));
   }
 
   return (

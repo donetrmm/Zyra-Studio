@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Settings, Shield } from "lucide-react";
+import { BookOpen, LogOut, Settings, Shield, Sparkles } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/server-actions/auth";
+import { resetWelcome } from "@/components/onboarding/WelcomeModal";
 
 type Props = {
   email: string;
@@ -57,6 +58,19 @@ export function UserMenu({ email, fullName, avatarUrl, isAdmin }: Props) {
           <a href="/app/billing">
             <Settings className="size-4" /> Cuenta y billing
           </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href="/app/guide">
+            <BookOpen className="size-4" /> Guía
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            resetWelcome();
+            if (window.location.pathname !== "/app") window.location.href = "/app";
+          }}
+        >
+          <Sparkles className="size-4" /> Ver bienvenida
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={logoutAction}>
