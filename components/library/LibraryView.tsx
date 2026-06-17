@@ -373,7 +373,7 @@ export function LibraryView({
       />
 
       <div className="flex min-h-0 flex-1">
-        <div className="scroll-thin min-w-0 flex-1 overflow-y-auto px-4 pb-16 pt-1 sm:px-6">
+        <div className="scroll-thin min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-16 pt-1 sm:px-6">
           {tab === 'sessions' && (
             <SessionsTab sessions={sessions} onOpen={setActiveId} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
@@ -404,7 +404,7 @@ export function LibraryView({
       </div>
 
       {selectedIds.size >= 1 && (
-        <div className="zyra-fade-in fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 rounded-2xl border border-border bg-card/90 p-1.5 shadow-2xl backdrop-blur-md sm:bottom-6 sm:gap-1">
+        <div className="zyra-fade-in fixed bottom-16 left-1/2 z-50 flex max-w-[calc(100%-1rem)] -translate-x-1/2 items-center gap-0.5 rounded-2xl border border-border bg-card/90 p-1.5 shadow-2xl backdrop-blur-md sm:gap-1 lg:bottom-6">
           <span className="ml-1 mr-0.5 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
             <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 font-mono text-[11px] text-primary-foreground">
               {selectedIds.size}
