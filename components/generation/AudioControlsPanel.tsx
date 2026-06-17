@@ -145,7 +145,7 @@ export function AudioControlsPanel(props: AudioControlsProps) {
             value={props.text}
             onChange={(e) => props.setText(e.target.value.slice(0, 20000))}
             placeholder="Escribe el texto a sintetizar…"
-            className="scroll-thin min-h-[140px] w-full max-h-[280px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus:border-primary/40"
+            className="scroll-thin min-h-[140px] w-full max-h-[280px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           <div className="mt-1.5">
             <EnhanceButton

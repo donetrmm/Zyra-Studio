@@ -307,7 +307,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                     props.setSeedanceSeed(v);
                   }}
                   placeholder="Fija la composición para iterar"
-                  className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus:border-primary/40"
+                  className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                 />
                 <p className="mt-1 px-0.5 text-[11px] text-muted-foreground/60">
                   Mismo seed + mismo prompt = misma composición. Vacío = aleatorio (se guarda en la
@@ -707,7 +707,7 @@ export function VideoControlsPanel(props: VideoControlsProps) {
             value={props.prompt}
             onChange={(e) => props.setPrompt(e.target.value.slice(0, isSeedance ? 4000 : isVeo ? 1024 : 2000))}
             placeholder="Describe la escena que quieres animar…"
-            className="scroll-thin min-h-[110px] w-full max-h-[200px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus:border-primary/40 sm:max-h-[280px]"
+            className="scroll-thin min-h-[110px] w-full max-h-[200px] resize-y rounded-[12px] border border-border bg-muted/30 p-3 text-[13.5px] leading-[1.5] text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 sm:max-h-[280px]"
           />
           <div className="mt-1.5">
             <EnhanceButton

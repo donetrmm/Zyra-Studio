@@ -273,7 +273,7 @@ export function CalendarView({
         {WEEKDAYS.map((d, i) => (
           <div
             key={`${d}-${i}`}
-            className="bg-muted/30 px-2 py-1.5 text-center text-[11px] uppercase text-muted-foreground/60"
+            className="bg-muted/30 px-2 py-1.5 text-center text-[11px] uppercase text-muted-foreground"
           >
             {d}
           </div>
@@ -292,7 +292,7 @@ export function CalendarView({
               onDrop={() => handleDrop(cell.iso)}
               className={`min-h-20 bg-card/60 p-1.5 transition-colors ${overDay === cell.iso ? 'bg-primary/10' : ''}`}
             >
-              <p className="text-[11px] text-muted-foreground/50">{cell.day}</p>
+              <p className="text-[11px] text-muted-foreground">{cell.day}</p>
               <div className="mt-1 space-y-1">
                 {(byDate.get(cell.iso) ?? []).map((item) => (
                   <div
@@ -317,7 +317,7 @@ export function CalendarView({
           ),
         )}
       </div>
-      <p className="mt-2 text-[11.5px] text-muted-foreground/50">
+      <p className="mt-2 text-[11.5px] text-muted-foreground">
         Arrastra un creativo a otro día para reprogramar su fecha de publicación. Verde: borrador listo;
         azul: versión final lista.
       </p>

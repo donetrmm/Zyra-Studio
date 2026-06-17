@@ -128,7 +128,7 @@ export function RefineView({
                 className={cn(
                   s === stage ? 'font-medium text-primary'
                     : STAGES.indexOf(s) < STAGES.indexOf(stage) ? 'text-foreground/70'
-                    : 'text-muted-foreground/50',
+                    : 'text-muted-foreground',
                 )}
               >
                 {STAGE_LABEL[s]}
