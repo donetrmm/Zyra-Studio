@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   Check,
+  Columns2,
   Copy,
   Download,
   Image as ImageIcon,
@@ -403,47 +404,29 @@ export function LibraryView({
       </div>
 
       {selectedIds.size >= 1 && (
-        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/40 bg-card px-5 py-2.5 shadow-xl">
-          <span className="text-[13px] text-foreground">{selectedIds.size} seleccionados</span>
-          <button
-            type="button"
-            onClick={() => setShowAssign(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-[12.5px] font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <FolderKanban className="size-3.5" aria-hidden />
-            Asignar a colección
-          </button>
-          <button
-            type="button"
-            onClick={handleBulkDownload}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-muted/50"
-          >
-            <Download className="size-3.5" aria-hidden />
-            Descargar
-          </button>
+        <div className="zyra-fade-in fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-50 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 rounded-2xl border border-border bg-card/90 p-1.5 shadow-2xl backdrop-blur-md sm:bottom-6 sm:gap-1">
+          <span className="ml-1 mr-0.5 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 font-mono text-[11px] text-primary-foreground">
+              {selectedIds.size}
+            </span>
+            <span className="hidden sm:inline">seleccionados</span>
+          </span>
+          <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
+          <ToolbarButton icon={FolderKanban} label="Asignar" onClick={() => setShowAssign(true)} />
+          <ToolbarButton icon={Download} label="Descargar" onClick={handleBulkDownload} />
           {selectedIds.size >= 2 && selectedIds.size <= 4 && (
-            <button
-              type="button"
-              onClick={() => setShowCompare(true)}
-              className="rounded-full border border-border px-4 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-muted/50"
-            >
-              Comparar A/B
-            </button>
+            <ToolbarButton icon={Columns2} label="Comparar" onClick={() => setShowCompare(true)} />
           )}
-          <button
-            type="button"
-            onClick={handleBulkDelete}
-            className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 px-4 py-1.5 text-[12.5px] font-medium text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="size-3.5" aria-hidden />
-            Eliminar
-          </button>
+          <ToolbarButton icon={Trash2} label="Eliminar" onClick={handleBulkDelete} destructive />
+          <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
           <button
             type="button"
             onClick={() => setSelectedIds(new Set())}
-            className="text-[12px] text-muted-foreground hover:text-foreground"
+            aria-label="Limpiar selección"
+            title="Limpiar selección"
+            className="grid size-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            Limpiar
+            <X className="size-4" aria-hidden />
           </button>
         </div>
       )}
@@ -1049,6 +1032,36 @@ function LibTile({
         </button>
       )}
     </div>
+  );
+}
+
+function ToolbarButton({
+  icon: Icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
+  label: string;
+  onClick: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[12.5px] font-medium transition-colors sm:px-3',
+        destructive
+          ? 'text-destructive hover:bg-destructive/10'
+          : 'text-foreground hover:bg-muted',
+      )}
+    >
+      <Icon className="size-4" aria-hidden />
+      <span className="hidden sm:inline">{label}</span>
+    </button>
   );
 }
 
