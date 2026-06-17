@@ -60,6 +60,7 @@ export async function fetchCampaignSummaries(
     .select('id, name, status, product_brief, credits_estimated, created_at')
     .eq('workspace_id', workspaceId)
     .not('product_brief', 'is', null)
+    .neq('status', 'archived')
     .order('created_at', { ascending: false });
 
   const ids = (campaignRows ?? []).map((c) => c.id as string);

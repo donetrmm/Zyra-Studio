@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   CalendarDays,
@@ -15,12 +16,15 @@ import {
   Pencil,
   Play,
   RefreshCw,
+  Settings,
   Sparkles,
   Trash2,
   Trophy,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { cancelGenerationAction } from '@/server-actions/generations';
 import {
   approveBatchAction,
   createVariantAction,
@@ -33,8 +37,10 @@ import {
   previewItemPromptAction,
   redoSamplesAction,
   requestFinalAction,
+  setCampaignStatusAction,
   toggleWinnerAction,
   updateCampaignItemAction,
+  updateCampaignStudioAction,
   type RegenMode,
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
@@ -48,6 +54,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
@@ -111,6 +118,7 @@ export function CampaignStudioView({
   const [items, setItems] = useState(initialItems);
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [promptPreview, setPromptPreview] = useState<{
     itemId: string;
@@ -235,6 +243,15 @@ export function CampaignStudioView({
             <FileBarChart className="size-3.5" aria-hidden />
             Reporte
           </Link>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            title="Ajustes de la campaña"
+            aria-label="Ajustes de la campaña"
+            className="inline-flex items-center rounded-lg border border-border px-2.5 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Settings className="size-3.5" aria-hidden />
+          </button>
           <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
             {(['plan', 'produccion', 'plantillas', 'calendario'] as const).map((t) => (
               <button
@@ -330,7 +347,164 @@ export function CampaignStudioView({
         <PromptPreviewDialog preview={promptPreview} onClose={() => setPromptPreview(null)} />
       )}
 
+      {settingsOpen && (
+        <CampaignSettingsDialog campaign={campaign} onClose={() => setSettingsOpen(false)} />
+      )}
+
     </div>
+  );
+}
+
+const GOAL_LABEL: Record<string, string> = {
+  '': 'Sin objetivo',
+  awareness: 'Reconocimiento',
+  conversion: 'Conversión',
+  mixed: 'Mixto',
+};
+
+function CampaignSettingsDialog({
+  campaign,
+  onClose,
+}: {
+  campaign: StudioCampaign;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(campaign.name);
+  const [goal, setGoal] = useState(campaign.goal ?? '');
+  const [saving, setSaving] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    const res = await updateCampaignStudioAction({
+      id: campaign.id,
+      name: name.trim(),
+      goal: goal ? (goal as 'awareness' | 'conversion' | 'mixed') : null,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo guardar');
+      return;
+    }
+    toast.success('Campaña actualizada');
+    router.refresh();
+    onClose();
+  }
+
+  async function handleStatus(status: 'delivered' | 'archived') {
+    setSaving(true);
+    const res = await setCampaignStatusAction({ id: campaign.id, status });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo actualizar el estado');
+      return;
+    }
+    if (status === 'archived') {
+      toast.success('Campaña archivada');
+      router.push('/app/campaigns');
+    } else {
+      toast.success('Campaña marcada como entregada');
+      router.refresh();
+      onClose();
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ajustes de la campaña</DialogTitle>
+        </DialogHeader>
+
+        <label htmlFor="campaign-name" className="block text-[12.5px] font-medium text-foreground/80">
+          Nombre
+        </label>
+        <input
+          id="campaign-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={100}
+          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+
+        <label htmlFor="campaign-goal" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+          Objetivo
+        </label>
+        <select
+          id="campaign-goal"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          {Object.entries(GOAL_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || name.trim().length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            Guardar
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
+          <p className="text-[11.5px] text-muted-foreground">Estado de la campaña</p>
+          <div className="flex flex-wrap gap-2">
+            {campaign.status !== 'delivered' && (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleStatus('delivered')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/40 px-3 py-1.5 text-[12px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+              >
+                <Trophy className="size-3.5" aria-hidden />
+                Marcar como entregada
+              </button>
+            )}
+            {confirmArchive ? (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => handleStatus('archived')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-[12px] text-destructive transition-colors hover:bg-destructive/15 disabled:opacity-40"
+              >
+                {saving ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
+                Confirmar archivar
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirmArchive(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+                Archivar campaña
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Archivar la saca de la lista de campañas y del dashboard. Sus creativos generados se conservan.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -351,6 +525,7 @@ function PlanTable({
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   async function handleGenerateItem(item: StudioItem) {
     setGeneratingItem(item.id);
@@ -373,7 +548,14 @@ function PlanTable({
     onDeleted(item.id);
   }
 
-  async function handleMergeSequence(sequenceId: string) {
+  async function handleMergeSequence(sequenceId: string, sceneCount: number) {
+    const ok = await confirm({
+      title: '¿Unir la secuencia en un solo clip?',
+      description: `Se combinarán las ${sceneCount} escenas en un único video continuo (máx 15s). Las escenas individuales se eliminan y esto no se puede deshacer.`,
+      confirmLabel: 'Unir en 1 clip',
+      destructive: true,
+    });
+    if (!ok) return;
     const res = await mergeSequenceAction({ sequenceId, campaignId });
     if (res.ok) {
       onSequenceMerged(sequenceId, res.data.item);
@@ -555,7 +737,7 @@ function PlanTable({
                 type="button"
                 title={`Une las ${group.scenes.length} escenas en un solo video continuo (máx 15s). Si no las unes, se generan por separado.`}
                 className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => handleMergeSequence(group.sequenceId)}
+                onClick={() => handleMergeSequence(group.sequenceId, group.scenes.length)}
               >
                 Unir en 1 clip
               </button>
@@ -703,6 +885,17 @@ function ProductionView({
   // Visor inline del creativo generado (evita ir a la Biblioteca).
   const [viewing, setViewing] = useState<{ generationId: string; title: string } | null>(null);
 
+  async function handleCancel(generationId: string) {
+    setBusy(`cancel:${generationId}`);
+    const res = await cancelGenerationAction(generationId);
+    setBusy(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo cancelar');
+      return;
+    }
+    toast.success('Cancelando la generación — se libera el crédito reservado al detenerse');
+  }
+
   async function handleRegenerate(itemId: string, mode: RegenMode = 'auto') {
     setBusy(`regen:${itemId}`);
     const res = await generateItemAction(itemId, mode);
@@ -781,7 +974,8 @@ function ProductionView({
     <div className="mt-5 space-y-4">
       {groups.map((group) => {
         const pending = group.items.filter((i) => ['planned', 'failed'].includes(i.status)).length;
-        const generating = group.items.filter((i) => ['sample', 'queued', 'approved'].includes(i.status)).length;
+        const generatingItems = group.items.filter((i) => ['sample', 'queued', 'approved'].includes(i.status));
+        const generating = generatingItems.length;
         const drafts = group.items.filter((i) => i.status === 'draft_ready');
         const finalItems = group.items.filter((i) => i.status === 'final_ready');
         const finals = finalItems.length;
@@ -874,6 +1068,35 @@ function ProductionView({
                     : '«Muestra (2)» aplica solo a los clips sueltos; la secuencia se genera completa con «Lote completo».'}
                 </span>
               </p>
+            )}
+
+            {generatingItems.length > 0 && (
+              <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
+                {generatingItems.map((g) => (
+                  <div key={g.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                    <p className="line-clamp-1 flex-1 text-muted-foreground">
+                      <Loader2 className="mr-1.5 inline size-3 animate-spin align-[-2px]" aria-hidden />
+                      {g.sceneSummary ?? g.scenePrompt}
+                    </p>
+                    {g.generationId && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => handleCancel(g.generationId as string)}
+                        title="Cancelar esta generación (libera el crédito reservado)"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+                      >
+                        {busy === `cancel:${g.generationId}` ? (
+                          <Loader2 className="size-3 animate-spin" aria-hidden />
+                        ) : (
+                          <X className="size-3" aria-hidden />
+                        )}
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
 
             {drafts.length > 0 && (
@@ -1546,7 +1769,7 @@ function EditItemDialog({
               onChange={(e) => setScene(e.target.value)}
               maxLength={200}
               placeholder="a sunlit home kitchen"
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <div>
@@ -1579,7 +1802,7 @@ function EditItemDialog({
           rows={2}
           maxLength={2200}
           placeholder="Texto que acompaña al post; va al export, nunca dentro del video"
-          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus:border-primary/50"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <label htmlFor="edit-date" className="mt-3 block text-[12.5px] font-medium text-foreground/80">

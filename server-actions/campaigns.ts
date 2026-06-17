@@ -118,6 +118,64 @@ export async function deleteCampaignAction(id: string): Promise<Result<{ deleted
   return { ok: true, data: { deleted: true } };
 }
 
+// Editar la campaña studio desde su propia vista (renombrar / cambiar objetivo).
+// Guard `.not('product_brief', 'is', null)`: solo campañas studio, nunca una
+// colección-carpeta (que se edita con updateCampaignAction).
+const UpdateCampaignStudioSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(100),
+  goal: z.enum(['awareness', 'conversion', 'mixed']).nullable().optional(),
+});
+
+export async function updateCampaignStudioAction(
+  input: unknown,
+): Promise<Result<{ updated: true }>> {
+  const parsed = UpdateCampaignStudioSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const patch: Record<string, unknown> = { name: parsed.data.name };
+  if (parsed.data.goal !== undefined) patch.goal = parsed.data.goal;
+  const { error } = await supabase
+    .from('campaigns')
+    .update(patch)
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath('/app/campaigns');
+  revalidatePath(`/app/campaigns/${parsed.data.id}`);
+  return { ok: true, data: { updated: true } };
+}
+
+// Mueve el estado de la campaña studio. Activa los estados que el pipeline
+// contempla pero que ninguna acción seteaba: 'delivered' (entregada) y
+// 'archived' (sale de la lista y del dashboard, ver fetchCampaignSummaries).
+const SetCampaignStatusSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['planned', 'producing', 'delivered', 'archived']),
+});
+
+export async function setCampaignStatusAction(
+  input: unknown,
+): Promise<Result<{ status: string }>> {
+  const parsed = SetCampaignStatusSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ status: parsed.data.status })
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath('/app/campaigns');
+  revalidatePath(`/app/campaigns/${parsed.data.id}`);
+  revalidatePath('/app/library');
+  return { ok: true, data: { status: parsed.data.status } };
+}
+
 export async function assignCampaignAction(
   generationId: string,
   campaignId: string | null,
