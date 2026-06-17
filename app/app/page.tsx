@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LiveCreditValue } from "@/components/layout/LiveCreditValue";
+import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 import { PipelineBar } from "@/components/campaigns/PipelineBar";
 import { requireWorkspace } from "@/lib/auth/dal";
 import { createClient } from "@/lib/supabase/server";
@@ -54,6 +55,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
+      <WelcomeModal />
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
           Bienvenido, {user.fullName ?? user.email.split("@")[0]}

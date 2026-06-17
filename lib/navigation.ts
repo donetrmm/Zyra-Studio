@@ -1,5 +1,6 @@
 import {
   Banknote,
+  BookOpen,
   Clapperboard,
   Home,
   Library,
@@ -49,7 +50,10 @@ export const APP_SIDEBAR: NavSection[] = [
   },
   {
     title: "Cuenta",
-    items: [{ label: "Créditos", href: "/app/billing", icon: Wallet }],
+    items: [
+      { label: "Créditos", href: "/app/billing", icon: Wallet },
+      { label: "Guía", href: "/app/guide", icon: BookOpen },
+    ],
   },
 ];
 
