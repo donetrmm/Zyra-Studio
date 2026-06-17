@@ -14,10 +14,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function CampaignDetailRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
+  const { view } = await searchParams;
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -33,7 +36,9 @@ export default async function CampaignDetailRoute({
   const brief = (campaign.product_brief ?? null) as { productName?: string; category?: string } | null;
 
   // Campaña Studio (V2): tiene brief de producto → vista de plan/producción.
-  if (brief?.productName) {
+  // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
+  // las generaciones de la campaña, no el pipeline.
+  if (brief?.productName && view !== 'assets') {
     const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }] =
       await Promise.all([
         supabase

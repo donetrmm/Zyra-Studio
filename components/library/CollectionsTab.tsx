@@ -88,7 +88,10 @@ export function CollectionsTab({ collections: initial }: { collections: Collecti
               key={c.id}
               className="group overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20"
             >
-              <Link href={`/app/campaigns/${c.id}`} className="block">
+              <Link
+                href={c.readOnly ? `/app/campaigns/${c.id}?view=assets` : `/app/campaigns/${c.id}`}
+                className="block"
+              >
                 <div className="h-2" style={{ backgroundColor: c.color }} />
                 <div className="p-4">
                   <div className="flex items-center gap-2">

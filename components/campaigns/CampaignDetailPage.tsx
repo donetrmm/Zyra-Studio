@@ -39,11 +39,11 @@ export function CampaignDetailPage({
   return (
     <div className="mx-auto max-w-4xl">
       <Link
-        href="/app/campaigns"
+        href="/app/library"
         className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
-        Campañas
+        Biblioteca
       </Link>
 
       <div className="flex items-start gap-3">
