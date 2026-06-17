@@ -26,13 +26,15 @@ export default async function LibraryPage() {
       .from('favorites')
       .select('generation_id')
       .eq('user_id', user.id),
-    // Colecciones: campañas-carpeta V1 (sin brief de producto), absorbidas
-    // por la Biblioteca (specs/v2/06 §4.3).
+    // Colecciones de la Biblioteca: las carpetas V1 (sin brief, editables) +
+    // las campañas studio (con brief), que aparecen como colección automática
+    // de solo-lectura con todo lo que generan (ligado por campaign_id). Se
+    // excluyen las archivadas.
     supabase
       .from('campaigns')
-      .select('id, name, description, color, created_at')
+      .select('id, name, description, color, created_at, product_brief, status')
       .eq('workspace_id', workspace.id)
-      .is('product_brief', null)
+      .neq('status', 'archived')
       .order('created_at', { ascending: false }),
     supabase
       .from('generations')
@@ -69,14 +71,21 @@ export default async function LibraryPage() {
     const cid = r.campaign_id as string;
     countByCampaign.set(cid, (countByCampaign.get(cid) ?? 0) + 1);
   }
-  const collections: Collection[] = (collectionsRes.data ?? []).map((c) => ({
-    id: c.id as string,
-    name: c.name as string,
-    description: (c.description as string | null) ?? null,
-    color: (c.color as string) ?? '#009fff',
-    created_at: c.created_at as string,
-    generationCount: countByCampaign.get(c.id as string) ?? 0,
-  }));
+  const collections: Collection[] = (collectionsRes.data ?? []).map((c) => {
+    const brief = (c.product_brief ?? null) as { productName?: string } | null;
+    const isStudio = Boolean(brief?.productName);
+    return {
+      id: c.id as string,
+      name: c.name as string,
+      // Para la campaña studio, el subtítulo es el producto detectado; para una
+      // colección-carpeta, su descripción libre.
+      description: isStudio ? (brief?.productName ?? null) : ((c.description as string | null) ?? null),
+      color: (c.color as string) ?? '#009fff',
+      created_at: c.created_at as string,
+      generationCount: countByCampaign.get(c.id as string) ?? 0,
+      readOnly: isStudio,
+    };
+  });
 
   return (
     <div className="-mx-4 -my-6 lg:-mx-8 lg:-my-8">

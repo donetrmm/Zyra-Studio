@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -199,10 +200,12 @@ export function LibraryView({
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [compareIds, setCompareIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
   const [favIds, setFavIds] = useState<Set<string>>(() => new Set(initialFavoriteIds));
   const [showFavOnly, setShowFavOnly] = useState(false);
+  const router = useRouter();
 
   function handleToggleFav(id: string) {
     const wasFav = favIds.has(id);
@@ -235,11 +238,11 @@ export function LibraryView({
       });
   }
 
-  function toggleCompare(id: string) {
-    setCompareIds((prev) => {
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
-      else if (next.size < 4) next.add(id);
+      else if (next.size < 50) next.add(id);
       return next;
     });
   }
@@ -295,7 +298,7 @@ export function LibraryView({
             <SessionsTab sessions={sessions} onOpen={setActiveId} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
           {tab === 'grid' && (
-            <GridTab items={filteredGens} onOpen={setActiveId} compareIds={compareIds} onToggleCompare={toggleCompare} favIds={favIds} onToggleFav={handleToggleFav} />
+            <GridTab items={filteredGens} onOpen={setActiveId} selectedIds={selectedIds} onToggleSelect={toggleSelect} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
           {tab === 'collections' && <CollectionsTab collections={collections} />}
         </div>
@@ -319,19 +322,29 @@ export function LibraryView({
         )}
       </div>
 
-      {compareIds.size >= 2 && (
+      {selectedIds.size >= 1 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-primary/40 bg-card px-5 py-2.5 shadow-xl">
-          <span className="text-[13px] text-foreground">{compareIds.size} seleccionados</span>
+          <span className="text-[13px] text-foreground">{selectedIds.size} seleccionados</span>
           <button
             type="button"
-            onClick={() => setShowCompare(true)}
-            className="rounded-full bg-primary px-4 py-1.5 text-[12.5px] font-medium text-primary-foreground hover:bg-primary/90"
+            onClick={() => setShowAssign(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-[12.5px] font-medium text-primary-foreground hover:bg-primary/90"
           >
-            Comparar A/B
+            <FolderKanban className="size-3.5" aria-hidden />
+            Asignar a colección
           </button>
+          {selectedIds.size >= 2 && selectedIds.size <= 4 && (
+            <button
+              type="button"
+              onClick={() => setShowCompare(true)}
+              className="rounded-full border border-border px-4 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-muted/50"
+            >
+              Comparar A/B
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setCompareIds(new Set())}
+            onClick={() => setSelectedIds(new Set())}
             className="text-[12px] text-muted-foreground hover:text-foreground"
           >
             Limpiar
@@ -341,11 +354,114 @@ export function LibraryView({
 
       {showCompare && (
         <CompareModal
-          generations={generations.filter((g) => compareIds.has(g.id))}
+          generations={generations.filter((g) => selectedIds.has(g.id))}
           onClose={() => setShowCompare(false)}
         />
       )}
+
+      {showAssign && (
+        <AssignCollectionDialog
+          count={selectedIds.size}
+          onAssign={async (campaignId) => {
+            const ids = [...selectedIds];
+            const results = await Promise.all(ids.map((id) => assignCampaignAction(id, campaignId)));
+            const failed = results.filter((r) => !r.ok).length;
+            if (failed > 0) {
+              toast.error(`${failed} no se pudieron asignar`);
+            } else {
+              toast.success(
+                campaignId
+                  ? `${ids.length} asignados a la colección`
+                  : `Colección removida de ${ids.length}`,
+              );
+            }
+            setShowAssign(false);
+            setSelectedIds(new Set());
+            router.refresh();
+          }}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// Asigna en lote las generaciones seleccionadas a una colección-carpeta
+// (las editables, vía listCampaignsAction). Las campañas studio no son destino
+// de asignación manual: reciben sus creativos por el pipeline.
+function AssignCollectionDialog({
+  count,
+  onAssign,
+  onClose,
+}: {
+  count: number;
+  onAssign: (campaignId: string | null) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [collections, setCollections] = useState<{ id: string; name: string; color: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [target, setTarget] = useState<string>(CAMPAIGN_NONE);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    listCampaignsAction().then((res) => {
+      if (res.ok) setCollections(res.data);
+      setLoaded(true);
+    });
+  }, []);
+
+  async function handleAssign() {
+    setSaving(true);
+    await onAssign(target === CAMPAIGN_NONE ? null : target);
+    setSaving(false);
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Asignar a colección</DialogTitle>
+        </DialogHeader>
+        <p className="text-[12.5px] text-muted-foreground">
+          {count} {count === 1 ? 'generación' : 'generaciones'} seleccionada{count === 1 ? '' : 's'}.
+        </p>
+        {loaded && collections.length === 0 ? (
+          <p className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-[12.5px] text-muted-foreground">
+            Aún no tienes colecciones. Créalas en la pestaña Colecciones.
+          </p>
+        ) : (
+          <Select value={target} onValueChange={setTarget} disabled={!loaded || saving}>
+            <SelectTrigger className="w-full rounded-lg border-border bg-background px-3 py-2 text-[13px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CAMPAIGN_NONE}>Sin colección (quitar)</SelectItem>
+              {collections.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleAssign}
+            disabled={saving || !loaded}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            Asignar
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -487,7 +603,7 @@ function LibHeader({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por prompt o modelo…"
-              className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors focus:border-primary/40"
+              className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-[13px] text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
@@ -549,15 +665,15 @@ function SessionsTab({
 function GridTab({
   items,
   onOpen,
-  compareIds,
-  onToggleCompare,
+  selectedIds,
+  onToggleSelect,
   favIds,
   onToggleFav,
 }: {
   items: LibraryGeneration[];
   onOpen: (id: string) => void;
-  compareIds: Set<string>;
-  onToggleCompare: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
   favIds: Set<string>;
   onToggleFav: (id: string) => void;
 }) {
@@ -582,7 +698,7 @@ function GridTab({
           <BucketHeader name={bucket} count={list.length} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {list.map((g) => (
-              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={compareIds.has(g.id)} onToggleCompare={() => onToggleCompare(g.id)} variantTag={g.batchKind ? batchLabel(g.batchKind) : undefined} isFavorite={favIds.has(g.id)} onToggleFav={() => onToggleFav(g.id)} />
+              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={selectedIds.has(g.id)} onToggleSelect={() => onToggleSelect(g.id)} variantTag={g.batchKind ? batchLabel(g.batchKind) : undefined} isFavorite={favIds.has(g.id)} onToggleFav={() => onToggleFav(g.id)} />
             ))}
           </div>
         </section>
@@ -670,7 +786,7 @@ function LibTile({
   variantTag,
   compact,
   selected,
-  onToggleCompare,
+  onToggleSelect,
   isFavorite,
   onToggleFav,
 }: {
@@ -679,7 +795,7 @@ function LibTile({
   variantTag?: string;
   compact?: boolean;
   selected?: boolean;
-  onToggleCompare?: () => void;
+  onToggleSelect?: () => void;
   isFavorite?: boolean;
   onToggleFav?: () => void;
 }) {
@@ -822,10 +938,10 @@ function LibTile({
           </TileBtn>
         </div>
       )}
-      {onToggleCompare && (hover || selected) && gen.status === 'done' && (
+      {onToggleSelect && (hover || selected) && gen.status === 'done' && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
           className={cn(
             'absolute left-2 top-2 grid size-5 place-items-center rounded border transition-colors',
             selected

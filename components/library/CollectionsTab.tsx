@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FolderKanban, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { FolderKanban, Layers, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createCampaignAction,
@@ -21,6 +21,10 @@ export type Collection = {
   color: string;
   created_at: string;
   generationCount: number;
+  // Campaña studio: aparece como colección automática (todo lo que genera vive
+  // aquí, ligado por campaign_id). No editable/borrable desde la Biblioteca —
+  // se gestiona en el Campaign Studio.
+  readOnly?: boolean;
 };
 
 export function CollectionsTab({ collections: initial }: { collections: Collection[] }) {
@@ -38,8 +42,8 @@ export function CollectionsTab({ collections: initial }: { collections: Collecti
     <div className="mx-auto max-w-5xl py-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <p className="max-w-lg text-[12.5px] leading-relaxed text-muted-foreground">
-          Agrupa generaciones sueltas por proyecto o cliente. Tus carpetas de antes viven aquí;
-          las campañas con plan y producción tienen su propia sección.
+          Tus campañas aparecen aquí automáticamente con todo lo que generan. Las colecciones
+          agrupan generaciones sueltas por proyecto o cliente; tus carpetas de antes viven aquí.
         </p>
         <button
           type="button"
@@ -87,11 +91,19 @@ export function CollectionsTab({ collections: initial }: { collections: Collecti
               <Link href={`/app/campaigns/${c.id}`} className="block">
                 <div className="h-2" style={{ backgroundColor: c.color }} />
                 <div className="p-4">
-                  <h3 className="truncate text-[14px] font-medium text-foreground">{c.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="min-w-0 flex-1 truncate text-[14px] font-medium text-foreground">{c.name}</h3>
+                    {c.readOnly && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10.5px] uppercase tracking-wide text-primary">
+                        <Layers className="size-2.5" aria-hidden />
+                        Campaña
+                      </span>
+                    )}
+                  </div>
                   {c.description && (
                     <p className="mt-0.5 line-clamp-2 text-[12px] text-muted-foreground">{c.description}</p>
                   )}
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground/50">
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                     <span>
                       {c.generationCount} generacion{c.generationCount !== 1 ? 'es' : ''}
                     </span>
@@ -105,36 +117,38 @@ export function CollectionsTab({ collections: initial }: { collections: Collecti
                   </div>
                 </div>
               </Link>
-              <div className="flex gap-2 border-t border-border/30 p-3">
-                <button
-                  type="button"
-                  onClick={() => setEditing(c)}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
-                >
-                  <Pencil className="size-3" aria-hidden /> Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await confirm({
-                      title: `Eliminar "${c.name}"?`,
-                      description: 'Se eliminará la colección y se desvincularán sus generaciones.',
-                      confirmLabel: 'Eliminar',
-                      destructive: true,
-                    });
-                    if (!ok) return;
-                    deleteCampaignAction(c.id).then((res) => {
-                      if (res.ok) {
-                        setCollections((cs) => cs.filter((x) => x.id !== c.id));
-                        toast.success('Colección eliminada');
-                      } else toast.error(res.message || 'Error');
-                    });
-                  }}
-                  className="inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                >
-                  <Trash2 className="size-3" aria-hidden />
-                </button>
-              </div>
+              {!c.readOnly && (
+                <div className="flex gap-2 border-t border-border/30 p-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditing(c)}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3" aria-hidden /> Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: `Eliminar "${c.name}"?`,
+                        description: 'Se eliminará la colección y se desvincularán sus generaciones.',
+                        confirmLabel: 'Eliminar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
+                      deleteCampaignAction(c.id).then((res) => {
+                        if (res.ok) {
+                          setCollections((cs) => cs.filter((x) => x.id !== c.id));
+                          toast.success('Colección eliminada');
+                        } else toast.error(res.message || 'Error');
+                      });
+                    }}
+                    className="inline-flex items-center justify-center rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" aria-hidden />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
