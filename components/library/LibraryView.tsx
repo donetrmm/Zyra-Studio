@@ -700,15 +700,18 @@ function LibHeader({
                   key={t.id}
                   type="button"
                   onClick={() => setTab(t.id)}
+                  title={t.label}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors min-[360px]:px-3',
                     active
                       ? 'border border-border bg-background text-foreground'
                       : 'border border-transparent text-muted-foreground hover:text-foreground',
                   )}
                 >
                   <Ic className="size-3.5" aria-hidden />
-                  {t.label}
+                  {/* En pantallas muy angostas (<360px) los tabs van icon-only para
+                      que «Colecciones» no se recorte; el title da el nombre accesible. */}
+                  <span className="hidden min-[360px]:inline">{t.label}</span>
                 </button>
               );
             })}
