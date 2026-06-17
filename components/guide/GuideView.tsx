@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import {
+  ArrowUpRight,
   Clapperboard,
   Image as ImageIcon,
   Layers,
@@ -22,6 +24,23 @@ function H2({ children, id }: { children: React.ReactNode; id?: string }) {
       {id && <Anchor id={id} />}
       <h2 className="mt-10 font-heading text-[17px] font-semibold text-foreground">{children}</h2>
     </>
+  );
+}
+
+function SectionCta({ links }: { links: { href: string; label: string }[] }) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2">
+      {links.map((l) => (
+        <Link
+          key={l.href + l.label}
+          href={l.href}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15"
+        >
+          {l.label}
+          <ArrowUpRight className="size-3.5" aria-hidden />
+        </Link>
+      ))}
+    </div>
   );
 }
 
@@ -212,6 +231,12 @@ export function GuideView() {
           </li>
         ))}
       </ol>
+      <SectionCta
+        links={[
+          { href: '/app/campaigns/new', label: 'Crear una campaña' },
+          { href: '/app/campaigns', label: 'Ver mis campañas' },
+        ]}
+      />
 
       {/* Formatos */}
       <H2 id="formatos">Los 9 formatos del sistema</H2>
@@ -236,6 +261,7 @@ export function GuideView() {
           </div>
         ))}
       </div>
+      <SectionCta links={[{ href: '/app/formats', label: 'Ver formatos y plantillas' }]} />
 
       {/* Secuencias y consistencia */}
       <H2 id="secuencias">Secuencias y consistencia</H2>
@@ -252,6 +278,12 @@ export function GuideView() {
           ]}
         />
       </div>
+      <SectionCta
+        links={[
+          { href: '/app/brand/cast', label: 'Ir al Cast' },
+          { href: '/app/brand', label: 'Activos de Marca' },
+        ]}
+      />
 
       {/* Creación rápida y modelos */}
       <H2 id="modelos">Creación rápida y modelos</H2>
@@ -273,6 +305,13 @@ export function GuideView() {
           );
         })}
       </div>
+      <SectionCta
+        links={[
+          { href: '/app/create/image', label: 'Crear imagen' },
+          { href: '/app/create/video', label: 'Crear video' },
+          { href: '/app/create/audio', label: 'Crear voz' },
+        ]}
+      />
 
       {/* Prompting */}
       <H2 id="prompting">Prompting que funciona</H2>
@@ -322,6 +361,7 @@ export function GuideView() {
           ]}
         />
       </div>
+      <SectionCta links={[{ href: '/app/billing', label: 'Ver mis créditos' }]} />
 
       {/* Restricciones */}
       <H2 id="restricciones">Restricciones y límites</H2>
