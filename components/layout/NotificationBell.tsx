@@ -156,8 +156,13 @@ function notificationLabel(n: Notification): string {
     }
     case "purchase_rejected":
       return "Tu compra fue rechazada";
-    case "generation_done":
-      return "Una generación terminó";
+    case "generation_done": {
+      const t = strFromPayload(n.payload, "type");
+      if (t === "video") return "Tu video está listo";
+      if (t === "audio") return "Tu audio está listo";
+      if (t === "image") return "Tu imagen está lista";
+      return "Tu generación está lista";
+    }
     case "credit_grant": {
       const delta = numFromPayload(n.payload, "delta");
       if (delta === null) return "Se ajustaron tus créditos";
@@ -175,6 +180,14 @@ function numFromPayload(
 ): number | null {
   const v = payload[key];
   return typeof v === "number" ? v : null;
+}
+
+function strFromPayload(
+  payload: Record<string, unknown>,
+  key: string,
+): string | null {
+  const v = payload[key];
+  return typeof v === "string" ? v : null;
 }
 
 function fmt(n: number): string {
