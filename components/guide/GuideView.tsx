@@ -227,6 +227,74 @@ const DONTS: string[] = [
   'Tratar el audio como adorno («agrega música»): di su función, su mood y los momentos de sincronía.',
 ];
 
+// Recetas CRAFT listas por formato. Producto ficticio genérico (sin marcas
+// reales); cada receta respeta el registro, cámara, ritmo y duración del formato.
+const RECIPES: { name: string; dur: string; prompt: string; key: string }[] = [
+  {
+    name: 'Voz Cercana',
+    dur: '9s',
+    prompt:
+      'Una creadora sostiene el sérum frente a la cámara en su baño con luz natural de ventana. Habla a cámara, casual: muestra el frasco, se aplica una gota y sonríe. Cámara selfie handheld a la altura de los ojos, una sola toma continua sin cortes. 0-3 s presenta el producto; 3-7 s se lo aplica; 7-9 s remate a cámara. Mantener la apariencia exacta del personaje del Cast.',
+    key: 'Una sola idea, guion de máx ~25 palabras; luz natural imperfecta, no estudio.',
+  },
+  {
+    name: 'A Pie de Calle',
+    dur: '12s',
+    prompt:
+      'Calle peatonal soleada; un entrevistador con micrófono aborda a una transeúnte. Pregunta-respuesta espontánea sobre la bebida; ella la prueba y reacciona con sorpresa agradable. Plano medio handheld a nivel de ojos, encuadre de entrevista, fondo urbano difuso. 0-4 s pregunta; 4-8 s prueba y reacción; 8-12 s respuesta final. Cortes secos entre pregunta y respuesta.',
+    key: 'Tono documental y de confianza; el producto surge en la charla, no actuado.',
+  },
+  {
+    name: 'Manos a la Obra',
+    dur: '12s',
+    prompt:
+      'Mesa de trabajo con luz cenital pareja. Solo las manos: abren el frasco, dosifican, mezclan y muestran el resultado, paso a paso. Cámara cenital estable, cortes limpios entre pasos, close-up de cada acción. 0-3 s paso 1; 3-7 s paso 2; 7-10 s paso 3; 10-12 s resultado final.',
+    key: 'Voz imperativa breve o solo acción; el producto es el centro de cada paso.',
+  },
+  {
+    name: 'El Descubrimiento',
+    dur: '10s',
+    prompt:
+      'Superficie limpia, luz suave. Arranca con el empaque cerrado; unas manos lo abren lentamente, retiran la tapa y revelan el producto. Sonido táctil protagonista, sin diálogo. Cenital o 3/4, close-ups en los momentos táctiles. 0-4 s anticipación con el empaque; 4-8 s apertura; 8-10 s revelación con close-up del producto.',
+    key: 'Ritmo lento al inicio, clímax en la revelación; deja respirar cada sonido.',
+  },
+  {
+    name: 'Antes y Después',
+    dur: '8s',
+    prompt:
+      'Mismo encuadre fijo en dos estados, con luz idéntica: estado A (antes) sostenido, transición de corte seco, estado B (después) sostenido. 0-3 s estado A; al segundo 4 el corte; 4-8 s estado B. El contraste cuenta la historia, sin texto en pantalla.',
+    key: 'Encuadre y luz EXACTOS en ambos estados; un único corte limpio.',
+  },
+  {
+    name: 'Susurro',
+    dur: '10s',
+    prompt:
+      'Setting íntimo de bajo ruido, luz tenue. Macro y extreme close-up del producto: texturas, gotas, materiales; movimientos mínimos. Sin diálogo ni música: cada sonido (tap, líquido, papel) respira. 0-3 s textura; 3-7 s acción sensorial; 7-10 s detalle final.',
+    key: 'Nada de música; el sonido guía; movimientos lentísimos. Caption-only.',
+  },
+  {
+    name: 'El Ícono',
+    dur: '8s',
+    prompt:
+      'Fondo abstracto minimal. El producto sin personas, en movimiento constante: órbitas, whip pans, speed ramps y match cuts. Estilizado, bold, beat-driven. 0-2 s órbita de entrada; 2-4 s whip pan; 4-6 s speed ramp; 6-8 s pose heroica final. Cortes al beat de la música de referencia.',
+    key: 'El producto protagoniza cada frame; ritmo rápido, cortes al beat.',
+  },
+  {
+    name: 'Gran Pantalla',
+    dur: '15s',
+    prompt:
+      'Registro de spot premium. Arco: establecimiento del entorno → entrada del producto → beat emocional → cierre de marca. Cámara con dolly y grúa, composición deliberada, color grading cinematográfico. 0-4 s establecimiento; 4-8 s producto en contexto; 8-12 s beat emocional; 12-15 s cierre de marca.',
+    key: 'Aspiracional y pulido; cada frame intencional; arco estructurado.',
+  },
+  {
+    name: 'Mundo Imposible',
+    dur: '10s',
+    prompt:
+      'Espacio onírico a escala imposible. El producto como ancla de una escena surreal (FOOH): flota, se transforma o aparece gigante sobre la ciudad. Cámara inusual (macro, bullet-time, escala imposible). 0-4 s establece lo imposible; 4-8 s transformación; 8-10 s remate con el producto como héroe.',
+    key: 'Describe lo que se ve, no lo que simboliza; el producto ancla el concepto.',
+  },
+];
+
 const GLOSSARY: { term: string; def: string }[] = [
   { term: 'Campaña', def: 'Proyecto con plan y producción: del producto a varios anuncios listos.' },
   { term: 'Creativo', def: 'Cada pieza dentro de una campaña (un video o imagen planificado).' },
@@ -447,6 +515,32 @@ export function GuideView() {
       </div>
 
       <SectionCta links={[{ href: '/app/create', label: 'Probar en Creación rápida' }]} />
+
+      {/* Recetas por formato */}
+      <H2 id="recetas">Recetas de prompt por formato</H2>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+        Un punto de partida en CRAFT para cada formato. Copia, cambia el producto y el personaje por
+        los tuyos, y ajusta los marcadores de tiempo. El producto del ejemplo es ficticio.
+      </p>
+      <div className="mt-4 space-y-3">
+        {RECIPES.map((r) => (
+          <div key={r.name} className="rounded-xl border border-border bg-card/50 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-[13.5px] font-medium text-foreground">{r.name}</h3>
+              <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 font-mono text-[10.5px] text-muted-foreground">
+                {r.dur}
+              </span>
+            </div>
+            <p className="mt-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-[12px] leading-relaxed text-foreground/90">
+              {r.prompt}
+            </p>
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground/80">Clave:</span> {r.key}
+            </p>
+          </div>
+        ))}
+      </div>
+      <SectionCta links={[{ href: '/app/campaigns/new', label: 'Crear una campaña' }]} />
 
       {/* Créditos y costos */}
       <H2 id="costos">Créditos y costos</H2>
