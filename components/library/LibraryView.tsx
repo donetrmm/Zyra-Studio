@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Search,
   Sparkles,
+  Trash2,
   Video as VideoIcon,
   X,
 } from 'lucide-react';
@@ -24,6 +25,8 @@ import { downloadGenerationImage as downloadGenerationFile } from '@/lib/media-r
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
+import { deleteGenerationAction } from '@/server-actions/generations';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CollectionsTab, type Collection } from './CollectionsTab';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { Bookmark, FolderKanban, Heart } from 'lucide-react';
@@ -206,6 +209,82 @@ export function LibraryView({
   const [favIds, setFavIds] = useState<Set<string>>(() => new Set(initialFavoriteIds));
   const [showFavOnly, setShowFavOnly] = useState(false);
   const router = useRouter();
+  const confirm = useConfirm();
+
+  // Copia local para borrado optimista (sin esperar al refetch del server).
+  const [gens, setGens] = useState(generations);
+  const [prevInitial, setPrevInitial] = useState(generations);
+  if (prevInitial !== generations) {
+    setPrevInitial(generations);
+    setGens(generations);
+  }
+
+  function removeGens(ids: string[]) {
+    const set = new Set(ids);
+    setGens((prev) => prev.filter((g) => !set.has(g.id)));
+    setSelectedIds(new Set());
+    if (activeId && set.has(activeId)) setActiveId(null);
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: `¿Eliminar ${ids.length} ${ids.length === 1 ? 'elemento' : 'elementos'}?`,
+      description:
+        'Se borran de tu biblioteca de forma permanente. No se reembolsan créditos de generaciones ya terminadas.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
+    const results = await Promise.all(ids.map((id) => deleteGenerationAction(id)));
+    const okIds = ids.filter((_, i) => results[i].ok);
+    removeGens(okIds);
+    const failed = ids.length - okIds.length;
+    if (failed > 0) toast.error(`${failed} no se pudieron eliminar`);
+    else toast.success(`${okIds.length} ${okIds.length === 1 ? 'eliminado' : 'eliminados'}`);
+    router.refresh();
+  }
+
+  async function handleBulkDownload() {
+    const items = gens.filter((g) => selectedIds.has(g.id) && g.hasOutput);
+    if (items.length === 0) {
+      toast.error('Nada que descargar en la selección');
+      return;
+    }
+    toast.info(`Descargando ${items.length} archivo${items.length === 1 ? '' : 's'}…`);
+    let failed = 0;
+    for (const g of items) {
+      try {
+        const res = await fetch(`/api/generations/${g.id}`, { cache: 'no-store' });
+        const data = (await res.json()) as { outputUrl?: string };
+        if (!data.outputUrl) throw new Error('sin output');
+        await downloadGenerationFile(data.outputUrl, `1to1-${g.id.slice(0, 8)}`);
+      } catch {
+        failed += 1;
+      }
+    }
+    if (failed > 0) toast.error(`${failed} no se pudieron descargar`);
+    else toast.success('Descarga completa');
+  }
+
+  async function handleDeleteOne(id: string) {
+    const ok = await confirm({
+      title: '¿Eliminar este elemento?',
+      description: 'Se borra de tu biblioteca de forma permanente.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await deleteGenerationAction(id);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo eliminar');
+      return;
+    }
+    removeGens([id]);
+    toast.success('Eliminado');
+    router.refresh();
+  }
 
   function handleToggleFav(id: string) {
     const wasFav = favIds.has(id);
@@ -249,7 +328,7 @@ export function LibraryView({
 
   const filteredGens = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    let list = generations;
+    let list = gens;
     if (showFavOnly) {
       list = list.filter((g) => favIds.has(g.id));
     }
@@ -267,12 +346,12 @@ export function LibraryView({
       );
     }
     return list;
-  }, [generations, query, sort, showFavOnly, favIds]);
+  }, [gens, query, sort, showFavOnly, favIds]);
 
   const sessions = useMemo(() => groupSessions(filteredGens, sort), [filteredGens, sort]);
   const active = useMemo(
-    () => generations.find((g) => g.id === activeId) ?? null,
-    [generations, activeId],
+    () => gens.find((g) => g.id === activeId) ?? null,
+    [gens, activeId],
   );
 
   return (
@@ -284,7 +363,7 @@ export function LibraryView({
         setQuery={setQuery}
         sort={sort}
         setSort={setSort}
-        totalImages={generations.length}
+        totalImages={gens.length}
         totalSessions={sessions.length}
         workspaceName={workspaceName}
         showFavOnly={showFavOnly}
@@ -312,11 +391,12 @@ export function LibraryView({
             <DetailAside
               key={active.id}
               generation={active}
-              allGenerations={generations}
+              allGenerations={gens}
               onClose={() => setActiveId(null)}
               onNavigate={setActiveId}
               isFavorite={favIds.has(active.id)}
               onToggleFav={handleToggleFav}
+              onDelete={() => handleDeleteOne(active.id)}
             />
           </>
         )}
@@ -333,6 +413,14 @@ export function LibraryView({
             <FolderKanban className="size-3.5" aria-hidden />
             Asignar a colección
           </button>
+          <button
+            type="button"
+            onClick={handleBulkDownload}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-[12.5px] font-medium text-foreground hover:bg-muted/50"
+          >
+            <Download className="size-3.5" aria-hidden />
+            Descargar
+          </button>
           {selectedIds.size >= 2 && selectedIds.size <= 4 && (
             <button
               type="button"
@@ -342,6 +430,14 @@ export function LibraryView({
               Comparar A/B
             </button>
           )}
+          <button
+            type="button"
+            onClick={handleBulkDelete}
+            className="inline-flex items-center gap-1.5 rounded-full border border-destructive/40 px-4 py-1.5 text-[12.5px] font-medium text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+            Eliminar
+          </button>
           <button
             type="button"
             onClick={() => setSelectedIds(new Set())}
@@ -354,7 +450,7 @@ export function LibraryView({
 
       {showCompare && (
         <CompareModal
-          generations={generations.filter((g) => selectedIds.has(g.id))}
+          generations={gens.filter((g) => selectedIds.has(g.id))}
           onClose={() => setShowCompare(false)}
         />
       )}
@@ -988,6 +1084,7 @@ function DetailAside({
   onNavigate,
   isFavorite,
   onToggleFav,
+  onDelete,
 }: {
   generation: LibraryGeneration;
   allGenerations: LibraryGeneration[];
@@ -995,6 +1092,7 @@ function DetailAside({
   onNavigate: (id: string) => void;
   isFavorite: boolean;
   onToggleFav: (id: string) => void;
+  onDelete: () => void;
 }) {
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1240,6 +1338,13 @@ function DetailAside({
           {generation.status === 'done' && generation.prompt && (
             <SavePresetButton generation={generation} />
           )}
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/5 px-2.5 py-1.5 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+          >
+            <Trash2 className="size-3.5" aria-hidden /> Eliminar
+          </button>
         </div>
 
         <DetailRow label="Prompt">

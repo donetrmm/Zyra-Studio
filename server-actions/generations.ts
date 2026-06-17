@@ -11,6 +11,8 @@ import {
   downloadReferenceBuffer,
   uploadOutput,
   uploadThumbnail,
+  OUTPUTS_BUCKET,
+  THUMBNAILS_BUCKET,
 } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { estimateCredits } from '@/lib/credits/estimator';
@@ -746,4 +748,51 @@ export async function cancelGenerationAction(
   }
   revalidatePath('/app/library');
   return { ok: true, data: { canceled: true } };
+}
+
+// Borra una generación de la biblioteca. Solo estados terminales: una en cola o
+// procesando debe cancelarse antes (evita fugas de crédito/job). RLS
+// (generations_owner_delete) garantiza ownership; las FK hacia esta fila son
+// cascade (favoritos, colección) o set null (parent, campaign_item, plantilla).
+export async function deleteGenerationAction(
+  generationId: string,
+): Promise<Result<{ deleted: true }>> {
+  if (!UUID_RE.test(generationId)) {
+    return { ok: false, error: 'validation_error', message: 'ID inválido' };
+  }
+  const { user } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('id, status, output_url, thumbnail_url')
+    .eq('id', generationId)
+    .eq('user_id', user.id)
+    .single();
+  if (!gen) return { ok: false, error: 'not_found' };
+  if (gen.status === 'queued' || gen.status === 'processing') {
+    return { ok: false, error: 'forbidden', message: 'Cancela la generación antes de borrarla' };
+  }
+
+  const { error } = await supabase
+    .from('generations')
+    .delete()
+    .eq('id', generationId)
+    .eq('user_id', user.id);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  // Limpieza best-effort del storage (no bloquea si falla).
+  try {
+    const admin = createAdminClient();
+    const removals: Promise<unknown>[] = [];
+    if (gen.output_url) removals.push(admin.storage.from(OUTPUTS_BUCKET).remove([gen.output_url as string]));
+    if (gen.thumbnail_url) removals.push(admin.storage.from(THUMBNAILS_BUCKET).remove([gen.thumbnail_url as string]));
+    await Promise.allSettled(removals);
+  } catch {
+    // storage no crítico para el borrado lógico
+  }
+
+  revalidatePath('/app/library');
+  revalidatePath('/app/campaigns');
+  return { ok: true, data: { deleted: true } };
 }
