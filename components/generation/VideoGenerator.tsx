@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { submitVideoGenerationAction } from '@/server-actions/generations';
 import { usePreflight } from '@/components/ui/preflight-checklist';
-import { MANUAL_CHECKLIST } from '@/lib/checklists';
+import { VIDEO_CHECKLIST } from '@/lib/checklists';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import type { PricingRow } from '@/lib/credits/types';
 import { KLING_T2V_MODELS, VEO_MODELS } from '@/lib/schemas/video';
@@ -117,7 +117,7 @@ export function VideoGenerator(props: {
 
   async function handleGenerate() {
     if (!canGenerate) return;
-    if (!(await preflight(MANUAL_CHECKLIST))) return;
+    if (!(await preflight(VIDEO_CHECKLIST))) return;
     startTransition(async () => {
       const styleSuffix = selectedStyles
         .map((id) => VIDEO_STYLES.find((s) => s.id === id)?.suffix)

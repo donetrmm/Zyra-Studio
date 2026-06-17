@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { submitAudioGenerationAction } from '@/server-actions/generations';
 import { usePreflight } from '@/components/ui/preflight-checklist';
-import { MANUAL_CHECKLIST } from '@/lib/checklists';
+import { AUDIO_CHECKLIST } from '@/lib/checklists';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { PricingRow } from '@/lib/credits/types';
@@ -62,7 +62,7 @@ export function AudioGenerator(props: {
 
   async function handleGenerate() {
     if (!canGenerate) return;
-    if (!(await preflight(MANUAL_CHECKLIST))) return;
+    if (!(await preflight(AUDIO_CHECKLIST))) return;
     startTransition(async () => {
       const res = await submitAudioGenerationAction({
         kind: 'tts',
