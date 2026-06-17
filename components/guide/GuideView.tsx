@@ -314,20 +314,64 @@ const GLOSSARY: { term: string; def: string }[] = [
   { term: 'Preset', def: 'Una configuración de creación guardada para reusarla.' },
 ];
 
+const TOC: { id: string; label: string }[] = [
+  { id: 'primera-campana', label: 'Primera campaña' },
+  { id: 'formatos', label: 'Los 9 formatos' },
+  { id: 'secuencias', label: 'Secuencias' },
+  { id: 'modelos', label: 'Modelos' },
+  { id: 'prompting', label: 'Prompting' },
+  { id: 'recetas', label: 'Recetas por formato' },
+  { id: 'costos', label: 'Créditos y costos' },
+  { id: 'restricciones', label: 'Restricciones' },
+  { id: 'glosario', label: 'Glosario' },
+];
+
 export function GuideView() {
   return (
-    <div className="mx-auto max-w-3xl pb-16">
-      <header className="space-y-1.5">
-        <h1 className="font-heading text-[24px] font-semibold tracking-tight text-foreground">
-          Guía de 1to1 Studio
-        </h1>
-        <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-          El camino principal es la <strong className="text-foreground/90">campaña</strong>: subes tu
-          producto, la IA arma un plan de anuncios y los produces de borrador (480p, barato) a versión
-          final (720p/1080p). La <strong className="text-foreground/90">Creación rápida</strong> es para
-          piezas sueltas. Todo se guarda en tu <strong className="text-foreground/90">Biblioteca</strong>.
-        </p>
-      </header>
+    <div className="mx-auto max-w-5xl pb-16 lg:grid lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start lg:gap-10">
+      {/* Índice fijo en escritorio */}
+      <aside className="hidden lg:block">
+        <nav aria-label="Índice de la guía" className="sticky top-0 space-y-0.5 py-1">
+          <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            En esta guía
+          </p>
+          {TOC.map((t) => (
+            <a
+              key={t.id}
+              href={`#${t.id}`}
+              className="block rounded-md px-2 py-1 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {t.label}
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="min-w-0 lg:max-w-3xl">
+        <header className="space-y-1.5">
+          <h1 className="font-heading text-[24px] font-semibold tracking-tight text-foreground">
+            Guía de 1to1 Studio
+          </h1>
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
+            El camino principal es la <strong className="text-foreground/90">campaña</strong>: subes tu
+            producto, la IA arma un plan de anuncios y los produces de borrador (480p, barato) a versión
+            final (720p/1080p). La <strong className="text-foreground/90">Creación rápida</strong> es para
+            piezas sueltas. Todo se guarda en tu <strong className="text-foreground/90">Biblioteca</strong>.
+          </p>
+        </header>
+
+        {/* Índice en chips para móvil */}
+        <nav aria-label="Índice de la guía" className="mt-4 flex flex-wrap gap-1.5 lg:hidden">
+          {TOC.map((t) => (
+            <a
+              key={t.id}
+              href={`#${t.id}`}
+              className="rounded-full border border-border bg-card/50 px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {t.label}
+            </a>
+          ))}
+        </nav>
 
       {/* Flujo paso a paso */}
       <H2 id="primera-campana">Tu primera campaña, paso a paso</H2>
@@ -599,6 +643,7 @@ export function GuideView() {
           </div>
         ))}
       </dl>
+      </div>
     </div>
   );
 }
