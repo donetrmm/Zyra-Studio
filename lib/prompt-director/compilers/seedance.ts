@@ -76,12 +76,20 @@ function hasTimeline(text: string): boolean {
   return /\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\b|\b\d{1,2}\s*s\s*:/i.test(text);
 }
 
+// Reparte la acción en marcadores de tiempo SOLO si quedan pocos beats limpios.
+// Beats = ORACIONES (límite . o ;), NO comas: antes partía por cada coma —incluso
+// las descriptivas ("a woman with brown hair, wearing a beige top")— y generaba un
+// timeline por SEGUNDO ("0-1s:.. 1-2s:..", con tramos de duración cero "4-4s") que
+// hacía al modelo cambiar de plano cada segundo → video TRABADO. Ahora se topa a
+// ~1 beat por 4s (guía: 1 idea ≈ 4s); si no encaja en pocos beats, se deja como
+// prosa y el modelo reparte el tiempo (como en los prompts que salen fluidos).
 function toTimeline(action: string, duration: number): string {
+  const maxBeats = Math.max(1, Math.floor(duration / 4));
   const beats = action
-    .split(/[;,]+/)
-    .map((b) => b.trim().replace(/\.+$/, ''))
+    .split(/(?<=[.;])\s+/)
+    .map((b) => b.trim().replace(/[.;]+$/, ''))
     .filter((b) => b.length > 3);
-  if (beats.length < 2) return action;
+  if (beats.length < 2 || beats.length > maxBeats) return action.trim();
   return `${beats
     .map((beat, i) => {
       const start = Math.round((duration * i) / beats.length);

@@ -415,6 +415,36 @@ describe('compile seedance', () => {
     expect(prompt).toContain('is Mara');
     expect(warnings.join(' ')).toMatch(/identidad: Mara/);
   });
+
+  it('NO fragmenta en micro-tramos por segundo una acción larga rica en comas (#trabado)', () => {
+    // Simula una acción larga (varias oraciones) como la de un clip unificado.
+    const merged =
+      'Medium close-up, eye-level — Grecia holds up a framed picture, looking at the camera. Close-up — Grecia holds her smartphone showing a chat. Medium shot — the framed picture hangs on a wall. Close-up — Grecia smiles warmly at the camera.';
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: merged, durationS: 15 },
+      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const markers = (res.compiled.prompt.match(/\d+-\d+s:/g) ?? []).length;
+    // 4 oraciones > tope (~3 para 15s) → se deja como prosa, sin timeline-metralla.
+    expect(markers).toBe(0);
+    expect(res.compiled.prompt).toContain('holds up a framed picture');
+  });
+
+  it('reparte en pocos beats coarse cuando hay acciones separadas por oración', () => {
+    const action = 'She walks to the table. She picks up the product. She smiles at the camera.';
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: action, durationS: 12 },
+      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const markers = (res.compiled.prompt.match(/\d+-\d+s:/g) ?? []).length;
+    // 3 oraciones en 12s → 3 beats coarse (~4s c/u), nunca por segundo.
+    expect(markers).toBe(3);
+    expect(res.compiled.prompt).toContain('0-4s:');
+  });
 });
 
 // ============ Cinematografía por defecto (#A) ============
