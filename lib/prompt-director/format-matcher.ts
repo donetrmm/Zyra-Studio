@@ -271,13 +271,18 @@ Por cada idea distinta devuelve un match:
   necesita su propio clip. Esto aplica AUNQUE el total quepa en 15s: p. ej. 4
   momentos en 4 lugares = 4 clips, no un clip de 15s con cortes internos (eso
   sale incoherente). Solo deja UN clip cuando de verdad es una única toma
-  continua. Cada escena es un objeto corto:
-  {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
-  (re-describe escenario y personaje, el modelo no recuerda entre clips), que
-  abre con su plano y UN movimiento de camara en terminologia real (wide/medium/
-  close-up; dolly in, tracking, pan, rack focus) y, si es el cierre, plano
-  cerrado del producto",
-  "durationS":entero 4-8 (una escena es un beat corto),"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
+  continua. Cada escena es un objeto corto, un clip INDEPENDIENTE:
+  {"scenePrompt":"accion concreta en INGLES de esta escena, AUTO-CONTENIDA
+  (re-describe escenario y personaje, el modelo no recuerda entre clips), UNA
+  sola toma continua que abre con su plano y UN movimiento de camara en
+  terminologia real (wide/medium/close-up; dolly in, tracking, pan, rack focus)
+  y, si es el cierre, plano cerrado del producto. NO copies los marcadores de
+  tiempo del guion original (nada de '13-15s:'): cada escena empieza en 0 y, si
+  es un solo beat, no necesita timeline",
+  "durationS":"AJUSTA al tiempo que toma DECIR la linea de dialogo de ESA escena
+  (o la accion si no hay dialogo): una frase corta = 4-5s, una mas larga hasta 8;
+  entero 4-8. NUNCA infles una linea corta a 8s — el modelo rellena el silencio
+  repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].
