@@ -132,7 +132,8 @@ export function buildReferences(ctx: DirectorContext): {
     pushImage(
       path,
       'product',
-      (n) => `@image${n} is the product — exact packaging, colors, logo placement and proportions.`,
+      (n) =>
+        `@image${n} is the product — exact packaging, colors, logo placement and proportions, identical in every frame from first to last; it must not warp, morph or change shape, and any printed photo, label or text on it stays a static print (it never animates or comes alive).`,
     );
   }
 
@@ -214,6 +215,35 @@ function cinematographyDefault(register: string): string {
   return handheld
     ? 'Cinematography: natural available light with soft, realistic shadows; handheld camera feel; deep focus so the whole scene reads clearly.'
     : 'Cinematography: controlled key light with soft fill and gentle rim separation; shallow depth of field that keeps the product crisp; clean filmic contrast.';
+}
+
+// Música/foley por registro (#2 audio): decide la cama sonora de forma
+// determinista en vez de dejar al modelo interpretar "si el registro lo pide".
+// El sonido diegético específico de la acción lo aporta el matcher (#1).
+function audioDirection(register: string): string {
+  const r = register.toLowerCase();
+  if (/asmr|susurro|whisper|macro|t[aá]ctil/.test(r)) {
+    return 'Audio: no music. Foley-forward — every contact and texture sound crisp, close and detailed; let the product sounds carry the scene.';
+  }
+  if (/beat|r[ií]tmic|kinet|en[eé]rg|bold|dance|drop|speed ?ramp/.test(r)) {
+    return 'Audio: a rhythmic music bed whose energy matches the cut; keep the key diegetic product sounds audible over it.';
+  }
+  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv|emotion/.test(r)) {
+    return 'Audio: a restrained cinematic score supporting the mood, low under the action; natural diegetic sound stays present.';
+  }
+  return 'Audio: natural diegetic sound that matches the scene, no music — keep it real, with subtle room tone.';
+}
+
+// Matiz de entrega de la voz por registro (#3 audio): se añade a la directiva de
+// idioma/cadencia base (DIALOGUE_LANGUAGE) cuando hay voz en escena. null para
+// registros UGC/casual, ya cubiertos por la cadencia base.
+function voiceToneForRegister(register: string): string | null {
+  const r = register.toLowerCase();
+  if (/asmr|susurro|whisper|macro/.test(r)) return 'Deliver the voice intimately and softly, close to the mic, almost a whisper.';
+  if (/calle|street|vox|interview|entrevista|espont/.test(r)) return 'Deliver the voice spontaneously and candidly, with light street energy, as if caught in the moment.';
+  if (/bold|icono|kinet|en[eé]rg|beat/.test(r)) return 'Deliver the voice with confident, punchy energy.';
+  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv/.test(r)) return 'Deliver the voice calm, sincere and emotionally grounded.';
+  return null;
 }
 
 export function compileSeedance(
@@ -314,14 +344,18 @@ export function compileSeedance(
     sections.push(cinematographyDefault(ctx.format?.register ?? ''));
   }
 
-  // Audio dirigido: qué se oye, no "agrega música".
+  // Audio dirigido por registro (#2): música/foley deciden aquí, no "si el
+  // registro lo pide". El sonido específico de la acción viene del matcher (#1).
   if (generateAudio && !ctx.audioRefPath) {
-    sections.push('Audio: natural diegetic sound that matches the scene; no music unless the register calls for it.');
+    sections.push(audioDirection(ctx.format?.register ?? ''));
   }
   // Idioma/acento de la voz SOLO cuando hay habla o narración en la escena.
-  // Si no la hay, se le cierra la puerta a una voz en off no pedida.
+  // Si no la hay, se le cierra la puerta a una voz en off no pedida. Con voz, el
+  // tono de entrega se matiza por registro (#3) sobre la cadencia base.
   if (voiced) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
+    const tone = voiceToneForRegister(ctx.format?.register ?? '');
+    if (tone) sections.push(tone);
   } else if (generateAudio) {
     sections.push('No spoken dialogue or voice-over; ambient sound only.');
   }

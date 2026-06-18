@@ -71,6 +71,8 @@ describe('compile seedance', () => {
     expect(prompt).toContain('@image3 is Maya');
     // Fidelidad y escena
     expect(prompt).toContain('exact packaging');
+    // Estabilidad temporal del producto (#B): no morphing a lo largo del clip.
+    expect(prompt).toMatch(/identical in every frame/i);
     expect(prompt).toContain('sunlit home kitchen');
     // Dirección del formato
     expect(prompt).toContain('selfie handheld');
@@ -431,6 +433,58 @@ describe('cinematografía por defecto', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
+  });
+});
+
+// ============ Audio por registro (#2/#3) ============
+
+describe('dirección de audio por registro', () => {
+  const product = { name: 'Lumen', imagePaths: ['p1.png'] };
+  const fmt = (register: string) =>
+    fromFormatRow({
+      slug: 'x', name: 'X', register, camera_style: '', pacing: '',
+      required_refs: ['product'], default_duration_s: 8, default_audio: true,
+    });
+
+  it('ASMR/susurro → foley sin música (#2)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can opens slowly' },
+      { format: fmt('ASMR, susurro, macro'), product },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/Foley-forward/);
+  });
+
+  it('beat-driven → cama musical al ritmo (#2)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins' },
+      { format: elIcono, product },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/rhythmic music bed/);
+  });
+
+  it('registro neutro → diegético sin música (#2)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can on a table' },
+      { format: fmt('documental sobrio'), product },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/natural diegetic sound/);
+  });
+
+  it('voz con registro bold → tono punchy además de la cadencia base (#3)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter says one line to camera' },
+      { format: elIcono, product },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('natural Mexican accent'); // cadencia base
+    expect(res.compiled.prompt).toMatch(/punchy/); // tono por registro
   });
 });
 
