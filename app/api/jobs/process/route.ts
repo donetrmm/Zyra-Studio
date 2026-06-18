@@ -6,7 +6,7 @@ import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { confirmCredits, failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
-import { advanceSequenceChain } from '@/lib/campaigns/orchestrator';
+import { advanceSequenceChain, storeChainFrame } from '@/lib/campaigns/orchestrator';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
@@ -17,7 +17,10 @@ export const dynamic = 'force-dynamic';
 const BodySchema = z.object({
   generationId: z.string().uuid(),
   action: z.enum(['submit', 'poll', 'advance_chain']),
-  // Solo para 'advance_chain': URL del fotograma del clip previo a heredar.
+  // Solo para 'advance_chain': PATH interno (references) del fotograma del clip
+  // previo a heredar. El finalize lo sube con la URL fresca.
+  lastFramePath: z.string().optional(),
+  // Compat: la URL cruda solo en jobs encolados antes del deploy.
   lastFrameUrl: z.string().url().optional(),
 });
 
@@ -80,8 +83,8 @@ export async function POST(req: Request) {
   // próxima escena colgada en 'sample'.
   if (action === 'advance_chain') {
     try {
-      if (generation.params?.chain && parsed.lastFrameUrl) {
-        await advanceSequenceChain(generation, parsed.lastFrameUrl);
+      if (generation.params?.chain && (parsed.lastFramePath || parsed.lastFrameUrl)) {
+        await advanceSequenceChain(generation, { path: parsed.lastFramePath, url: parsed.lastFrameUrl });
       }
     } catch (err) {
       console.error('[worker] avance de cadena falló', { generationId, err });
@@ -201,12 +204,24 @@ export async function POST(req: Request) {
     // debe tirar el clip ya servido (la escena queda 'planned', regenerable).
     if (generation.params?.chain && result.lastFrameUrl) {
       try {
-        await enqueueJob({
-          generationId: generation.id,
-          action: 'advance_chain',
-          lastFrameUrl: result.lastFrameUrl,
-          delaySeconds: 0,
-        });
+        // #10: descargar el fotograma AHORA, con la URL del proveedor fresca, y
+        // subirlo a references. El job de avance recibe el PATH interno — la URL
+        // efímera de Atlas nunca sobrevive al worker ni depende de cuándo corra.
+        const chain = generation.params.chain as { sequenceId: string; sceneIndex: number };
+        const lastFramePath = await storeChainFrame(
+          generation.workspace_id,
+          chain.sequenceId,
+          chain.sceneIndex,
+          result.lastFrameUrl,
+        );
+        if (lastFramePath) {
+          await enqueueJob({
+            generationId: generation.id,
+            action: 'advance_chain',
+            lastFramePath,
+            delaySeconds: 0,
+          });
+        }
       } catch (err) {
         console.error('[worker] no se pudo encolar el avance de cadena', { generationId, err });
       }

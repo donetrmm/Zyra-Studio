@@ -32,4 +32,32 @@ describe('buildContinuationPrompt', () => {
     expect(out).toContain('@image1 is a main character');
     expect(out).toContain('@image2 is the final frame of the previous shot');
   });
+
+  it('re-ancla idioma es-MX y lip-sync con diálogo + audio (#3)', () => {
+    const out = buildContinuationPrompt('She looks to camera. Dialogue: "Pruébalo."', 1, 1, {
+      language: 'es',
+      generateAudio: true,
+    });
+    expect(out).toContain('Synchronized on-camera speech');
+    expect(out).toContain('natural Mexican accent');
+  });
+
+  it('re-ancla el idioma inglés cuando la campaña es en inglés (#3)', () => {
+    const out = buildContinuationPrompt('A presenter says one line to camera', 1, 0, {
+      language: 'en',
+      generateAudio: true,
+    });
+    expect(out).toContain('must be in English');
+  });
+
+  it('sin audio no añade dirección de voz (#3)', () => {
+    const out = buildContinuationPrompt('Dialogue: "Hola"', 1, 0, { generateAudio: false });
+    expect(out).not.toContain('Synchronized on-camera speech');
+    expect(out).not.toContain('must be in');
+  });
+
+  it('clip de puro producto (sin voz) no añade idioma (#3)', () => {
+    const out = buildContinuationPrompt('The can rotates on marble', 1, 0, { generateAudio: true });
+    expect(out).not.toContain('must be in');
+  });
 });
