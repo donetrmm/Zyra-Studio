@@ -58,11 +58,11 @@ refund es local (mismo caso Veo/Kling).
 ## Cuerpo del request (`content` + params)
 
 `content` es un array; el primer item es el texto y los media van con `role`. El **orden de
-los media items define la numeración del sistema @** (@Image1 = 1er `reference_image`, etc.).
+los media items define la numeración del sistema @** (@image1 = 1er `reference_image`, etc.).
 
 | Item / param | Forma | Notas |
 |---|---|---|
-| texto | `{ type:"text", text }` | En R2V referencia archivos como `@Image1`, `@Video1`, `@Audio1` |
+| texto | `{ type:"text", text }` | En R2V referencia archivos como `@image1`, `@video1`, `@audio1` |
 | imagen | `{ type:"image_url", image_url:{url}, role }` | I2V: `first_frame` / `last_frame`. R2V: `reference_image` (hasta 9, <30 MB c/u) |
 | video | `{ type:"video_url", video_url:{url}, role:"reference_video" }` | R2V, hasta 3, 2–15 s combinados, <50 MB c/u, 480p–720p |
 | audio | `{ type:"audio_url", audio_url:{url}, role:"reference_audio" }` | R2V, hasta 3, ≤15 s combinados, <15 MB c/u |
@@ -101,15 +101,15 @@ de la demo (ajustable desde `/admin/pricing` sin nueva migración).
 
 ## El sistema de referencias @ (R2V)
 
-Cada archivo se cita en el prompt por tipo y orden de subida: `@Image1`, `@Video1`, `@Audio1`.
+Cada archivo se cita en el prompt por tipo y orden de subida: `@image1`, `@video1`, `@audio1`.
 **El orden de los arrays `image_urls`/`video_urls`/`audio_urls` debe coincidir con la
 numeración del prompt** — el handler pasa los paths en el mismo orden en que el Prompt
 Director los cita.
 
 Tres reglas (guías Morphic/RunDiffusion):
 1. Declarar el propósito exacto: "como fotograma inicial", "para el movimiento de cámara".
-2. Acotar qué parte usar: "solo el rostro y peinado de @Image1, no la ropa ni el fondo".
-3. Nunca dejar una referencia sin propósito ("usa @Image1" a secas es el error más común).
+2. Acotar qué parte usar: "solo el rostro y peinado de @image1, no la ropa ni el fondo".
+3. Nunca dejar una referencia sin propósito ("usa @image1" a secas es el error más común).
 
 Qué extrae el modelo de cada tipo:
 - **Imágenes** → composición, rasgos de personajes, detalles de producto, iluminación, estilo.
@@ -130,17 +130,17 @@ Reglas operativas: una acción y un movimiento de cámara por toma; complejidad 
 
 ## Técnicas avanzadas
 
-- **Extensión**: "Extiende @Video1 por X s" + acción de continuación. ⚠️ La duración de
+- **Extensión**: "Extiende @video1 por X s" + acción de continuación. ⚠️ La duración de
   generación = X (la extensión), NO el total final. Encadenando se superan los 15 s.
-- **Escena puente**: segmento generado que conecta el final de @Video1 con el inicio de
-  @Video2, describiendo la acción puente y pidiendo coincidencia de luz y paso.
-- **Reemplazo de personaje**: "En @Video1, reemplaza a [sujeto] por la persona de @Image1.
+- **Escena puente**: segmento generado que conecta el final de @video1 con el inicio de
+  @video2, describiendo la acción puente y pidiendo coincidencia de luz y paso.
+- **Reemplazo de personaje**: "En @video1, reemplaza a [sujeto] por la persona de @image1.
   Acciones cuadro a cuadro idénticas; escenario, luz y cámara sin cambios."
 - **Plantilla replicable** (base de las plantillas vivas de V2): "Referencia el estilo y la
-  estructura de @Video1 (cámara, transiciones, ritmo, color grading), pero reemplaza el
-  producto por el de @Image1."
+  estructura de @video1 (cámara, transiciones, ritmo, color grading), pero reemplaza el
+  producto por el de @image1."
 - **Consistencia de personaje**: misma hoja maestra en TODAS las generaciones + "apariencia
-  exacta de @ImageN"; variaciones de ropa/expresión solo en texto.
+  exacta de @imageN"; variaciones de ropa/expresión solo en texto.
 
 ## Longitud del prompt
 
