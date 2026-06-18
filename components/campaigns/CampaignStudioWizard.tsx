@@ -52,10 +52,13 @@ const MATCHER_ERROR_HINTS: Record<string, string> = {
   sin_match: 'Gemini no logró mapear tus ideas al catálogo',
 };
 
+// Etiquetas en lenguaje simple (el usuario no es del medio): los valores
+// internos siguen siendo mixed/awareness/conversion (CaptionGoal). Solo deciden
+// el llamado a la acción del caption sugerido, no qué se genera.
 const GOALS = [
-  { value: 'mixed', label: 'Mixto (awareness + conversión)' },
-  { value: 'awareness', label: 'Awareness' },
-  { value: 'conversion', label: 'Conversión' },
+  { value: 'mixed', label: 'Ambos: dar a conocer y vender' },
+  { value: 'awareness', label: 'Que conozcan el producto' },
+  { value: 'conversion', label: 'Que la gente compre' },
 ] as const;
 
 // Wizard sin walls (specs/v2/06 §4.4): subir fotos del producto es el camino
@@ -438,7 +441,7 @@ export function CampaignStudioWizard({
 
         <section className="space-y-1.5">
           <Label htmlFor="campaign-goal" className="text-[12.5px] font-medium text-foreground/80">
-            Objetivo
+            Texto sugerido para publicar
           </Label>
           <Select value={goal} onValueChange={setGoal}>
             <SelectTrigger id="campaign-goal" className="w-full">
@@ -452,6 +455,9 @@ export function CampaignStudioWizard({
               ))}
             </SelectContent>
           </Select>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Solo ajusta el llamado a la acción del caption; lo puedes editar después.
+          </p>
         </section>
 
         <section>
