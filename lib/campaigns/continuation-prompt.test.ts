@@ -61,9 +61,9 @@ describe('buildContinuationPrompt', () => {
     expect(out).not.toContain('must be in');
   });
 
-  it('ancla el producto en cada frame para evitar morphing al final del clip (#B)', () => {
+  it('ancla el producto contra distorsión sin congelar el movimiento (#B)', () => {
     const out = buildContinuationPrompt('Scene.', 1, 0);
-    expect(out).toMatch(/identical in EVERY frame/);
-    expect(out).toMatch(/static print/);
+    expect(out).toMatch(/must never warp, melt, morph or stretch/);
+    expect(out).toMatch(/still print that does not animate/);
   });
 });

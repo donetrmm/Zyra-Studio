@@ -70,9 +70,9 @@ describe('compile seedance', () => {
     expect(prompt).toContain('@image1 is the product');
     expect(prompt).toContain('@image3 is Maya');
     // Fidelidad y escena
-    expect(prompt).toContain('exact packaging');
-    // Estabilidad temporal del producto (#B): no morphing a lo largo del clip.
-    expect(prompt).toMatch(/identical in every frame/i);
+    expect(prompt).toContain('logo placement and proportions');
+    // Anti-distorsión del producto (#B) sin congelar el movimiento.
+    expect(prompt).toMatch(/must never warp, melt or distort/i);
     expect(prompt).toContain('sunlit home kitchen');
     // Dirección del formato
     expect(prompt).toContain('selfie handheld');

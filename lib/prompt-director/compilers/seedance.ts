@@ -140,7 +140,7 @@ export function buildReferences(ctx: DirectorContext): {
       path,
       'product',
       (n) =>
-        `@image${n} is the product — exact packaging, colors, logo placement and proportions, identical in every frame from first to last; it must not warp, morph or change shape, and any printed photo, label or text on it stays a static print (it never animates or comes alive).`,
+        `@image${n} is the product — match its design, colors, logo placement and proportions faithfully; it can be moved, held or seen from any angle, but it must never warp, melt or distort, and any printed photo or text on it stays a still print that does not animate or come alive.`,
     );
   }
 
