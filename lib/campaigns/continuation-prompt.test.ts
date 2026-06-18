@@ -60,4 +60,10 @@ describe('buildContinuationPrompt', () => {
     const out = buildContinuationPrompt('The can rotates on marble', 1, 0, { generateAudio: true });
     expect(out).not.toContain('must be in');
   });
+
+  it('ancla el producto en cada frame para evitar morphing al final del clip (#B)', () => {
+    const out = buildContinuationPrompt('Scene.', 1, 0);
+    expect(out).toMatch(/identical in EVERY frame/);
+    expect(out).toMatch(/static print/);
+  });
 });

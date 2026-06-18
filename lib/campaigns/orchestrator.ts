@@ -305,7 +305,9 @@ export function buildContinuationPrompt(
   let idx = 0;
   for (let i = 0; i < productCount; i++) {
     idx++;
-    refs.push(`@image${idx} is the product — keep it identical (same colors, proportions, details).`);
+    refs.push(
+      `@image${idx} is the product — keep it identical in EVERY frame from first to last (same colors, proportions, details); it must not warp, morph, melt, stretch or change shape over the clip, and any printed photo, label or text on it stays a static print that never animates or comes alive.`,
+    );
   }
   for (let i = 0; i < characterCount; i++) {
     idx++;
