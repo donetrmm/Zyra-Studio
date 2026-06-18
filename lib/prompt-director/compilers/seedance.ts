@@ -13,8 +13,11 @@ import type {
 } from '../types';
 
 // Cláusula negativa fija: el video nunca renderiza texto ni rostros reales.
+// OJO: NO prohibir "logos" a secas — el logo impreso en el empaque del producto
+// referenciado es branding legítimo y central del anuncio. Solo se prohíbe que el
+// modelo INVENTE/añada logos o tipografía que no estén físicamente en el producto.
 const NEGATIVE_CLAUSE =
-  'No on-screen text, no captions, no subtitles, no watermarks, no rendered logos or typography. No real identifiable faces.';
+  'No on-screen text overlays, captions, subtitles or watermarks added by the model. Do not invent or add any logo or typography that is not physically part of the referenced product. No real identifiable faces.';
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
@@ -28,8 +31,9 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 };
 
 // Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en
-// escena. Del mismo ejemplo validado a mano.
-const SPEECH_DIRECTION =
+// escena. Del mismo ejemplo validado a mano. Exportada: la reusan los clips de
+// continuación de secuencia para no perder el lip-sync a mitad del anuncio.
+export const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
 // Heurística determinista: la dirección de habla EN CÁMARA (lip sync) SOLO entra
@@ -148,7 +152,7 @@ export function buildReferences(ctx: DirectorContext): {
       character.masterImagePath,
       'character',
       (n) =>
-        `@image${n} is ${character.name} — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
+        `@image${n} is ${character.name} — this reference fixes identity: keep the exact same face, hair and build. Take only face, hair and build from it, not its clothing or background. Wardrobe and expression follow ${character.name}'s description below, changing only where the scene specifies.`,
       'rostro, peinado y complexión; no la ropa ni el fondo',
     );
     for (const path of character.angleImagePaths?.slice(0, anglesPer) ?? []) {
@@ -191,6 +195,25 @@ export function buildReferences(ctx: DirectorContext): {
   }
 
   return { references, lines, warnings };
+}
+
+// Términos que indican que la luz/óptica YA está dirigida (en el scenePrompt o
+// en la dirección del formato): si están, no se inyecta el default para no
+// duplicar ni contradecir. NO incluye tipos de plano (close-up, etc.): esos son
+// encuadre, no luz.
+const LIGHT_OR_LENS_RE =
+  /\b(light|lighting|lit|backlit|key ?light|fill light|rim light|softbox|golden hour|neon|silhouette|depth of field|bokeh|shallow focus|deep focus|wide[- ]angle|telephoto|lens|luz|iluminaci|contraluz|profundidad de campo)\b/i;
+
+// Default determinista de cinematografía (luz + óptica) por registro del formato
+// (#A). Da una base coherente cuando ni el scenePrompt ni el formato la
+// especifican: UGC/handheld → luz natural y foco profundo; hero/cinematic →
+// key light controlada y profundidad de campo corta.
+function cinematographyDefault(register: string): string {
+  const handheld =
+    /handheld|selfie|ugc|vlog|casual|conversacional|primera persona|testimon|a pie de calle|\bcalle\b/i.test(register);
+  return handheld
+    ? 'Cinematography: natural available light with soft, realistic shadows; handheld camera feel; deep focus so the whole scene reads clearly.'
+    : 'Cinematography: controlled key light with soft fill and gentle rim separation; shallow depth of field that keeps the product crisp; clean filmic contrast.';
 }
 
 export function compileSeedance(
@@ -240,6 +263,18 @@ export function compileSeedance(
     sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
   }
   for (const character of ctx.characters ?? []) {
+    // Sin descripción (describeFromMaster es best-effort y el usuario pudo no
+    // teclear nada): la hoja maestra fija la cara, pero el modelo queda sin
+    // vestuario ni actitud → personaje inconsistente entre tomas. Se avisa y se
+    // omite la línea vacía 'Nombre: .' en vez de empujarla en silencio.
+    if (!character.description?.trim()) {
+      warnings.push(
+        character.masterImagePath
+          ? `identidad: ${character.name} no tiene descripción; la hoja maestra fija la cara pero el vestuario y la actitud quedan sin dirección y variarán entre tomas`
+          : `identidad: ${character.name} no tiene descripción ni hoja maestra; su apariencia no está definida`,
+      );
+      continue;
+    }
     const { text, ageWordsRemoved } = describeCharacter(character, {
       fidelity: !character.masterImagePath,
     });
@@ -265,6 +300,18 @@ export function compileSeedance(
     const d = directionFor(ctx.format);
     const direction = [d.framing, d.register, d.pacing].filter(Boolean).join(' ');
     if (direction) sections.push(direction);
+  }
+
+  // Cinematografía por defecto (#A): base de luz/óptica coherente cuando ni la
+  // acción ni el formato la especifican. Se omite en formatos estilizados (look
+  // propio) y cuando hay referencia de look/entorno o video de plantilla (el
+  // modelo extrae la luz de ahí).
+  const hasLookReference = (ctx.extraImagePaths?.length ?? 0) > 0 || !!ctx.templateVideoPath;
+  const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
+    `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
+  );
+  if (!stylized && !hasLookReference && !lightAlreadyDirected) {
+    sections.push(cinematographyDefault(ctx.format?.register ?? ''));
   }
 
   // Audio dirigido: qué se oye, no "agrega música".

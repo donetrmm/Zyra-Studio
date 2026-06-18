@@ -325,6 +325,113 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     expect(res.compiled.warnings.some((w) => w.includes('identidad'))).toBe(true);
   });
+
+  it('producto sin imágenes: fidelidad por atributos, sin apuntar a imágenes inexistentes (#4)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/text-to-video', scenePrompt: 'The can rests on a marble counter' },
+      { product: { name: 'Lumen', visualDetails: 'slim teal aluminum can', imagePaths: [] } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    expect(prompt).not.toContain('as shown in its reference images');
+    expect(prompt).toContain('declared attributes');
+  });
+
+  it('personaje con hoja maestra: vestuario sigue a la descripción, sin contradecir la referencia (#5)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can and smiles' },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    expect(prompt).toContain('@image3 is Maya');
+    // Ya no se ordena "wardrobe follows the scene" a secas (contradecía la descripción).
+    expect(prompt).not.toContain('wardrobe and expression follow the scene description');
+    expect(prompt).toContain("Wardrobe and expression follow Maya's description");
+  });
+
+  it('personaje inventado (sin hoja maestra): apariencia por descripción, sin imagen inexistente (#4 análogo)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter holds the can to camera' },
+      {
+        product: fullContext().product,
+        characters: [{ name: 'Nora', description: 'auburn hair, denim jacket, calm delivery', masterImagePath: '' }],
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    expect(prompt).toContain('Nora: auburn hair');
+    expect(prompt).not.toContain('as in the character reference image');
+    expect(prompt).toContain('Keep this exact appearance consistent');
+  });
+
+  it('personaje con hoja maestra pero SIN descripción: warning y sin línea vacía (#7)', () => {
+    const ctx = fullContext();
+    ctx.characters = [{ name: 'Mara', description: '   ', masterImagePath: 'm.png' }];
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can' },
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt, warnings } = res.compiled;
+    // No se mete la línea descriptiva vacía 'Mara: .'
+    expect(prompt).not.toMatch(/Mara:\s*\./);
+    // Pero la @image del Cast SÍ ancla la cara.
+    expect(prompt).toContain('is Mara');
+    expect(warnings.join(' ')).toMatch(/identidad: Mara/);
+  });
+});
+
+// ============ Cinematografía por defecto (#A) ============
+
+describe('cinematografía por defecto', () => {
+  const fmtNoLight = (register: string, camera = 'a nivel de ojos') =>
+    fromFormatRow({
+      slug: 'x', name: 'X', register, camera_style: camera, pacing: 'natural',
+      required_refs: ['product'], default_duration_s: 8, default_audio: true,
+    });
+  const product = { name: 'Lumen', imagePaths: ['p1.png'] };
+  const run = (ctx: DirectorContext, scenePrompt = 'She lifts the can and smiles') =>
+    compile({ modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt }, ctx);
+
+  it('UGC/handheld → luz natural y foco profundo', () => {
+    const res = run({ format: fmtNoLight('casual, conversacional UGC'), product });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/natural available light/);
+  });
+
+  it('hero/cinematic → key light controlada y DOF corto', () => {
+    const res = run({ format: fmtNoLight('cinematográfico, épico'), product }, 'The can sits on a table');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/controlled key light/);
+  });
+
+  it('formato estilizado no recibe default de luz', () => {
+    const res = run({ format: elIcono, product }, 'The can floats in a surreal void');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
+  });
+
+  it('no duplica si el formato ya dirige la luz (vozCercana trae "luz natural")', () => {
+    const res = run(fullContext());
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
+  });
+
+  it('no aplica cuando hay referencia de look/entorno (el modelo extrae la luz de ahí)', () => {
+    const res = run({ format: fmtNoLight('casual UGC', ''), product, extraImagePaths: ['style-ref.png'] });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
+  });
 });
 
 // ============ Validadores ============
