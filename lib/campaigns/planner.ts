@@ -402,7 +402,12 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         // El formato de video lo decide la campaña (034), sin excepciones por
         // slug: la elección explícita del usuario manda.
         aspectRatio: input.aspectRatio,
-        scene: scene.fragment,
+        // El fragmento de scene_library SOLO se impone cuando la acción salió de
+        // una semilla. Si el usuario describió su propia acción (con su entorno),
+        // un fragmento genérico ("estudio minimal") contradice ese entorno y
+        // Seedance recibe dos escenas en conflicto. Misma decisión que la rama
+        // de secuencia (autocontenida).
+        scene: usedSeed ? scene.fragment : '',
         audio: format.defaultAudio,
         characterIds,
         scenePrompt,
