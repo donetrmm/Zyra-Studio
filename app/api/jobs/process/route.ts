@@ -184,6 +184,23 @@ export async function POST(req: Request) {
     } catch (err) {
       console.error('[worker] fail_generation falló', { generationId, err });
     }
+    // El trigger sync_campaign_item_from_generation pone el item en 'failed'
+    // pero NO la razón (warnings quedaba []). Si esta generación es de un item
+    // de campaña, anotar un motivo accionable para que la UI lo muestre y el
+    // usuario sepa qué hacer (ajustar la escena / regenerar). Best-effort.
+    try {
+      const reason =
+        result.code === 'safety'
+          ? 'El proveedor rechazó esta escena por moderación. Ajusta la descripción y vuelve a generarla.'
+          : result.code === 'timeout'
+            ? 'La generación tardó demasiado y se canceló. Reintenta cuando quieras.'
+            : result.code === 'rate_limit'
+              ? 'El proveedor está saturado ahora mismo. Reintenta en un momento.'
+              : `No se pudo generar: ${result.message}`;
+      await admin.from('campaign_items').update({ warnings: [reason] }).eq('generation_id', generation.id);
+    } catch (err) {
+      console.error('[worker] no se pudo anotar el motivo del fallo en el item', { generationId, err });
+    }
     return NextResponse.json({ ok: true, ack: 'failed' });
   }
 
