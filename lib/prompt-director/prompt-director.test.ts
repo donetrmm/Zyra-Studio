@@ -76,14 +76,42 @@ describe('compile seedance', () => {
     expect(prompt).toContain('sunlit home kitchen');
     // Dirección del formato
     expect(prompt).toContain('selfie handheld');
-    // Cláusula negativa fija
+    // Cláusula negativa fija (texto/logo siempre). Aquí HAY personaje del Cast
+    // (Maya, cara anclada) → NO se prohíben rostros (sería contradicción).
     expect(prompt).toContain('No on-screen text');
-    expect(prompt).toContain('No real identifiable faces');
+    expect(prompt).not.toMatch(/No real, identifiable human faces/);
     // Params
     expect(params.operation).toBe('reference2video');
     expect(params.duration).toBe(8);
     expect(params.aspectRatio).toBe('9:16');
     expect(params.generateAudio).toBe(true);
+  });
+
+  it('no prohíbe rostros cuando hay personaje del Cast o habla en cámara (anti-contradicción lip-sync)', () => {
+    // Clip de puro producto, sin personaje ni habla → SÍ se prohíben rostros
+    // reales (evita una persona espuria).
+    const productOnly = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins on marble and stops label-forward' },
+      { format: elIcono, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+    );
+    expect(productOnly.ok).toBe(true);
+    if (productOnly.ok) expect(productOnly.compiled.prompt).toMatch(/No real, identifiable human faces/);
+
+    // Personaje del Cast con cara anclada (Maya) → NO se prohíben rostros.
+    const withCast = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can and smiles' },
+      fullContext(),
+    );
+    expect(withCast.ok).toBe(true);
+    if (withCast.ok) expect(withCast.compiled.prompt).not.toMatch(/No real, identifiable human faces/);
+
+    // Sin Cast pero con habla EN cámara (lip-sync) → tampoco se prohíben rostros.
+    const speaking = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter looks to camera and says one honest line' },
+      { format: vozCercana, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+    );
+    expect(speaking.ok).toBe(true);
+    if (speaking.ok) expect(speaking.compiled.prompt).not.toMatch(/No real, identifiable human faces/);
   });
 
   it('con diálogo explícito y audio: encabezado, lip sync y voz natural anti-robótica', () => {

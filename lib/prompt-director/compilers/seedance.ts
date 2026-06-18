@@ -12,12 +12,19 @@ import type {
   DirectorContext,
 } from '../types';
 
-// Cláusula negativa fija: el video nunca renderiza texto ni rostros reales.
+// Cláusula negativa fija (texto/logo/watermark): SIEMPRE.
 // OJO: NO prohibir "logos" a secas — el logo impreso en el empaque del producto
 // referenciado es branding legítimo y central del anuncio. Solo se prohíbe que el
 // modelo INVENTE/añada logos o tipografía que no estén físicamente en el producto.
 const NEGATIVE_CLAUSE =
-  'No on-screen text overlays, captions, subtitles or watermarks added by the model. Do not invent or add any logo or typography that is not physically part of the referenced product. No real identifiable faces.';
+  'No on-screen text overlays, captions, subtitles or watermarks added by the model. Do not invent or add any logo or typography that is not physically part of the referenced product.';
+
+// Guard anti-rostros: SOLO cuando NINGÚN rostro es intencional (clip de puro
+// producto/abstracto), para que el modelo no fabrique una persona real espuria.
+// Si hay personaje del Cast (cara anclada por referencia) o habla EN cámara
+// (lip-sync), el rostro ES el objetivo del clip y prohibir "rostros reales" se
+// contradice con la referencia y la dirección de lip-sync → degrada la cara.
+const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
@@ -361,6 +368,11 @@ export function compileSeedance(
   }
 
   sections.push(NEGATIVE_CLAUSE);
+  // Guard anti-rostros solo si NINGÚN rostro es intencional: sin personaje del
+  // Cast (cara anclada) y sin habla en cámara (lip-sync). Con cualquiera de los
+  // dos, el rostro es el objetivo del clip y la cláusula lo contradiría.
+  const facesIntended = (ctx.characters ?? []).some((c) => c.masterImagePath) || speaker;
+  if (!facesIntended) sections.push(NO_REAL_FACES_CLAUSE);
 
   const hasRefs = references.length > 0;
   let prompt = sections.filter(Boolean).join('\n');
