@@ -236,7 +236,17 @@ Por cada idea distinta devuelve un match:
   varias acciones/beats o durationS es 8 o más, estructúralo como timeline con
   marcadores de segundos que cubran exactamente durationS
   ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
-  producto protagonista. Diálogo: SOLO si el usuario pide que alguien hable o
+  producto protagonista. DIRECCIÓN DE CÁMARA: cada tramo (o la frase única) abre
+  con un plano y, como máximo, UN movimiento de cámara, en terminología real de
+  cine: tipo de plano (wide shot, medium shot, close-up, extreme close-up,
+  over-the-shoulder, POV), movimiento (dolly in/out, tracking, pan, tilt, crane,
+  handheld, steadicam, rack focus) y, si suma, el ángulo (low/high/eye-level).
+  Una acción + un movimiento por toma — nunca dos movimientos en el mismo tramo.
+  El tramo de cierre va en plano cerrado del producto (close-up / product hero)
+  con la etiqueta de frente. Ejemplo: "0-3s: medium shot, eye level — she lifts
+  the can to camera. 3-7s: slow dolly in to close-up — she takes a sip and nods.
+  7-9s: tight product close-up, shallow depth of field — the can rests, label
+  forward". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
   a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
@@ -248,7 +258,10 @@ Por cada idea distinta devuelve un match:
   marcadores de tiempo explicitos, o que claramente NO cabe coherente en un solo
   clip de <=15s), pártela en escenas cortas: array de objetos
   {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
-  (re-describe escenario y personaje, el modelo no recuerda entre clips)",
+  (re-describe escenario y personaje, el modelo no recuerda entre clips), que
+  abre con su plano y UN movimiento de camara en terminologia real (wide/medium/
+  close-up; dolly in, tracking, pan, rack focus) y, si es el cierre, plano
+  cerrado del producto",
   "durationS":entero 4-8 (una escena es un beat corto),"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
