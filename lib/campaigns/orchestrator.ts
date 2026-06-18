@@ -306,13 +306,13 @@ export function buildContinuationPrompt(
   for (let i = 0; i < productCount; i++) {
     idx++;
     refs.push(
-      `@image${idx} is the product — keep its design, colors, proportions and details faithful; it may be moved, held or seen from different angles, but it must never warp, melt, morph or stretch, and any printed photo or text on it stays a still print that does not animate or come alive.`,
+      `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
     );
   }
   for (let i = 0; i < characterCount; i++) {
     idx++;
     refs.push(
-      `@image${idx} is a main character — keep the exact same face, hair and build, identical in every shot; only wardrobe and expression follow the scene.`,
+      `@image${idx} is a main character — keep the same face, hair and build; only wardrobe and expression follow the scene.`,
     );
   }
   idx++;

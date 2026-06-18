@@ -69,10 +69,10 @@ describe('compile seedance', () => {
     expect(references.map((r) => r.role)).toEqual(['product', 'product', 'character']);
     expect(prompt).toContain('@image1 is the product');
     expect(prompt).toContain('@image3 is Maya');
-    // Fidelidad y escena
-    expect(prompt).toContain('logo placement and proportions');
-    // Anti-distorsión del producto (#B) sin congelar el movimiento.
-    expect(prompt).toMatch(/must never warp, melt or distort/i);
+    // Fidelidad y escena (línea de producto concisa, guide-backed sin relleno)
+    expect(prompt).toContain('logo and proportions consistent');
+    // Anti-animación de la foto impresa, sin micromanejo que congele el clip.
+    expect(prompt).toMatch(/still print, not animated/i);
     expect(prompt).toContain('sunlit home kitchen');
     // Dirección del formato
     expect(prompt).toContain('selfie handheld');
@@ -377,9 +377,10 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     const { prompt } = res.compiled;
     expect(prompt).toContain('@image3 is Maya');
-    // Ya no se ordena "wardrobe follows the scene" a secas (contradecía la descripción).
-    expect(prompt).not.toContain('wardrobe and expression follow the scene description');
-    expect(prompt).toContain("Wardrobe and expression follow Maya's description");
+    // La línea @ ancla cara/pelo/complexión y excluye la ROPA de la referencia
+    // (regla de alcance de la guía), resolviendo el conflicto de vestuario sin
+    // micromanejo verboso.
+    expect(prompt).toMatch(/use only the face, hair and build from this reference \(not its clothing or background\)/);
   });
 
   it('personaje inventado (sin hoja maestra): apariencia por descripción, sin imagen inexistente (#4 análogo)', () => {

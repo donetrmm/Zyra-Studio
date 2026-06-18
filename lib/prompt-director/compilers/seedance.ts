@@ -122,14 +122,20 @@ export function buildReferences(ctx: DirectorContext): {
   let imageN = 0;
   let droppedImages = 0;
 
-  const pushImage = (storagePath: string, role: CompiledReference['role'], line: (n: number) => string, scope?: string) => {
+  const pushImage = (
+    storagePath: string,
+    role: CompiledReference['role'],
+    line: ((n: number) => string) | null,
+    scope?: string,
+  ): number | null => {
     if (imageN >= 9) {
       droppedImages += 1;
-      return;
+      return null;
     }
     imageN += 1;
     references.push({ storagePath, kind: 'image', role, scope });
-    lines.push(line(imageN));
+    if (line) lines.push(line(imageN));
+    return imageN;
   };
 
   // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
@@ -140,7 +146,7 @@ export function buildReferences(ctx: DirectorContext): {
       path,
       'product',
       (n) =>
-        `@image${n} is the product — match its design, colors, logo placement and proportions faithfully; it can be moved, held or seen from any angle, but it must never warp, melt or distort, and any printed photo or text on it stays a still print that does not animate or come alive.`,
+        `@image${n} is the product — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
     );
   }
 
@@ -160,11 +166,20 @@ export function buildReferences(ctx: DirectorContext): {
       character.masterImagePath,
       'character',
       (n) =>
-        `@image${n} is ${character.name} — this reference fixes identity: keep the exact same face, hair and build. Take only face, hair and build from it, not its clothing or background. Wardrobe and expression follow ${character.name}'s description below, changing only where the scene specifies.`,
+        `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
       'rostro, peinado y complexión; no la ropa ni el fondo',
     );
+    // Ángulos extra: se citan AGRUPADOS en una sola línea (no una por imagen,
+    // que apilaba directivas redundantes y saturaba el prompt).
+    const angleNums: number[] = [];
     for (const path of character.angleImagePaths?.slice(0, anglesPer) ?? []) {
-      pushImage(path, 'character', (n) => `@image${n} shows ${character.name} from another angle, for consistency.`);
+      const an = pushImage(path, 'character', null);
+      if (an) angleNums.push(an);
+    }
+    if (angleNums.length === 1) {
+      lines.push(`@image${angleNums[0]} shows ${character.name} from another angle, for consistency.`);
+    } else if (angleNums.length > 1) {
+      lines.push(`@image${angleNums.join(' and @image')} show ${character.name} from other angles, for consistency.`);
     }
   }
 

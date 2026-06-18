@@ -61,9 +61,9 @@ describe('buildContinuationPrompt', () => {
     expect(out).not.toContain('must be in');
   });
 
-  it('ancla el producto contra distorsión sin congelar el movimiento (#B)', () => {
+  it('ancla el producto contra animación de la foto impresa, conciso (#B)', () => {
     const out = buildContinuationPrompt('Scene.', 1, 0);
-    expect(out).toMatch(/must never warp, melt, morph or stretch/);
-    expect(out).toMatch(/still print that does not animate/);
+    expect(out).toMatch(/design, colors and proportions consistent/);
+    expect(out).toMatch(/still print, not animated/);
   });
 });
