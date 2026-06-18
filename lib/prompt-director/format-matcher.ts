@@ -246,7 +246,10 @@ Por cada idea distinta devuelve un match:
   con la etiqueta de frente. Ejemplo: "0-3s: medium shot, eye level — she lifts
   the can to camera. 3-7s: slow dolly in to close-up — she takes a sip and nods.
   7-9s: tight product close-up, shallow depth of field — the can rests, label
-  forward". Diálogo: SOLO si el usuario pide que alguien hable o
+  forward". SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
+  porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
+  escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
   a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
