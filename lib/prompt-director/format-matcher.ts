@@ -232,11 +232,18 @@ Por cada idea distinta devuelve un match:
   Una acción simple = 4-6s; varias acciones/beats = más. null para usar la
   duración default del formato.
 - scenePrompt: la acción concreta de la idea, en INGLÉS, con el producto como
-  ancla. Si la acción es UNA sola y simple: 1-2 frases. Si la idea implica
-  varias acciones/beats o durationS es 8 o más, estructúralo como timeline con
-  marcadores de segundos que cubran exactamente durationS
-  ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
-  producto protagonista. DIRECCIÓN DE CÁMARA: cada tramo (o la frase única) abre
+  ancla. REGLA CLAVE: un clip = UNA toma continua — misma escena, misma locación,
+  mismo sujeto; la cámara se MUEVE (dolly, pan, rack focus) pero NUNCA corta a
+  otro lugar. Si el anuncio CAMBIA de escena/locación/sujeto/momento (un corte:
+  de un selfie a la pantalla de un celular, a un cuadro en la pared, a una
+  repisa…), NO cabe en un clip: parte en varias escenas (campo scenes, abajo).
+  Usa scenePrompt (clip único) SOLO cuando todo transcurre en esa única toma
+  continua. Si la
+  acción es UNA sola y simple: 1-2 frases. Si esa toma continua tiene varios
+  beats o durationS es 8 o más, estructúralo como timeline con marcadores de
+  segundos que cubran exactamente durationS ("0-3s: ... 3-7s: ... 7-9s: ..."),
+  una acción por tramo, TODOS en la misma escena, y el cierre con el producto
+  protagonista. DIRECCIÓN DE CÁMARA: cada tramo (o la frase única) abre
   con un plano y, como máximo, UN movimiento de cámara, en terminología real de
   cine: tipo de plano (wide shot, medium shot, close-up, extreme close-up,
   over-the-shoulder, POV), movimiento (dolly in/out, tracking, pan, tilt, crane,
@@ -257,9 +264,14 @@ Por cada idea distinta devuelve un match:
   acción usando lo que VES: colores, materiales, contexto físico real del
   producto y apariencia real de los personajes. Si la idea solo nombra un
   formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
-- scenes: si UNA idea es un anuncio multi-escena YA guionizado (con actos o
-  marcadores de tiempo explicitos, o que claramente NO cabe coherente en un solo
-  clip de <=15s), pártela en escenas cortas: array de objetos
+- scenes: SIEMPRE que el anuncio tenga MÁS DE UNA escena/plano distinto —
+  locaciones distintas, cortes entre sujetos, saltos de tiempo, o un guión con
+  varios momentos— pártela en escenas, UNA por clip. Cada generación es una toma
+  continua y NO puede cortar de un escenario a otro, así que cada escena distinta
+  necesita su propio clip. Esto aplica AUNQUE el total quepa en 15s: p. ej. 4
+  momentos en 4 lugares = 4 clips, no un clip de 15s con cortes internos (eso
+  sale incoherente). Solo deja UN clip cuando de verdad es una única toma
+  continua. Cada escena es un objeto corto:
   {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
   (re-describe escenario y personaje, el modelo no recuerda entre clips), que
   abre con su plano y UN movimiento de camara en terminologia real (wide/medium/
