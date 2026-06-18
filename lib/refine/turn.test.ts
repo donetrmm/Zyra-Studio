@@ -23,6 +23,23 @@ describe('applyDraftPatch', () => {
     const out = applyDraftPatch(emptyDraft(null), { shot: 'toma-inventada' });
     expect(out.shot).toBeNull();
   });
+
+  it('descarta cambios estructurales alucinados: formato y aspectRatio (#12)', () => {
+    const d = emptyDraft('11111111-1111-4111-8111-111111111111');
+    const out = applyDraftPatch(d, {
+      scenePrompt: 'persona muestra el producto',
+      aspectRatio: '21:9',
+      formatId: '22222222-2222-4222-8222-222222222222',
+      customFormat: {
+        slug: 'x', name: 'X', description: '', register: '', cameraStyle: '', pacing: '',
+        requiredRefs: ['product'], defaultDurationS: 8, defaultAudio: true,
+      },
+    });
+    expect(out.scenePrompt).toBe('persona muestra el producto'); // el cambio legítimo sí pasa
+    expect(out.aspectRatio).toBe(d.aspectRatio); // null — el modelo no cambia el aspect ratio
+    expect(out.formatId).toBe(d.formatId); // no cambia el formato
+    expect(out.customFormat).toBe(d.customFormat); // null
+  });
 });
 
 describe('clampStage', () => {

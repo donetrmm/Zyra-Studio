@@ -206,7 +206,7 @@ export function RefineView({
             <div className="border-t border-border/40 px-4 py-3">
               <ReferenceImagesUploader
                 label="Referencias del creativo"
-                hint="Producto, empaque o entorno: lo que el modelo debe respetar fiel."
+                hint="Referencia de entorno o estilo a respetar (el producto y el empaque fieles vienen del Brand Kit)."
                 images={refImages}
                 onChange={(imgs) => {
                   setRefImages(imgs);

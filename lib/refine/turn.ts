@@ -7,9 +7,18 @@ import type { FormatDirection } from '@/lib/prompt-director/types';
 import { MAX_TURNS, STAGES, type RefineDraft, type Stage } from './types';
 
 export function applyDraftPatch(draft: RefineDraft, patch: Partial<RefineDraft>): RefineDraft {
-  const next = { ...draft, ...patch };
+  // Campos ESTRUCTURALES que un turno del modelo no debe mutar: el formato
+  // (formatId/customFormat) se fija al entrar al refinado y el aspectRatio es
+  // decisión de campaña (034). El system prompt no los pide; si Gemini los emite
+  // es alucinación. Descartarlos evita persistir un aspect ratio inválido (rompe
+  // la composición) o cambiar el formato sin que el usuario lo pida.
+  const safePatch: Partial<RefineDraft> = { ...patch };
+  delete safePatch.formatId;
+  delete safePatch.customFormat;
+  delete safePatch.aspectRatio;
+  const next = { ...draft, ...safePatch };
   // El shot debe existir en el catálogo; si Gemini alucina un slug, se ignora.
-  if (patch.shot !== undefined && patch.shot !== null && !shotBySlug(patch.shot)) {
+  if (safePatch.shot !== undefined && safePatch.shot !== null && !shotBySlug(safePatch.shot)) {
     next.shot = draft.shot;
   }
   return next;
