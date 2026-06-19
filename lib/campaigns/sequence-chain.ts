@@ -46,3 +46,10 @@ export function regenModesFor<T extends ChainItem>(
   const available = hasNext && !isFirst;
   return { onlyThis: available, thisAndForward: available };
 }
+
+// ¿La secuencia de este item va en modo-locación? Sí cuando tiene location_id:
+// se genera SIN encadenar (cada escena independiente, re-anclando la locación).
+// Todas las escenas de una secuencia comparten el mismo location_id.
+export function isLocationMode(item: { location_id: string | null }): boolean {
+  return item.location_id != null;
+}

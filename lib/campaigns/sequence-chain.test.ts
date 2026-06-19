@@ -71,3 +71,14 @@ describe('regenModesFor', () => {
     });
   });
 });
+
+import { isLocationMode } from './sequence-chain';
+
+describe('isLocationMode', () => {
+  it('true cuando el item tiene location_id', () => {
+    expect(isLocationMode({ location_id: 'loc-1' })).toBe(true);
+  });
+  it('false cuando location_id es null', () => {
+    expect(isLocationMode({ location_id: null })).toBe(false);
+  });
+});
