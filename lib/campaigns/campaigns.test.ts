@@ -242,6 +242,31 @@ describe('buildDirectedPlan', () => {
     expect(items[0].scenePrompt).toBe('A dog carries the product through a park, tail wagging');
   });
 
+  it('no impone fragmento de scene_library cuando el usuario dio su propia acción (#C)', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('mundo-imposible'), count: 1, durationS: null,
+            scenePrompt: 'A dog carries the product through a park', sceneSummary: null,
+            characterIds: [], invented: [], scenes: [], sequenceLabel: null,
+          },
+          {
+            format: fmt('el-icono'), count: 1, durationS: null,
+            scenePrompt: null, sceneSummary: null,
+            characterIds: [], invented: [], scenes: [], sequenceLabel: null,
+          },
+        ],
+      }),
+    );
+    const directed = items.find((i) => i.formatSlug === 'mundo-imposible');
+    const seeded = items.find((i) => i.formatSlug === 'el-icono');
+    // Acción del usuario → sin fragmento impuesto (evita dos entornos en conflicto).
+    expect(directed?.scene).toBe('');
+    // Semilla → conserva el fragmento de scene_library.
+    expect(seeded?.scene).not.toBe('');
+  });
+
   it('las escenas de una secuencia no heredan fragmento de scene_library (autocontenido)', () => {
     const items = buildDirectedPlan(
       directedInput({

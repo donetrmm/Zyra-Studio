@@ -5,6 +5,13 @@ import { loadPricing } from '@/lib/credits/pricing';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { compile, fromFormatRow, type DirectorContext } from '@/lib/prompt-director';
+import {
+  DIALOGUE_LANGUAGE,
+  SPEECH_DIRECTION,
+  hasSpokenDialogue,
+  sceneHasVoice,
+} from '@/lib/prompt-director/compilers/seedance';
+import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
 import { nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
@@ -276,6 +283,12 @@ type ChainParams = {
   // explícito para que la regeneración lo recupere sin depender del orden del
   // array referenceImagePaths.
   prevFramePath?: string;
+  // Resolución del clip 1: los clips de continuación la HEREDAN para no saltar
+  // de 720p a 480p a mitad de la secuencia (#1). undefined en cadenas viejas.
+  resolution?: SeedanceResolution;
+  // Idioma del diálogo de la campaña: se re-ancla en cada clip para no perder el
+  // acento es-MX ni el lip-sync a mitad de la toma continua (#3). undefined → 'es'.
+  language?: 'es' | 'en';
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -286,18 +299,20 @@ export function buildContinuationPrompt(
   scenePrompt: string,
   productCount: number,
   characterCount: number,
-  opts?: { withClosingFrame?: boolean },
+  opts?: { withClosingFrame?: boolean; language?: 'es' | 'en'; generateAudio?: boolean },
 ): string {
   const refs: string[] = [];
   let idx = 0;
   for (let i = 0; i < productCount; i++) {
     idx++;
-    refs.push(`@image${idx} is the product — keep it identical (same colors, proportions, details).`);
+    refs.push(
+      `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+    );
   }
   for (let i = 0; i < characterCount; i++) {
     idx++;
     refs.push(
-      `@image${idx} is a main character — keep the exact same face, hair and build, identical in every shot; only wardrobe and expression follow the scene.`,
+      `@image${idx} is a main character — keep the same face, hair and build; only wardrobe and expression follow the scene.`,
     );
   }
   idx++;
@@ -310,7 +325,73 @@ export function buildContinuationPrompt(
       `@image${idx} is the target final frame — end the shot exactly on it, matching its composition, framing and pose so the next shot continues seamlessly.`,
     );
   }
-  return `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
+  const base = `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
+  // Re-anclar la voz en CADA clip (#3): sin esto el clip 1 habla es-MX con
+  // lip-sync pero los siguientes pierden la directiva y Seedance puede derivar a
+  // inglés/acento neutro o narración a mitad de la toma continua. Mismas
+  // constantes y guards que el compiler; gateado por audio.
+  const generateAudio = opts?.generateAudio ?? true;
+  const voice: string[] = [];
+  if (generateAudio && hasSpokenDialogue(scenePrompt)) voice.push(SPEECH_DIRECTION);
+  if (generateAudio && sceneHasVoice(scenePrompt)) voice.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
+  return voice.length ? `${base} ${voice.join(' ')}` : base;
+}
+
+// Descarga el fotograma del proveedor (URL efímera) y lo sube a references,
+// devolviendo el PATH interno (#10). Se llama en el FINALIZE, con la URL fresca,
+// para que la URL del proveedor nunca sobreviva al worker ni dependa de cuándo
+// corra el job de avance. Best-effort: null si falla.
+export async function storeChainFrame(
+  workspaceId: string,
+  sequenceId: string,
+  sceneIndex: number,
+  frameUrl: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(frameUrl);
+    if (!res.ok) throw new Error(`fetch fotograma ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const mime = res.headers.get('content-type') ?? 'image/png';
+    const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
+    return await uploadReference(workspaceId, `chain/${sequenceId}/from-${sceneIndex}.${ext}`, buf, mime);
+  } catch (err) {
+    console.error('[chain] heredar fotograma falló', { sequenceId, err });
+    return null;
+  }
+}
+
+// Resuelve la hoja maestra de cada personaje con el cliente ADMIN (el worker no
+// tiene sesión, así que RLS no aplica y resolveCharacterMasterPaths —tipado al
+// cliente de servidor— no encaja). Preserva orden y valida ownership.
+async function resolveCharacterMasterPathsAdmin(
+  admin: ReturnType<typeof createAdminClient>,
+  workspaceId: string,
+  characterIds: string[],
+): Promise<string[]> {
+  const ids = characterIds.slice(0, 3);
+  if (ids.length === 0) return [];
+  const { data: chars } = await admin
+    .from('characters')
+    .select('id, workspace_id, master_image_id, reference_image_ids')
+    .in('id', ids);
+  const orderedMasterIds: string[] = [];
+  for (const id of ids) {
+    const c = (chars ?? []).find((r) => r.id === id);
+    if (!c || c.workspace_id !== workspaceId) continue;
+    const mid = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
+    if (mid) orderedMasterIds.push(mid as string);
+  }
+  if (orderedMasterIds.length === 0) return [];
+  const { data: media } = await admin
+    .from('media_references')
+    .select('id, storage_url, workspace_id')
+    .in('id', orderedMasterIds);
+  return orderedMasterIds
+    .map((mid) => {
+      const m = (media ?? []).find((row) => row.id === mid && row.workspace_id === workspaceId);
+      return m?.storage_url as string | undefined;
+    })
+    .filter((p): p is string => !!p);
 }
 
 // Avanza la cadena de una secuencia: tras finalizar un clip, genera el siguiente
@@ -322,7 +403,7 @@ export function buildContinuationPrompt(
 // el clip ya finalizado.
 export async function advanceSequenceChain(
   gen: { id: string; user_id: string; workspace_id: string; model_id: string; params: Record<string, unknown> },
-  lastFrameUrl: string,
+  frame: { path?: string; url?: string },
 ): Promise<void> {
   const chain = gen.params.chain as ChainParams | undefined;
   if (!chain) return;
@@ -330,7 +411,7 @@ export async function advanceSequenceChain(
 
   const { data: itemRows } = await admin
     .from('campaign_items')
-    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id')
+    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids')
     .eq('campaign_id', chain.campaignId)
     .eq('sequence_id', chain.sequenceId);
   if (!itemRows?.length) return;
@@ -341,38 +422,47 @@ export async function advanceSequenceChain(
   const nextRow = itemRows.find((r) => r.id === next.id);
   if (!nextRow || nextRow.generation_id) return; // ya avanzado (duplicado de QStash)
 
-  // Heredar el último fotograma: descargar de Atlas y subir a references.
-  let framePath: string;
-  try {
-    const res = await fetch(lastFrameUrl);
-    if (!res.ok) throw new Error(`fetch fotograma ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    const mime = res.headers.get('content-type') ?? 'image/png';
-    const ext = mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : 'png';
-    framePath = await uploadReference(
-      gen.workspace_id,
-      `chain/${chain.sequenceId}/${next.sceneIndex}.${ext}`,
-      buf,
-      mime,
-    );
-  } catch (err) {
-    console.error('[chain] heredar fotograma falló', { sequenceId: chain.sequenceId, err });
-    return;
+  // Heredar el último fotograma como PATH interno (#10). Lo normal: ya viene en
+  // frame.path (lo subió el finalize con la URL fresca). Compat: jobs encolados
+  // antes del deploy traen la URL cruda → se descarga aquí (puede haber expirado).
+  let framePath = frame.path ?? null;
+  if (!framePath && frame.url) {
+    framePath = await storeChainFrame(gen.workspace_id, chain.sequenceId, next.sceneIndex, frame.url);
   }
+  if (!framePath) return;
 
-  // Clip de continuación: R2V con [producto..., fotograma previo]. El producto
-  // se cita @image1.. y el fotograma como la última imagen. Mismo modelo R2V que
-  // el clip 1 (no i2v): así el producto se re-ancla en cada clip.
+  // Clip de continuación: R2V con [producto..., personaje..., fotograma previo].
+  // El producto se cita @image1.. y el fotograma como la última imagen. Mismo
+  // modelo R2V que el clip 1 (no i2v): así el producto se re-ancla en cada clip.
   const productPaths = (chain.productImagePaths ?? []).slice(0, 3);
-  const characterPaths = (chain.characterImagePaths ?? []).slice(0, 3);
+  let characterPaths = (chain.characterImagePaths ?? []).slice(0, 3);
+  if (characterPaths.length === 0) {
+    // Cadenas iniciadas antes del 2026-06-16 no propagan characterImagePaths:
+    // re-resolver la hoja maestra del item para no perder el re-anclaje (#6).
+    const charIds = itemCharacterIds({
+      character_id: (nextRow.character_id as string | null) ?? null,
+      character_ids: (nextRow.character_ids as string[] | null) ?? null,
+    });
+    if (charIds.length) {
+      characterPaths = await resolveCharacterMasterPathsAdmin(admin, gen.workspace_id, charIds);
+    }
+  }
   const referenceImagePaths = [...productPaths, ...characterPaths, framePath];
   const r2vModel = gen.model_id; // ya es .../reference-to-video
-  const resolution = '480p' as const;
-  const duration = nextRow.duration_s ?? 5;
+  // Heredar la resolución del clip 1 (#1): sin esto los clips 2+ caían a 480p
+  // mientras el clip 1 podía ser 720p → salto de nitidez en cada juntura.
+  const resolution: SeedanceResolution = chain.resolution ?? '480p';
+  const language = chain.language ?? 'es';
+  const duration = nextRow.duration_s ?? 8;
   const pricing = await loadPricing();
   const cost = seedanceCostPerItem(pricing, r2vModel, resolution, duration);
   const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
-  const prompt = buildContinuationPrompt(nextRow.scene_prompt as string, productPaths.length, characterPaths.length);
+  const prompt = buildContinuationPrompt(
+    nextRow.scene_prompt as string,
+    productPaths.length,
+    characterPaths.length,
+    { language, generateAudio: (nextRow.audio as boolean | null) ?? true },
+  );
 
   const { data: inserted, error: insErr } = await admin
     .from('generations')
@@ -398,6 +488,8 @@ export async function advanceSequenceChain(
           productImagePaths: productPaths,
           characterImagePaths: characterPaths,
           prevFramePath: framePath,
+          resolution,
+          language,
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -657,7 +749,11 @@ export async function enqueueBatch(params: {
                   // Refs del producto y del personaje: se re-anclan en cada clip.
                   productImagePaths: productImages,
                   characterImagePaths: characterMasterPaths,
-                },
+                  // Resolución e idioma del clip 1: los clips de continuación los
+                  // heredan para no saltar de nitidez (#1) ni perder es-MX (#3).
+                  resolution,
+                  language: ctx.language,
+                } satisfies ChainParams,
               }
             : {}),
         },

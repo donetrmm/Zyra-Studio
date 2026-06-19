@@ -47,3 +47,13 @@ next-env.d.ts
 .vercel
 scripts/smoke-seedance-output.mp4
 .superpowers/
+
+# tooling / scratch local (no versionar)
+.agents/
+.claude/
+.playwright-mcp/
+.impeccable.md
+skills-lock.json
+imagen-generada.png
+login-state.png
+ZyraStudioV2/

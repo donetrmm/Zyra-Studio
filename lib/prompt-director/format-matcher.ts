@@ -232,11 +232,31 @@ Por cada idea distinta devuelve un match:
   Una acción simple = 4-6s; varias acciones/beats = más. null para usar la
   duración default del formato.
 - scenePrompt: la acción concreta de la idea, en INGLÉS, con el producto como
-  ancla. Si la acción es UNA sola y simple: 1-2 frases. Si la idea implica
-  varias acciones/beats o durationS es 8 o más, estructúralo como timeline con
-  marcadores de segundos que cubran exactamente durationS
-  ("0-3s: ... 3-7s: ... 7-9s: ..."), una acción por tramo y el cierre con el
-  producto protagonista. Diálogo: SOLO si el usuario pide que alguien hable o
+  ancla. REGLA CLAVE: un clip = UNA toma continua — misma escena, misma locación,
+  mismo sujeto; la cámara se MUEVE (dolly, pan, rack focus) pero NUNCA corta a
+  otro lugar. Si el anuncio CAMBIA de escena/locación/sujeto/momento (un corte:
+  de un selfie a la pantalla de un celular, a un cuadro en la pared, a una
+  repisa…), NO cabe en un clip: parte en varias escenas (campo scenes, abajo).
+  Usa scenePrompt (clip único) SOLO cuando todo transcurre en esa única toma
+  continua. Si la
+  acción es UNA sola y simple: 1-2 frases. Si esa toma continua tiene varios
+  beats o durationS es 8 o más, estructúralo como timeline con marcadores de
+  segundos que cubran exactamente durationS ("0-3s: ... 3-7s: ... 7-9s: ..."),
+  una acción por tramo, TODOS en la misma escena, y el cierre con el producto
+  protagonista. DIRECCIÓN DE CÁMARA: cada tramo (o la frase única) abre
+  con un plano y, como máximo, UN movimiento de cámara, en terminología real de
+  cine: tipo de plano (wide shot, medium shot, close-up, extreme close-up,
+  over-the-shoulder, POV), movimiento (dolly in/out, tracking, pan, tilt, crane,
+  handheld, steadicam, rack focus) y, si suma, el ángulo (low/high/eye-level).
+  Una acción + un movimiento por toma — nunca dos movimientos en el mismo tramo.
+  El tramo de cierre va en plano cerrado del producto (close-up / product hero)
+  con la etiqueta de frente. Ejemplo: "0-3s: medium shot, eye level — she lifts
+  the can to camera. 3-7s: slow dolly in to close-up — she takes a sip and nods.
+  7-9s: tight product close-up, shallow depth of field — the can rests, label
+  forward". SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
+  porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
+  escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
   a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
@@ -244,12 +264,25 @@ Por cada idea distinta devuelve un match:
   acción usando lo que VES: colores, materiales, contexto físico real del
   producto y apariencia real de los personajes. Si la idea solo nombra un
   formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
-- scenes: si UNA idea es un anuncio multi-escena YA guionizado (con actos o
-  marcadores de tiempo explicitos, o que claramente NO cabe coherente en un solo
-  clip de <=15s), pártela en escenas cortas: array de objetos
-  {"scenePrompt":"accion concreta en INGLES de esta escena, 4-8s, AUTO-CONTENIDA
-  (re-describe escenario y personaje, el modelo no recuerda entre clips)",
-  "durationS":entero 4-8 (una escena es un beat corto),"sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
+- scenes: SIEMPRE que el anuncio tenga MÁS DE UNA escena/plano distinto —
+  locaciones distintas, cortes entre sujetos, saltos de tiempo, o un guión con
+  varios momentos— pártela en escenas, UNA por clip. Cada generación es una toma
+  continua y NO puede cortar de un escenario a otro, así que cada escena distinta
+  necesita su propio clip. Esto aplica AUNQUE el total quepa en 15s: p. ej. 4
+  momentos en 4 lugares = 4 clips, no un clip de 15s con cortes internos (eso
+  sale incoherente). Solo deja UN clip cuando de verdad es una única toma
+  continua. Cada escena es un objeto corto, un clip INDEPENDIENTE:
+  {"scenePrompt":"accion concreta en INGLES de esta escena, AUTO-CONTENIDA
+  (re-describe escenario y personaje, el modelo no recuerda entre clips), UNA
+  sola toma continua que abre con su plano y UN movimiento de camara en
+  terminologia real (wide/medium/close-up; dolly in, tracking, pan, rack focus)
+  y, si es el cierre, plano cerrado del producto. NO copies los marcadores de
+  tiempo del guion original (nada de '13-15s:'): cada escena empieza en 0 y, si
+  es un solo beat, no necesita timeline",
+  "durationS":"AJUSTA al tiempo que toma DECIR la linea de dialogo de ESA escena
+  (o la accion si no hay dialogo): una frase corta = 4-5s, una mas larga hasta 8;
+  entero 4-8. NUNCA infles una linea corta a 8s — el modelo rellena el silencio
+  repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].

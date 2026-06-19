@@ -22,8 +22,13 @@ export type EnqueueJobInput = {
   generationId: string;
   action: 'submit' | 'poll' | 'advance_chain';
   delaySeconds?: number;
-  // Solo para 'advance_chain': la URL del último fotograma del clip ya
-  // terminado, que el job de avance descarga y hereda al siguiente clip.
+  // Solo para 'advance_chain': PATH interno (bucket references) del último
+  // fotograma del clip ya terminado. El finalize lo sube con la URL fresca y el
+  // job de avance lo hereda al siguiente clip — la URL del proveedor (efímera)
+  // nunca viaja en el job.
+  lastFramePath?: string;
+  // Compat: jobs encolados antes del deploy traen la URL cruda. Nuevo código usa
+  // lastFramePath; este campo se mantiene para drenar la cola en vuelo.
   lastFrameUrl?: string;
 };
 
@@ -42,6 +47,7 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<{ messageId: s
     body: {
       generationId: input.generationId,
       action: input.action,
+      ...(input.lastFramePath ? { lastFramePath: input.lastFramePath } : {}),
       ...(input.lastFrameUrl ? { lastFrameUrl: input.lastFrameUrl } : {}),
     },
     delay: input.delaySeconds ?? 0,
