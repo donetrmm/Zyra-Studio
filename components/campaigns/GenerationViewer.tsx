@@ -73,6 +73,9 @@ export function GenerationViewer({
               autoPlay
               playsInline
               src={detail.outputUrl}
+              // translateZ(0): promueve el video a su propia capa de compositor
+              // para que el recorte/efectos del modal no lo hagan tartamudear.
+              style={{ transform: 'translateZ(0)' }}
               className="max-h-[60vh] w-full bg-black object-contain"
             />
           ) : (
