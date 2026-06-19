@@ -56,34 +56,6 @@ type ActionError =
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; message?: string };
 
-// ─── helpers (mirror de server-actions/generations.ts) ───────────────────────
-
-async function loadReferenceBuffers(
-  workspaceId: string,
-  refs: { id: string; storagePath: string }[],
-): Promise<ImageReference[]> {
-  if (refs.length === 0) return [];
-  const supabase = await createClient();
-  const ids = refs.map((r) => r.id);
-  const { data: rows, error } = await supabase
-    .from('media_references')
-    .select('id, workspace_id, storage_url, type')
-    .in('id', ids);
-  if (error) throw new Error(`load refs: ${error.message}`);
-  const validIds = new Set(
-    (rows ?? [])
-      .filter((r) => r.workspace_id === workspaceId && r.type === 'image')
-      .map((r) => r.id as string),
-  );
-  const safeRefs = refs.filter((r) => validIds.has(r.id));
-  const buffers: ImageReference[] = [];
-  for (const ref of safeRefs) {
-    const { buffer, mimeType } = await downloadReferenceBuffer(ref.storagePath);
-    buffers.push({ buffer, mimeType });
-  }
-  return buffers;
-}
-
 async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer)
     .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
@@ -174,7 +146,7 @@ async function loadItemAndCampaign(
 
 export async function generatePanelAction(
   itemId: string,
-): Promise<Result<{ imageId: string; generationId: string }>> {
+): Promise<Result<{ imageId: string | null; generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
 
   const { user, workspace } = await requireWorkspace();
@@ -280,11 +252,16 @@ export async function generatePanelAction(
       return { ok: false, error: 'insufficient_credits' };
     }
 
-    // Cargar referencias como buffers
-    const refList = compiled.compiled.references
-      .filter((r) => r.kind === 'image')
-      .map((r) => ({ id: r.storagePath, storagePath: r.storagePath }));
-    const references = await loadReferenceBuffers(workspace.id, refList);
+    // Cargar referencias como buffers directamente desde el storage path compilado.
+    // Las referencias compiladas ya fueron validadas por ownership en loadCampaignContext → resolvePaths.
+    const references = await Promise.all(
+      compiled.compiled.references
+        .filter((r) => r.kind === 'image')
+        .map(async (r): Promise<ImageReference> => {
+          const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
+          return { buffer, mimeType };
+        }),
+    );
 
     // Dimensiones FLUX según aspect ratio del beat
     const aspectRatio = item.aspect_ratio ?? '9:16';
@@ -346,7 +323,7 @@ export async function generatePanelAction(
 
     return {
       ok: true,
-      data: { imageId: imageId ?? '', generationId },
+      data: { imageId, generationId },
     };
   } catch (err) {
     const errMsg =
@@ -375,7 +352,7 @@ export async function generatePanelAction(
 export async function refinePanelAction(
   itemId: string,
   instruction: string,
-): Promise<Result<{ imageId: string; generationId: string }>> {
+): Promise<Result<{ imageId: string | null; generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (!instruction?.trim()) {
     return { ok: false, error: 'validation_error', message: 'instruction requerida' };
@@ -479,11 +456,16 @@ export async function refinePanelAction(
       return { ok: false, error: 'insufficient_credits' };
     }
 
-    // Cargar referencias extra compiladas como buffers
-    const refList = compiled.compiled.references
-      .filter((r) => r.kind === 'image')
-      .map((r) => ({ id: r.storagePath, storagePath: r.storagePath }));
-    const references = await loadReferenceBuffers(workspace.id, refList);
+    // Cargar referencias extra compiladas como buffers directamente desde el storage path compilado.
+    // Las referencias compiladas ya fueron validadas por ownership en loadCampaignContext → resolvePaths.
+    const references = await Promise.all(
+      compiled.compiled.references
+        .filter((r) => r.kind === 'image')
+        .map(async (r): Promise<ImageReference> => {
+          const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
+          return { buffer, mimeType };
+        }),
+    );
 
     // Conversacional: turno previo del panel anterior (output + thought_signature).
     // Idéntico al patrón de submitGenerationAction con parentGenerationId.
@@ -584,7 +566,7 @@ export async function refinePanelAction(
 
     return {
       ok: true,
-      data: { imageId: imageId ?? '', generationId },
+      data: { imageId, generationId },
     };
   } catch (err) {
     const errMsg =
