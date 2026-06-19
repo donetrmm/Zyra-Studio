@@ -14,7 +14,7 @@ import {
 import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
-import { nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
+import { isLocationMode, nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
@@ -42,6 +42,8 @@ export type ItemRow = {
   // ordenan por scene_index. null en creativos sueltos.
   sequence_id: string | null;
   scene_index: number | null;
+  // Locación de la secuencia (migración 041): no null => modo-locación (sin encadenar).
+  location_id: string | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -118,6 +120,40 @@ async function resolvePaths(
     }
   }
   return map;
+}
+
+// Resuelve location_id -> { name, description, imagePaths }. v1 usa SOLO la imagen
+// master de la locación (1 por clip); los ángulos se difieren. Valida ownership.
+export async function resolveLocations(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  locationIds: string[],
+): Promise<Map<string, { name: string; description: string | null; imagePaths: string[] }>> {
+  const ids = [...new Set(locationIds.filter(Boolean))];
+  const out = new Map<string, { name: string; description: string | null; imagePaths: string[] }>();
+  if (ids.length === 0) return out;
+  const { data: rows } = await supabase
+    .from('locations')
+    .select('id, workspace_id, name, description, master_image_id')
+    .in('id', ids);
+  const masterByLoc = new Map<string, string>();
+  for (const r of rows ?? []) {
+    if (r.workspace_id !== workspaceId) continue;
+    if (r.master_image_id) masterByLoc.set(r.id as string, r.master_image_id as string);
+  }
+  const masterIds = [...masterByLoc.values()];
+  const paths = await resolvePaths(supabase, workspaceId, masterIds);
+  for (const r of rows ?? []) {
+    if (r.workspace_id !== workspaceId) continue;
+    const masterId = masterByLoc.get(r.id as string);
+    const masterPath = masterId ? paths.get(masterId) : undefined;
+    out.set(r.id as string, {
+      name: r.name as string,
+      description: (r.description as string | null) ?? null,
+      imagePaths: masterPath ? [masterPath] : [],
+    });
+  }
+  return out;
 }
 
 export async function loadCampaignContext(
@@ -208,6 +244,7 @@ function directorContextFor(
   ctx: CampaignContext,
   templateVideoPath?: string,
   extraImagePaths?: string[],
+  location?: { name?: string; description?: string; imagePaths: string[] },
 ): DirectorContext {
   const characters = itemCharacterIds(item)
     .map((id) => ctx.characters.get(id))
@@ -231,6 +268,7 @@ function directorContextFor(
     },
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
+    location: location && location.imagePaths.length ? location : location?.description ? location : undefined,
     scene: item.scene ? { fragment: item.scene } : undefined,
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,
@@ -589,6 +627,8 @@ export async function enqueueBatch(params: {
   // por lote y entran al contexto como extraImagePaths (rol environment).
   const extraRefIds = [...new Set(selected.flatMap((i) => i.reference_ids ?? []))];
   const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
+  const locationIds = selected.map((i) => i.location_id).filter((l): l is string => !!l);
+  const locations = await resolveLocations(supabase, workspaceId, locationIds);
   const itemStatus = mode === 'sample' ? 'sample' : 'queued';
 
   // Encadenado de secuencias (specs/v2/09, solo Atlas): de una secuencia
@@ -630,6 +670,12 @@ export async function enqueueBatch(params: {
     returnLastFrame: boolean;
     orphanResume: boolean;
   } {
+    // Modo-locación: la secuencia NO se encadena. Cada escena se genera
+    // independiente (no se salta, no return_last_frame, no chain). Gana sobre
+    // el encadenado aunque el backend sea Atlas.
+    if (isLocationMode(item)) {
+      return { skip: false, isFirst: false, returnLastFrame: false, orphanResume: false };
+    }
     if (!chaining || !item.sequence_id)
       return { skip: false, isFirst: false, returnLastFrame: false, orphanResume: false };
     const idxs = seqGroups.get(item.sequence_id) ?? [];
@@ -686,6 +732,11 @@ export async function enqueueBatch(params: {
         ctx,
         item.template_id ? templateVideos.get(item.template_id) : undefined,
         (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
+        (() => {
+          const loc = item.location_id ? locations.get(item.location_id) : undefined;
+          if (!loc) return undefined;
+          return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths };
+        })(),
       ),
     );
 
