@@ -1038,8 +1038,6 @@ export async function generateItemAction(
             productImagePaths?: string[];
             characterImagePaths?: string[];
             prevFramePath?: string;
-            resolution?: string;
-            language?: 'es' | 'en';
           };
           referenceImagePaths?: string[];
           returnLastFrame?: boolean;
@@ -1116,12 +1114,7 @@ export async function generateItemAction(
         item.scene_prompt as string,
         productPaths.length,
         characterPaths.length,
-        {
-          withClosingFrame: anchored,
-          // Re-anclar voz también al regenerar un clip de continuación (#3).
-          language: pp.chain.language ?? 'es',
-          generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
-        },
+        { withClosingFrame: anchored },
       );
       const cost = (prevGen.credits_estimated as number) ?? 0;
       const admin = createAdminClient();
@@ -1378,14 +1371,6 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
   if (!draft || draft.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
 
   const draftParams = (draft.params ?? {}) as Record<string, unknown>;
-  // Un render final NO debe heredar el encadenado del draft: `chain` dispararía
-  // un clip de continuación fantasma (+reserva de crédito) al finalizar, y
-  // `returnLastFrame` anclaría el final al frame previo en vez de ser un render
-  // limpio. Las referencias (referenceImagePaths) SÍ se conservan: son la
-  // composición aprobada del draft.
-  const finalParams: Record<string, unknown> = { ...draftParams };
-  delete finalParams.chain;
-  delete finalParams.returnLastFrame;
   const payload = (draft.provider_payload ?? {}) as { seed?: number };
   const durationS = (draftParams.duration as number | undefined) ?? item.duration_s ?? 8;
 
@@ -1402,7 +1387,7 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
       model_id: FINAL_MODEL,
       prompt: draft.prompt,
       params: {
-        ...finalParams,
+        ...draftParams,
         resolution,
         ...(payload.seed !== undefined ? { seed: payload.seed } : {}),
       },

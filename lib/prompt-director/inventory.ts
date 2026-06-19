@@ -63,11 +63,8 @@ export function stripAgeWords(text: string): { text: string; removed: string[] }
 }
 
 // Frase de fidelidad del producto: usa SOLO los campos declarados.
-// `fidelity: false` omite la cláusula de fidelidad cuando la línea @image ya la
+// `fidelity: false` omite la cláusula de fidelidad cuando la línea @Image ya la
 // declara (evita duplicar verbatim y gastar el techo de caracteres en Seedance).
-// Sin imágenes de referencia (text2video con producto suelto) NO se puede pedir
-// "como en las imágenes": se ancla a los atributos declarados y se prohíbe
-// inventar el resto — antes apuntaba a imágenes inexistentes (instrucción muerta).
 export function describeProduct(
   product: ProductInventory,
   opts: { fidelity?: boolean } = {},
@@ -77,17 +74,12 @@ export function describeProduct(
   if (product.palette?.length) parts.push(`brand colors ${product.palette.join(', ')}`);
   const facts = `${parts.join(', ')}.`;
   if (opts.fidelity === false) return facts;
-  if (!product.imagePaths.length) {
-    return `${facts} Render the product exactly with these declared attributes; do not invent packaging, colors, logo or any detail that is not listed.`;
-  }
   return `${facts} The product must appear exactly as shown in its reference images — same packaging, colors, logo placement and proportions. Never restyle the product.`;
 }
 
 // Descripción de personaje age-blind, por apariencia y manera de actuar.
 // `fidelity: false` omite la cláusula de "apariencia exacta" cuando la línea
-// @image del Cast ya la declara. Sin hoja maestra (personaje inventado por el
-// planner) la descripción ES la apariencia: se pide consistencia, NO se apunta a
-// una imagen de referencia inexistente (antes lo hacía: instrucción muerta).
+// @Image del Cast ya la declara.
 export function describeCharacter(
   character: CharacterInventory,
   opts: { fidelity?: boolean } = {},
@@ -97,11 +89,11 @@ export function describeCharacter(
 } {
   const { text, removed } = stripAgeWords(character.description);
   const base = `${character.name}: ${text}.`;
-  if (opts.fidelity === false) {
-    return { text: base, ageWordsRemoved: removed };
-  }
-  const clause = character.masterImagePath
-    ? ' Exact appearance as in the character reference image — same face, same hair, same build.'
-    : ' Keep this exact appearance consistent in every shot.';
-  return { text: `${base}${clause}`, ageWordsRemoved: removed };
+  return {
+    text:
+      opts.fidelity === false
+        ? base
+        : `${base} Exact appearance as in the character reference image — same face, same hair, same build.`,
+    ageWordsRemoved: removed,
+  };
 }

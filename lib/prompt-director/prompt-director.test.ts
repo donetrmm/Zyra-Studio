@@ -69,49 +69,19 @@ describe('compile seedance', () => {
     expect(references.map((r) => r.role)).toEqual(['product', 'product', 'character']);
     expect(prompt).toContain('@image1 is the product');
     expect(prompt).toContain('@image3 is Maya');
-    // Fidelidad y escena (línea de producto concisa, guide-backed sin relleno)
-    expect(prompt).toContain('logo and proportions consistent');
-    // Anti-animación de la foto impresa, sin micromanejo que congele el clip.
-    expect(prompt).toMatch(/still print, not animated/i);
+    // Fidelidad y escena
+    expect(prompt).toContain('exact packaging');
     expect(prompt).toContain('sunlit home kitchen');
     // Dirección del formato
     expect(prompt).toContain('selfie handheld');
-    // Cláusula negativa fija (texto/logo siempre). Aquí HAY personaje del Cast
-    // (Maya, cara anclada) → NO se prohíben rostros (sería contradicción).
+    // Cláusula negativa fija
     expect(prompt).toContain('No on-screen text');
-    expect(prompt).not.toMatch(/No real, identifiable human faces/);
+    expect(prompt).toContain('No real identifiable faces');
     // Params
     expect(params.operation).toBe('reference2video');
     expect(params.duration).toBe(8);
     expect(params.aspectRatio).toBe('9:16');
     expect(params.generateAudio).toBe(true);
-  });
-
-  it('no prohíbe rostros cuando hay personaje del Cast o habla en cámara (anti-contradicción lip-sync)', () => {
-    // Clip de puro producto, sin personaje ni habla → SÍ se prohíben rostros
-    // reales (evita una persona espuria).
-    const productOnly = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins on marble and stops label-forward' },
-      { format: elIcono, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
-    );
-    expect(productOnly.ok).toBe(true);
-    if (productOnly.ok) expect(productOnly.compiled.prompt).toMatch(/No real, identifiable human faces/);
-
-    // Personaje del Cast con cara anclada (Maya) → NO se prohíben rostros.
-    const withCast = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can and smiles' },
-      fullContext(),
-    );
-    expect(withCast.ok).toBe(true);
-    if (withCast.ok) expect(withCast.compiled.prompt).not.toMatch(/No real, identifiable human faces/);
-
-    // Sin Cast pero con habla EN cámara (lip-sync) → tampoco se prohíben rostros.
-    const speaking = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter looks to camera and says one honest line' },
-      { format: vozCercana, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
-    );
-    expect(speaking.ok).toBe(true);
-    if (speaking.ok) expect(speaking.compiled.prompt).not.toMatch(/No real, identifiable human faces/);
   });
 
   it('con diálogo explícito y audio: encabezado, lip sync y voz natural anti-robótica', () => {
@@ -354,196 +324,6 @@ describe('compile seedance', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.warnings.some((w) => w.includes('identidad'))).toBe(true);
-  });
-
-  it('producto sin imágenes: fidelidad por atributos, sin apuntar a imágenes inexistentes (#4)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/text-to-video', scenePrompt: 'The can rests on a marble counter' },
-      { product: { name: 'Lumen', visualDetails: 'slim teal aluminum can', imagePaths: [] } },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const { prompt } = res.compiled;
-    expect(prompt).not.toContain('as shown in its reference images');
-    expect(prompt).toContain('declared attributes');
-  });
-
-  it('personaje con hoja maestra: vestuario sigue a la descripción, sin contradecir la referencia (#5)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can and smiles' },
-      fullContext(),
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const { prompt } = res.compiled;
-    expect(prompt).toContain('@image3 is Maya');
-    // La línea @ ancla cara/pelo/complexión y excluye la ROPA de la referencia
-    // (regla de alcance de la guía), resolviendo el conflicto de vestuario sin
-    // micromanejo verboso.
-    expect(prompt).toMatch(/use only the face, hair and build from this reference \(not its clothing or background\)/);
-  });
-
-  it('personaje inventado (sin hoja maestra): apariencia por descripción, sin imagen inexistente (#4 análogo)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter holds the can to camera' },
-      {
-        product: fullContext().product,
-        characters: [{ name: 'Nora', description: 'auburn hair, denim jacket, calm delivery', masterImagePath: '' }],
-      },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const { prompt } = res.compiled;
-    expect(prompt).toContain('Nora: auburn hair');
-    expect(prompt).not.toContain('as in the character reference image');
-    expect(prompt).toContain('Keep this exact appearance consistent');
-  });
-
-  it('personaje con hoja maestra pero SIN descripción: warning y sin línea vacía (#7)', () => {
-    const ctx = fullContext();
-    ctx.characters = [{ name: 'Mara', description: '   ', masterImagePath: 'm.png' }];
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can' },
-      ctx,
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const { prompt, warnings } = res.compiled;
-    // No se mete la línea descriptiva vacía 'Mara: .'
-    expect(prompt).not.toMatch(/Mara:\s*\./);
-    // Pero la @image del Cast SÍ ancla la cara.
-    expect(prompt).toContain('is Mara');
-    expect(warnings.join(' ')).toMatch(/identidad: Mara/);
-  });
-
-  it('NO fragmenta en micro-tramos por segundo una acción larga rica en comas (#trabado)', () => {
-    // Simula una acción larga (varias oraciones) como la de un clip unificado.
-    const merged =
-      'Medium close-up, eye-level — Grecia holds up a framed picture, looking at the camera. Close-up — Grecia holds her smartphone showing a chat. Medium shot — the framed picture hangs on a wall. Close-up — Grecia smiles warmly at the camera.';
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: merged, durationS: 15 },
-      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const markers = (res.compiled.prompt.match(/\d+-\d+s:/g) ?? []).length;
-    // 4 oraciones > tope (~3 para 15s) → se deja como prosa, sin timeline-metralla.
-    expect(markers).toBe(0);
-    expect(res.compiled.prompt).toContain('holds up a framed picture');
-  });
-
-  it('reparte en pocos beats coarse cuando hay acciones separadas por oración', () => {
-    const action = 'She walks to the table. She picks up the product. She smiles at the camera.';
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: action, durationS: 12 },
-      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const markers = (res.compiled.prompt.match(/\d+-\d+s:/g) ?? []).length;
-    // 3 oraciones en 12s → 3 beats coarse (~4s c/u), nunca por segundo.
-    expect(markers).toBe(3);
-    expect(res.compiled.prompt).toContain('0-4s:');
-  });
-});
-
-// ============ Cinematografía por defecto (#A) ============
-
-describe('cinematografía por defecto', () => {
-  const fmtNoLight = (register: string, camera = 'a nivel de ojos') =>
-    fromFormatRow({
-      slug: 'x', name: 'X', register, camera_style: camera, pacing: 'natural',
-      required_refs: ['product'], default_duration_s: 8, default_audio: true,
-    });
-  const product = { name: 'Lumen', imagePaths: ['p1.png'] };
-  const run = (ctx: DirectorContext, scenePrompt = 'She lifts the can and smiles') =>
-    compile({ modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt }, ctx);
-
-  it('UGC/handheld → luz natural y foco profundo', () => {
-    const res = run({ format: fmtNoLight('casual, conversacional UGC'), product });
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toMatch(/natural available light/);
-  });
-
-  it('hero/cinematic → key light controlada y DOF corto', () => {
-    const res = run({ format: fmtNoLight('cinematográfico, épico'), product }, 'The can sits on a table');
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toMatch(/controlled key light/);
-  });
-
-  it('formato estilizado no recibe default de luz', () => {
-    const res = run({ format: elIcono, product }, 'The can floats in a surreal void');
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
-  });
-
-  it('no duplica si el formato ya dirige la luz (vozCercana trae "luz natural")', () => {
-    const res = run(fullContext());
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
-  });
-
-  it('no aplica cuando hay referencia de look/entorno (el modelo extrae la luz de ahí)', () => {
-    const res = run({ format: fmtNoLight('casual UGC', ''), product, extraImagePaths: ['style-ref.png'] });
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
-  });
-});
-
-// ============ Audio por registro (#2/#3) ============
-
-describe('dirección de audio por registro', () => {
-  const product = { name: 'Lumen', imagePaths: ['p1.png'] };
-  const fmt = (register: string) =>
-    fromFormatRow({
-      slug: 'x', name: 'X', register, camera_style: '', pacing: '',
-      required_refs: ['product'], default_duration_s: 8, default_audio: true,
-    });
-
-  it('ASMR/susurro → foley sin música (#2)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can opens slowly' },
-      { format: fmt('ASMR, susurro, macro'), product },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toMatch(/Foley-forward/);
-  });
-
-  it('beat-driven → cama musical al ritmo (#2)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins' },
-      { format: elIcono, product },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toMatch(/rhythmic music bed/);
-  });
-
-  it('registro neutro → diegético sin música (#2)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can on a table' },
-      { format: fmt('documental sobrio'), product },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toMatch(/natural diegetic sound/);
-  });
-
-  it('voz con registro bold → tono punchy además de la cadencia base (#3)', () => {
-    const res = compile(
-      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter says one line to camera' },
-      { format: elIcono, product },
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.compiled.prompt).toContain('natural Mexican accent'); // cadencia base
-    expect(res.compiled.prompt).toMatch(/punchy/); // tono por registro
   });
 });
 

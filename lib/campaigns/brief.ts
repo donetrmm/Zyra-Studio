@@ -23,9 +23,7 @@ export const ProductBriefSchema = z.object({
   variants: z.array(z.string().max(60)).max(12).default([]),
   palette: z.array(z.string().max(40)).max(6).default([]),
   // Detalles visibles del empaque: material, forma, acabado, tipografía.
-  // Cap holgado (800): en text2video es la ÚNICA descripción del producto que
-  // recibe el modelo, así que conviene que sea rica sin llegar a keyword soup.
-  visualDetails: z.string().max(800).default(''),
+  visualDetails: z.string().max(400).default(''),
   demographic: z.string().max(160).default(''),
   market: z.string().max(80).default('global'),
 });
@@ -37,7 +35,7 @@ const SYSTEM = `Eres un estratega de marketing. Analiza la imagen del producto y
   "category": "beverage|food|beauty|apparel|accessories|electronics|software|home|fitness|other",
   "variants": ["variantes/sabores/SKUs visibles, si los hay"],
   "palette": ["2-4 colores dominantes del empaque, en inglés"],
-  "visualDetails": "descripción visual densa del producto/empaque, en inglés, 2-3 frases: material, forma, acabado, color, tipografía visible y cualquier elemento distintivo (tapa, etiqueta, textura)",
+  "visualDetails": "material, forma, acabado y detalles del empaque visibles, en inglés, 1-2 frases",
   "demographic": "demográfico aparente del producto, breve",
   "market": "mercado aparente (global salvo señales claras de región)"
 }

@@ -12,19 +12,9 @@ import type {
   DirectorContext,
 } from '../types';
 
-// Cláusula negativa fija (texto/logo/watermark): SIEMPRE.
-// OJO: NO prohibir "logos" a secas — el logo impreso en el empaque del producto
-// referenciado es branding legítimo y central del anuncio. Solo se prohíbe que el
-// modelo INVENTE/añada logos o tipografía que no estén físicamente en el producto.
+// Cláusula negativa fija: el video nunca renderiza texto ni rostros reales.
 const NEGATIVE_CLAUSE =
-  'No on-screen text overlays, captions, subtitles or watermarks added by the model. Do not invent or add any logo or typography that is not physically part of the referenced product.';
-
-// Guard anti-rostros: SOLO cuando NINGÚN rostro es intencional (clip de puro
-// producto/abstracto), para que el modelo no fabrique una persona real espuria.
-// Si hay personaje del Cast (cara anclada por referencia) o habla EN cámara
-// (lip-sync), el rostro ES el objetivo del clip y prohibir "rostros reales" se
-// contradice con la referencia y la dirección de lip-sync → degrada la cara.
-const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
+  'No on-screen text, no captions, no subtitles, no watermarks, no rendered logos or typography. No real identifiable faces.';
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
@@ -38,9 +28,8 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 };
 
 // Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en
-// escena. Del mismo ejemplo validado a mano. Exportada: la reusan los clips de
-// continuación de secuencia para no perder el lip-sync a mitad del anuncio.
-export const SPEECH_DIRECTION =
+// escena. Del mismo ejemplo validado a mano.
+const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
 // Heurística determinista: la dirección de habla EN CÁMARA (lip sync) SOLO entra
@@ -76,20 +65,12 @@ function hasTimeline(text: string): boolean {
   return /\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\b|\b\d{1,2}\s*s\s*:/i.test(text);
 }
 
-// Reparte la acción en marcadores de tiempo SOLO si quedan pocos beats limpios.
-// Beats = ORACIONES (límite . o ;), NO comas: antes partía por cada coma —incluso
-// las descriptivas ("a woman with brown hair, wearing a beige top")— y generaba un
-// timeline por SEGUNDO ("0-1s:.. 1-2s:..", con tramos de duración cero "4-4s") que
-// hacía al modelo cambiar de plano cada segundo → video TRABADO. Ahora se topa a
-// ~1 beat por 4s (guía: 1 idea ≈ 4s); si no encaja en pocos beats, se deja como
-// prosa y el modelo reparte el tiempo (como en los prompts que salen fluidos).
 function toTimeline(action: string, duration: number): string {
-  const maxBeats = Math.max(1, Math.floor(duration / 4));
   const beats = action
-    .split(/(?<=[.;])\s+/)
-    .map((b) => b.trim().replace(/[.;]+$/, ''))
+    .split(/[;,]+/)
+    .map((b) => b.trim().replace(/\.+$/, ''))
     .filter((b) => b.length > 3);
-  if (beats.length < 2 || beats.length > maxBeats) return action.trim();
+  if (beats.length < 2) return action;
   return `${beats
     .map((beat, i) => {
       const start = Math.round((duration * i) / beats.length);
@@ -130,20 +111,14 @@ export function buildReferences(ctx: DirectorContext): {
   let imageN = 0;
   let droppedImages = 0;
 
-  const pushImage = (
-    storagePath: string,
-    role: CompiledReference['role'],
-    line: ((n: number) => string) | null,
-    scope?: string,
-  ): number | null => {
+  const pushImage = (storagePath: string, role: CompiledReference['role'], line: (n: number) => string, scope?: string) => {
     if (imageN >= 9) {
       droppedImages += 1;
-      return null;
+      return;
     }
     imageN += 1;
     references.push({ storagePath, kind: 'image', role, scope });
-    if (line) lines.push(line(imageN));
-    return imageN;
+    lines.push(line(imageN));
   };
 
   // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
@@ -153,8 +128,7 @@ export function buildReferences(ctx: DirectorContext): {
     pushImage(
       path,
       'product',
-      (n) =>
-        `@image${n} is the product — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+      (n) => `@image${n} is the product — exact packaging, colors, logo placement and proportions.`,
     );
   }
 
@@ -174,20 +148,11 @@ export function buildReferences(ctx: DirectorContext): {
       character.masterImagePath,
       'character',
       (n) =>
-        `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
+        `@image${n} is ${character.name} — keep the exact appearance: same face, same hair, same build. Only the face, hair and build come from this reference; wardrobe and expression follow the scene description.`,
       'rostro, peinado y complexión; no la ropa ni el fondo',
     );
-    // Ángulos extra: se citan AGRUPADOS en una sola línea (no una por imagen,
-    // que apilaba directivas redundantes y saturaba el prompt).
-    const angleNums: number[] = [];
     for (const path of character.angleImagePaths?.slice(0, anglesPer) ?? []) {
-      const an = pushImage(path, 'character', null);
-      if (an) angleNums.push(an);
-    }
-    if (angleNums.length === 1) {
-      lines.push(`@image${angleNums[0]} shows ${character.name} from another angle, for consistency.`);
-    } else if (angleNums.length > 1) {
-      lines.push(`@image${angleNums.join(' and @image')} show ${character.name} from other angles, for consistency.`);
+      pushImage(path, 'character', (n) => `@image${n} shows ${character.name} from another angle, for consistency.`);
     }
   }
 
@@ -226,54 +191,6 @@ export function buildReferences(ctx: DirectorContext): {
   }
 
   return { references, lines, warnings };
-}
-
-// Términos que indican que la luz/óptica YA está dirigida (en el scenePrompt o
-// en la dirección del formato): si están, no se inyecta el default para no
-// duplicar ni contradecir. NO incluye tipos de plano (close-up, etc.): esos son
-// encuadre, no luz.
-const LIGHT_OR_LENS_RE =
-  /\b(light|lighting|lit|backlit|key ?light|fill light|rim light|softbox|golden hour|neon|silhouette|depth of field|bokeh|shallow focus|deep focus|wide[- ]angle|telephoto|lens|luz|iluminaci|contraluz|profundidad de campo)\b/i;
-
-// Default determinista de cinematografía (luz + óptica) por registro del formato
-// (#A). Da una base coherente cuando ni el scenePrompt ni el formato la
-// especifican: UGC/handheld → luz natural y foco profundo; hero/cinematic →
-// key light controlada y profundidad de campo corta.
-function cinematographyDefault(register: string): string {
-  const handheld =
-    /handheld|selfie|ugc|vlog|casual|conversacional|primera persona|testimon|a pie de calle|\bcalle\b/i.test(register);
-  return handheld
-    ? 'Cinematography: natural available light with soft, realistic shadows; handheld camera feel; deep focus so the whole scene reads clearly.'
-    : 'Cinematography: controlled key light with soft fill and gentle rim separation; shallow depth of field that keeps the product crisp; clean filmic contrast.';
-}
-
-// Música/foley por registro (#2 audio): decide la cama sonora de forma
-// determinista en vez de dejar al modelo interpretar "si el registro lo pide".
-// El sonido diegético específico de la acción lo aporta el matcher (#1).
-function audioDirection(register: string): string {
-  const r = register.toLowerCase();
-  if (/asmr|susurro|whisper|macro|t[aá]ctil/.test(r)) {
-    return 'Audio: no music. Foley-forward — every contact and texture sound crisp, close and detailed; let the product sounds carry the scene.';
-  }
-  if (/beat|r[ií]tmic|kinet|en[eé]rg|bold|dance|drop|speed ?ramp/.test(r)) {
-    return 'Audio: a rhythmic music bed whose energy matches the cut; keep the key diegetic product sounds audible over it.';
-  }
-  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv|emotion/.test(r)) {
-    return 'Audio: a restrained cinematic score supporting the mood, low under the action; natural diegetic sound stays present.';
-  }
-  return 'Audio: natural diegetic sound that matches the scene, no music — keep it real, with subtle room tone.';
-}
-
-// Matiz de entrega de la voz por registro (#3 audio): se añade a la directiva de
-// idioma/cadencia base (DIALOGUE_LANGUAGE) cuando hay voz en escena. null para
-// registros UGC/casual, ya cubiertos por la cadencia base.
-function voiceToneForRegister(register: string): string | null {
-  const r = register.toLowerCase();
-  if (/asmr|susurro|whisper|macro/.test(r)) return 'Deliver the voice intimately and softly, close to the mic, almost a whisper.';
-  if (/calle|street|vox|interview|entrevista|espont/.test(r)) return 'Deliver the voice spontaneously and candidly, with light street energy, as if caught in the moment.';
-  if (/bold|icono|kinet|en[eé]rg|beat/.test(r)) return 'Deliver the voice with confident, punchy energy.';
-  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv/.test(r)) return 'Deliver the voice calm, sincere and emotionally grounded.';
-  return null;
 }
 
 export function compileSeedance(
@@ -323,18 +240,6 @@ export function compileSeedance(
     sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
   }
   for (const character of ctx.characters ?? []) {
-    // Sin descripción (describeFromMaster es best-effort y el usuario pudo no
-    // teclear nada): la hoja maestra fija la cara, pero el modelo queda sin
-    // vestuario ni actitud → personaje inconsistente entre tomas. Se avisa y se
-    // omite la línea vacía 'Nombre: .' en vez de empujarla en silencio.
-    if (!character.description?.trim()) {
-      warnings.push(
-        character.masterImagePath
-          ? `identidad: ${character.name} no tiene descripción; la hoja maestra fija la cara pero el vestuario y la actitud quedan sin dirección y variarán entre tomas`
-          : `identidad: ${character.name} no tiene descripción ni hoja maestra; su apariencia no está definida`,
-      );
-      continue;
-    }
     const { text, ageWordsRemoved } = describeCharacter(character, {
       fidelity: !character.masterImagePath,
     });
@@ -362,40 +267,19 @@ export function compileSeedance(
     if (direction) sections.push(direction);
   }
 
-  // Cinematografía por defecto (#A): base de luz/óptica coherente cuando ni la
-  // acción ni el formato la especifican. Se omite en formatos estilizados (look
-  // propio) y cuando hay referencia de look/entorno o video de plantilla (el
-  // modelo extrae la luz de ahí).
-  const hasLookReference = (ctx.extraImagePaths?.length ?? 0) > 0 || !!ctx.templateVideoPath;
-  const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
-    `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
-  );
-  if (!stylized && !hasLookReference && !lightAlreadyDirected) {
-    sections.push(cinematographyDefault(ctx.format?.register ?? ''));
-  }
-
-  // Audio dirigido por registro (#2): música/foley deciden aquí, no "si el
-  // registro lo pide". El sonido específico de la acción viene del matcher (#1).
+  // Audio dirigido: qué se oye, no "agrega música".
   if (generateAudio && !ctx.audioRefPath) {
-    sections.push(audioDirection(ctx.format?.register ?? ''));
+    sections.push('Audio: natural diegetic sound that matches the scene; no music unless the register calls for it.');
   }
   // Idioma/acento de la voz SOLO cuando hay habla o narración en la escena.
-  // Si no la hay, se le cierra la puerta a una voz en off no pedida. Con voz, el
-  // tono de entrega se matiza por registro (#3) sobre la cadencia base.
+  // Si no la hay, se le cierra la puerta a una voz en off no pedida.
   if (voiced) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
-    const tone = voiceToneForRegister(ctx.format?.register ?? '');
-    if (tone) sections.push(tone);
   } else if (generateAudio) {
     sections.push('No spoken dialogue or voice-over; ambient sound only.');
   }
 
   sections.push(NEGATIVE_CLAUSE);
-  // Guard anti-rostros solo si NINGÚN rostro es intencional: sin personaje del
-  // Cast (cara anclada) y sin habla en cámara (lip-sync). Con cualquiera de los
-  // dos, el rostro es el objetivo del clip y la cláusula lo contradiría.
-  const facesIntended = (ctx.characters ?? []).some((c) => c.masterImagePath) || speaker;
-  if (!facesIntended) sections.push(NO_REAL_FACES_CLAUSE);
 
   const hasRefs = references.length > 0;
   let prompt = sections.filter(Boolean).join('\n');
