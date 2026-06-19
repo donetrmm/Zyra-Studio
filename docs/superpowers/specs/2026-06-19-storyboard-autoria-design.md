@@ -48,42 +48,46 @@ comment on column campaign_items.storyboard_generation_id is
 - El historial de paneles son filas `generations` (type `image`); las columnas apuntan al panel vigente.
 - `on delete set null`: borrar la media_reference o la generación no rompe el beat.
 
-## Generación de paneles (FLUX por beat)
+## Generación de paneles (FLUX por beat, SÍNCRONA)
 
-Server action `generateStoryboardAction(campaignId)` (en el dominio de campañas):
+En este repo las imágenes (FLUX/Nano Banana) se generan **síncrono dentro del server action** — NO hay handler de imagen en QStash (solo video/audio). Regla de CLAUDE.md: solo lo que tarda >60s pasa por QStash; una imagen es rápida. Por eso el panel se genera **por-beat**, no en batch async.
 
-- Carga los beats del campaign (`campaign_items`) y el contexto de campaña (`loadCampaignContext`: producto, personajes, escena) — reutiliza lo del orquestador de video.
-- Para cada beat **sin panel** (`storyboard_image_id is null`), compila con el **compiler FLUX existente** (`compile(req, ctx)` con `modelSlug` FLUX, `scenePrompt = scene_prompt`, aspectRatio de la campaña, contexto de producto/personaje/escena), inserta una generación `type:'image'` con `params.storyboard = { campaignItemId }` (marcador para el finalize glue), reserva créditos, y encola por QStash **escalonado** (`STAGGER_SECONDS`, como `enqueueBatch`).
-- Idempotente: un beat que ya tiene panel o una generación en vuelo no se re-encola.
-- Reusa el handler FLUX; lo nuevo es la orquestación que liga la generación al beat vía `params.storyboard`.
+Server action `generatePanelAction(itemId)` (`server-actions/storyboard.ts`):
+
+- Valida ownership del beat; carga el contexto de campaña (`loadCampaignContext`: producto, personajes, escena).
+- Compila con el **compiler FLUX existente** (`compile(req, ctx)` con `modelSlug` FLUX, `scenePrompt = scene_prompt`, aspectRatio de la campaña, contexto de producto/personaje/escena) → prompt + dimensiones + referencias.
+- Inserta una fila `generations` (type `image`, provider flux, `params.storyboard = { campaignItemId }`), **reserva créditos**, llama **`generateFlux(...)` SÍNCRONO**, y al terminar: guarda el output en Storage, lo **promueve a `media_reference`** (ver "Promoción"), setea `storyboard_image_id`/`storyboard_generation_id` en el beat, y **confirma créditos**. En error: refund + generación `failed`. Mismo patrón que la generación de imagen suelta (`server-actions/generations.ts`).
+- La UI ("Generar storyboard") llama `generatePanelAction` **solo para los beats sin panel** (`storyboard_image_id is null`), iterando por beat (N requests con progreso). Cada panel cabe holgado en los 60s de Vercel.
 
 ## Refinado de panel (Nano Banana iterativo)
 
 Server action `refinePanelAction(itemId, instruction)`:
 
 - Valida ownership del beat y que tenga `storyboard_image_id` (si no, error "genera el panel primero").
-- Compila con el **compiler Nano Banana existente**: `scenePrompt = instruction`, la imagen vigente (`storyboard_image_id` → reference) como base, modo conversational/previousTurn usando `storyboard_generation_id` previo para preservar composición.
-- Inserta una generación `type:'image'` provider nano-banana con `params.storyboard = { campaignItemId }`, reserva créditos, encola.
-- El nuevo output reemplaza el panel vigente (vía el finalize glue). Repetible: cada edición opera sobre el resultado anterior.
+- Compila con el **compiler Nano Banana existente**: `scenePrompt = instruction`, la imagen vigente (`storyboard_image_id` → reference) como base, modo conversational/`previousTurn` usando la generación previa (`storyboard_generation_id`) para preservar composición — mismo flujo que ya hace `server-actions/generations.ts` para la edición conversacional de imágenes (carga la imagen previa + `thoughtSignature`).
+- Inserta una fila `generations` (type `image`, provider nano-banana, `params.storyboard = { campaignItemId }`), reserva créditos, llama **`generateNanoBanana(...)` SÍNCRONO**, y al terminar promueve el output + setea las columnas + confirma créditos (igual que `generatePanelAction`).
+- El nuevo output reemplaza el panel vigente. Repetible: cada edición opera sobre el resultado anterior.
 - El compiler ya advierte "más de un cambio por iteración"; se respeta.
 
-## Glue de finalize (promover output → media_reference)
+## Promoción del panel (output → media_reference, INLINE)
 
-Cuando una generación con `params.storyboard` termina (worker `app/api/jobs/process`, en el bloque finalize, junto al de cadena):
+Como la generación es síncrona, la **propia acción** (no el worker) promueve el output al terminar:
 
-- Se **promueve** el output a una `media_reference` (helper nuevo `promoteOutputToReference(workspaceId, outputPath)`: descarga el output, `uploadReference`, inserta fila en `media_references` type `image`), y se setean en el `campaign_item`: `storyboard_image_id = <nueva media_reference>` y `storyboard_generation_id = <id de la generación>`.
-- Así el panel es a la vez visible y **usable como referencia** (lo necesita B y la siguiente edición).
+- Helper nuevo `promoteOutputToReference(workspaceId, outputPath): Promise<string>`: el output ya quedó en Storage; lo sube/copia a `references` (`uploadReference`) e inserta una fila en `media_references` type `image`, devolviendo su id.
+- La acción setea en el `campaign_item`: `storyboard_image_id = <nueva media_reference>` y `storyboard_generation_id = <id de la generación>`.
+- Así el panel sirve de referencia (lo necesita B) y de base para la siguiente edición.
 - Best-effort: si la promoción falla, el panel queda como la generación (output_url visible) y se loguea; reintentable. No tira la campaña.
-- Las URLs del proveedor nunca llegan al cliente (invariante): se promueve a Storage interno, como con el fotograma de cadena.
+- Las URLs del proveedor nunca llegan al cliente (invariante): el output ya se guardó en Storage interno por la acción, como la imagen suelta.
+- **NO hay cambios en el worker QStash** — las imágenes no pasan por ahí.
 
 ## UI — vista de Storyboard
 
 En el detalle de la campaña (`app/app/campaigns/[id]/`), una vista/pestaña **Storyboard**:
 
-- Botón **"Generar storyboard"** → `generateStoryboardAction(campaignId)`.
-- Grid de beats en orden (`scene_index`), cada uno con: el panel (o placeholder con estado pendiente/generando/listo/falló), un botón **Regenerar** y un input de instrucción (**"cambia X / agrega Y"**) que llama `refinePanelAction(itemId, instruction)`.
-- **Realtime** para el estado de cada generación (mismo patrón que el resto de generaciones; ver memoria de Realtime+RLS con `setAuth` explícito).
-- Sistema visual: dark, shadcn, sin emojis. Server Components por default; `'use client'` solo en la parte interactiva (input/acciones/realtime).
+- Botón **"Generar storyboard"** → en el cliente, itera los beats sin panel y llama `generatePanelAction(itemId)` por cada uno (secuencial o con poca concurrencia), mostrando estado por panel (generando/listo/falló) según resuelve cada request síncrono.
+- Grid de beats en orden (`scene_index`), cada uno con: el panel (o placeholder con su estado), un botón **Regenerar** (`generatePanelAction`) y un input de instrucción (**"cambia X / agrega Y"**) que llama `refinePanelAction(itemId, instruction)`.
+- Como las acciones son **síncronas**, el estado lo da la promesa de cada request (loading → resultado); **no hace falta Realtime** para los paneles.
+- Sistema visual: dark, shadcn, sin emojis. Server Components por default; `'use client'` solo en la parte interactiva (input/acciones/estado).
 
 ## Casos borde
 
@@ -96,22 +100,21 @@ En el detalle de la campaña (`app/app/campaigns/[id]/`), una vista/pestaña **S
 
 ## Testing
 
-Unit puros (sin APIs reales, ver memoria de tests):
-1. Compilación FLUX de un beat: el prompt y las referencias (producto/personaje/escena) salen correctos para un `campaign_item` dado.
-2. Selección de beats: `generateStoryboardAction` solo encola beats sin panel ni generación en vuelo (idempotencia).
-3. Estado del panel: transiciones pending→generating→ready/failed derivadas del estado de la generación.
-4. `refinePanelAction`: usa el `storyboard_image_id` vigente como base y encadena `storyboard_generation_id` previo; rechaza si no hay panel.
-5. Glue de finalize (lógica pura de decisión): una generación con `params.storyboard` dispara la promoción + set de columnas; sin el marcador, no.
+Unit puros (sin APIs reales, ver memoria de tests) — la lógica testeable vive en `lib/campaigns/storyboard.ts`:
+1. Compilación FLUX de un beat: el prompt y las referencias (producto/personaje/escena) salen correctos para un `campaign_item` dado + contexto.
+2. Selección de beats sin panel: el helper que la UI usa para "Generar storyboard" devuelve solo los beats con `storyboard_image_id == null`.
+3. Compilación Nano Banana del refinado: con una instrucción, produce el prompt de edición correcto y marca "más de un cambio" como warning.
+4. Guard de `refinePanelAction`: rechaza si el beat no tiene `storyboard_image_id`.
 
-Smoke con generación real (FLUX + Nano Banana) lo corre el usuario.
+Las acciones síncronas (que llaman al proveedor real y tocan Storage/DB) NO se testean con APIs reales; su smoke (FLUX + Nano Banana) lo corre el usuario.
 
 ## Archivos afectados (resumen)
 
 - `supabase/migrations/042_storyboard.sql` (nuevo)
-- `lib/campaigns/storyboard.ts` (nuevo): orquestación de generación/refinado de paneles (selección de beats, compilación, inserción de generaciones) — análogo a `orchestrator.ts` pero para imágenes.
-- `server-actions/storyboard.ts` (nuevo): `generateStoryboardAction(campaignId)`, `refinePanelAction(itemId, instruction)`. Validación zod + ownership por workspace.
-- `app/api/jobs/process/route.ts` (finalize glue: promover output → media_reference + set columnas cuando `params.storyboard`).
+- `lib/campaigns/storyboard.ts` (nuevo): lógica pura de la autoría (selección de beats sin panel, compilación FLUX/Nano Banana del panel desde un `campaign_item` + contexto) — separa lo testeable de la acción.
+- `server-actions/storyboard.ts` (nuevo): `generatePanelAction(itemId)`, `refinePanelAction(itemId, instruction)` — síncronas, validación zod + ownership; reservan/confirman créditos; promueven el output inline. Reutilizan el patrón de `server-actions/generations.ts`.
 - `lib/supabase/storage.ts` (helper `promoteOutputToReference(workspaceId, outputPath): Promise<string>` que devuelve el id de la nueva media_reference).
+- (Sin cambios en `app/api/jobs/process/route.ts` — las imágenes no pasan por QStash.)
 - `app/app/campaigns/[id]/storyboard/` + `components/campaigns/StoryboardView.tsx` (UI).
 - `lib/schemas/` (zod para las acciones).
 - Tests: `lib/campaigns/*.test.ts`.
