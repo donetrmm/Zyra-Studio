@@ -10,6 +10,7 @@ export default function BrandLayout({ children }: { children: React.ReactNode })
         tabs={[
           { label: 'Brand Kits', href: '/app/brand/kits' },
           { label: 'Cast', href: '/app/brand/cast' },
+          { label: 'Locaciones', href: '/app/brand/locations' },
           { label: 'Voces', href: '/app/brand/voices' },
           { label: 'Referencias', href: '/app/brand/references' },
         ]}

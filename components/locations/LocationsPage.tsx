@@ -1,0 +1,260 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  createLocationAction,
+  deleteLocationAction,
+  updateLocationAction,
+} from '@/server-actions/locations';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
+
+export type Location = {
+  id: string;
+  name: string;
+  description: string | null;
+  master_image_id: string | null;
+  reference_image_ids: string[];
+};
+
+export function LocationsPage({
+  locations,
+  previews,
+}: {
+  locations: Location[];
+  previews: Record<string, string>;
+}) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [editing, setEditing] = useState<Location | 'new' | null>(null);
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[18px] font-semibold text-foreground">Locaciones</h1>
+          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+            Escenarios reutilizables para tus campañas. La imagen maestra describe el lugar visualmente y
+            se inyecta como referencia de ambiente en cada secuencia donde aparece la locación.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditing('new')}
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <Plus className="size-4" aria-hidden />
+          Nueva locación
+        </button>
+      </div>
+
+      {editing && (
+        <LocationEditor
+          location={editing === 'new' ? null : editing}
+          previews={previews}
+          onClose={() => setEditing(null)}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      {locations.length === 0 && !editing ? (
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
+            <MapPin className="size-7" aria-hidden />
+          </div>
+          <p className="text-[14px] text-foreground/70">Sin locaciones</p>
+          <p className="max-w-sm text-[12.5px]">
+            Las locaciones definen el &ldquo;dónde&rdquo; de cada secuencia. Añade una imagen de referencia
+            del lugar para que el modelo lo recree con consistencia.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {locations.map((l) => (
+            <div
+              key={l.id}
+              className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20"
+            >
+              <div className="flex items-center gap-3 p-4">
+                {l.master_image_id && previews[l.master_image_id] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previews[l.master_image_id]}
+                    alt={l.name}
+                    className="size-14 shrink-0 rounded-lg border border-border object-cover"
+                  />
+                ) : (
+                  <div className="grid size-14 shrink-0 place-items-center rounded-lg border border-border bg-muted/30">
+                    <MapPin className="size-5 text-muted-foreground/40" aria-hidden />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h3 className="truncate text-[14px] font-medium text-foreground">{l.name}</h3>
+                  {l.description && (
+                    <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground/70">
+                      {l.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 border-t border-border/30 p-3">
+                <button
+                  type="button"
+                  onClick={() => setEditing(l)}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="size-3" aria-hidden /> Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `Eliminar "${l.name}"?`,
+                      description: 'Los items de campaña que la usan quedarán sin locación.',
+                      confirmLabel: 'Eliminar',
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    const res = await deleteLocationAction(l.id);
+                    if (res.ok) {
+                      toast.success('Locación eliminada');
+                      router.refresh();
+                    } else {
+                      toast.error(res.message || 'Error');
+                    }
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                >
+                  <Trash2 className="size-3" aria-hidden />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LocationEditor({
+  location,
+  previews,
+  onClose,
+  onSaved,
+}: {
+  location: Location | null;
+  previews: Record<string, string>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(location?.name ?? '');
+  const [description, setDescription] = useState(location?.description ?? '');
+  const [masterImages, setMasterImages] = useState<RefImage[]>(
+    location?.master_image_id
+      ? [{ id: location.master_image_id, previewUrl: previews[location.master_image_id] ?? null }]
+      : [],
+  );
+  const [referenceImages, setReferenceImages] = useState<RefImage[]>(
+    (location?.reference_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
+  );
+  const [saving, startSave] = useTransition();
+
+  // Master es opcional en locaciones — solo nombre requerido.
+  const canSave = name.trim().length > 0;
+
+  function handleSave() {
+    startSave(async () => {
+      const payload = {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        masterImageId: masterImages[0]?.id,
+        referenceImageIds: referenceImages.map((i) => i.id),
+      };
+      const res = location
+        ? await updateLocationAction(location.id, payload)
+        : await createLocationAction(payload);
+      if (!res.ok) {
+        toast.error(res.message || 'Error');
+        return;
+      }
+      toast.success(location ? 'Locación actualizada' : 'Locación creada');
+      onClose();
+      onSaved();
+    });
+  }
+
+  return (
+    <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border bg-muted/30 px-5 py-3.5">
+        <h2 className="text-[15px] font-medium text-foreground">
+          {location ? 'Editar' : 'Nueva'} locación
+        </h2>
+      </div>
+      <div className="space-y-4 p-5">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre de la locación"
+          maxLength={80}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+
+        <div>
+          <label
+            htmlFor="location-desc"
+            className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          >
+            Descripción (opcional)
+          </label>
+          <textarea
+            id="location-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ambiente, luz, estilo arquitectónico, época: café de barrio con luz cálida, mesas de madera, ventana a la calle…"
+            rows={3}
+            maxLength={600}
+            className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+        </div>
+
+        <ReferenceImagesUploader
+          label="Imagen maestra (opcional)"
+          hint="Vista representativa del lugar: exterior, interior, plano general. Alta resolución."
+          images={masterImages}
+          onChange={(imgs) => setMasterImages(imgs.slice(-1))}
+          max={1}
+        />
+
+        <ReferenceImagesUploader
+          label="Imágenes de referencia adicionales"
+          hint="Detalles, ángulos o momentos del día distintos. Hasta 4 imágenes."
+          images={referenceImages}
+          onChange={setReferenceImages}
+          max={4}
+        />
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !canSave}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+            {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground hover:bg-muted"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
