@@ -65,6 +65,10 @@ export type DirectorContext = {
   // Referencias extra del refinado (campaign_items.reference_ids resueltos):
   // rol environment, al final de la prioridad.
   extraImagePaths?: string[];
+  // Locación de la secuencia: su imagen se re-ancla como referencia environment
+  // en cada clip y su descripción refuerza el "dónde". Antes de extraImagePaths
+  // en prioridad. v1 usa solo la imagen master (imagePaths[0..]).
+  location?: { name?: string; description?: string; imagePaths: string[] };
   // Escena elegida (de scene_library o libre). fragment va al prompt.
   scene?: { name?: string; fragment: string };
   // Plantilla viva: video ganador como referencia de estructura/cámara/ritmo.

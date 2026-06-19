@@ -432,6 +432,27 @@ describe('compile seedance', () => {
     expect(res.compiled.prompt).toContain('holds up a framed picture');
   });
 
+  it('la locación entra como environment tras personaje y antes de extras, y su descripción va al setting', () => {
+    const result = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the couple smiles at the camera' },
+      {
+        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
+        location: { name: 'Living', description: 'a bright modern living room with a gray wall', imagePaths: ['ws/living.png'] },
+        extraImagePaths: ['ws/extra.png'],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const images = result.compiled.references.filter((r) => r.kind === 'image');
+    const roles = images.map((r) => r.role);
+    // orden: product, character, environment(locación), environment(extra)
+    expect(roles).toEqual(['product', 'character', 'environment', 'environment']);
+    expect(images[2].storagePath).toBe('ws/living.png'); // la locación va ANTES del extra
+    expect(images[3].storagePath).toBe('ws/extra.png');
+    expect(result.compiled.prompt).toContain('bright modern living room');
+  });
+
   it('reparte en pocos beats coarse cuando hay acciones separadas por oración', () => {
     const action = 'She walks to the table. She picks up the product. She smiles at the camera.';
     const res = compile(

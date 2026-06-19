@@ -191,6 +191,17 @@ export function buildReferences(ctx: DirectorContext): {
     }
   }
 
+  // Locación de la secuencia: entorno re-anclado en cada clip. Va antes de los
+  // extras del refinado en prioridad. Mismo rol environment.
+  for (const path of ctx.location?.imagePaths ?? []) {
+    pushImage(
+      path,
+      'environment',
+      (n) =>
+        `@image${n} is the location/setting — keep the same place, architecture, background, lighting and overall look consistent across shots.`,
+    );
+  }
+
   // Referencias extra del refinado: entorno/estilo, última prioridad.
   for (const path of ctx.extraImagePaths ?? []) {
     pushImage(path, 'environment', (n) => `@image${n} is an additional scene reference — match its environment, mood and look.`);
@@ -316,6 +327,10 @@ export function compileSeedance(
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);
 
+  if (ctx.location?.description?.trim()) {
+    sections.push(`Location: ${ctx.location.description.trim()}.`);
+  }
+
   // Fidelidad de producto y personajes (reglas duras del inventario). La
   // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay
   // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
@@ -366,7 +381,10 @@ export function compileSeedance(
   // acción ni el formato la especifican. Se omite en formatos estilizados (look
   // propio) y cuando hay referencia de look/entorno o video de plantilla (el
   // modelo extrae la luz de ahí).
-  const hasLookReference = (ctx.extraImagePaths?.length ?? 0) > 0 || !!ctx.templateVideoPath;
+  const hasLookReference =
+    (ctx.extraImagePaths?.length ?? 0) > 0 ||
+    (ctx.location?.imagePaths?.length ?? 0) > 0 ||
+    !!ctx.templateVideoPath;
   const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
     `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
   );
