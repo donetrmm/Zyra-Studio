@@ -238,7 +238,7 @@ export async function loadCampaignContext(
   };
 }
 
-function directorContextFor(
+export function directorContextFor(
   item: ItemRow,
   format: FormatRow | null,
   ctx: CampaignContext,
