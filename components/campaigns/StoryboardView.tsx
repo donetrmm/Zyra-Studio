@@ -8,6 +8,16 @@ import { toast } from 'sonner';
 import { generatePanelAction, refinePanelAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 
+const ERROR_MESSAGES: Record<string, string> = {
+  insufficient_credits: 'No tienes créditos suficientes',
+  no_panel: 'Genera el panel primero',
+  not_found: 'No encontrado',
+};
+
+function friendlyError(error: string, message?: string): string {
+  return ERROR_MESSAGES[error] ?? message ?? error;
+}
+
 type PanelState =
   | { status: 'idle'; panelUrl: string | null }
   | { status: 'generating' }
@@ -53,16 +63,17 @@ export function StoryboardView({ campaignId, campaignName, beats }: Props) {
         // del servidor vía router.refresh(). Mientras, marcamos idle sin URL
         // para que el refresh la traiga.
         setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'idle', panelUrl: null } }));
+        router.refresh();
       } else {
+        const msg = friendlyError(res.error, res.message);
         setPanelStates((prev) => ({
           ...prev,
-          [beat.id]: { status: 'error', message: res.message ?? res.error },
+          [beat.id]: { status: 'error', message: msg },
         }));
-        toast.error(`Panel ${beat.sceneIndex + 1}: ${res.message ?? res.error}`);
+        toast.error(`Panel ${beat.sceneIndex + 1}: ${msg}`);
       }
     }
     setGeneratingAll(false);
-    router.refresh();
   }
 
   async function handleRegenerate(beatId: string) {
@@ -72,11 +83,12 @@ export function StoryboardView({ campaignId, campaignName, beats }: Props) {
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
       router.refresh();
     } else {
+      const msg = friendlyError(res.error, res.message);
       setPanelStates((prev) => ({
         ...prev,
-        [beatId]: { status: 'error', message: res.message ?? res.error },
+        [beatId]: { status: 'error', message: msg },
       }));
-      toast.error(res.message ?? res.error);
+      toast.error(msg);
     }
   }
 
@@ -94,7 +106,7 @@ export function StoryboardView({ campaignId, campaignName, beats }: Props) {
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
       router.refresh();
     } else {
-      toast.error(res.message ?? res.error);
+      toast.error(friendlyError(res.error, res.message));
     }
   }
 

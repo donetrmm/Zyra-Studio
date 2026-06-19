@@ -302,7 +302,7 @@ export async function generatePanelAction(
     // Promoción best-effort: output → media_reference → campaign_item
     let imageId: string | null = null;
     try {
-      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath);
+      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath, generationId);
       await supabase
         .from('campaign_items')
         .update({
@@ -545,7 +545,7 @@ export async function refinePanelAction(
     // Promoción best-effort
     let imageId: string | null = null;
     try {
-      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath);
+      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath, generationId);
       await supabase
         .from('campaign_items')
         .update({

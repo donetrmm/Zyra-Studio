@@ -127,6 +127,7 @@ export async function promoteOutputToReference(
   workspaceId: string,
   userId: string,
   outputPath: string,
+  sourceGenerationId: string,
 ): Promise<string> {
   const { buffer, mimeType } = await downloadOutputBuffer(outputPath);
   const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
@@ -141,6 +142,7 @@ export async function promoteOutputToReference(
       type: 'image',
       storage_url: path,
       source: 'generation',
+      source_generation_id: sourceGenerationId,
     })
     .select('id')
     .single();
