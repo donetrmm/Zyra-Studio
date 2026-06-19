@@ -46,6 +46,7 @@ next-env.d.ts
 
 .vercel
 scripts/smoke-seedance-output.mp4
+scripts/_chain-frames/
 .superpowers/
 
 # tooling / scratch local (no versionar)

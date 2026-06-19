@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke:seedance": "node --env-file=.env.local scripts/smoke-seedance.mjs"
+    "smoke:seedance": "node --env-file=.env.local scripts/smoke-seedance.mjs",
+    "measure:chain-luma": "node --env-file=.env.local scripts/measure-chain-luma.mjs"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",
