@@ -119,6 +119,35 @@ export async function downloadOutputBuffer(path: string): Promise<{
   return { buffer: Buffer.from(arrayBuf), mimeType: data.type || 'image/jpeg' };
 }
 
+// Promueve un output ya generado (bucket outputs) a una media_reference reusable
+// (bucket references): copia el binario y crea la fila media_references type
+// 'image'. Devuelve el id de la nueva media_reference. Usado por el storyboard:
+// el panel debe ser una referencia (para el video) y base de la siguiente edición.
+export async function promoteOutputToReference(
+  workspaceId: string,
+  userId: string,
+  outputPath: string,
+): Promise<string> {
+  const { buffer, mimeType } = await downloadOutputBuffer(outputPath);
+  const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
+  const key = `storyboard/${crypto.randomUUID()}.${ext}`;
+  const path = await uploadReference(workspaceId, key, buffer, mimeType);
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from('media_references')
+    .insert({
+      workspace_id: workspaceId,
+      user_id: userId,
+      type: 'image',
+      storage_url: path,
+      source: 'generation',
+    })
+    .select('id')
+    .single();
+  if (error || !data) throw new Error(`promote reference failed: ${error?.message ?? 'no row'}`);
+  return data.id as string;
+}
+
 export async function createReferenceUploadUrl(
   workspaceId: string,
   userId: string,
