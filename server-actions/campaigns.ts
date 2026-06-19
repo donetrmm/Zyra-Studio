@@ -2350,3 +2350,43 @@ export async function mergeSequenceAction(input: unknown): Promise<Result<{ merg
   revalidatePath(`/app/campaigns/${parsed.data.campaignId}`);
   return { ok: true, data: { merged: true, item: mergedItem } };
 }
+
+export async function assignSequenceLocationAction(
+  campaignId: string,
+  sequenceId: string,
+  locationId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!z.string().uuid().safeParse(campaignId).success || !z.string().uuid().safeParse(sequenceId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  if (locationId !== null && !z.string().uuid().safeParse(locationId).success) {
+    return { ok: false, error: 'validation_error' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  // Ownership: la campaña es del workspace, y la locación (si la hay) también.
+  const { data: camp } = await supabase
+    .from('campaigns')
+    .select('id, workspace_id')
+    .eq('id', campaignId)
+    .single();
+  if (!camp || camp.workspace_id !== workspace.id) return { ok: false, error: 'forbidden' };
+  if (locationId) {
+    const { data: loc } = await supabase
+      .from('locations')
+      .select('id, workspace_id')
+      .eq('id', locationId)
+      .single();
+    if (!loc || loc.workspace_id !== workspace.id) return { ok: false, error: 'forbidden' };
+  }
+
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ location_id: locationId })
+    .eq('campaign_id', campaignId)
+    .eq('sequence_id', sequenceId);
+  if (error) return { ok: false, error: 'internal_error' };
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true };
+}

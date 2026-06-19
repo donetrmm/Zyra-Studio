@@ -26,6 +26,7 @@ export type StudioItem = {
   sequenceId: string | null;
   sceneIndex: number | null;
   sequenceLabel: string | null;
+  locationId: string | null;
 };
 
 // Proyecta una fila cruda de campaign_items a StudioItem. Los nombres de formato
@@ -64,5 +65,6 @@ export function toStudioItem(
     sequenceId: (row.sequence_id as string | null) ?? null,
     sceneIndex: (row.scene_index as number | null) ?? null,
     sequenceLabel: (row.sequence_label as string | null) ?? null,
+    locationId: (row.location_id as string | null) ?? null,
   };
 }

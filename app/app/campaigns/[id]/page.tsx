@@ -5,6 +5,7 @@ import { CampaignDetailPage } from '@/components/campaigns/CampaignDetailPage';
 import {
   CampaignStudioView,
   type StudioItem,
+  type StudioLocationOption,
   type StudioTemplate,
 } from '@/components/campaigns/CampaignStudioView';
 import { toStudioItem } from '@/lib/campaigns/studio-item';
@@ -39,11 +40,11 @@ export default async function CampaignDetailRoute({
   // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
   // las generaciones de la campaña, no el pipeline.
   if (brief?.productName && view !== 'assets') {
-    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }] =
+    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }] =
       await Promise.all([
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id')
           .eq('campaign_id', id)
           .order('scheduled_date'),
         supabase.from('formats').select('id, name, description'),
@@ -53,6 +54,11 @@ export default async function CampaignDetailRoute({
           .select('id, name, format_id, uses_count')
           .eq('workspace_id', workspace.id)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('locations')
+          .select('id, name')
+          .eq('workspace_id', workspace.id)
+          .order('name'),
       ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
@@ -77,6 +83,11 @@ export default async function CampaignDetailRoute({
       name: c.name as string,
     }));
 
+    const locationOptions: StudioLocationOption[] = (locationRows ?? []).map((l) => ({
+      id: l.id as string,
+      name: l.name as string,
+    }));
+
     return (
       <CampaignStudioView
         campaign={{
@@ -91,6 +102,7 @@ export default async function CampaignDetailRoute({
         initialItems={items}
         templates={templates}
         characterOptions={characterOptions}
+        locationOptions={locationOptions}
       />
     );
   }

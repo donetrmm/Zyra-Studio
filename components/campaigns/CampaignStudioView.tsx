@@ -27,6 +27,7 @@ import { createClient } from '@/lib/supabase/client';
 import { cancelGenerationAction } from '@/server-actions/generations';
 import {
   approveBatchAction,
+  assignSequenceLocationAction,
   createVariantAction,
   deleteCampaignItemAction,
   distillTemplateAction,
@@ -71,6 +72,7 @@ export type StudioTemplate = {
 };
 
 export type StudioCharacterOption = { id: string; name: string };
+export type StudioLocationOption = { id: string; name: string };
 
 export type StudioCampaign = {
   id: string;
@@ -109,11 +111,13 @@ export function CampaignStudioView({
   initialItems,
   templates,
   characterOptions,
+  locationOptions,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
   templates: StudioTemplate[];
   characterOptions: StudioCharacterOption[];
+  locationOptions: StudioLocationOption[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
@@ -289,11 +293,17 @@ export function CampaignStudioView({
           <PlanTable
             campaignId={campaign.id}
             items={items}
+            locationOptions={locationOptions}
             onEdit={setEditing}
             onPreview={handlePreviewPrompt}
             onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
             onSequenceMerged={(sequenceId, merged) =>
               setItems((p) => [...p.filter((i) => i.sequenceId !== sequenceId), merged])
+            }
+            onSequenceLocationChanged={(sequenceId, locationId) =>
+              setItems((p) =>
+                p.map((i) => (i.sequenceId === sequenceId ? { ...i, locationId } : i)),
+              )
             }
           />
         </>
@@ -511,17 +521,21 @@ function CampaignSettingsDialog({
 function PlanTable({
   campaignId,
   items,
+  locationOptions,
   onEdit,
   onPreview,
   onDeleted,
   onSequenceMerged,
+  onSequenceLocationChanged,
 }: {
   campaignId: string;
   items: StudioItem[];
+  locationOptions: StudioLocationOption[];
   onEdit: (item: StudioItem) => void;
   onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
   onSequenceMerged: (sequenceId: string, merged: StudioItem) => void;
+  onSequenceLocationChanged: (sequenceId: string, locationId: string | null) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
@@ -562,6 +576,19 @@ function PlanTable({
     } else {
       toast.error(res.message ?? 'No se pudo unir la secuencia');
     }
+  }
+
+  const [assigningLocation, setAssigningLocation] = useState<string | null>(null);
+
+  async function handleAssignLocation(sequenceId: string, locationId: string | null) {
+    setAssigningLocation(sequenceId);
+    const res = await assignSequenceLocationAction(campaignId, sequenceId, locationId);
+    setAssigningLocation(null);
+    if (!res.ok) {
+      toast.error('No se pudo asignar la locación');
+      return;
+    }
+    onSequenceLocationChanged(sequenceId, locationId);
   }
 
   function renderPlanRow(item: StudioItem) {
@@ -733,14 +760,34 @@ function PlanTable({
                   separado y juntas forman un anuncio.
                 </p>
               </div>
-              <button
-                type="button"
-                title={`Une las ${group.scenes.length} escenas en un solo video continuo (máx 15s). Si no las unes, se generan por separado.`}
-                className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => handleMergeSequence(group.sequenceId, group.scenes.length)}
-              >
-                Unir en 1 clip
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {locationOptions.length > 0 && (
+                  <select
+                    aria-label="Locación de la secuencia"
+                    disabled={assigningLocation === group.sequenceId}
+                    value={group.scenes[0]?.locationId ?? ''}
+                    onChange={(e) =>
+                      handleAssignLocation(group.sequenceId, e.target.value || null)
+                    }
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-[11.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary disabled:opacity-50"
+                  >
+                    <option value="">Sin locación</option>
+                    {locationOptions.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  title={`Une las ${group.scenes.length} escenas en un solo video continuo (máx 15s). Si no las unes, se generan por separado.`}
+                  className="rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => handleMergeSequence(group.sequenceId, group.scenes.length)}
+                >
+                  Unir en 1 clip
+                </button>
+              </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-left text-[12.5px]">
