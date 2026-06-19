@@ -241,6 +241,13 @@ export function CampaignStudioView({
             CSV
           </button>
           <Link
+            href={`/app/campaigns/${campaign.id}/storyboard`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Clapperboard className="size-3.5" aria-hidden />
+            Storyboard
+          </Link>
+          <Link
             href={`/app/campaigns/${campaign.id}/report`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
           >
