@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { generatePanelAction, refinePanelAction } from '@/server-actions/storyboard';
-import type { StoryboardBeat } from '@/app/app/campaigns/[id]/storyboard/page';
+import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 
 type PanelState =
   | { status: 'idle'; panelUrl: string | null }

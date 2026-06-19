@@ -3,16 +3,9 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
 import { StoryboardView } from '@/components/campaigns/StoryboardView';
+import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 
 export const dynamic = 'force-dynamic';
-
-export type StoryboardBeat = {
-  id: string;
-  sceneIndex: number;
-  scenePrompt: string;
-  storyboardImageId: string | null;
-  panelUrl: string | null;
-};
 
 export default async function StoryboardPage({
   params,
