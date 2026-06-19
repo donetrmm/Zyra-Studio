@@ -209,7 +209,7 @@ export function buildReferences(ctx: DirectorContext): {
 
   if (droppedImages > 0) {
     warnings.push(
-      `referencias: ${droppedImages} imágenes recortadas por el tope de 9 del modelo (prioridad: producto > empaque > personaje > extra)`,
+      `referencias: ${droppedImages} imágenes recortadas por el tope de 9 del modelo (prioridad: producto > empaque > personaje > locación > extra)`,
     );
   }
 

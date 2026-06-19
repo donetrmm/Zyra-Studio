@@ -268,7 +268,7 @@ function directorContextFor(
     },
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
-    location: location && location.imagePaths.length ? location : location?.description ? location : undefined,
+    location: (location?.imagePaths.length || location?.description?.trim()) ? location : undefined,
     scene: item.scene ? { fragment: item.scene } : undefined,
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,

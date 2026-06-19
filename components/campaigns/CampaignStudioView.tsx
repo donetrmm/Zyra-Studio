@@ -767,7 +767,7 @@ function PlanTable({
                     disabled={assigningLocation === group.sequenceId}
                     value={group.scenes[0]?.locationId ?? ''}
                     onChange={(e) =>
-                      handleAssignLocation(group.sequenceId, e.target.value || null)
+                      handleAssignLocation(group.sequenceId, e.target.value === '' ? null : e.target.value)
                     }
                     className="rounded-md border border-border bg-background px-2 py-1.5 text-[11.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary disabled:opacity-50"
                   >

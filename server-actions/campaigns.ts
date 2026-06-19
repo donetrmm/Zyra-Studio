@@ -25,6 +25,7 @@ import {
   itemCharacterIds,
   loadCampaignContext,
   resolveCharacterMasterPaths,
+  resolveLocations,
 } from '@/lib/campaigns/orchestrator';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
@@ -2173,7 +2174,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging)')
     .eq('id', itemId)
     .single();
   const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null } } | null)?.campaigns;
@@ -2223,6 +2224,15 @@ export async function previewItemPromptAction(itemId: string): Promise<
       .map((r) => r.storage_url as string);
   }
 
+  const locationIdRaw = (item.location_id as string | null) ?? null;
+  const locations = locationIdRaw
+    ? await resolveLocations(supabase, workspace.id, [locationIdRaw])
+    : new Map<string, { name: string; description: string | null; imagePaths: string[] }>();
+  const loc = locationIdRaw ? locations.get(locationIdRaw) : undefined;
+  const locationCtx = loc
+    ? { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths }
+    : undefined;
+
   const characters = charIds
     .map((id) => ctx.characters.get(id))
     .filter((c): c is NonNullable<ReturnType<typeof ctx.characters.get>> => !!c);
@@ -2247,6 +2257,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
       characters: characters.length ? characters : undefined,
       scene: item.scene ? { fragment: item.scene as string } : undefined,
       extraImagePaths: extraImagePaths.length ? extraImagePaths : undefined,
+      location: locationCtx,
       language: ctx.language,
     },
   );
@@ -2372,7 +2383,7 @@ export async function assignSequenceLocationAction(
     .eq('id', campaignId)
     .single();
   if (!camp || camp.workspace_id !== workspace.id) return { ok: false, error: 'forbidden' };
-  if (locationId) {
+  if (locationId !== null) {
     const { data: loc } = await supabase
       .from('locations')
       .select('id, workspace_id')
