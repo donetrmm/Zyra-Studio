@@ -25,6 +25,7 @@ import { ProviderError, type ImageReference } from '@/lib/providers/types';
 import {
   loadCampaignContext,
   directorContextFor,
+  resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { compilePanel, compilePanelEdit } from '@/lib/campaigns/storyboard';
@@ -162,6 +163,15 @@ export async function generatePanelAction(
 
   const ctx = await loadCampaignContext(workspace.id, campaign, characterIds);
 
+  // Locación de la escena: la imagen del lugar se ancla como referencia environment
+  // en cada panel → consistencia de escena entre paneles del storyboard.
+  const locClient = await createClient();
+  const locMap = await resolveLocations(locClient, workspace.id, item.location_id ? [item.location_id] : []);
+  const resolvedLoc = item.location_id ? locMap.get(item.location_id) : undefined;
+  const dirLocation = resolvedLoc
+    ? { name: resolvedLoc.name, description: resolvedLoc.description ?? undefined, imagePaths: resolvedLoc.imagePaths }
+    : undefined;
+
   // Armar ItemRow mínimo para directorContextFor
   const itemRow: ItemRow = {
     id: item.id,
@@ -183,7 +193,7 @@ export async function generatePanelAction(
     location_id: item.location_id,
   };
 
-  const dirCtx = directorContextFor(itemRow, null, ctx);
+  const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
 
   const beat = {
     id: item.id,
@@ -351,6 +361,48 @@ export async function generatePanelAction(
   }
 }
 
+// ─── acción: asignar la locación del storyboard ──────────────────────────────
+
+// Asigna (o quita con null) la locación a TODOS los beats de la campaña. Sus
+// paneles se anclan a esa locación como referencia de escena. Valida ownership.
+export async function setStoryboardLocationAction(
+  campaignId: string,
+  locationId: string | null,
+): Promise<Result<{ updated: true }>> {
+  if (!campaignId) return { ok: false, error: 'validation_error', message: 'campaignId requerido' };
+
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: camp } = await supabase
+    .from('campaigns')
+    .select('id, workspace_id')
+    .eq('id', campaignId)
+    .single();
+  if (!camp || (camp as { workspace_id: string }).workspace_id !== workspace.id) {
+    return { ok: false, error: 'forbidden' };
+  }
+  if (locationId) {
+    const { data: loc } = await supabase
+      .from('locations')
+      .select('id, workspace_id')
+      .eq('id', locationId)
+      .single();
+    if (!loc || (loc as { workspace_id: string }).workspace_id !== workspace.id) {
+      return { ok: false, error: 'forbidden' };
+    }
+  }
+
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ location_id: locationId })
+    .eq('campaign_id', campaignId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${campaignId}/storyboard`);
+  return { ok: true, data: { updated: true } };
+}
+
 // ─── acción: refinar panel (Nano Banana Pro conversacional) ──────────────────
 
 export async function refinePanelAction(
@@ -381,6 +433,15 @@ export async function refinePanelAction(
 
   const ctx = await loadCampaignContext(workspace.id, campaign, characterIds);
 
+  // Locación: misma referencia environment que en la generación, para que el
+  // refinado no pierda el lugar.
+  const locClient = await createClient();
+  const locMap = await resolveLocations(locClient, workspace.id, item.location_id ? [item.location_id] : []);
+  const resolvedLoc = item.location_id ? locMap.get(item.location_id) : undefined;
+  const dirLocation = resolvedLoc
+    ? { name: resolvedLoc.name, description: resolvedLoc.description ?? undefined, imagePaths: resolvedLoc.imagePaths }
+    : undefined;
+
   const itemRow: ItemRow = {
     id: item.id,
     campaign_id: item.campaign_id,
@@ -401,7 +462,7 @@ export async function refinePanelAction(
     location_id: item.location_id,
   };
 
-  const dirCtx = directorContextFor(itemRow, null, ctx);
+  const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
 
   const compiled = compilePanelEdit(instruction, item.aspect_ratio, dirCtx, NANO_MODEL_SLUG);
   if (!compiled.ok) {

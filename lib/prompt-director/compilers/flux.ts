@@ -35,6 +35,16 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
       'Keep the people consistent with the provided character reference image(s): same face, hair and build across shots.',
     );
   }
+  // Locación: el lugar como escena (consistencia entre paneles del storyboard).
+  // Descripción al prompt + imagen como referencia environment (abajo).
+  if (ctx.location?.description?.trim()) {
+    sections.push(`Location: ${ctx.location.description.trim()}.`);
+  }
+  if ((ctx.location?.imagePaths?.length ?? 0) > 0) {
+    sections.push(
+      'The setting must match the provided location reference image: same place, architecture and background.',
+    );
+  }
   // Iluminación por defecto orientada a producto si el prompt no la trae.
   if (!/light|lighting|luz|iluminaci/i.test(req.scenePrompt)) {
     sections.push('Soft directional lighting that shows form, volume and material texture.');
@@ -58,6 +68,10 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
         scope: 'rostro, peinado y complexión; no la ropa ni el fondo',
       });
     }
+  }
+  // Locación: imagen del lugar como referencia de escena (después de producto/personaje).
+  for (const path of ctx.location?.imagePaths ?? []) {
+    references.push({ storagePath: path, kind: 'image', role: 'environment' });
   }
 
   return {

@@ -31,8 +31,12 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
   if ((ctx.characters ?? []).some((c) => c.masterImagePath)) {
     sections.push('Keep the people exactly as in their reference image(s): same face, hair and build; do not change their identity.');
   }
+  // Locación: el lugar como referencia de escena (consistencia entre paneles).
+  if ((ctx.location?.imagePaths?.length ?? 0) > 0) {
+    sections.push('Keep the setting exactly as in the location reference image: same place, architecture and background.');
+  }
 
-  // Referencias: producto (hasta 3) + hoja maestra de cada personaje (hasta 3).
+  // Referencias: producto (3) + personaje (3 master) + locación (environment).
   const references: CompiledReference[] = [];
   for (const storagePath of ctx.product?.imagePaths.slice(0, 3) ?? []) {
     references.push({ storagePath, kind: 'image', role: 'product' });
@@ -46,6 +50,9 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
         scope: 'rostro, peinado y complexión; no la ropa ni el fondo',
       });
     }
+  }
+  for (const path of ctx.location?.imagePaths ?? []) {
+    references.push({ storagePath: path, kind: 'image', role: 'environment' });
   }
 
   return {

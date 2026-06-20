@@ -48,6 +48,35 @@ describe('compileNanoBanana ancla al personaje', () => {
   });
 });
 
+// Anclar la locación en el storyboard: ambos compilers deben emitir la imagen de la
+// locación como referencia environment (consistencia de escena entre paneles).
+describe('los compilers anclan la locación (environment)', () => {
+  it('compileFlux mete la imagen de locación como referencia rol environment + descripción', () => {
+    const result = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person stands in the place' },
+      {
+        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        location: { name: 'Living', description: 'a bright modern living room', imagePaths: ['ws/living.png'] },
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const refs = result.compiled.references.filter((r) => r.kind === 'image');
+    expect(refs.some((r) => r.role === 'environment' && r.storagePath === 'ws/living.png')).toBe(true);
+    expect(result.compiled.prompt).toContain('living room');
+  });
+  it('compileNanoBanana mete la imagen de locación como referencia rol environment', () => {
+    const result = compile(
+      { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'make the light warmer' },
+      { location: { name: 'Living', description: 'a bright modern living room', imagePaths: ['ws/living.png'] } },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const refs = result.compiled.references.filter((r) => r.kind === 'image');
+    expect(refs.some((r) => r.role === 'environment' && r.storagePath === 'ws/living.png')).toBe(true);
+  });
+});
+
 // ============ Fixtures ============
 // Formatos reflejando el seed de 023 (en producción vienen de la tabla).
 

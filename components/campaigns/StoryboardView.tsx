@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ImageIcon, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { generatePanelAction, refinePanelAction } from '@/server-actions/storyboard';
+import { generatePanelAction, refinePanelAction, setStoryboardLocationAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -27,10 +27,25 @@ type Props = {
   campaignId: string;
   campaignName: string;
   beats: StoryboardBeat[];
+  locations: { id: string; name: string }[];
+  currentLocationId: string | null;
 };
 
-export function StoryboardView({ campaignId, campaignName, beats }: Props) {
+export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId }: Props) {
   const router = useRouter();
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  async function handleSetLocation(locationId: string | null) {
+    setSavingLocation(true);
+    const res = await setStoryboardLocationAction(campaignId, locationId);
+    setSavingLocation(false);
+    if (res.ok) {
+      toast.success(locationId ? 'Locación anclada al storyboard' : 'Locación quitada');
+      router.refresh();
+    } else {
+      toast.error(friendlyError(res.error, res.message));
+    }
+  }
 
   // Estado local por beat: refleja URL y estado de generación sin necesitar Realtime.
   const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() => {
@@ -144,6 +159,29 @@ export function StoryboardView({ campaignId, campaignName, beats }: Props) {
           </button>
         )}
       </div>
+
+      {locations.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
+          <MapPin className="size-3.5 text-muted-foreground" aria-hidden />
+          <span className="text-[12px] text-muted-foreground">Locación de la escena:</span>
+          <select
+            value={currentLocationId ?? ''}
+            disabled={savingLocation}
+            onChange={(e) => void handleSetLocation(e.target.value === '' ? null : e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary disabled:opacity-50"
+          >
+            <option value="">Sin locación</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] text-muted-foreground/60">
+            ancla el lugar en cada panel; regenera para aplicarla
+          </span>
+        </div>
+      )}
 
       {beats.length === 0 ? (
         <div className="mt-12 rounded-xl border border-border bg-card/50 p-8 text-center">

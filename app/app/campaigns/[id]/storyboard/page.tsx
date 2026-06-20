@@ -27,11 +27,21 @@ export default async function StoryboardPage({
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, scene_index, scene_prompt, storyboard_image_id')
+    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id')
     .eq('campaign_id', id)
     .order('scene_index');
 
   const rows = itemRows ?? [];
+
+  // Locación actual del storyboard (compartida por los beats) + catálogo del workspace.
+  const currentLocationId =
+    (rows.find((r) => r.location_id)?.location_id as string | null | undefined) ?? null;
+  const { data: locationRows } = await supabase
+    .from('locations')
+    .select('id, name')
+    .eq('workspace_id', workspace.id)
+    .order('created_at', { ascending: false });
+  const locations = (locationRows ?? []).map((l) => ({ id: l.id as string, name: l.name as string }));
 
   // Resolver URLs de paneles: storyboard_image_id -> media_references.storage_url -> signed URL
   const imageIds = rows
@@ -69,6 +79,8 @@ export default async function StoryboardPage({
       campaignId={id}
       campaignName={campaign.name as string}
       beats={beats}
+      locations={locations}
+      currentLocationId={currentLocationId}
     />
   );
 }
