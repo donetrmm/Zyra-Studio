@@ -141,25 +141,54 @@ async function loadItemAndCampaign(
   return { item, campaign };
 }
 
-// Acción/escena del beat ANTERIOR como CONTEXTO de continuidad narrativa, en TEXTO.
-// (Pasar la IMAGEN previa como referencia hacía que Nano la copiara literal — Nano
-// es reference-grounded y trata cada imagen como "preserva esto". El texto da el
-// hilo de la historia sin dictar la composición.) Best-effort: null si no hay previo.
-async function loadPreviousSceneText(
+// Turno previo (panel del beat ANTERIOR que ya tenga panel) para ENCADENAR
+// conversacionalmente: el panel nuevo se genera EDITANDO el anterior (conserva escena,
+// arreglo y producto colocado) y aplica la acción del beat. La identidad se re-ancla
+// con las referencias limpias. Best-effort: null si no hay anterior o no carga.
+async function loadPreviousPanelTurn(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
   campaignId: string,
   sceneIndex: number | null,
-): Promise<string | null> {
+): Promise<{ prompt: string; imageBuffer: Buffer; mimeType: string; thoughtSignature?: string } | null> {
   if (sceneIndex == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
-    .select('scene_index, scene_prompt')
+    .select('scene_index, storyboard_generation_id')
     .eq('campaign_id', campaignId)
     .lt('scene_index', sceneIndex)
+    .not('storyboard_generation_id', 'is', null)
     .order('scene_index', { ascending: false })
     .limit(1);
-  const prev = (rows?.[0]?.scene_prompt as string | null | undefined) ?? null;
-  return prev && prev.trim() ? prev.trim() : null;
+  const prevGenId = (rows?.[0]?.storyboard_generation_id as string | null | undefined) ?? null;
+  if (!prevGenId) return null;
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
+    .eq('id', prevGenId)
+    .single();
+  const g = gen as
+    | {
+        output_url: string | null;
+        workspace_id: string;
+        status: string;
+        prompt: string | null;
+        provider_payload: { thought_signature?: string } | null;
+        model_id: string;
+      }
+    | null;
+  if (!g || g.workspace_id !== workspaceId || !g.output_url || g.status !== 'done') return null;
+  try {
+    const { buffer, mimeType } = await downloadOutputBuffer(g.output_url);
+    return {
+      prompt: g.prompt ?? '',
+      imageBuffer: buffer,
+      mimeType,
+      thoughtSignature: g.model_id === NANO_MODEL_SLUG ? g.provider_payload?.thought_signature : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
@@ -228,15 +257,15 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  // Continuidad narrativa por TEXTO (no imagen): la acción del beat anterior como
-  // contexto, para que el panel CONTINÚE la historia mostrando un momento DISTINTO.
-  // La identidad/lugar la mantienen las referencias limpias. Además: prohibir texto
-  // dentro del panel (el modelo metía subtítulos/diálogo como texto en la imagen).
-  const prevScene = await loadPreviousSceneText(locClient, item.campaign_id, item.scene_index);
-  const continuity = prevScene
-    ? ` This is one shot in a sequence. In the previous shot: ${prevScene}. Continue the same story, characters, wardrobe and place, but show a DISTINCT new moment with its own framing and action — do not repeat or copy the previous shot.`
-    : '';
-  const panelPrompt = `${compiled.compiled.prompt}${continuity} Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.`;
+  // Continuidad por ENCADENADO CONVERSACIONAL: si hay panel anterior, este panel se
+  // genera EDITÁNDOLO (conserva escena, arreglo y producto colocado) y aplica la acción
+  // del beat. El primer panel se genera fresco (compose). La identidad se re-ancla con
+  // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
+  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index);
+  const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
+  const panelPrompt = prevTurn
+    ? `Continue the SAME storyboard scene from the provided previous shot: keep the same location, the same product exactly as it is and where it sits, the same characters, wardrobe and overall layout. Now show this next beat as a new shot (you may change the camera angle and the action): ${item.scene_prompt.trim()}.${noText}`
+    : `${compiled.compiled.prompt}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -245,7 +274,7 @@ export async function generatePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: false },
+    params: { conversational: Boolean(prevTurn) },
   });
   const cost = breakdown.total;
 
@@ -261,7 +290,7 @@ export async function generatePanelAction(
       prompt: panelPrompt,
       params: {
         aspect_ratio: item.aspect_ratio,
-        conversational: false,
+        conversational: Boolean(prevTurn),
         has_text_in_image: false,
         use_grounding: false,
         storyboard: { campaignItemId: itemId },
@@ -301,17 +330,18 @@ export async function generatePanelAction(
         }),
     );
 
-    // Genera con Nano Banana (reference-grounded): producto/personaje/locación van
-    // como referencias limpias (identidad/lugar); la continuidad de HISTORIA va por
-    // texto en el prompt (no como imagen, que Nano copiaría literal).
+    // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
+    // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
+    // beat). El primer panel se genera fresco. Producto/personaje/locación van como
+    // referencias limpias en ambos casos (re-anclan identidad, acotan el drift).
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: panelPrompt,
       aspectRatio: item.aspect_ratio ?? '9:16',
       resolution: nanoVariantToResolution(NANO_VARIANT),
       references,
-      previousTurn: null,
-      conversational: false,
+      previousTurn: prevTurn,
+      conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
     });
