@@ -141,14 +141,17 @@ export function LocationsPage({
   );
 }
 
-// Prompt para generar la imagen de una locación desde su descripción: un PLANO
-// del lugar (referencia de ambiente), sin personas ni texto. Aquí FLUX sí sirve:
-// el lugar se crea desde texto, no hay una referencia que preservar.
+// Prompt para generar la imagen de una locación. La locación es el ESCENARIO de una
+// escena, así que se genera como un SET listo para que ocurra algo —con espacio
+// libre en primer plano para colocar sujetos y producto—, no como una foto suelta
+// del lugar. Sin personas ni texto. FLUX sí sirve aquí: se crea desde texto, sin una
+// referencia que preservar.
 function buildLocationPrompt(description: string): string {
   return (
-    `Establishing photograph of a location: ${description}. ` +
-    'Wide representative view of the place, natural realistic lighting, photorealistic, ' +
-    'no people, no text, no watermark.'
+    `Establishing shot of a set/location, ready for a scene to take place in it: ${description}. ` +
+    'Eye-level camera, cinematic wide framing that leaves clear open foreground space where people and a ' +
+    'product can be placed and act; the environment frames the action without crowding the center. ' +
+    'Natural realistic lighting, photorealistic, empty of people, no text, no watermark.'
   );
 }
 
