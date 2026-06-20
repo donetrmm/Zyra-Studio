@@ -44,6 +44,9 @@ export type ItemRow = {
   scene_index: number | null;
   // Locación de la secuencia (migración 041): no null => modo-locación (sin encadenar).
   location_id: string | null;
+  // Panel de storyboard (sub-proyecto B): si no es null, el clip se genera
+  // image2video desde el panel (fotograma inicial), sin encadenar.
+  storyboard_image_id: string | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.

@@ -82,3 +82,14 @@ describe('isLocationMode', () => {
     expect(isLocationMode({ location_id: null })).toBe(false);
   });
 });
+
+import { isStoryboardVideoMode } from './sequence-chain';
+
+describe('isStoryboardVideoMode', () => {
+  it('true cuando el item tiene storyboard_image_id', () => {
+    expect(isStoryboardVideoMode({ storyboard_image_id: 'panel-1' })).toBe(true);
+  });
+  it('false cuando storyboard_image_id es null', () => {
+    expect(isStoryboardVideoMode({ storyboard_image_id: null })).toBe(false);
+  });
+});

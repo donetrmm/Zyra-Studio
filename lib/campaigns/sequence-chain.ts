@@ -53,3 +53,10 @@ export function regenModesFor<T extends ChainItem>(
 export function isLocationMode(item: { location_id: string | null }): boolean {
   return item.location_id != null;
 }
+
+// ¿Este item va en modo storyboard-video? Sí cuando tiene un panel de storyboard:
+// su clip se genera image2video desde el panel (fotograma inicial), SIN encadenar.
+// Gana sobre el encadenado y el modo-locación.
+export function isStoryboardVideoMode(item: { storyboard_image_id: string | null }): boolean {
+  return item.storyboard_image_id != null;
+}
