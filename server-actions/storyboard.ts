@@ -141,38 +141,25 @@ async function loadItemAndCampaign(
   return { item, campaign };
 }
 
-// Panel del beat ANTERIOR (scene_index menor que ya tenga panel) como contexto de
-// continuidad narrativa: el panel nuevo CONTINÚA la historia en vez de reinventarla.
-// Best-effort: null si no hay anterior o falla la descarga.
-async function loadPreviousPanelBuffer(
+// Acción/escena del beat ANTERIOR como CONTEXTO de continuidad narrativa, en TEXTO.
+// (Pasar la IMAGEN previa como referencia hacía que Nano la copiara literal — Nano
+// es reference-grounded y trata cada imagen como "preserva esto". El texto da el
+// hilo de la historia sin dictar la composición.) Best-effort: null si no hay previo.
+async function loadPreviousSceneText(
   supabase: Awaited<ReturnType<typeof createClient>>,
   campaignId: string,
   sceneIndex: number | null,
-): Promise<ImageReference | null> {
+): Promise<string | null> {
   if (sceneIndex == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
-    .select('scene_index, storyboard_image_id')
+    .select('scene_index, scene_prompt')
     .eq('campaign_id', campaignId)
     .lt('scene_index', sceneIndex)
-    .not('storyboard_image_id', 'is', null)
     .order('scene_index', { ascending: false })
     .limit(1);
-  const prevImageId = (rows?.[0]?.storyboard_image_id as string | null | undefined) ?? null;
-  if (!prevImageId) return null;
-  const { data: ref } = await supabase
-    .from('media_references')
-    .select('storage_url')
-    .eq('id', prevImageId)
-    .single();
-  const storageUrl = (ref as { storage_url: string | null } | null)?.storage_url ?? null;
-  if (!storageUrl) return null;
-  try {
-    const { buffer, mimeType } = await downloadReferenceBuffer(storageUrl);
-    return { buffer, mimeType };
-  } catch {
-    return null;
-  }
+  const prev = (rows?.[0]?.scene_prompt as string | null | undefined) ?? null;
+  return prev && prev.trim() ? prev.trim() : null;
 }
 
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
@@ -241,13 +228,15 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  // Continuidad narrativa: el panel del beat ANTERIOR (si existe) entra como contexto
-  // para que el panel CONTINÚE la historia. La identidad/lugar la mantienen las
-  // referencias limpias; el panel previo solo aporta "qué venía pasando".
-  const prevPanel = await loadPreviousPanelBuffer(locClient, item.campaign_id, item.scene_index);
-  const panelPrompt = prevPanel
-    ? `${compiled.compiled.prompt} Continuity: the LAST reference image is the PREVIOUS shot of the same story — keep the same characters, wardrobe, props and setting, and advance the action naturally to this next beat (do not copy that image).`
-    : compiled.compiled.prompt;
+  // Continuidad narrativa por TEXTO (no imagen): la acción del beat anterior como
+  // contexto, para que el panel CONTINÚE la historia mostrando un momento DISTINTO.
+  // La identidad/lugar la mantienen las referencias limpias. Además: prohibir texto
+  // dentro del panel (el modelo metía subtítulos/diálogo como texto en la imagen).
+  const prevScene = await loadPreviousSceneText(locClient, item.campaign_id, item.scene_index);
+  const continuity = prevScene
+    ? ` This is one shot in a sequence. In the previous shot: ${prevScene}. Continue the same story, characters, wardrobe and place, but show a DISTINCT new moment with its own framing and action — do not repeat or copy the previous shot.`
+    : '';
+  const panelPrompt = `${compiled.compiled.prompt}${continuity} Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -311,17 +300,16 @@ export async function generatePanelAction(
           return { buffer, mimeType };
         }),
     );
-    // El panel anterior va como ÚLTIMA referencia (contexto de continuidad narrativa).
-    const allReferences = prevPanel ? [...references, prevPanel] : references;
 
-    // Genera con Nano Banana (reference-grounded): mantiene fieles producto/personaje/
-    // locación (referencias limpias) y CONTINÚA la historia desde el panel anterior.
+    // Genera con Nano Banana (reference-grounded): producto/personaje/locación van
+    // como referencias limpias (identidad/lugar); la continuidad de HISTORIA va por
+    // texto en el prompt (no como imagen, que Nano copiaría literal).
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: panelPrompt,
       aspectRatio: item.aspect_ratio ?? '9:16',
       resolution: nanoVariantToResolution(NANO_VARIANT),
-      references: allReferences,
+      references,
       previousTurn: null,
       conversational: false,
       useGrounding: false,
