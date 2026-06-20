@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { loadPricing } from '@/lib/credits/pricing';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { compile, fromFormatRow, withoutReferences, type DirectorContext } from '@/lib/prompt-director';
+import { compile, fromFormatRow, onlyCharacterRefs, type DirectorContext } from '@/lib/prompt-director';
 import {
   DIALOGUE_LANGUAGE,
   SPEECH_DIRECTION,
@@ -745,7 +745,7 @@ export async function enqueueBatch(params: {
         return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths };
       })(),
     );
-    const dirCtx = storyboardMode ? withoutReferences(baseDirCtx) : baseDirCtx;
+    const dirCtx = storyboardMode ? onlyCharacterRefs(baseDirCtx) : baseDirCtx;
 
     const compiled = compile(
       {
@@ -776,6 +776,10 @@ export async function enqueueBatch(params: {
     const cost = seedanceCostPerItem(pricing, effectiveModelSlug, resolution, durationS);
 
     const refImages = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+    // Modo storyboard: las únicas refs de imagen compiladas son los personajes
+    // (onlyCharacterRefs quita producto/locación). Van como reference_image, en el
+    // MISMO orden en que el prompt las cita (@image1..N), junto al panel (first_frame).
+    const storyboardCastRefs = storyboardMode ? refImages : [];
     // Producto y personaje se re-anclan en cada clip de la cadena (ver
     // characterMasterPaths abajo). Packaging/environment NO: hacerlo haría que el
     // modelo trate esas refs como "el producto" y derive la secuencia.
@@ -806,6 +810,9 @@ export async function enqueueBatch(params: {
               // image2video: el panel del beat es el fotograma inicial (first_frame).
               operation: 'image2video',
               referenceStoragePath: panelPath as string,
+              // El cast del beat va como reference_image (@image1..N) para re-anclar
+              // la identidad durante la acción. Vacío si el beat no tiene personaje.
+              referenceImagePaths: storyboardCastRefs,
               aspectRatio: p.aspectRatio,
               resolution,
               duration: durationS,

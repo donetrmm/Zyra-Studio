@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compile, withoutReferences } from './index';
+import { compile, onlyCharacterRefs } from './index';
 import { stripSlop } from './antislop';
 import { findClaims, stripAgeWords } from './inventory';
 import { fromFormatRow, resolveRequiredRefs } from './format-director';
@@ -903,58 +903,7 @@ describe('compile veo y kling', () => {
   });
 });
 
-// ============ withoutReferences (prompt para image2video) ============
-
-describe('withoutReferences (prompt para image2video)', () => {
-  it('el prompt compilado no lleva citas @image y conserva la descripción del producto', () => {
-    const ctx = {
-      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
-      characters: [{ name: 'Pedro', description: 'man with a mustache', masterImagePath: 'ws/pedro.png' }],
-      location: { name: 'Living', description: 'a bright living room', imagePaths: ['ws/living.png'] },
-    };
-    const stripped = withoutReferences(ctx);
-    const result = compile(
-      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'the couple smiles' },
-      stripped,
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.compiled.prompt).not.toContain('@image');
-    expect(result.compiled.references.filter((r) => r.kind === 'image')).toHaveLength(0);
-    // Las descripciones de texto siguen (no las imágenes)
-    expect(result.compiled.prompt.toLowerCase()).toContain('canvas');
-  });
-
-  it('con un formato que EXIGE producto, el contexto stripped NO bloquea el compile (limpia requiredRefs)', () => {
-    // Bug de B (smoke): withoutReferences vaciaba product.imagePaths pero dejaba
-    // format.requiredRefs=['product'], así que resolveRequiredRefs bloqueaba el
-    // compile con "el formato necesita imágenes del producto" → el item se saltaba.
-    // En image2video el panel ES el first_frame: el requisito de refs no aplica.
-    const format = fromFormatRow({
-      slug: 'voz-cercana',
-      name: 'Voz cercana',
-      register: null,
-      camera_style: null,
-      pacing: null,
-      required_refs: ['product'],
-      default_duration_s: 8,
-      default_audio: true,
-    });
-    const ctx: DirectorContext = {
-      format,
-      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
-    };
-    const result = compile(
-      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'the canvas hangs on the wall' },
-      withoutReferences(ctx),
-    );
-    expect(result.ok).toBe(true);
-  });
-});
-
 // ============ onlyCharacterRefs (prompt para image2video con cast) ============
-
-import { onlyCharacterRefs } from './index';
 
 describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
   it('conserva el personaje (@image) y quita producto/locación; no bloquea por requiredRefs', () => {

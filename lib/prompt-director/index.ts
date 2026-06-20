@@ -55,31 +55,7 @@ export function compile(req: CompileRequest, ctx: DirectorContext = {}): Compile
   };
 }
 
-// Devuelve el contexto SIN referencias de media: vacía las imágenes de
-// producto/personaje/locación/extra y quita video de plantilla y audio. Conserva
-// las DESCRIPCIONES de texto. Lo usa el modo storyboard-video (image2video): el
-// panel es el first_frame, así que el compiler NO debe emitir citas @image/@video/
-// @audio que apunten a referencias que no se envían.
-// También limpia `format.requiredRefs`: el validador (resolveRequiredRefs) bloquea
-// el compile si el formato exige imágenes de producto/empaque y no las hay. En
-// image2video el panel YA trae producto/personaje/escena, así que ese requisito
-// no aplica (sin esto, el item se saltaba con "el formato necesita imágenes…").
-export function withoutReferences(ctx: DirectorContext): DirectorContext {
-  return {
-    ...ctx,
-    format: ctx.format ? { ...ctx.format, requiredRefs: [] } : undefined,
-    product: ctx.product
-      ? { ...ctx.product, imagePaths: [], packagingImagePaths: [] }
-      : undefined,
-    characters: ctx.characters?.map((c) => ({ ...c, masterImagePath: '', angleImagePaths: [] })),
-    location: ctx.location ? { ...ctx.location, imagePaths: [] } : undefined,
-    extraImagePaths: [],
-    templateVideoPath: undefined,
-    audioRefPath: undefined,
-  };
-}
-
-// Como withoutReferences pero CONSERVA los personajes. Para el video del storyboard
+// Conserva los personajes del contexto pero quita producto/locación/extra/plantilla/audio. Para el video del storyboard
 // (image2video) queremos mandar la hoja maestra del cast como reference_image y
 // citarla (@image1) para re-anclar la identidad durante la acción; producto/locación
 // ya están en el panel (first_frame), así que se quitan. Limpia requiredRefs para que
