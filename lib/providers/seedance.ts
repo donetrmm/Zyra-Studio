@@ -139,9 +139,7 @@ function validateSubmit(params: SeedanceSubmitParams, resolution: SeedanceResolu
   if (params.operation === 'image2video' && !params.imageUrl) {
     throw new ProviderError('image2video requiere imageUrl', 'invalid_input', false);
   }
-  if (params.operation === 'reference2video' || params.operation === 'image2video') {
-    assertReferenceLimits(params);
-  }
+  if (params.operation === 'reference2video') assertReferenceLimits(params);
 }
 
 // ============ Backend: BytePlus ModelArk (default) ============
@@ -179,9 +177,6 @@ async function submitModelArk(params: SeedanceSubmitParams, resolution: Seedance
   if (params.operation === 'image2video') {
     content.push({ type: 'image_url', image_url: { url: params.imageUrl! }, role: 'first_frame' });
     if (params.endImageUrl) content.push({ type: 'image_url', image_url: { url: params.endImageUrl }, role: 'last_frame' });
-    for (const url of params.imageUrls ?? []) {
-      content.push({ type: 'image_url', image_url: { url }, role: 'reference_image' });
-    }
   }
   if (params.operation === 'reference2video') {
     for (const url of params.imageUrls ?? []) content.push({ type: 'image_url', image_url: { url }, role: 'reference_image' });
@@ -291,7 +286,6 @@ async function submitAtlas(params: SeedanceSubmitParams, resolution: SeedanceRes
     // enviaban como image_url/end_image_url (inferido) → Atlas los ignoraba.
     body.image = params.imageUrl;
     if (params.endImageUrl) body.last_image = params.endImageUrl;
-    if (params.imageUrls?.length) body.reference_images = params.imageUrls;
   }
   if (params.operation === 'reference2video') {
     // Campos confirmados con el "view code" oficial de AtlasCloud (2026-06-15):
