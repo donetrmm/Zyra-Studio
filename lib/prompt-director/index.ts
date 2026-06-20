@@ -60,9 +60,14 @@ export function compile(req: CompileRequest, ctx: DirectorContext = {}): Compile
 // las DESCRIPCIONES de texto. Lo usa el modo storyboard-video (image2video): el
 // panel es el first_frame, así que el compiler NO debe emitir citas @image/@video/
 // @audio que apunten a referencias que no se envían.
+// También limpia `format.requiredRefs`: el validador (resolveRequiredRefs) bloquea
+// el compile si el formato exige imágenes de producto/empaque y no las hay. En
+// image2video el panel YA trae producto/personaje/escena, así que ese requisito
+// no aplica (sin esto, el item se saltaba con "el formato necesita imágenes…").
 export function withoutReferences(ctx: DirectorContext): DirectorContext {
   return {
     ...ctx,
+    format: ctx.format ? { ...ctx.format, requiredRefs: [] } : undefined,
     product: ctx.product
       ? { ...ctx.product, imagePaths: [], packagingImagePaths: [] }
       : undefined,

@@ -924,4 +924,30 @@ describe('withoutReferences (prompt para image2video)', () => {
     // Las descripciones de texto siguen (no las imágenes)
     expect(result.compiled.prompt.toLowerCase()).toContain('canvas');
   });
+
+  it('con un formato que EXIGE producto, el contexto stripped NO bloquea el compile (limpia requiredRefs)', () => {
+    // Bug de B (smoke): withoutReferences vaciaba product.imagePaths pero dejaba
+    // format.requiredRefs=['product'], así que resolveRequiredRefs bloqueaba el
+    // compile con "el formato necesita imágenes del producto" → el item se saltaba.
+    // En image2video el panel ES el first_frame: el requisito de refs no aplica.
+    const format = fromFormatRow({
+      slug: 'voz-cercana',
+      name: 'Voz cercana',
+      register: null,
+      camera_style: null,
+      pacing: null,
+      required_refs: ['product'],
+      default_duration_s: 8,
+      default_audio: true,
+    });
+    const ctx: DirectorContext = {
+      format,
+      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+    };
+    const result = compile(
+      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'the canvas hangs on the wall' },
+      withoutReferences(ctx),
+    );
+    expect(result.ok).toBe(true);
+  });
 });
