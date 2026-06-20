@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { loadPricing } from '@/lib/credits/pricing';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { compile, fromFormatRow, type DirectorContext } from '@/lib/prompt-director';
+import { compile, fromFormatRow, withoutReferences, type DirectorContext } from '@/lib/prompt-director';
 import {
   DIALOGUE_LANGUAGE,
   SPEECH_DIRECTION,
@@ -14,7 +14,7 @@ import {
 import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
-import { isLocationMode, nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
+import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
@@ -632,6 +632,10 @@ export async function enqueueBatch(params: {
   const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
   const locationIds = selected.map((i) => i.location_id).filter((l): l is string => !!l);
   const locations = await resolveLocations(supabase, workspaceId, locationIds);
+  // Paneles de storyboard de los items seleccionados (sub-proyecto B). storyboard_image_id
+  // es un media_reference id → resolvePaths da su storage_url (el first_frame del clip).
+  const storyboardIds = selected.map((i) => i.storyboard_image_id).filter((s): s is string => !!s);
+  const storyboardPanels = await resolvePaths(supabase, workspaceId, storyboardIds);
   const itemStatus = mode === 'sample' ? 'sample' : 'queued';
 
   // Encadenado de secuencias (specs/v2/09, solo Atlas): de una secuencia
@@ -673,6 +677,11 @@ export async function enqueueBatch(params: {
     returnLastFrame: boolean;
     orphanResume: boolean;
   } {
+    // Modo storyboard-video: el clip se genera image2video desde el panel, SIN
+    // encadenar. Gana sobre location y encadenado.
+    if (isStoryboardVideoMode(item)) {
+      return { skip: false, isFirst: false, returnLastFrame: false, orphanResume: false };
+    }
     // Modo-locación: la secuencia NO se encadena. Cada escena se genera
     // independiente (no se salta, no return_last_frame, no chain). Gana sobre
     // el encadenado aunque el backend sea Atlas.
@@ -721,6 +730,23 @@ export async function enqueueBatch(params: {
     }
     const format = item.format_id ? (formats.get(item.format_id) ?? null) : null;
 
+    const panelPath = item.storyboard_image_id ? storyboardPanels.get(item.storyboard_image_id) : undefined;
+    const storyboardMode = !!panelPath;
+
+    const baseDirCtx = directorContextFor(
+      item,
+      format,
+      ctx,
+      item.template_id ? templateVideos.get(item.template_id) : undefined,
+      (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
+      (() => {
+        const loc = item.location_id ? locations.get(item.location_id) : undefined;
+        if (!loc) return undefined;
+        return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths };
+      })(),
+    );
+    const dirCtx = storyboardMode ? withoutReferences(baseDirCtx) : baseDirCtx;
+
     const compiled = compile(
       {
         modelSlug: item.model_slug,
@@ -729,18 +755,7 @@ export async function enqueueBatch(params: {
         aspectRatio: item.aspect_ratio ?? undefined,
         generateAudio: item.audio,
       },
-      directorContextFor(
-        item,
-        format,
-        ctx,
-        item.template_id ? templateVideos.get(item.template_id) : undefined,
-        (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
-        (() => {
-          const loc = item.location_id ? locations.get(item.location_id) : undefined;
-          if (!loc) return undefined;
-          return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths };
-        })(),
-      ),
+      dirCtx,
     );
 
     if (!compiled.ok) {
@@ -783,34 +798,45 @@ export async function enqueueBatch(params: {
         provider: 'seedance',
         model_id: item.model_slug,
         prompt: compiled.compiled.prompt,
-        params: {
-          operation: p.operation,
-          aspectRatio: p.aspectRatio,
-          resolution,
-          duration: durationS,
-          generateAudio: p.generateAudio,
-          ...(p.seed !== undefined ? { seed: p.seed } : {}),
-          referenceImagePaths: refImages,
-          referenceVideoPaths: refVideos,
-          referenceAudioPaths: refAudios,
-          ...(role.isFirst
-            ? {
-                returnLastFrame: role.returnLastFrame,
-                chain: {
-                  campaignId: campaign.id,
-                  sequenceId: item.sequence_id as string,
-                  sceneIndex: item.scene_index ?? 0,
-                  // Refs del producto y del personaje: se re-anclan en cada clip.
-                  productImagePaths: productImages,
-                  characterImagePaths: characterMasterPaths,
-                  // Resolución e idioma del clip 1: los clips de continuación los
-                  // heredan para no saltar de nitidez (#1) ni perder es-MX (#3).
-                  resolution,
-                  language: ctx.language,
-                } satisfies ChainParams,
-              }
-            : {}),
-        },
+        params: storyboardMode
+          ? {
+              // image2video: el panel del beat es el fotograma inicial (first_frame).
+              operation: 'image2video',
+              referenceStoragePath: panelPath as string,
+              aspectRatio: p.aspectRatio,
+              resolution,
+              duration: durationS,
+              generateAudio: p.generateAudio,
+              ...(p.seed !== undefined ? { seed: p.seed } : {}),
+            }
+          : {
+              operation: p.operation,
+              aspectRatio: p.aspectRatio,
+              resolution,
+              duration: durationS,
+              generateAudio: p.generateAudio,
+              ...(p.seed !== undefined ? { seed: p.seed } : {}),
+              referenceImagePaths: refImages,
+              referenceVideoPaths: refVideos,
+              referenceAudioPaths: refAudios,
+              ...(role.isFirst
+                ? {
+                    returnLastFrame: role.returnLastFrame,
+                    chain: {
+                      campaignId: campaign.id,
+                      sequenceId: item.sequence_id as string,
+                      sceneIndex: item.scene_index ?? 0,
+                      // Refs del producto y del personaje: se re-anclan en cada clip.
+                      productImagePaths: productImages,
+                      characterImagePaths: characterMasterPaths,
+                      // Resolución e idioma del clip 1: los clips de continuación los
+                      // heredan para no saltar de nitidez (#1) ni perder es-MX (#3).
+                      resolution,
+                      language: ctx.language,
+                    } satisfies ChainParams,
+                  }
+                : {}),
+            },
         reference_ids: [],
         status: 'queued',
         credits_estimated: cost,
