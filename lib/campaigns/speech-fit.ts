@@ -15,9 +15,9 @@ export const DUR_MAX = 15;
 // 2) primer entrecomillado; 3) '' si no hay. Soporta comillas rectas y curvas.
 export function extractDialogue(scenePrompt: string): string {
   const s = scenePrompt ?? '';
-  const marked = s.match(/dialogue\s*:\s*[""]([^""]*)[""]/i);
+  const marked = s.match(/dialogue\s*:\s*["“]([^"“”]*)["”]/i);
   if (marked) return marked[1].trim();
-  const quoted = s.match(/[""]([^""]{2,})[""]/);
+  const quoted = s.match(/["“]([^"“”]{2,})["”]/);
   if (quoted) return quoted[1].trim();
   return '';
 }
@@ -26,20 +26,29 @@ export function extractDialogue(scenePrompt: string): string {
 // - nuevo vacío  -> quita el segmento `Dialogue: "..."` (o el primer entrecomillado).
 // - existe marcador/entrecomillado -> reemplaza solo el contenido entre comillas.
 // - no existe ninguno -> agrega ` Dialogue: "<nuevo>"`.
+// Usa replacer FUNCIÓN (no string) para que `$` del diálogo no se interprete como
+// patrón de reemplazo; normaliza comillas dobles internas a simple (romperían el
+// formato `Dialogue: "..."`).
 export function replaceDialogue(scenePrompt: string, nuevo: string): string {
   const s = (scenePrompt ?? '').trim();
-  const clean = nuevo.trim();
-  const markedContentRe = /(dialogue\s*:\s*[""])([^""]*)([""])/i;
-  const quotedRe = /([""])([^""]{2,})([""])/;
+  // Normaliza comillas dobles internas (rectas y curvas) a simple para no romper el formato.
+  const clean = nuevo.trim().replace(/["“”]/g, "'");
+  const markedContentRe = /(dialogue\s*:\s*["“])([^"“”]*)(["”])/i;
+  const quotedRe = /(["“])([^"“”]{2,})(["”])/;
 
   if (clean === '') {
-    const markedFullRe = /\s*dialogue\s*:\s*[""][^""]*[""]\s*\.?/i;
+    const markedFullRe = /\s*dialogue\s*:\s*["“][^"“”]*["”]\s*\.?/i;
     if (markedFullRe.test(s)) return s.replace(markedFullRe, ' ').replace(/\s{2,}/g, ' ').trim();
     if (quotedRe.test(s)) return s.replace(quotedRe, '').replace(/\s{2,}/g, ' ').trim();
     return s;
   }
-  if (markedContentRe.test(s)) return s.replace(markedContentRe, `$1${clean}$3`);
-  if (quotedRe.test(s)) return s.replace(quotedRe, `$1${clean}$3`);
+  if (markedContentRe.test(s)) {
+    // Replacer función: evita que `$` en `clean` se interprete como patrón de reemplazo.
+    return s.replace(markedContentRe, (_m, p1: string, _c: string, p3: string) => `${p1}${clean}${p3}`);
+  }
+  if (quotedRe.test(s)) {
+    return s.replace(quotedRe, (_m, p1: string, _c: string, p3: string) => `${p1}${clean}${p3}`);
+  }
   return `${s} Dialogue: "${clean}"`;
 }
 

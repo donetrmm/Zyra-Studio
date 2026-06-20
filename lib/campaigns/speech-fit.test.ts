@@ -15,7 +15,7 @@ describe('extractDialogue', () => {
     expect(extractDialogue('Medium shot — ella sonríe. Dialogue: "Hola a todos"')).toBe('Hola a todos');
   });
   it('soporta comillas curvas', () => {
-    expect(extractDialogue('Acción. Dialogue: "Hola"')).toBe('Hola');
+    expect(extractDialogue('Acción. Dialogue: “Hola”')).toBe('Hola');
   });
   it('cae al primer entrecomillado si no hay marcador', () => {
     expect(extractDialogue('Ella dice "buenos días" a cámara')).toBe('buenos días');
@@ -75,5 +75,23 @@ describe('fitVerdict', () => {
   it('sugiere duración con clamp al rango Seedance', () => {
     expect(fitVerdict(20, 5).suggestedDurationS).toBe(DUR_MAX); // 20+1 clamp 15
     expect(fitVerdict(0.5, 5).suggestedDurationS).toBe(DUR_MIN); // ceil(1.5)=2 clamp 4
+  });
+});
+
+describe('replaceDialogue — casos del review final', () => {
+  it('no expande $ del diálogo (replacement patterns)', () => {
+    const out = replaceDialogue('Medium shot — ella habla. Dialogue: "viejo"', 'Cuesta $1 cada uno');
+    expect(extractDialogue(out)).toBe('Cuesta $1 cada uno');
+    expect(out.match(/dialogue\s*:/gi)?.length ?? 0).toBe(1);
+  });
+  it('reemplaza un Dialogue con comillas curvas sin duplicar', () => {
+    const out = replaceDialogue('Medium shot — ella habla. Dialogue: “viejo”', 'nuevo');
+    expect(extractDialogue(out)).toBe('nuevo');
+    expect(out.match(/dialogue\s*:/gi)?.length ?? 0).toBe(1);
+  });
+  it('normaliza comillas dobles internas a simples', () => {
+    const out = replaceDialogue('Medium shot — ella habla. Dialogue: "x"', 'dice "alto"');
+    expect(extractDialogue(out)).toBe("dice 'alto'");
+    expect(out.match(/dialogue\s*:/gi)?.length ?? 0).toBe(1);
   });
 });
