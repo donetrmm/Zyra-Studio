@@ -141,6 +141,40 @@ async function loadItemAndCampaign(
   return { item, campaign };
 }
 
+// Panel del beat ANTERIOR (scene_index menor que ya tenga panel) como contexto de
+// continuidad narrativa: el panel nuevo CONTINÚA la historia en vez de reinventarla.
+// Best-effort: null si no hay anterior o falla la descarga.
+async function loadPreviousPanelBuffer(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  campaignId: string,
+  sceneIndex: number | null,
+): Promise<ImageReference | null> {
+  if (sceneIndex == null) return null;
+  const { data: rows } = await supabase
+    .from('campaign_items')
+    .select('scene_index, storyboard_image_id')
+    .eq('campaign_id', campaignId)
+    .lt('scene_index', sceneIndex)
+    .not('storyboard_image_id', 'is', null)
+    .order('scene_index', { ascending: false })
+    .limit(1);
+  const prevImageId = (rows?.[0]?.storyboard_image_id as string | null | undefined) ?? null;
+  if (!prevImageId) return null;
+  const { data: ref } = await supabase
+    .from('media_references')
+    .select('storage_url')
+    .eq('id', prevImageId)
+    .single();
+  const storageUrl = (ref as { storage_url: string | null } | null)?.storage_url ?? null;
+  if (!storageUrl) return null;
+  try {
+    const { buffer, mimeType } = await downloadReferenceBuffer(storageUrl);
+    return { buffer, mimeType };
+  } catch {
+    return null;
+  }
+}
+
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
 
 export async function generatePanelAction(
@@ -207,6 +241,14 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
+  // Continuidad narrativa: el panel del beat ANTERIOR (si existe) entra como contexto
+  // para que el panel CONTINÚE la historia. La identidad/lugar la mantienen las
+  // referencias limpias; el panel previo solo aporta "qué venía pasando".
+  const prevPanel = await loadPreviousPanelBuffer(locClient, item.campaign_id, item.scene_index);
+  const panelPrompt = prevPanel
+    ? `${compiled.compiled.prompt} Continuity: the LAST reference image is the PREVIOUS shot of the same story — keep the same characters, wardrobe, props and setting, and advance the action naturally to this next beat (do not copy that image).`
+    : compiled.compiled.prompt;
+
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
   const pricing = await loadPricing();
@@ -227,7 +269,7 @@ export async function generatePanelAction(
       type: 'image',
       provider: 'nano-banana',
       model_id: NANO_MODEL_SLUG,
-      prompt: compiled.compiled.prompt,
+      prompt: panelPrompt,
       params: {
         aspect_ratio: item.aspect_ratio,
         conversational: false,
@@ -269,16 +311,17 @@ export async function generatePanelAction(
           return { buffer, mimeType };
         }),
     );
+    // El panel anterior va como ÚLTIMA referencia (contexto de continuidad narrativa).
+    const allReferences = prevPanel ? [...references, prevPanel] : references;
 
-    // Genera con Nano Banana (reference-grounded): mantiene fieles el producto y el
-    // personaje que van en `references`. El prompt de composición lo arma el compiler
-    // (FLUX-compose, que ya ancla producto+personaje); aquí solo cambia el MOTOR.
+    // Genera con Nano Banana (reference-grounded): mantiene fieles producto/personaje/
+    // locación (referencias limpias) y CONTINÚA la historia desde el panel anterior.
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
-      prompt: compiled.compiled.prompt,
+      prompt: panelPrompt,
       aspectRatio: item.aspect_ratio ?? '9:16',
       resolution: nanoVariantToResolution(NANO_VARIANT),
-      references,
+      references: allReferences,
       previousTurn: null,
       conversational: false,
       useGrounding: false,
