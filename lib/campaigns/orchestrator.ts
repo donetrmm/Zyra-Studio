@@ -14,7 +14,7 @@ import {
 import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
-import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame } from './sequence-chain';
+import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
@@ -770,7 +770,10 @@ export async function enqueueBatch(params: {
     const p = compiled.compiled.params;
     const resolution = (p.resolution as '480p' | '720p' | '1080p') ?? '480p';
     const durationS = (p.duration as number | undefined) ?? 8;
-    const cost = seedanceCostPerItem(pricing, item.model_slug, resolution, durationS);
+    // En modo storyboard el clip es image2video → el slug debe ser el endpoint
+    // image-to-video (mismo tier; mismo precio que reference-to-video).
+    const effectiveModelSlug = storyboardMode ? toImage2VideoSlug(item.model_slug) : item.model_slug;
+    const cost = seedanceCostPerItem(pricing, effectiveModelSlug, resolution, durationS);
 
     const refImages = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
     // Producto y personaje se re-anclan en cada clip de la cadena (ver
@@ -796,7 +799,7 @@ export async function enqueueBatch(params: {
         workspace_id: workspaceId,
         type: 'video',
         provider: 'seedance',
-        model_id: item.model_slug,
+        model_id: effectiveModelSlug,
         prompt: compiled.compiled.prompt,
         params: storyboardMode
           ? {

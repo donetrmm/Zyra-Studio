@@ -93,3 +93,18 @@ describe('isStoryboardVideoMode', () => {
     expect(isStoryboardVideoMode({ storyboard_image_id: null })).toBe(false);
   });
 });
+
+import { toImage2VideoSlug } from './sequence-chain';
+
+describe('toImage2VideoSlug', () => {
+  it('reescribe reference-to-video a image-to-video conservando el tier fast', () => {
+    expect(toImage2VideoSlug('bytedance/seedance-2.0/fast/reference-to-video')).toBe(
+      'bytedance/seedance-2.0/fast/image-to-video',
+    );
+  });
+  it('reescribe el slug full (sin fast)', () => {
+    expect(toImage2VideoSlug('bytedance/seedance-2.0/reference-to-video')).toBe(
+      'bytedance/seedance-2.0/image-to-video',
+    );
+  });
+});

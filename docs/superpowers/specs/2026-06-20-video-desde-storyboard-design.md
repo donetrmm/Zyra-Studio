@@ -31,6 +31,7 @@ Requiere agregar `storyboard_image_id` a `ItemRow` (`orchestrator.ts`) y al `.se
 
 Para un item en modo storyboard-video, la generación se inserta con:
 
+- `model_id` se reescribe al endpoint **image-to-video** correspondiente (`toImage2VideoSlug`: `…/reference-to-video` → `…/image-to-video`, conservando el tier `fast`). El slug DEBE coincidir con `operation` (un endpoint por slug), o Atlas rutea mal y el panel se ignora como first_frame. El costo es idéntico (las filas de pricing image-to-video valen lo mismo).
 - `params.operation = 'image2video'`.
 - `params.referenceStoragePath = <storage_url de la media_reference del panel>` (bucket `references`). El handler lo firma como `imageUrl` rol `first_frame`.
 - `params` SIN `referenceImagePaths` (no es reference2video), SIN `chain`, SIN `returnLastFrame`.

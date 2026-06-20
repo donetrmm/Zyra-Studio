@@ -60,3 +60,10 @@ export function isLocationMode(item: { location_id: string | null }): boolean {
 export function isStoryboardVideoMode(item: { storyboard_image_id: string | null }): boolean {
   return item.storyboard_image_id != null;
 }
+
+// El modo storyboard-video genera image2video, así que el slug debe ser un endpoint
+// image-to-video (NO reference-to-video): el slug DEBE coincidir con la operación, o
+// Atlas rutea mal y el panel se ignora como first_frame. Reescribe conservando el tier.
+export function toImage2VideoSlug(slug: string): string {
+  return slug.replace('reference-to-video', 'image-to-video');
+}
