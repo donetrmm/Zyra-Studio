@@ -29,6 +29,7 @@ import {
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { compilePanel, compilePanelEdit } from '@/lib/campaigns/storyboard';
+import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
 // FLUX_MODEL_SLUG: SOLO para compilar el prompt de composición (el compiler FLUX
@@ -716,4 +717,39 @@ export async function refinePanelAction(
     }
     return { ok: false, error: 'provider_error', message: errMsg };
   }
+}
+
+// Refinamiento de audio por beat: reescribe el diálogo dentro de scene_prompt y
+// ajusta la duración del clip para que la voz (lip-sync de Seedance) no se apresure.
+// No genera nada (texto + duración); el resultado se oye al regenerar el video.
+export async function setBeatAudioAction(
+  itemId: string,
+  dialogue: string,
+  durationS: number,
+): Promise<Result<{ updated: true }>> {
+  if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
+  if (typeof dialogue !== 'string' || dialogue.length > 600) {
+    return { ok: false, error: 'validation_error', message: 'diálogo inválido (máx 600 caracteres)' };
+  }
+  if (!Number.isInteger(durationS) || durationS < 4 || durationS > 15) {
+    return { ok: false, error: 'validation_error', message: 'duración fuera del rango 4-15s' };
+  }
+
+  const { workspace } = await requireWorkspace();
+  const loaded = await loadItemAndCampaign(workspace.id, itemId);
+  if (!loaded) return { ok: false, error: 'not_found' };
+  const { item, campaign } = loaded;
+
+  const nextPrompt = replaceDialogue(item.scene_prompt, dialogue);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ scene_prompt: nextPrompt, duration_s: durationS })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${campaign.id}/storyboard`);
+  revalidatePath(`/app/campaigns/${campaign.id}`);
+  return { ok: true, data: { updated: true } };
 }
