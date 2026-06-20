@@ -78,3 +78,21 @@ export function withoutReferences(ctx: DirectorContext): DirectorContext {
     audioRefPath: undefined,
   };
 }
+
+// Como withoutReferences pero CONSERVA los personajes. Para el video del storyboard
+// (image2video) queremos mandar la hoja maestra del cast como reference_image y
+// citarla (@image1) para re-anclar la identidad durante la acción; producto/locación
+// ya están en el panel (first_frame), así que se quitan. Limpia requiredRefs para que
+// el validador no bloquee por las imágenes de producto que ya no van.
+export function onlyCharacterRefs(ctx: DirectorContext): DirectorContext {
+  return {
+    ...ctx,
+    format: ctx.format ? { ...ctx.format, requiredRefs: [] } : undefined,
+    product: ctx.product ? { ...ctx.product, imagePaths: [], packagingImagePaths: [] } : undefined,
+    location: ctx.location ? { ...ctx.location, imagePaths: [] } : undefined,
+    extraImagePaths: [],
+    templateVideoPath: undefined,
+    audioRefPath: undefined,
+    // ctx.characters se conserva tal cual
+  };
+}

@@ -951,3 +951,50 @@ describe('withoutReferences (prompt para image2video)', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+// ============ onlyCharacterRefs (prompt para image2video con cast) ============
+
+import { onlyCharacterRefs } from './index';
+
+describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
+  it('conserva el personaje (@image) y quita producto/locación; no bloquea por requiredRefs', () => {
+    const format = fromFormatRow({
+      slug: 'voz-cercana',
+      name: 'Voz cercana',
+      register: null,
+      camera_style: null,
+      pacing: null,
+      required_refs: ['product'],
+      default_duration_s: 8,
+      default_audio: true,
+    });
+    const ctx: DirectorContext = {
+      format,
+      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+      location: { name: 'Living', description: 'a bright living room', imagePaths: ['ws/living.png'] },
+      characters: [{ name: 'Marcela', description: 'young woman, long brown hair', masterImagePath: 'ws/marcela.png' }],
+    };
+    const result = compile(
+      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'Marcela mira a cámara' },
+      onlyCharacterRefs(ctx),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const paths = result.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+    expect(paths).toContain('ws/marcela.png');
+    expect(paths).not.toContain('ws/prod.png');
+    expect(paths).not.toContain('ws/living.png');
+    expect(result.compiled.prompt).toContain('@image'); // cita al personaje
+  });
+
+  it('sin personaje → sin referencias de imagen ni @image', () => {
+    const result = compile(
+      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'producto sobre la mesa' },
+      onlyCharacterRefs({ product: { name: 'Canvas', imagePaths: ['ws/prod.png'] } }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.compiled.references.filter((r) => r.kind === 'image')).toHaveLength(0);
+    expect(result.compiled.prompt).not.toContain('@image');
+  });
+});
