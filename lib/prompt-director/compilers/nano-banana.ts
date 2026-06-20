@@ -26,10 +26,27 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
   if (ctx.product) {
     sections.push('The product packaging, label and logo must remain exactly as in the reference; never restyle the product.');
   }
+  // Personaje: la hoja maestra se ancla como referencia para que la identidad no
+  // derive (el storyboard la genera/edita con Nano Banana por su fidelidad de ref).
+  if ((ctx.characters ?? []).some((c) => c.masterImagePath)) {
+    sections.push('Keep the people exactly as in their reference image(s): same face, hair and build; do not change their identity.');
+  }
 
-  const references: CompiledReference[] = (ctx.product?.imagePaths.slice(0, 3) ?? []).map(
-    (storagePath) => ({ storagePath, kind: 'image', role: 'product' }),
-  );
+  // Referencias: producto (hasta 3) + hoja maestra de cada personaje (hasta 3).
+  const references: CompiledReference[] = [];
+  for (const storagePath of ctx.product?.imagePaths.slice(0, 3) ?? []) {
+    references.push({ storagePath, kind: 'image', role: 'product' });
+  }
+  for (const character of (ctx.characters ?? []).slice(0, 3)) {
+    if (character.masterImagePath) {
+      references.push({
+        storagePath: character.masterImagePath,
+        kind: 'image',
+        role: 'character',
+        scope: 'rostro, peinado y complexión; no la ropa ni el fondo',
+      });
+    }
+  }
 
   return {
     modelSlug: req.modelSlug,

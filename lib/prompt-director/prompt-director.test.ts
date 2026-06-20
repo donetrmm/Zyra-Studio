@@ -28,6 +28,26 @@ describe('compileFlux ancla al personaje', () => {
   });
 });
 
+// Pivote storyboard→Nano Banana: el panel se genera con Nano (reference-grounded)
+// porque FLUX no mantenía fieles producto/personaje. El compiler Nano también debe
+// anclar la hoja maestra del personaje (antes solo metía el producto).
+describe('compileNanoBanana ancla al personaje', () => {
+  it('mete la hoja maestra del personaje como referencia rol character', () => {
+    const result = compile(
+      { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'make the lighting warmer' },
+      {
+        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const imageRefs = result.compiled.references.filter((r) => r.kind === 'image');
+    expect(imageRefs.some((r) => r.role === 'character' && r.storagePath === 'ws/pedro.png')).toBe(true);
+    expect(imageRefs.some((r) => r.role === 'product' && r.storagePath === 'ws/prod.png')).toBe(true);
+  });
+});
+
 // ============ Fixtures ============
 // Formatos reflejando el seed de 023 (en producción vienen de la tabla).
 

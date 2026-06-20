@@ -20,9 +20,7 @@ import {
   failGeneration,
   reserveCredits,
 } from '@/lib/credits/operations';
-import { fluxDimensions } from '@/lib/schemas/generations';
 import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
-import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
 import {
   loadCampaignContext,
@@ -32,14 +30,14 @@ import {
 import { compilePanel, compilePanelEdit } from '@/lib/campaigns/storyboard';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
-// FLUX: usado para generar el panel inicial (fotorrealismo).
-// NANO: Gemini 3 Pro — soporte conversacional/edición iterativa del panel.
+// FLUX_MODEL_SLUG: SOLO para compilar el prompt de composición (el compiler FLUX
+//   arma escena + producto + personaje). La GENERACIÓN del panel la hace Nano Banana
+//   (reference-grounded), porque FLUX no mantenía fieles producto/personaje.
+// NANO: Gemini 3 Pro — genera y edita el panel preservando las referencias.
 const FLUX_MODEL_SLUG = 'flux-2-pro-preview';
 const NANO_MODEL_SLUG = 'gemini-3-pro-image-preview';
 
-// Megapixels por defecto para paneles FLUX (1 MP = calidad estándar, rápida).
-const FLUX_MEGAPIXELS = 1;
-// Resolución por defecto para edición Nano.
+// Resolución por defecto para los paneles Nano.
 const NANO_VARIANT = '2k';
 
 type ActionError =
@@ -199,16 +197,14 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  // Precio FLUX
+  // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
+  // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
   const pricing = await loadPricing();
   const breakdown = estimateCredits(pricing, {
-    provider: 'flux',
-    model: FLUX_MODEL_SLUG,
-    variant: 'default',
-    params: {
-      megapixels: FLUX_MEGAPIXELS,
-      references: compiled.compiled.references.length,
-    },
+    provider: 'nano-banana',
+    model: NANO_MODEL_SLUG,
+    variant: NANO_VARIANT,
+    params: { conversational: false },
   });
   const cost = breakdown.total;
 
@@ -219,13 +215,14 @@ export async function generatePanelAction(
       user_id: user.id,
       workspace_id: workspace.id,
       type: 'image',
-      provider: 'flux',
-      model_id: FLUX_MODEL_SLUG,
+      provider: 'nano-banana',
+      model_id: NANO_MODEL_SLUG,
       prompt: compiled.compiled.prompt,
       params: {
         aspect_ratio: item.aspect_ratio,
-        megapixels: FLUX_MEGAPIXELS,
-        photoreal: false,
+        conversational: false,
+        has_text_in_image: false,
+        use_grounding: false,
         storyboard: { campaignItemId: itemId },
       },
       reference_ids: [],
@@ -263,16 +260,19 @@ export async function generatePanelAction(
         }),
     );
 
-    // Dimensiones FLUX según aspect ratio del beat
-    const aspectRatio = item.aspect_ratio ?? '9:16';
-    const { width, height } = fluxDimensions(aspectRatio, FLUX_MEGAPIXELS);
-
-    const result = await generateFlux({
+    // Genera con Nano Banana (reference-grounded): mantiene fieles el producto y el
+    // personaje que van en `references`. El prompt de composición lo arma el compiler
+    // (FLUX-compose, que ya ancla producto+personaje); aquí solo cambia el MOTOR.
+    const result = await generateNanoBanana({
+      model: NANO_MODEL_SLUG,
       prompt: compiled.compiled.prompt,
-      width,
-      height,
+      aspectRatio: item.aspect_ratio ?? '9:16',
+      resolution: nanoVariantToResolution(NANO_VARIANT),
       references,
-      photoreal: false,
+      previousTurn: null,
+      conversational: false,
+      useGrounding: false,
+      hasTextInImage: false,
     });
 
     const ext = inferExtension(result.mimeType);
@@ -287,6 +287,10 @@ export async function generatePanelAction(
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
+    // Guardar el thought_signature: permite que el PRIMER refinado encadene el turno
+    // conversacional desde este panel generado (preserva composición al editar).
+    const providerPayload: Record<string, unknown> = {};
+    if (result.thoughtSignature) providerPayload.thought_signature = result.thoughtSignature;
 
     await completeGeneration({
       userId: user.id,
@@ -296,7 +300,7 @@ export async function generatePanelAction(
       thumbnailUrl: thumbPath,
       processingMs,
       fileSizeBytes: result.buffer.byteLength,
-      providerPayload: null,
+      providerPayload: Object.keys(providerPayload).length > 0 ? providerPayload : null,
     });
 
     // Promoción best-effort: output → media_reference → campaign_item
