@@ -328,8 +328,11 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                         className="min-w-0 resize-none rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary"
                       />
                       <div className="flex items-center gap-2">
-                        <label className="text-[11px] text-muted-foreground">Duración</label>
+                        <label htmlFor={`dur-${beat.id}`} className="text-[11px] text-muted-foreground">
+                          Duración
+                        </label>
                         <input
+                          id={`dur-${beat.id}`}
                           type="number"
                           min={4}
                           max={15}
