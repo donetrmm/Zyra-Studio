@@ -2,7 +2,7 @@
 // Estructura: sujeto + entorno + iluminación (palanca de calidad #1) + estilo
 // + paleta. Sin keyword soup (el antislop limpia al final en index.ts).
 
-import { describeProduct } from '../inventory';
+import { describeCharacter, describeProduct } from '../inventory';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 // FLUX trabaja con width/height explícitos (lib/providers/types.ts).
@@ -21,6 +21,20 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
   if (ctx.scene?.fragment) sections.push(`Setting: ${ctx.scene.fragment}.`);
   if (ctx.product) sections.push(describeProduct(ctx.product));
+  // Personajes: descripción al prompt + (abajo) la hoja maestra como referencia,
+  // para que FLUX mantenga la IDENTIDAD entre imágenes. Sin esto el storyboard
+  // "perdía el hilo del personaje": cada panel inventaba una cara distinta del puro
+  // texto. Mismo anclaje que el compiler de Seedance.
+  for (const character of (ctx.characters ?? []).slice(0, 3)) {
+    if (!character.description?.trim()) continue;
+    const { text } = describeCharacter(character, { fidelity: !character.masterImagePath });
+    sections.push(text);
+  }
+  if ((ctx.characters ?? []).some((c) => c.masterImagePath)) {
+    sections.push(
+      'Keep the people consistent with the provided character reference image(s): same face, hair and build across shots.',
+    );
+  }
   // Iluminación por defecto orientada a producto si el prompt no la trae.
   if (!/light|lighting|luz|iluminaci/i.test(req.scenePrompt)) {
     sections.push('Soft directional lighting that shows form, volume and material texture.');
@@ -29,9 +43,22 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
 
   const dims = DIMENSIONS[req.aspectRatio ?? '1:1'] ?? DIMENSIONS['1:1'];
 
-  const references: CompiledReference[] = (ctx.product?.imagePaths.slice(0, 4) ?? []).map(
-    (storagePath) => ({ storagePath, kind: 'image', role: 'product' }),
-  );
+  // Referencias: producto (hasta 4) + hoja maestra de cada personaje (hasta 3).
+  // El personaje ancla la identidad; va después del producto. Tope 8 (FLUX 2).
+  const references: CompiledReference[] = [];
+  for (const storagePath of ctx.product?.imagePaths.slice(0, 4) ?? []) {
+    references.push({ storagePath, kind: 'image', role: 'product' });
+  }
+  for (const character of (ctx.characters ?? []).slice(0, 3)) {
+    if (character.masterImagePath) {
+      references.push({
+        storagePath: character.masterImagePath,
+        kind: 'image',
+        role: 'character',
+        scope: 'rostro, peinado y complexión; no la ropa ni el fondo',
+      });
+    }
+  }
 
   return {
     modelSlug: req.modelSlug,
@@ -41,7 +68,7 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
       height: dims.height,
       ...(req.seed !== undefined ? { seed: req.seed } : {}),
     },
-    references,
+    references: references.slice(0, 8),
     warnings: [],
   };
 }

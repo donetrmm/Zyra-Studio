@@ -5,6 +5,29 @@ import { findClaims, stripAgeWords } from './inventory';
 import { fromFormatRow, resolveRequiredRefs } from './format-director';
 import type { DirectorContext, FormatDirection } from './types';
 
+// El storyboard generaba paneles FLUX y "perdía el hilo del personaje": compileFlux
+// ignoraba ctx.characters (ni descripción ni imagen master). El compiler debe anclar
+// el personaje como Seedance — master image (rol character) + descripción al prompt.
+describe('compileFlux ancla al personaje', () => {
+  it('mete la imagen master como referencia rol character y la descripción al prompt', () => {
+    const result = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product in a kitchen' },
+      {
+        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        characters: [
+          { name: 'Pedro', description: 'man with a thick mustache wearing a linen shirt', masterImagePath: 'ws/pedro.png' },
+        ],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const imageRefs = result.compiled.references.filter((r) => r.kind === 'image');
+    expect(imageRefs.some((r) => r.role === 'character' && r.storagePath === 'ws/pedro.png')).toBe(true);
+    expect(imageRefs.some((r) => r.role === 'product' && r.storagePath === 'ws/prod.png')).toBe(true);
+    expect(result.compiled.prompt).toContain('mustache');
+  });
+});
+
 // ============ Fixtures ============
 // Formatos reflejando el seed de 023 (en producción vienen de la tabla).
 
