@@ -16,6 +16,7 @@ import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
 import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
+import { buildCastR2VRefs } from '@/lib/campaigns/storyboard-video';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -770,16 +771,26 @@ export async function enqueueBatch(params: {
     const p = compiled.compiled.params;
     const resolution = (p.resolution as '480p' | '720p' | '1080p') ?? '480p';
     const durationS = (p.duration as number | undefined) ?? 8;
-    // En modo storyboard el clip es image2video → el slug debe ser el endpoint
-    // image-to-video (mismo tier; mismo precio que reference-to-video).
-    const effectiveModelSlug = storyboardMode ? toImage2VideoSlug(item.model_slug) : item.model_slug;
-    const cost = seedanceCostPerItem(pricing, effectiveModelSlug, resolution, durationS);
-
     const refImages = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
     // Modo storyboard: las únicas refs de imagen compiladas son los personajes
-    // (onlyCharacterRefs quita producto/locación). Van como reference_image, en el
-    // MISMO orden en que el prompt las cita (@image1..N), junto al panel (first_frame).
+    // (onlyCharacterRefs quita producto/locación), en el orden en que el prompt las cita.
     const storyboardCastRefs = storyboardMode ? refImages : [];
+    // Atlas no deja mezclar first_frame + referencias: beat CON cast → reference2video
+    // (panel + cast como reference_image); beat SIN cast → image2video (panel exacto).
+    const useR2V = storyboardMode && storyboardCastRefs.length > 0;
+    // El slug debe coincidir con la operación: R2V → reference-to-video (el slug del item
+    // ya lo es); I2V solo-panel → image-to-video.
+    const effectiveModelSlug = storyboardMode
+      ? useR2V
+        ? item.model_slug
+        : toImage2VideoSlug(item.model_slug)
+      : item.model_slug;
+    const cost = seedanceCostPerItem(pricing, effectiveModelSlug, resolution, durationS);
+    // Caso cast: panel al final (@image{N+1}) + su cita; vacío en los demás casos.
+    const { referenceImagePaths: castR2VRefs, panelCitation } = useR2V
+      ? buildCastR2VRefs(storyboardCastRefs, panelPath as string)
+      : { referenceImagePaths: [] as string[], panelCitation: '' };
+    const storyboardPrompt = compiled.compiled.prompt + panelCitation;
     // Producto y personaje se re-anclan en cada clip de la cadena (ver
     // characterMasterPaths abajo). Packaging/environment NO: hacerlo haría que el
     // modelo trate esas refs como "el producto" y derive la secuencia.
@@ -804,22 +815,31 @@ export async function enqueueBatch(params: {
         type: 'video',
         provider: 'seedance',
         model_id: effectiveModelSlug,
-        prompt: compiled.compiled.prompt,
-        params: storyboardMode
+        prompt: storyboardPrompt,
+        params: useR2V
           ? {
-              // image2video: el panel del beat es el fotograma inicial (first_frame).
-              operation: 'image2video',
-              referenceStoragePath: panelPath as string,
-              // El cast del beat va como reference_image (@image1..N) para re-anclar
-              // la identidad durante la acción. Vacío si el beat no tiene personaje.
-              referenceImagePaths: storyboardCastRefs,
+              // Beat con cast: reference2video (Atlas no deja first_frame + refs).
+              // cast (@image1..N) + panel (@image{N+1}) como reference_image.
+              operation: 'reference2video',
+              referenceImagePaths: castR2VRefs,
               aspectRatio: p.aspectRatio,
               resolution,
               duration: durationS,
               generateAudio: p.generateAudio,
               ...(p.seed !== undefined ? { seed: p.seed } : {}),
             }
-          : {
+          : storyboardMode
+            ? {
+                // Beat sin cast: image2video con el panel como fotograma inicial.
+                operation: 'image2video',
+                referenceStoragePath: panelPath as string,
+                aspectRatio: p.aspectRatio,
+                resolution,
+                duration: durationS,
+                generateAudio: p.generateAudio,
+                ...(p.seed !== undefined ? { seed: p.seed } : {}),
+              }
+            : {
               operation: p.operation,
               aspectRatio: p.aspectRatio,
               resolution,
