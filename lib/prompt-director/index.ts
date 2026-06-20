@@ -69,6 +69,9 @@ export function onlyCharacterRefs(ctx: DirectorContext): DirectorContext {
     extraImagePaths: [],
     templateVideoPath: undefined,
     audioRefPath: undefined,
-    // ctx.characters se conserva tal cual
+    // Solo la HOJA MAESTRA del cast (sin ángulos): re-ancla la identidad con una
+    // referencia canónica, igual que la cadena de secuencias (que usa master
+    // explícita, no las refs compiladas que mezclan master y ángulos).
+    characters: ctx.characters?.map((c) => ({ ...c, angleImagePaths: [] })),
   };
 }

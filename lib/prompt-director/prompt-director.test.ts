@@ -921,7 +921,14 @@ describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
       format,
       product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
       location: { name: 'Living', description: 'a bright living room', imagePaths: ['ws/living.png'] },
-      characters: [{ name: 'Marcela', description: 'young woman, long brown hair', masterImagePath: 'ws/marcela.png' }],
+      characters: [
+        {
+          name: 'Marcela',
+          description: 'young woman, long brown hair',
+          masterImagePath: 'ws/marcela.png',
+          angleImagePaths: ['ws/marcela-side.png'],
+        },
+      ],
     };
     const result = compile(
       { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'Marcela mira a cámara' },
@@ -931,6 +938,8 @@ describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
     if (!result.ok) return;
     const paths = result.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
     expect(paths).toContain('ws/marcela.png');
+    // Solo la hoja maestra: los ángulos NO se mandan (convención master-only).
+    expect(paths).not.toContain('ws/marcela-side.png');
     expect(paths).not.toContain('ws/prod.png');
     expect(paths).not.toContain('ws/living.png');
     expect(result.compiled.prompt).toContain('@image'); // cita al personaje
