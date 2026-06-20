@@ -54,3 +54,22 @@ export function compile(req: CompileRequest, ctx: DirectorContext = {}): Compile
     },
   };
 }
+
+// Devuelve el contexto SIN referencias de media: vacía las imágenes de
+// producto/personaje/locación/extra y quita video de plantilla y audio. Conserva
+// las DESCRIPCIONES de texto. Lo usa el modo storyboard-video (image2video): el
+// panel es el first_frame, así que el compiler NO debe emitir citas @image/@video/
+// @audio que apunten a referencias que no se envían.
+export function withoutReferences(ctx: DirectorContext): DirectorContext {
+  return {
+    ...ctx,
+    product: ctx.product
+      ? { ...ctx.product, imagePaths: [], packagingImagePaths: [] }
+      : undefined,
+    characters: ctx.characters?.map((c) => ({ ...c, masterImagePath: '', angleImagePaths: [] })),
+    location: ctx.location ? { ...ctx.location, imagePaths: [] } : undefined,
+    extraImagePaths: [],
+    templateVideoPath: undefined,
+    audioRefPath: undefined,
+  };
+}

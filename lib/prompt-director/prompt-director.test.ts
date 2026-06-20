@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compile } from './index';
+import { compile, withoutReferences } from './index';
 import { stripSlop } from './antislop';
 import { findClaims, stripAgeWords } from './inventory';
 import { fromFormatRow, resolveRequiredRefs } from './format-director';
@@ -900,5 +900,28 @@ describe('compile veo y kling', () => {
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.errors[0]).toMatch(/no soportado/);
+  });
+});
+
+// ============ withoutReferences (prompt para image2video) ============
+
+describe('withoutReferences (prompt para image2video)', () => {
+  it('el prompt compilado no lleva citas @image y conserva la descripción del producto', () => {
+    const ctx = {
+      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+      characters: [{ name: 'Pedro', description: 'man with a mustache', masterImagePath: 'ws/pedro.png' }],
+      location: { name: 'Living', description: 'a bright living room', imagePaths: ['ws/living.png'] },
+    };
+    const stripped = withoutReferences(ctx);
+    const result = compile(
+      { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'the couple smiles' },
+      stripped,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.compiled.prompt).not.toContain('@image');
+    expect(result.compiled.references.filter((r) => r.kind === 'image')).toHaveLength(0);
+    // Las descripciones de texto siguen (no las imágenes)
+    expect(result.compiled.prompt.toLowerCase()).toContain('canvas');
   });
 });
