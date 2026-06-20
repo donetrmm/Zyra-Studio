@@ -264,7 +264,7 @@ export async function generatePanelAction(
   const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
   const panelPrompt = prevTurn
-    ? `Continue the SAME storyboard scene from the provided previous shot: keep the same location, the same product exactly as it is and where it sits, the same characters, wardrobe and overall layout. Now show this next beat as a new shot (you may change the camera angle and the action): ${item.scene_prompt.trim()}.${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and where it hangs on the wall), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${noText}`
     : `${compiled.compiled.prompt}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
