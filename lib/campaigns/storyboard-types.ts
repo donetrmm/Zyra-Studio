@@ -5,4 +5,5 @@ export type StoryboardBeat = {
   scenePrompt: string;
   storyboardImageId: string | null;
   panelUrl: string | null;
+  durationS: number;
 };

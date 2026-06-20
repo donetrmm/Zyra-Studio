@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { generatePanelAction, refinePanelAction, setStoryboardLocationAction } from '@/server-actions/storyboard';
+import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
+import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
 
 const ERROR_MESSAGES: Record<string, string> = {
   insufficient_credits: 'No tienes créditos suficientes',
@@ -29,9 +30,10 @@ type Props = {
   beats: StoryboardBeat[];
   locations: { id: string; name: string }[];
   currentLocationId: string | null;
+  language: 'es' | 'en';
 };
 
-export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId }: Props) {
+export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId, language }: Props) {
   const router = useRouter();
   const [savingLocation, setSavingLocation] = useState(false);
 
@@ -62,6 +64,28 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
 
   // Genera todos los paneles faltantes de forma secuencial
   const [generatingAll, setGeneratingAll] = useState(false);
+
+  // Estado del editor de audio por beat
+  const [audioDraft, setAudioDraft] = useState<Record<string, { dialogue: string; durationS: number }>>(() => {
+    const init: Record<string, { dialogue: string; durationS: number }> = {};
+    for (const b of beats) init[b.id] = { dialogue: extractDialogue(b.scenePrompt), durationS: b.durationS };
+    return init;
+  });
+  const [savingAudio, setSavingAudio] = useState<string | null>(null);
+
+  async function handleSaveAudio(beatId: string) {
+    const draft = audioDraft[beatId];
+    if (!draft) return;
+    setSavingAudio(beatId);
+    const res = await setBeatAudioAction(beatId, draft.dialogue, draft.durationS);
+    setSavingAudio(null);
+    if (res.ok) {
+      toast.success('Audio guardado · regenera el video para aplicarlo');
+      router.refresh();
+    } else {
+      toast.error(friendlyError(res.error, res.message));
+    }
+  }
 
   const withoutPanel = beats.filter((b) => {
     const s = panelStates[b.id];
@@ -274,6 +298,62 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                     {isRefining ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : 'Refinar'}
                   </button>
                 </div>
+
+                {/* Audio: diálogo + duración + medidor de holgura */}
+                {(() => {
+                  const draft = audioDraft[beat.id] ?? { dialogue: extractDialogue(beat.scenePrompt), durationS: beat.durationS };
+                  const words = countWords(draft.dialogue);
+                  const needed = estimateSpeechSeconds(draft.dialogue, language);
+                  const { level, suggestedDurationS } = fitVerdict(needed, draft.durationS);
+                  const meter =
+                    words === 0
+                      ? { text: 'Sin diálogo', cls: 'text-muted-foreground/60' }
+                      : level === 'roomy'
+                        ? { text: 'Holgado (natural)', cls: 'text-emerald-500' }
+                        : level === 'ok'
+                          ? { text: 'Justo', cls: 'text-amber-500' }
+                          : {
+                              text: `Muy ajustado: ~${needed.toFixed(1)}s para ${words} palabras · sube a ${suggestedDurationS}s o acorta`,
+                              cls: 'text-red-500',
+                            };
+                  return (
+                    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card/40 p-2">
+                      <textarea
+                        value={draft.dialogue}
+                        onChange={(e) =>
+                          setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, dialogue: e.target.value } }))
+                        }
+                        placeholder="Diálogo (vacío = sin voz)"
+                        rows={2}
+                        className="min-w-0 resize-none rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary"
+                      />
+                      <div className="flex items-center gap-2">
+                        <label className="text-[11px] text-muted-foreground">Duración</label>
+                        <input
+                          type="number"
+                          min={4}
+                          max={15}
+                          value={draft.durationS}
+                          onChange={(e) => {
+                            const v = Math.min(15, Math.max(4, Math.round(Number(e.target.value) || 4)));
+                            setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, durationS: v } }));
+                          }}
+                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary"
+                        />
+                        <span className="text-[11px]">s</span>
+                      </div>
+                      <p className={`text-[11px] ${meter.cls}`}>{meter.text}</p>
+                      <button
+                        type="button"
+                        disabled={savingAudio === beat.id || generatingAll}
+                        onClick={() => void handleSaveAudio(beat.id)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      >
+                        {savingAudio === beat.id ? <Loader2 className="size-3 animate-spin" aria-hidden /> : 'Guardar audio'}
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

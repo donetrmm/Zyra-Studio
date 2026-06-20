@@ -18,7 +18,7 @@ export default async function StoryboardPage({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name')
+    .select('id, name, language')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -27,7 +27,7 @@ export default async function StoryboardPage({
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id')
+    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id, duration_s')
     .eq('campaign_id', id)
     .order('scene_index');
 
@@ -72,7 +72,10 @@ export default async function StoryboardPage({
     scenePrompt: (r.scene_prompt as string) ?? '',
     storyboardImageId: (r.storyboard_image_id as string | null) ?? null,
     panelUrl: r.storyboard_image_id ? (refMap.get(r.storyboard_image_id as string) ?? null) : null,
+    durationS: (r.duration_s as number | null) ?? 8,
   }));
+
+  const language = (campaign.language === 'en' ? 'en' : 'es') as 'es' | 'en';
 
   return (
     <StoryboardView
@@ -81,6 +84,7 @@ export default async function StoryboardPage({
       beats={beats}
       locations={locations}
       currentLocationId={currentLocationId}
+      language={language}
     />
   );
 }
