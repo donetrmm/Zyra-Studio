@@ -2,13 +2,15 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Loader2, MapPin, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createLocationAction,
   deleteLocationAction,
   updateLocationAction,
 } from '@/server-actions/locations';
+import { submitGenerationAction } from '@/server-actions/generations';
+import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 
@@ -139,6 +141,17 @@ export function LocationsPage({
   );
 }
 
+// Prompt para generar la imagen de una locación desde su descripción: un PLANO
+// del lugar (referencia de ambiente), sin personas ni texto. Aquí FLUX sí sirve:
+// el lugar se crea desde texto, no hay una referencia que preservar.
+function buildLocationPrompt(description: string): string {
+  return (
+    `Establishing photograph of a location: ${description}. ` +
+    'Wide representative view of the place, natural realistic lighting, photorealistic, ' +
+    'no people, no text, no watermark.'
+  );
+}
+
 function LocationEditor({
   location,
   previews,
@@ -161,9 +174,46 @@ function LocationEditor({
     (location?.reference_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
   const [saving, startSave] = useTransition();
+  const [generating, setGenerating] = useState(false);
 
   // Master es opcional en locaciones — solo nombre requerido.
   const canSave = name.trim().length > 0;
+  const canGenerate = description.trim().length >= 10 && !generating;
+
+  async function handleGenerateMaster() {
+    if (!canGenerate) return;
+    setGenerating(true);
+    try {
+      const res = await submitGenerationAction({
+        provider: 'flux' as const,
+        model: 'flux-2-pro-preview' as const,
+        variant: 'default' as const,
+        prompt: buildLocationPrompt(description.trim()),
+        aspectRatio: '16:9' as const,
+        megapixels: 2 as const,
+        photoreal: true,
+        references: [],
+      });
+      if (!res.ok) {
+        toast.error(
+          res.error === 'insufficient_credits'
+            ? 'Créditos insuficientes para generar la locación'
+            : res.message || 'No se pudo generar',
+        );
+        return;
+      }
+      // La imagen se copia al bucket de referencias y queda como media_reference.
+      const ref = await addGenerationAsReferenceAction({ generationId: res.data.generationId });
+      if (!ref.ok) {
+        toast.error(ref.message || 'Se generó la imagen pero no se pudo fijar; búscala en la librería');
+        return;
+      }
+      setMasterImages([{ id: ref.data.id, previewUrl: ref.data.previewUrl || null }]);
+      toast.success('Locación generada; revisa que represente el lugar y guarda');
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   function handleSave() {
     startSave(async () => {
@@ -227,6 +277,28 @@ function LocationEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
+
+        <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            ¿Sin foto del lugar? Genera la imagen de la locación con IA a partir de la descripción.
+          </p>
+          <button
+            type="button"
+            onClick={handleGenerateMaster}
+            disabled={!canGenerate}
+            title={
+              description.trim().length < 10 ? 'Escribe una descripción (mín. 10 caracteres)' : undefined
+            }
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {generating ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}
+            {generating ? 'Generando…' : 'Generar locación con IA'}
+          </button>
+        </div>
 
         <ReferenceImagesUploader
           label="Imágenes de referencia adicionales"
