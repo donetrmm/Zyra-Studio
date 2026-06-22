@@ -16,7 +16,7 @@ import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
 import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
-import { buildCastR2VRefs } from '@/lib/campaigns/storyboard-video';
+import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/campaigns/storyboard-video';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -775,9 +775,20 @@ export async function enqueueBatch(params: {
     // Modo storyboard: las únicas refs de imagen compiladas son los personajes
     // (onlyCharacterRefs quita producto/locación), en el orden en que el prompt las cita.
     const storyboardCastRefs = storyboardMode ? refImages : [];
-    // Atlas no deja mezclar first_frame + referencias: beat CON cast → reference2video
-    // (panel + cast como reference_image); beat SIN cast → image2video (panel exacto).
-    const useR2V = storyboardMode && storyboardCastRefs.length > 0;
+    // El cast solo se manda como referencia VIVA cuando el beat lo NOMBRA (los
+    // personajes actúan en la toma). En tomas donde no actúan (p.ej. close-up del
+    // producto, donde la gente está impresa en el cuadro) mandar el cast hacía que el
+    // modelo lo pegara literal y no animara → esos beats van por I2V (panel exacto).
+    const storyboardCastNames = storyboardMode
+      ? itemCharacterIds(item)
+          .map((id) => ctx.characters.get(id)?.name)
+          .filter((n): n is string => !!n)
+      : [];
+    const castActs = storyboardMode && beatNamesCast(item.scene_prompt, storyboardCastNames);
+    // Atlas no deja mezclar first_frame + referencias: beat CON cast que actúa →
+    // reference2video (cast + producto + panel como reference_image); resto de beats
+    // del storyboard → image2video (panel exacto, lock total + movimiento real).
+    const useR2V = storyboardMode && castActs && storyboardCastRefs.length > 0;
     // El slug debe coincidir con la operación: R2V → reference-to-video (el slug del item
     // ya lo es); I2V solo-panel → image-to-video.
     const effectiveModelSlug = storyboardMode
@@ -786,11 +797,18 @@ export async function enqueueBatch(params: {
         : toImage2VideoSlug(item.model_slug)
       : item.model_slug;
     const cost = seedanceCostPerItem(pricing, effectiveModelSlug, resolution, durationS);
-    // Caso cast: panel al final (@image{N+1}) + su cita; vacío en los demás casos.
-    const { referenceImagePaths: castR2VRefs, panelCitation } = useR2V
-      ? buildCastR2VRefs(storyboardCastRefs, panelPath as string)
-      : { referenceImagePaths: [] as string[], panelCitation: '' };
-    const storyboardPrompt = compiled.compiled.prompt + panelCitation;
+    // R2V re-ancla el PRODUCTO como referencia dedicada (antes solo viajaba dentro del
+    // panel → derivaba). Se toma del contexto base, ANTES de onlyCharacterRefs (que lo
+    // quitó del dirCtx del compile). El cast lo cita el compiler (@image1..N); producto
+    // y panel se citan en extraCitation.
+    const storyboardProductRefs = useR2V ? (baseDirCtx.product?.imagePaths ?? []).slice(0, 2) : [];
+    const { referenceImagePaths: castR2VRefs, extraCitation } = useR2V
+      ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string)
+      : { referenceImagePaths: [] as string[], extraCitation: '' };
+    // Manijas de entrada/salida solo en clips de storyboard (independientes): puntos
+    // de corte limpios para montaje en post.
+    const storyboardPrompt =
+      compiled.compiled.prompt + extraCitation + (storyboardMode ? STORYBOARD_EDIT_HANDLES : '');
     // Producto y personaje se re-anclan en cada clip de la cadena (ver
     // characterMasterPaths abajo). Packaging/environment NO: hacerlo haría que el
     // modelo trate esas refs como "el producto" y derive la secuencia.
