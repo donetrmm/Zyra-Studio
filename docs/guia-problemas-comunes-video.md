@@ -14,6 +14,54 @@ commits) ver `errores-generacion-video.md`.
 
 ---
 
+## Paneles del storyboard (imagen base)
+
+El panel es la base de cada clip (fotograma inicial o referencia fuerte). Si el panel está
+mal, el video hereda el problema — arregla el panel primero.
+
+**Los paneles salen casi idénticos / el panel copia al anterior**
+→ El modelo preserva de más. Pide un **cambio de toma explícito** ("otro ángulo, plano más
+cerrado, distinta composición"). Evita instrucciones que solo cambien un detalle de texto.
+
+**El panel reinventa la historia / no continúa la escena anterior**
+→ Los paneles se encadenan (cada uno edita al anterior). Genera **en orden** (el botón
+"Generar storyboard" va en orden de escena) para que cada panel vea al anterior recién
+hecho.
+
+**Un objeto/arreglo que estaba en el panel anterior desaparece o se mueve**
+→ El encadenado conserva el estado de escena. Si lo pierdes, **regenera en orden**. Para
+recuperarlo, refina re-mencionando el objeto **sin volver a describir el producto** (re-
+describirlo lo cambia).
+
+**Las caras salen de plástico / con look de IA**
+→ Ya se inyecta foto-realismo cuando el beat tiene personajes (salvo que el estilo sea
+declarado cartoon/anime/3D/animado). Si lo quieres estilizado, **declara el estilo**. Si
+sale plástico aun con personajes, refina: "piel real con textura natural, no plástico".
+
+**El cuadro/foto del producto se confunde con un estilo (se "dibuja")**
+→ El detector de estilo **excluye a propósito** palabras como pintura/cuadro/dibujo/impreso
+(son el producto, no el render). Si igual lo estiliza, evita describir el render como
+"ilustración/painting"; pide "fotografía realista".
+
+---
+
+## Refinado (editar un panel con instrucción)
+
+**El cambio no se integra / queda "pegado"** (ej. "le quité el casco y la cara queda
+pegada")
+→ Refina **un cambio por iteración**. El modo conversacional edita la imagen in-place;
+acumular varios cambios en una instrucción es menos fiable.
+
+**Al refinar reaparece algo viejo o se pierde la composición**
+→ En refinado conversacional **no vuelvas a subir las referencias originales**; la
+composición ya viaja en el panel que estás editando. Describe el cambio en texto.
+
+**El producto cambia cuando lo refino**
+→ No le pidas "vuelve a poner el producto" describiéndolo (lo reinventa). Mejor regenera el
+panel (re-ancla la referencia limpia) o refina re-mencionando el producto sin re-describirlo.
+
+---
+
 ## Voz y pronunciación
 
 **No pronuncia bien una palabra**
@@ -163,3 +211,5 @@ fotogramas (las métricas de cuadro completo esconden la degradación en las car
    degradación.
 5. **Mira los píxeles / el fuente** antes de asumir: el "trabado" era CSS; la degradación se
    escondía en el promedio.
+6. **Refina un cambio a la vez:** el modelo edita mejor de a un cambio; no acumules varios
+   en una instrucción ni re-subas las referencias originales en el refinado.
