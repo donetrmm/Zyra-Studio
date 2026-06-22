@@ -108,9 +108,10 @@ andamiaje del prompt. Si un token nuevo no se expande, se agrega al normalizador
 (`lib/prompt-director/es-mx-normalize.ts`).
 
 **Con 2+ personajes en cámara, anima la boca equivocada o las dos**
-→ Marca **quién dice cada línea** en el scene_prompt ("Pedro, a cámara: …") y deja claro que
-el otro **no habla** en ese tramo (sonríe, asiente) — así sincroniza una sola boca. El matcher
-ya lo pide cuando hay 2+ del Cast en cuadro; si igual pasa, dilo explícito.
+→ El matcher lo pide y, además, el compiler **fija deterministamente** que solo una boca
+habla cuando hay 2+ del Cast en cuadro ("only ONE person speaks… never animate two mouths").
+Aun así, para elegir tú **quién** habla, márcalo en el scene_prompt ("Pedro, a cámara: …") y
+deja al otro en silencio (sonríe, asiente).
 
 **La voz suena apresurada / robótica**
 → El diálogo **no cabe** en la duración. Al planear, la duración ya se **sube automáticamente**

@@ -149,7 +149,12 @@ diagnósticos y para entender por qué el pipeline está como está.
 - **Fix (origen):** directiva `HABLANTE` en el SYSTEM del matcher — con 2+ del Cast en
   cámara, nombrar quién dice cada línea y dejar al otro en silencio (sonríe, asiente) en
   ese tramo. Commit `7fd3252`.
-- **Estado:** nudge aplicado; smoke pendiente.
+- **Fix 2 (red determinista, PD-15):** en la campaña V3 el nudge cayó **a medias** (Gemini lo
+  aplicó en 1 de 3 escenas, dejó "They … Dialogue" en las otras). El compiler agrega
+  `MULTI_SPEAKER_DIRECTION` cuando hay habla en cámara y `ctx.characters.length >= 2`: *"only
+  ONE person speaks… never animate two mouths"*. No depende de que Gemini obedezca. Commit
+  `08c7cd1`.
+- **Estado:** nudge (elige *quién*) + red determinista (evita dos bocas); smoke pendiente.
 
 ---
 
