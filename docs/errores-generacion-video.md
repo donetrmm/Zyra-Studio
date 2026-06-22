@@ -68,6 +68,20 @@ diagnósticos y para entender por qué el pipeline está como está.
   refinar el panel no cambiaba la deriva del video. Opción futura: editor de scene_prompt
   por beat.
 
+### 1.5 El cast actúa pero el beat no lo nombra → cae a image2video estático
+- **Síntoma:** un beat donde el personaje actúa (escrito como "she lifts…", sin el nombre
+  propio) caía a image2video y dejaba al sujeto casi inmóvil, en vez de animarse con su
+  identidad como referencia viva.
+- **Causa:** la decisión R2V vs i2v usa `beatNamesCast` (el beat debe **nombrar** al cast).
+  Si el matcher describe al personaje sin su nombre propio, la heurística no lo detecta.
+- **Fix (origen):** el SYSTEM del matcher ahora **nombra al cast por su nombre propio** en
+  el scene_prompt cuando actúa (no "she"/"the woman"). Commit `8e300a3`.
+- **Diferido (raíz determinista):** usar `itemCharacterIds` como señal por-beat NO sirve:
+  los `characterIds` son **por-secuencia** (el planner los copia a todas las escenas), así
+  que sobre-dispararían R2V en los close-ups de producto. La opción estructural (characterIds
+  por escena en el matcher) queda pendiente. Ver backlog PD-03.
+- **Estado:** nudge aplicado; smoke pendiente.
+
 ---
 
 ## 2. Audio y voz
@@ -79,6 +93,10 @@ diagnósticos y para entender por qué el pipeline está como está.
 - **Fix:** sección de audio por beat en el storyboard (editar diálogo + duración) con un
   medidor de holgura (muy ajustado / justo / holgado) usando `lib/campaigns/speech-fit.ts`.
   Ritmo implícito por holgura; sin migración (el diálogo vive en `scene_prompt`).
+- **Fix 2 (en el planner, PD-12):** `speech-fit` antes **solo** corría en el editor de
+  storyboard, no al planear; un plan dirigido salía con duraciones apretadas. Ahora
+  `buildDirectedPlan` sube `durationS` automáticamente cuando el diálogo no cabe
+  (`fitDialogueDuration`, clamp 8s en secuencia / 15s en clip suelto). Commit `7fd3252`.
 - **Estado:** implementado.
 
 ### 2.2 Voz robótica en un VOICEOVER (sin hablante en cámara)
@@ -106,11 +124,32 @@ diagnósticos y para entender por qué el pipeline está como está.
   aplicado al compilar el video (no toca el texto guardado). NO se usa una regla general
   porque acentuar todas las paroxítonas sobre-aplica y rompe palabras buenas. Commits
   `4bf5bc2` (motor + imprimiste/regalado), `9e4a7a1` (`Prolienzo` → `Prólienzo`,
-  PRO-lien-zo, esdrújula).
+  PRO-lien-zo, esdrújula), `7fd3252` (`Contactanos` → `Contáctanos`, esdrújula).
 - **Estado:** automatizado. **Extender:** una línea en el mapa por cada palabra nueva que
   falle (clave = palabra sin tilde, valor = respelling con la tónica marcada).
 - **Articulación general:** además se añadió a `DIALOGUE_LANGUAGE` (es/en) una directiva de
   articular cada palabra completa, valor pleno a cada sílaba (commit `74ece4e`).
+
+### 2.4 Números y símbolos hablados se mascan ($499, 2x1, Dr.)
+- **Síntoma:** un token crudo en el diálogo (`$499`, `2x1`, `24/7`, `3km`, `Dr.`) salía
+  entrecortado o deletreado en la voz.
+- **Causa:** el modelo no expande números/símbolos a su forma hablada; los lee literales.
+- **Fix:** normalizador es-MX `lib/prompt-director/es-mx-normalize.ts`
+  (`normalizeSpokenInDialogue`): expande moneda (con centavos), `%`, ratios `NxM`, `24/7`,
+  unidades y abreviaturas a palabras ("cuatrocientos noventa y nueve pesos", "dos por uno").
+  Aplica **solo al diálogo entrecomillado**, no al andamiaje del prompt (9:16, 480p, 3-7s:,
+  @imageN). Conversor número→palabras propio (sin dependencia). Commit `4ca6bd5`.
+- **Estado:** implementado; smoke de voz pendiente. **Extender:** tokens nuevos se agregan
+  al normalizador (no al mapa de tildes, que es para palabras).
+
+### 2.5 Lip-sync ambiguo con 2+ personajes en cámara
+- **Síntoma:** con dos personajes del Cast en cuadro y diálogo sin hablante marcado, el
+  modelo animaba la boca equivocada o las dos (campaña "Nuestra primera pared juntos V2").
+- **Causa:** el scene_prompt no decía **quién** dice cada línea.
+- **Fix (origen):** directiva `HABLANTE` en el SYSTEM del matcher — con 2+ del Cast en
+  cámara, nombrar quién dice cada línea y dejar al otro en silencio (sonríe, asiente) en
+  ese tramo. Commit `7fd3252`.
+- **Estado:** nudge aplicado; smoke pendiente.
 
 ---
 
@@ -134,6 +173,37 @@ diagnósticos y para entender por qué el pipeline está como está.
   estable** (abrir en el fotograma inicial sostenido, cerrar casi quieto) → puntos de corte
   limpios. Se añade al prompt de todo clip de storyboard. Commit `7b8977c`.
 - **Estado:** implementado; pendiente smoke.
+
+### 3.3 El matcher no dirigía visibilidad/emoción de forma robusta
+- **Síntoma:** desobediencias recurrentes — el producto se revela cuando no debe (ver 1.4),
+  emociones apiladas que salen falsas (ver 3.1), texto en pantalla que reaparece.
+- **Causa:** el control de visibilidad/emoción vivía puntual (scope de personaje/producto),
+  no como política del scene_prompt; la supresión de texto era solo negativa.
+- **Fix (PD-02):** el SYSTEM del matcher ahora pide: **visibilidad en positivo** ("solo
+  vemos su cara"; sin el `(POV)` débil), **una sola emoción dominante** por toma (no apilar
+  señales), y **supresión de texto por descripción positiva** (superficies limpias) además
+  de la cláusula negativa. Commit `3eca24d`.
+- **Estado:** copy de prompt aplicado; smoke pendiente.
+
+### 3.4 La dirección del movimiento de los elementos quedaba sin definir
+- **Síntoma:** cuando algo se desplaza (un coche, un cohete), el modelo elegía el sentido (a
+  veces invertido): el coche daba marcha atrás, el cohete no subía.
+- **Causa:** el SYSTEM dirigía acción + plano + movimiento de **cámara**, pero nunca el
+  vector de traslación del **sujeto/objeto**.
+- **Fix (PD-09):** directiva `MOVIMIENTO DE ELEMENTOS` en el SYSTEM — nombrar la dirección
+  explícita (forward/backward, up/down, hacia/desde cámara), aparte de la cámara. Del audit
+  de la guía de video. Commit `4a21c5e`.
+- **Estado:** copy de prompt aplicado; smoke pendiente.
+
+### 3.5 El movimiento de cámara se veía "demasiado de IA"
+- **Síntoma:** la cámara salía demasiado perfecta/estable, con look generado.
+- **Causa:** solo se inyectaba "handheld camera feel" por registro UGC, sin la vibración/
+  micro-jitter humano que hace que un clip parezca menos IA.
+- **Fix (PD-10):** `cinematographyDefault` agrega, **solo** en registros UGC/realistas, un
+  micro-movimiento handheld natural ("as if filmed by a real camera operator"). No toca
+  hero/producto en trípode (respeta el gate existente). Del audit de la guía de video.
+  Commit `4a21c5e`.
+- **Estado:** condicionado por registro; smoke pendiente.
 
 ---
 
@@ -159,6 +229,19 @@ diagnósticos y para entender por qué el pipeline está como está.
 - **Lección:** medir antes de asumir; y cuando la métrica no cuadra con la percepción,
   **mirar los píxeles** — el promedio de cuadro completo escondía la degradación localizada
   en las caras.
+
+### 4.2 Marcadores de tiempo acumulativos en escenas de secuencia
+- **Síntoma:** en una secuencia (campaña "Nuestra primera pared juntos V2"), los clips 2 y 3
+  traían `4-9s:` y `9-13s:` en vez de empezar en 0. Cada clip es **independiente**; un
+  marcador "9-13s:" en un clip de 4s confunde el timing (deja un "hueco" o comprime).
+- **Causa:** el matcher continuó el timeline **global** del guion a través de las escenas,
+  pese a la regla del SYSTEM ("cada escena empieza en 0").
+- **Fix (PD-11, red determinista):** `normalizeSceneTimeline` en `format-matcher.ts` (dentro
+  de `sanitizeScenePrompt`): un solo marcador → se quita (beat único); varios → se rebasan al
+  offset del primero (arrancan en 0). No depende de que Gemini obedezca. Commit `7fd3252`.
+- **Estado:** corregido (determinista, testeado).
+- **Lección:** se detectó parchando a mano una campaña; lo correcto era arreglar el
+  **generador**, no la fila de la BD (ver lecciones transversales #6).
 
 ---
 
@@ -212,3 +295,8 @@ Hechos del backend que han causado o condicionado errores (`lib/providers/seedan
    es visible; panel como first_frame cuando se puede (lock + movimiento real).
 5. **Medir/mirar antes de asumir.** Las métricas de cuadro completo escondían degradación
    localizada; el "trabado" era CSS, no el modelo.
+6. **Arreglar el generador, no la salida.** Cuando un prompt sale mal, el fix va en la capa
+   que lo genera (SYSTEM del matcher + redes deterministas en planner/compiler), no en
+   editar a mano `campaign_items` en la BD: un parche arregla una campaña, el generador sigue
+   fallando. Prefiere redes deterministas (`sanitizeScenePrompt`, `speech-fit`, normalizador
+   es-MX) sobre solo "pedirle bien" al LLM.
