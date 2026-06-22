@@ -25,8 +25,13 @@ describe('applyRespellings', () => {
     expect(applyRespellings('she walks toward the sofa')).toBe('she walks toward the sofa');
   });
 
-  it('el mapa arranca con las dos confirmadas', () => {
+  it('respela la marca Prolienzo preservando la mayúscula', () => {
+    expect(applyRespellings('Te traje un Prolienzo nuevo')).toContain('Prólienzo');
+  });
+
+  it('incluye las palabras confirmadas y la marca', () => {
     expect(PRONUNCIATION_RESPELLINGS.imprimiste).toBe('imprimíste');
     expect(PRONUNCIATION_RESPELLINGS.regalado).toBe('regaládo');
+    expect(PRONUNCIATION_RESPELLINGS.prolienzo).toBe('prólienzo');
   });
 });

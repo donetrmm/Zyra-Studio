@@ -13,6 +13,8 @@
 export const PRONUNCIATION_RESPELLINGS: Record<string, string> = {
   imprimiste: 'imprimíste',
   regalado: 'regaládo',
+  // Marca "Prolienzo": fuerza en la 1ª sílaba (PRO-lien-zo) → esdrújula, tilde en la o.
+  prolienzo: 'prólienzo',
 };
 
 // Capitaliza la primera letra si el match original venía capitalizado.
