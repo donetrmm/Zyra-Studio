@@ -270,7 +270,7 @@ function cinematographyDefault(register: string): string {
   const handheld =
     /handheld|selfie|ugc|vlog|casual|conversacional|primera persona|testimon|a pie de calle|\bcalle\b/i.test(register);
   return handheld
-    ? 'Cinematography: natural available light with soft, realistic shadows; handheld camera feel; deep focus so the whole scene reads clearly.'
+    ? 'Cinematography: natural available light with soft, realistic shadows; handheld camera feel with subtle natural micro-movement and slightly imperfect framing, as if filmed by a real camera operator; deep focus so the whole scene reads clearly.'
     : 'Cinematography: controlled key light with soft fill and gentle rim separation; shallow depth of field that keeps the product crisp; clean filmic contrast.';
 }
 

@@ -253,6 +253,10 @@ Por cada idea distinta devuelve un match:
   over-the-shoulder, POV), movimiento (dolly in/out, tracking, pan, tilt, crane,
   handheld, steadicam, rack focus) y, si suma, el ángulo (low/high/eye-level).
   Una acción + un movimiento por toma — nunca dos movimientos en el mismo tramo.
+  MOVIMIENTO DE ELEMENTOS: cuando un sujeto u objeto se DESPLAZA, nombra su
+  dirección explícita (forward/backward, up/down, left-to-right, toward/away from
+  camera), independiente del movimiento de cámara — no dejes que el modelo adivine
+  el sentido (un coche que avanza vs da marcha atrás, un cohete que sube vs cae).
   El tramo de cierre va en plano cerrado del producto (close-up / product hero)
   con la etiqueta de frente. Ejemplo: "0-3s: medium shot, eye level — she lifts
   the can to camera. 3-7s: slow dolly in to close-up — she takes a sip and nods.

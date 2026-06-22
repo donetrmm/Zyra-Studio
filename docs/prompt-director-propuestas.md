@@ -157,6 +157,36 @@ el delta a decidir.
   (cada escena desde base limpia); el warning es de bajo valor hoy. Reabrir solo si un caso
   real de encadenado profundo lo amerita. **No** cap duro de 3-6 (cortaría narrativas).
 
+### PD-09 — Dirección del movimiento de los elementos (audit del video, P5b)
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** alto
+- **Origen:** audit de la guía de YouTube (imágenes+video IA). Gap más literal: el SYSTEM
+  dirigía cámara/plano/emoción pero nunca el **vector de traslación** del sujeto (un coche
+  "se mueve" podía quedar sin sentido y el modelo lo invertía).
+- **Implementación:** directiva `MOVIMIENTO DE ELEMENTOS` en el SYSTEM del matcher
+  (`format-matcher.ts`): cuando un sujeto/objeto se desplaza, nombra su dirección explícita
+  (forward/backward, up/down, toward/away from camera), independiente del movimiento de
+  cámara. Copy de prompt; smoke test del usuario.
+
+### PD-10 — Micro-shake handheld anti-IA por registro (audit del video, P6)
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** alto
+- **Origen:** audit del video. P6: "cuanto más natural el movimiento, menos parece IA";
+  faltaba la vibración/micro-jitter humano (solo había "handheld camera feel" por registro UGC).
+- **Implementación:** en `cinematographyDefault` (`seedance.ts`, rama handheld/UGC) se agregó
+  "subtle natural micro-movement and slightly imperfect framing, as if filmed by a real camera
+  operator". **Solo** registros UGC/realistas (respeta el gate existente; NO hero/producto en
+  trípode ni cuando la luz/óptica ya está dirigida). Copy de prompt; smoke test del usuario.
+
+### Otros gaps del audit del video (no priorizados)
+- **P1.c** (medio/S) — warning cuando la operación cae a `text2video` puro (sin refs ni panel),
+  sugiriendo crear panel o subir referencia. Caso de borde (casi siempre hay producto).
+- **P2c** (medio/M) — revivir el rol `'style'` (muerto en `types.ts:11`) como canal de
+  referencia estética ("look de Dune"); necesita UI. Decisión de roadmap.
+- **P4** (bajo/riesgo alto) — inyectar cuerpo+lente concretos ("Canon R5 35mm f1.4"). El DOF
+  —el matiz real de P4— ya está; la marca/lente arriesga pelear con el registro. Decisión de
+  alcance, **no** auto-implementar.
+
 ---
 
 ## B. A rechazar o diferir (con razón)
