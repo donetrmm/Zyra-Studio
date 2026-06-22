@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { beatsNeedingPanel, compilePanel, compilePanelEdit } from './storyboard';
+import {
+  beatsNeedingPanel,
+  compilePanel,
+  compilePanelEdit,
+  humanRealismDirective,
+  isStylized,
+} from './storyboard';
 
 describe('beatsNeedingPanel', () => {
   it('devuelve solo beats sin panel', () => {
@@ -20,6 +26,42 @@ describe('compilePanel', () => {
     expect(res.compiled.prompt).toContain('the couple smiles');
     expect(res.compiled.params.width).toBeGreaterThan(0);
     expect(res.compiled.references.some((r) => r.role === 'product')).toBe(true);
+  });
+});
+
+describe('humanRealismDirective', () => {
+  const withChar = { characters: [{ name: 'Ana', description: 'mujer', masterImagePath: 'ws/ana.png' }] };
+
+  it('inyecta realismo cuando hay personajes y el creativo no es estilizado', () => {
+    const d = humanRealismDirective(withChar, 'she hugs the framed photo in the living room');
+    expect(d).toContain('real, photographed human beings');
+    expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('no inyecta nada si no hay personajes', () => {
+    expect(humanRealismDirective({ product: { name: 'Canvas', imagePaths: [] } }, 'a hand places the canvas')).toBe('');
+  });
+
+  it('se omite cuando el registro del formato es estilizado', () => {
+    const d = humanRealismDirective({ ...withChar, format: { register: 'anime, vibrant' } as never }, 'she smiles');
+    expect(d).toBe('');
+  });
+
+  it('se omite cuando el scene_prompt pide un look estilizado', () => {
+    expect(humanRealismDirective(withChar, 'a cartoon version of the family waves')).toBe('');
+  });
+
+  it('NO confunde el producto cuadro/foto impresa con estilo estilizado', () => {
+    // painting/print/cuadro describen el PRODUCTO, no el render → realismo SÍ entra.
+    expect(isStylized('', 'she looks at the painting she never got to print, the framed cuadro on the wall')).toBe(false);
+    expect(humanRealismDirective(withChar, 'the printed photo, a painting framed as a cuadro')).toContain(
+      'real, photographed human beings',
+    );
+  });
+
+  it('detecta estilos de render inequívocos', () => {
+    expect(isStylized('3d render, stylized', 'x')).toBe(true);
+    expect(isStylized('', 'a surreal dreamlike animado clip')).toBe(true);
   });
 });
 
