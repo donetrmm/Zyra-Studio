@@ -364,6 +364,10 @@ export async function generatePlanAction(input: unknown): Promise<
     matcherError?: string;
     // Nombres de personajes inventados por el matcher: para el toast del wizard.
     inventedNames?: string[];
+    // PD-04: motivos legibles de ideas que no se pudieron convertir en tomas
+    // (idea vaga, o formato custom que no se pudo crear). El wizard las muestra
+    // en vez de descartarlas en silencio.
+    blockers?: string[];
   }>
 > {
   const parsed = GeneratePlanSchema.safeParse(input);
@@ -453,6 +457,8 @@ export async function generatePlanAction(input: unknown): Promise<
   // describió. El matcher mapea cada idea a un formato (o crea uno custom) y
   // determina cuántos creativos pide; NO se rellena hasta un volumen fijo.
   const directed: DirectedIdea[] = [];
+  // PD-04: motivos legibles de ideas que el matcher no pudo convertir en tomas.
+  const ideaBlockers: string[] = [];
   let matcherError: string | undefined;
   // Un inventado por nombre: la PRIMERA descripción gana y se reusa en
   // todos los creativos que lo mencionen (coherencia razonable).
@@ -512,6 +518,12 @@ export async function generatePlanAction(input: unknown): Promise<
       }
       let createdCustom = false;
       for (const m of matched.matches) {
+        // PD-04: idea marcada por el matcher como no trabajable (vaga/ambigua):
+        // se reporta y NO se crea item, en vez de descartarla en silencio.
+        if (m.blocker) {
+          ideaBlockers.push(m.blocker);
+          continue;
+        }
         if (m.formatId) {
           const f = formats.find((x) => x.id === m.formatId);
           if (f) {
@@ -580,6 +592,12 @@ export async function generatePlanAction(input: unknown): Promise<
               outcome: outcome.status,
               err: outcome.status === 'error' ? outcome.message : undefined,
             });
+            // PD-04: no descartar en silencio — reportar la idea afectada al wizard.
+            ideaBlockers.push(
+              campaignLanguage === 'en'
+                ? `Could not create a format for one of your ideas ("${m.ideaText.slice(0, 60)}")`
+                : `No pude crear un formato para una de tus ideas ("${m.ideaText.slice(0, 60)}")`,
+            );
           }
         }
       }
@@ -728,6 +746,7 @@ export async function generatePlanAction(input: unknown): Promise<
       source: directed.length > 0 ? 'ideas' : 'mix',
       ...(matcherError ? { matcherError } : {}),
       ...(inventedNamesList.length ? { inventedNames: inventedNamesList } : {}),
+      ...(ideaBlockers.length ? { blockers: [...new Set(ideaBlockers)] } : {}),
     },
   };
 }

@@ -187,6 +187,14 @@ export function CampaignStudioWizard({
         { duration: 9000 },
       );
     }
+    // Ideas que no se pudieron convertir en tomas (vagas, o formato no creado):
+    // se reportan en vez de descartarlas en silencio (PD-04).
+    if (planned.data.blockers?.length) {
+      toast.warning(`No pude convertir algunas ideas en tomas: ${planned.data.blockers.join(' · ')}`, {
+        description: 'Reescríbelas diciendo qué pasa en pantalla (una acción concreta).',
+        duration: 10000,
+      });
+    }
     router.push(`/app/campaigns/${created.data.id}`);
   }
 

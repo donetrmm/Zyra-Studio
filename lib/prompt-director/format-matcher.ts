@@ -132,6 +132,10 @@ const MatchSchema = z.object({
       }),
     ),
   sequenceLabel: z.string().trim().min(1).max(120).nullable().catch(null).default(null),
+  // PD-04: motivo legible cuando la idea es demasiado vaga para volverse una toma
+  // concreta (ni nombra un formato). El wizard lo muestra y el item NO se crea, en
+  // vez de descartar la idea en silencio. null = idea trabajable.
+  blocker: z.string().trim().min(1).max(200).nullable().catch(null).default(null),
   // Personajes del pool mencionados en la idea (ids exactos; se sanean abajo).
   characterIds: z.array(z.string()).catch([]).default([]),
   // Nombres mencionados que NO están en el pool: apariencia inventada que el
@@ -303,6 +307,11 @@ Por cada idea distinta devuelve un match:
   inventa su apariencia: {"name":"...","description":"apariencia concreta en
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
   no menciona. Si no aplica, [].
+- blocker: SOLO si una idea es demasiado vaga o ambigua para convertirla en una
+  toma concreta (y ni siquiera nombra un formato), pon UNA línea __SUMMARY_LANG__
+  diciendo qué falta (ej. "no dice qué pasa en pantalla ni qué formato quieres");
+  deja formatId, customFormat y scenePrompt en null. Si la idea SÍ es trabajable,
+  blocker = null. No lo uses como excusa para saltarte ideas que sí puedes resolver.
 NUNCA escribas texto en pantalla (subtítulos, carteles, "Text on screen", copy
 escrito) ni emojis dentro de scenePrompt ni en scenes: el modelo de video los
 renderiza deforme y la marca no usa emojis. La acción describe lo que se VE y
@@ -310,7 +319,7 @@ se OYE; el copy y el CTA no van dentro del video. Para evitar texto generado,
 describe las superficies en POSITIVO (paredes y mesas lisas y limpias, empaque sin
 sobreimpresos) y encuadra fuera de letreros, en lugar de solo prohibirlo.
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
-{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"characterIds":[],"inventedCharacters":[]}]}`;
+{"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"blocker":null,"characterIds":[],"inventedCharacters":[]}]}`;
 
 export async function matchIdeas(input: {
   ideasText: string;

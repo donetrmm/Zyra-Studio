@@ -99,14 +99,22 @@ el delta a decidir.
   (Opción A: falsos positivos con personas impresas en cuadro). **No** mover el modo al LLM.
 
 ### PD-04 — Blockers estructurados por toma
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[x] implementada (2026-06-22)`
 - **Prioridad:** P2 · **Esfuerzo:** M · **Valor:** medio
-- **Qué:** campo `blockers` legible por toma para casos de **juicio semántico** (idea
+- **Qué:** campo `blocker` legible por idea para casos de **juicio semántico** (idea
   ambigua, sin acción concreta), surfaced en UI antes de reservar créditos.
-- **Estado hoy:** una idea sin match válido se descarta **en silencio**
-  (`campaigns.ts:577-583`).
-- **Límite:** **no** mover los blockers duros de `validators.ts` (refs faltantes,
-  verificables) al LLM. Mantener parse+direct en una sola llamada.
+- **Estado previo:** una idea sin match válido / con formato custom fallido se descartaba
+  **en silencio** (`campaigns.ts:577-583`).
+- **Implementación:**
+  - `format-matcher.ts`: campo `blocker` (string ≤200 \| null) en `MatchSchema` +
+    instrucción en `SYSTEM` (marcar idea no trabajable, en el idioma de la campaña) +
+    en el ejemplo JSON. Tests en `format-matcher.test.ts` (round-trip + vacío→null).
+  - `generatePlanAction` (`campaigns.ts`): recolecta `m.blocker` (semántico) y el caso
+    de formato custom no creado (antes solo `console.error`) en `ideaBlockers`, deduplica,
+    y los devuelve en `data.blockers`. Tipo de retorno extendido.
+  - `CampaignStudioWizard.tsx`: toast `warning` con los blockers (espeja `inventedNames`).
+- **Límite respetado:** los blockers DUROS de `validators.ts` (refs faltantes, verificables)
+  NO se movieron al LLM; el matcher sigue siendo parse+direct en una sola llamada.
 
 ### PD-05 — Formalizar el mapa de routing §0
 - **Decisión:** `[ ] pendiente`

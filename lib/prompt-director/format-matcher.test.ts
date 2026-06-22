@@ -442,6 +442,31 @@ describe('matchIdeas', () => {
     expect(res.matches[0].scenes[1].scenePrompt).toContain('three');
   });
 
+  it('expone el blocker legible cuando el matcher marca una idea no trabajable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'algo padre', formatId: null, customFormat: null,
+        blocker: 'la idea no dice qué pasa en pantalla',
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'algo padre', formats: FORMATS });
+    expect(res.matches[0].blocker).toBe('la idea no dice qué pasa en pantalla');
+  });
+
+  it('blocker ausente o vacío cae a null', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [
+        { ideaText: 'un unboxing', formatId: 'f1', customFormat: null },
+        { ideaText: 'x', formatId: 'f1', customFormat: null, blocker: '   ' },
+      ],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].blocker).toBeNull();
+    expect(res.matches[1].blocker).toBeNull();
+  });
+
   it('idea normal trae scenes vacio (no es secuencia)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null, scenePrompt: 'Hands open the box slowly' }],
