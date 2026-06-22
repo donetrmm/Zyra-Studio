@@ -29,6 +29,12 @@ export type NanoBananaParams = {
   // Esto es lo que mantiene composición real al editar (no "pegar cara").
   noBackground?: boolean;
   previousTurn?: NanoBananaTurn | null;
+  // EXPERIMENTAL (smoke): referencias que se incluyen en el turno de chat AUNQUE
+  // estemos en modo multi-turn (donde `references` normales se descartan, refSlots=0).
+  // Pensado para re-anclar el producto en paneles encadenados sin romper la cadena.
+  // Riesgo del gotcha: Gemini podría tratar la imagen como "edita esto". Off por
+  // defecto; lo activa un flag en la acción del storyboard para probarlo.
+  chatReferences?: ImageReference[];
 };
 
 export type FluxParams = {

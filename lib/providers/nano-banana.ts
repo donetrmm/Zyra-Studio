@@ -77,7 +77,9 @@ type Part =
       thoughtSignature?: string;
     };
 
-function buildBody(params: NanoBananaParams) {
+// Exportada para test determinista (no llama a red): verifica el armado de contents,
+// el descarte de refs en chat y la inclusión de chatReferences.
+export function buildBody(params: NanoBananaParams) {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
 
   // Chat multi-turn solo es válido si tenemos la firma del razonamiento del
@@ -111,6 +113,19 @@ function buildBody(params: NanoBananaParams) {
         data: ref.buffer.toString('base64'),
       },
     });
+  }
+  // EXPERIMENTAL (smoke): en chat real (refs normales descartadas) se permite
+  // re-anclar referencias elegidas (el producto) en el turno actual. Fuera de chat
+  // no aplica: ahí ya van por `references`.
+  if (wantsChat) {
+    for (const ref of params.chatReferences ?? []) {
+      newUserParts.push({
+        inline_data: {
+          mime_type: ref.mimeType,
+          data: ref.buffer.toString('base64'),
+        },
+      });
+    }
   }
   if (params.previousTurn && !wantsChat) {
     newUserParts.push({

@@ -274,8 +274,17 @@ export async function generatePanelAction(
   // descarta las referencias externas (refSlots=0 en el provider), así que el contenido
   // impreso del producto solo se ancla aquí. Antes el close-up del producto lo inventaba
   // cuando el panel ancla no lo mostraba claro (p.ej. canvas envuelto).
+  // EXPERIMENTAL (smoke, flag STORYBOARD_PRODUCT_REF_IN_CHAT=1): además del texto,
+  // re-anclar la IMAGEN del producto en el turno de chat de los paneles encadenados.
+  // Default off (riesgo del gotcha: Gemini podría tratarla como "edita esto"). Cuando
+  // está on, un puntero le aclara que la imagen es el producto a reproducir, no la toma
+  // a editar (esa sigue siendo el panel anterior).
+  const productRefInChat = Boolean(prevTurn) && process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1';
+  const productRefPointer = productRefInChat
+    ? ' A reference image of the product is also attached — reproduce its printed image and design exactly. The previous panel remains the base shot to re-frame; do not replace the scene with the product image.'
+    : '';
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${productRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
@@ -341,6 +350,20 @@ export async function generatePanelAction(
         }),
     );
 
+    // EXPERIMENTAL (smoke): la imagen del producto re-anclada en el turno de chat.
+    // En modo chat el provider descarta `references`, así que esta es la única vía
+    // de meter la imagen del producto sin romper la cadena. Off salvo flag.
+    const productChatRefs = productRefInChat
+      ? await Promise.all(
+          compiled.compiled.references
+            .filter((r) => r.kind === 'image' && r.role === 'product')
+            .map(async (r): Promise<ImageReference> => {
+              const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
+              return { buffer, mimeType };
+            }),
+        )
+      : undefined;
+
     // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
     // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
     // beat). El primer panel se genera fresco. Producto/personaje/locación van como
@@ -355,6 +378,7 @@ export async function generatePanelAction(
       conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
+      chatReferences: productChatRefs,
     });
 
     const ext = inferExtension(result.mimeType);
