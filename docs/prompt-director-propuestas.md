@@ -117,36 +117,45 @@ el delta a decidir.
   NO se movieron al LLM; el matcher sigue siendo parse+direct en una sola llamada.
 
 ### PD-05 — Formalizar el mapa de routing §0
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[x] implementada (2026-06-22)`
 - **Prioridad:** P2 · **Esfuerzo:** S · **Valor:** medio
-- **Qué:** ampliar `docs/guia-problemas-comunes-video.md:7-13` a un mapa canónico
-  síntoma → capa (matcher LLM / compiler determinista / orchestrator (mode) / provider
-  Atlas / activo / UI). Documentar explícitamente que mode/params/blockers duros = capa
-  determinista, no el matcher.
+- **Implementación:** se reemplazó el bloque proto de `docs/guia-problemas-comunes-video.md`
+  por un **mapa de routing canónico**: tabla de capas (Matcher LLM / Compiler determinista /
+  Orchestrator / Provider Atlas / Activos / UI) con qué decide cada una y dónde vive, la
+  regla "modo/params/blockers DUROS = determinista, no el matcher", y atajos síntoma → capa.
+  De paso resuelve **Q-01** (nombra las capas distinto: "Prompt Director" = ensamblaje
+  determinista; capa LLM = matcher).
 
 ### PD-06 — Reglas léxicas mínimas en el validador + supresión positiva
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[-] rechazada (2026-06-22)` — una parte es incorrecta, la otra marginal.
 - **Prioridad:** P3 · **Esfuerzo:** S · **Valor:** bajo
-- **Qué:** en `validators.ts`, solo contradicciones **léxicas** como red de seguridad:
-  warning si el scene_prompt escribe la supresión de texto en negativo (`no text` /
-  `sin texto`); endurecer la regla de cámara de `moves.length > 2` a `> 1` para alinear
-  con el SYSTEM ("nunca dos").
-- **Límite:** **no** intentar detectar contradicciones semánticas por regex (ver R-04).
+- **HALLAZGO (cámara, rechazada):** endurecer `moves.length > 2` a `> 1` es **incorrecto**.
+  `matchedLabels` (`validators.ts:53-60`) cuenta movimientos distintos en **todo** el
+  scene_prompt, no por-beat. Un timeline multi-beat legítimo ("0-3s: dolly in. 3-7s: pan.
+  7-9s: tracking") tiene 3 movimientos **correctos** (uno por tramo). A `> 1` inundaría de
+  falsos positivos cualquier timeline de 2+ tramos. Mismo error whole-prompt-vs-per-beat
+  que PD-03. Se deja en `> 2`.
+- **Supresión negativa (marginal, no hecha):** el matcher ya suprime texto de forma robusta
+  (PD-02 + cláusula negativa del compiler); un warning extra en `validators.ts` solo
+  aplicaría a ediciones manuales del scene_prompt y se solaparía con el aviso #6 existente
+  (`ONSCREEN_TEXT_RE`). Valor bajo, no se implementa.
 
 ### PD-07 — Hint de "un cambio por iteración" en refinado (UI)
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[~] diferida (2026-06-22)` — la parte de fondo ya existe.
 - **Prioridad:** P3 · **Esfuerzo:** S · **Valor:** bajo
-- **Qué:** hint de atomicidad en el input de refinado (`StoryboardView.tsx`) y warning
-  no-bloqueante opcional en `refinePanelAction` (`storyboard.ts:508`) si la instrucción
-  tiene múltiples cláusulas. **No** validación dura.
+- **Estado:** el warning determinista "un cambio por iteración" **ya existe** en el compiler
+  de Nano Banana (panel refine) — test `prompt-director.test.ts:898` ("avisa cuando hay más
+  de un cambio en la misma instrucción"). Solo quedaría un hint cosmético en el placeholder
+  del input de refinado: valor bajo, se difiere.
 
 ### PD-08 — Warning blando de profundidad de cadena
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[~] diferida (2026-06-22)` — causa raíz ya mitigada.
 - **Prioridad:** P3 · **Esfuerzo:** S · **Valor:** bajo
 - **Qué:** warning cuando una secuencia **encadenada** (no location/storyboard) supere
   ~4-5 escenas, sugiriendo modo-locación.
-- **Límite:** **no** cap duro de 3-6 (cortaría narrativas legítimas; la causa raíz ya
-  está mitigada por modo-locación).
+- **Razón de diferir:** la degradación por encadenado ya está mitigada por modo-locación
+  (cada escena desde base limpia); el warning es de bajo valor hoy. Reabrir solo si un caso
+  real de encadenado profundo lo amerita. **No** cap duro de 3-6 (cortaría narrativas).
 
 ---
 
@@ -183,28 +192,31 @@ el delta a decidir.
 ## C. Discrepancias de spec a decidir (CLAUDE.md: flagear, no resolver en silencio)
 
 ### Q-01 — Intención del §11 y el nombre "Prompt Director"
-- **Decisión:** `[ ] pendiente`
-- **Tensión:** el nombre está reservado al ensamblaje determinista (`types.ts`, `index.ts:3`,
-  `specs/v2/11`).
-  - Si la intención es **formalizar el matcher existente** → renombrar a `Shot Planner` /
-    `Brief Director` para no pisar el contrato.
-  - Si la intención es **reemplazar el determinista por un LLM** → contradice una decisión
-    inmutable y requiere confirmación explícita.
-- **Pregunta:** ¿cuál de las dos?
+- **Decisión:** `[x] resuelta (2026-06-22)` — vía documentación (PD-05).
+- **Resolución:** se mantiene la decisión inmutable. El nombre **"Prompt Director" = ensamblaje
+  determinista** (compiler); la capa LLM se nombra **"matcher" (capa de idea)**. El mapa de
+  routing de PD-05 lo deja explícito. NO se unifica en un agente LLM (ver RJ-01) ni se mueve
+  lógica determinista al LLM. El §11 queda como guía conceptual, no como spec a codificar.
 
 ### Q-02 — describeProduct re-describe el producto siempre
-- **Decisión:** `[ ] pendiente`
-- **Tensión:** `inventory.ts:71-84` re-describe atributos del producto (name+visualDetails+
-  palette) **incluso con imagen presente** — asimetría con personaje/locación, que sí
-  cumplen "nombra, no re-describas" (§2). Contradice la regla transversal de la propuesta.
-- **Pregunta:** ¿alinear el producto a "nombra, no re-describas" cuando hay imagen?
+- **Decisión:** `[x] resuelta (2026-06-22)` — dejar como está (no es bug claro).
+- **Tensión:** `inventory.ts:71-84` con `fidelity:false` (caso con imagen) re-emite
+  `name + visualDetails + palette`.
+- **Assessment:** **no es un bug claro.** (1) Son atributos que el usuario **declaró** en el
+  Brand Kit: reforzar un hecho declarado ≠ reinventar (la regla §2 es contra describir cosas
+  que **fabriquen** algo que pelee con la referencia). (2) `Product: <nombre>` aporta el
+  **nombre** del producto, que la línea `@image` nunca da (útil para diálogo/contexto). (3)
+  El personaje hace lo mismo: re-describe su **vestuario/actitud** (que la foto master NO
+  fija). Cambiarlo afecta **todos** los clips de producto con beneficio incierto → se deja.
+  Reabrir solo si un smoke test muestra que la descripción pelea con la imagen real.
 
 ### Q-03 — speech-fit.ts posible músculo muerto en el flujo plan
-- **Decisión:** `[ ] pendiente`
-- **Tensión:** `speech-fit.ts` no aparece importado por `planner` / `orchestrator` /
-  `campaigns.ts` (sí en refinado/UI). Antes de prometer `dialogue.fits` como dato del
-  pipeline `brief→plan→jobs`, verificar si está vivo ahí o solo en refinado.
-- **Pregunta:** ¿es músculo muerto en el plan o intencional?
+- **Decisión:** `[x] resuelta (2026-06-22)` — NO es músculo muerto.
+- **Verificado:** `speech-fit.ts` se importa en `components/campaigns/StoryboardView.tsx` y
+  `server-actions/storyboard.ts` — está **vivo** en el **editor de audio por beat** del
+  storyboard. Simplemente no participa en el flujo `brief→plan→jobs` (ahí el ajuste de
+  duración lo hace la heurística `durationS` del matcher). Es por diseño, no código muerto.
+  No requiere acción.
 
 ### Q-04 — Locación solo-texto vs re-anclaje de imagen
 - **Decisión:** `[ ] pendiente`

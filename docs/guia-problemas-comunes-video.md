@@ -4,13 +4,42 @@ Recetas cortas **problema → qué hacer** para la generación de video (y los p
 alimentan). Pensada para consultar al vuelo. Para el detalle de cada caso (causa raíz,
 commits) ver `errores-generacion-video.md`.
 
-**Dónde se arregla cada cosa** (clave para no perder tiempo):
-- **Panel** (imagen base del clip): se ajusta refinando el panel en el storyboard.
-- **Diálogo y duración:** editor de audio por beat en el storyboard.
-- **Acción / encuadre / emoción / qué se ve:** vive en el `scene_prompt` (la dirección del
-  movimiento). Hoy se edita en el plan de la campaña, no en el storyboard.
-- **Cast / Producto / Locación:** son activos reutilizables (Brand Kit / Cast / Locaciones).
-- **Pronunciación:** mapa curado en `lib/prompt-director/pronunciation.ts`.
+## Mapa de routing — dónde se arregla cada cosa
+
+Saber **en qué capa** se corrige algo es lo que más tiempo ahorra. El pipeline tiene
+capas con responsabilidades distintas; arregla en la correcta:
+
+| Capa | Qué decide | Dónde vive |
+|---|---|---|
+| **Matcher LLM** (capa de idea) | brief → tomas: acción, encuadre, cámara, diálogo, descomposición en escenas, blockers **semánticos** (idea vaga) | `lib/prompt-director/format-matcher.ts` (SYSTEM) |
+| **Compiler determinista** (capa de oficio = el "Prompt Director") | ensamblaje CRAFT, @-refs y su orden, lip-sync vs voiceover, cinematografía/audio por registro, respelling, normalización es-MX | `lib/prompt-director/compilers/seedance.ts` |
+| **Orchestrator** | modo r2v vs image2video por beat, encolado, re-anclaje de cadena | `lib/campaigns/orchestrator.ts` |
+| **Provider** (Atlas/ModelArk) | restricciones **duras** (Atlas no mezcla first_frame + referencias) | `lib/providers/seedance.ts` |
+| **Activos** | identidad de cast, diseño de producto, locación | Brand Kit / Cast / Locaciones |
+| **UI** | refinado de panel, editor de audio por beat | storyboard |
+
+> **Regla:** modo, params y blockers **DUROS** (refs faltantes, verificables) son capa
+> **determinista** (compiler / orchestrator / `validators.ts`), NO el matcher LLM. El
+> matcher solo emite blockers **semánticos** (idea ambigua). No muevas decisiones de
+> producibilidad al LLM. El nombre "Prompt Director" se reserva al **ensamblaje
+> determinista**; la capa LLM es el **matcher** (capa de idea).
+
+Atajos **síntoma → capa**:
+- **Imagen base del clip mal** → **Panel** (refinar en el storyboard). El panel manda: si
+  está mal, el video hereda el problema — arréglalo primero.
+- **Acción / encuadre / emoción / qué se ve** → **`scene_prompt`** (matcher; se edita en el
+  plan de la campaña).
+- **Diálogo y duración** → **editor de audio por beat** (storyboard).
+- **Pronunciación** recurrente → mapa curado `lib/prompt-director/pronunciation.ts`;
+  **números/símbolos hablados** ($499, 2x1, Dr.) → normalizador es-MX
+  `lib/prompt-director/es-mx-normalize.ts` (solo toca el diálogo).
+- **Cast / Producto / Locación** → **Activos** (Brand Kit / Cast / Locaciones). Regla:
+  **nombra el activo, no lo re-describas.**
+- **Modo r2v vs image2video** → **orchestrator** (determinista, atado a la restricción de
+  Atlas), no el matcher.
+- **"Trabado/entrecortado en la app"** → compara primero el **archivo fuente** (consola del
+  proveedor) vs el reproductor; si el fuente está bien, es el player (CSS/modal), no la
+  generación.
 
 ---
 
