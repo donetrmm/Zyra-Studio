@@ -267,7 +267,9 @@ Por cada idea distinta devuelve un match:
   a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
   inventes. Si recibes imágenes adjuntas (producto y personajes), describe la
   acción usando lo que VES: colores, materiales, contexto físico real del
-  producto y apariencia real de los personajes. Si la idea solo nombra un
+  producto y apariencia real de los personajes. Cuando un personaje del Cast ACTÚA en
+  cámara, nómbralo por su nombre propio en el scenePrompt (no "she" ni "the
+  woman"): su identidad viaja como referencia viva del clip. Si la idea solo nombra un
   formato sin acción concreta ("quiero unboxings"), scenePrompt = null.
 - scenes: SIEMPRE que el anuncio tenga MÁS DE UNA escena/plano distinto —
   locaciones distintas, cortes entre sujetos, saltos de tiempo, o un guión con
@@ -278,7 +280,8 @@ Por cada idea distinta devuelve un match:
   sale incoherente). Solo deja UN clip cuando de verdad es una única toma
   continua. Cada escena es un objeto corto, un clip INDEPENDIENTE:
   {"scenePrompt":"accion concreta en INGLES de esta escena, AUTO-CONTENIDA
-  (re-describe escenario y personaje, el modelo no recuerda entre clips), UNA
+  (re-describe escenario y personaje —nombra al personaje del Cast por su nombre
+  propio si actúa—, el modelo no recuerda entre clips), UNA
   sola toma continua que abre con su plano y UN movimiento de camara en
   terminologia real (wide/medium/close-up; dolly in, tracking, pan, rack focus)
   y, si es el cierre, plano cerrado del producto. NO copies los marcadores de

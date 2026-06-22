@@ -77,14 +77,26 @@ el delta a decidir.
   escena; las directivas globales del scenePrompt aplican igual al razonar las escenas.
 
 ### PD-03 — Endurecer beatNamesCast con characterIds
-- **Decisión:** `[ ] pendiente`
-- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** medio
-- **Qué:** en `lib/campaigns/storyboard-video.ts`, complementar el match por nombre
-  literal con los `characterIds` que el matcher **ya asigna** al beat, como señal de que
-  el cast actúa → R2V.
+- **Decisión:** `[~] diferida (2026-06-22)` — premisa original inválida; aplicado solo el
+  nudge B (origen) en vez del cambio determinista.
+- **Prioridad:** P1 · **Esfuerzo:** S → en realidad L · **Valor:** medio (sin medir)
 - **Caso que cierra:** "el beat describe al cast sin nombrarlo" → hoy cae a i2v y deja al
   sujeto estático.
-- **Acción:** test unitario del caso. **No** mover la decisión al LLM.
+- **HALLAZGO (flag):** los `characterIds` **NO son por-beat**: en `planner.ts:323,343` la
+  rama secuencia calcula `fromIdea` **una vez** y lo copia **idéntico a todas las escenas**
+  (el `scenes[]` del matcher ni siquiera lleva `characterIds` por escena). Por eso la
+  recomendación original ("usa `itemCharacterIds` como señal de que el cast actúa → R2V")
+  es inválida: sobre-dispararía R2V en **todos** los beats de una secuencia con cast,
+  incluyendo los close-ups de producto donde el cast NO actúa — rompiendo justo la
+  distinción que `beatNamesCast` existe para hacer (`orchestrator.ts:778-787`).
+- **Aplicado (nudge B, origen):** `format-matcher.ts` SYSTEM — cuando un personaje del
+  Cast actúa en cámara, el matcher debe **nombrarlo por su nombre propio** en el
+  scenePrompt/escena (no "she"/"the woman"). Cierra el gap en el origen sin tocar la
+  decisión determinista; cero riesgo de regresión. Copy de prompt (smoke test del usuario).
+- **Pendiente (solo si un smoke test muestra el sujeto estático):** Opción C estructural —
+  `characterIds` por escena en el matcher (`SceneSchema`) + planner, para que
+  `itemCharacterIds` sea señal por-beat fiable. **No** la heurística de sujeto humano
+  (Opción A: falsos positivos con personas impresas en cuadro). **No** mover el modo al LLM.
 
 ### PD-04 — Blockers estructurados por toma
 - **Decisión:** `[ ] pendiente`
