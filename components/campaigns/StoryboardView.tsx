@@ -62,6 +62,11 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
   const [instructions, setInstructions] = useState<Record<string, string>>({});
   const [refining, setRefining] = useState<string | null>(null);
 
+  // EXPERIMENTAL por beat: anclar la imagen del producto en el turno de chat al
+  // regenerar (paneles encadenados). Transitorio (no se persiste): controla la prueba
+  // del re-anclaje de producto sin tocar el env flag global.
+  const [productRef, setProductRef] = useState<Record<string, boolean>>({});
+
   // Genera todos los paneles faltantes de forma secuencial
   const [generatingAll, setGeneratingAll] = useState(false);
 
@@ -117,7 +122,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
 
   async function handleRegenerate(beatId: string) {
     setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'generating' } }));
-    const res = await generatePanelAction(beatId);
+    const res = await generatePanelAction(beatId, { productRefInChat: productRef[beatId] ?? false });
     if (res.ok) {
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
       router.refresh();
@@ -270,6 +275,24 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                   <RefreshCw className="size-3" aria-hidden />
                   Regenerar
                 </button>
+
+                {/* Experimental: anclar imagen del producto al regenerar (encadenados) */}
+                <label
+                  htmlFor={`prodref-${beat.id}`}
+                  className="flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground"
+                >
+                  <input
+                    id={`prodref-${beat.id}`}
+                    type="checkbox"
+                    checked={productRef[beat.id] ?? false}
+                    disabled={isGenerating || isRefining || generatingAll}
+                    onChange={(e) =>
+                      setProductRef((prev) => ({ ...prev, [beat.id]: e.target.checked }))
+                    }
+                    className="size-3.5 accent-primary disabled:opacity-40"
+                  />
+                  Anclar imagen del producto (experimental)
+                </label>
 
                 {/* Refinar */}
                 <div className="flex gap-1.5">

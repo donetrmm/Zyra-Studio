@@ -196,6 +196,7 @@ async function loadPreviousPanelTurn(
 
 export async function generatePanelAction(
   itemId: string,
+  opts?: { productRefInChat?: boolean },
 ): Promise<Result<{ imageId: string | null; generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
 
@@ -274,12 +275,15 @@ export async function generatePanelAction(
   // descarta las referencias externas (refSlots=0 en el provider), así que el contenido
   // impreso del producto solo se ancla aquí. Antes el close-up del producto lo inventaba
   // cuando el panel ancla no lo mostraba claro (p.ej. canvas envuelto).
-  // EXPERIMENTAL (smoke, flag STORYBOARD_PRODUCT_REF_IN_CHAT=1): además del texto,
-  // re-anclar la IMAGEN del producto en el turno de chat de los paneles encadenados.
-  // Default off (riesgo del gotcha: Gemini podría tratarla como "edita esto"). Cuando
-  // está on, un puntero le aclara que la imagen es el producto a reproducir, no la toma
-  // a editar (esa sigue siendo el panel anterior).
-  const productRefInChat = Boolean(prevTurn) && process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1';
+  // EXPERIMENTAL: además del texto, re-anclar la IMAGEN del producto en el turno de
+  // chat de los paneles encadenados. Lo controla el toggle per-panel de la UI
+  // (opts.productRefInChat); si no viene (p.ej. "Generar todos"), cae al env flag
+  // STORYBOARD_PRODUCT_REF_IN_CHAT=1. Off por defecto (riesgo del gotcha: Gemini podría
+  // tratarla como "edita esto"). Con on, un puntero aclara que la imagen es el producto
+  // a reproducir, no la toma a editar (esa sigue siendo el panel anterior).
+  const productRefInChat =
+    Boolean(prevTurn) &&
+    (opts?.productRefInChat ?? process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1');
   const productRefPointer = productRefInChat
     ? ' A reference image of the product is also attached — reproduce its printed image and design exactly. The previous panel remains the base shot to re-frame; do not replace the scene with the product image.'
     : '';
