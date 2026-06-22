@@ -43,6 +43,13 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 export const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
+// Narración en OFF (voiceover): voz hablada SIN hablante en cámara, sin lip-sync. Para
+// tomas de producto/insertos con VO. Sin esto, hasSpokenDialogue (que matchea el
+// entrecomillado) hacía que un VO recibiera la dirección de lip-sync on-camera — una
+// contradicción ("not voice-over narration") que el modelo resolvía con voz rara/robótica.
+export const VOICEOVER_DIRECTION =
+  'The dialogue is voice-over narration: there is no on-camera speaker, so do NOT lip-sync any face to it. Deliver it as a natural, warm spoken voice-over, not as on-camera speech.';
+
 // Heurística determinista: la dirección de habla EN CÁMARA (lip sync) SOLO entra
 // cuando la acción trae diálogo explícito — líneas guionizadas (Dialogue: "..."),
 // texto entre comillas o verbos de habla. Tener personajes en escena NO implica
@@ -66,6 +73,13 @@ export function sceneHasVoice(text: string): boolean {
   return /\b(voice-?over|narrat\w+|presenter|interviewer|to camera|to the camera|recommendation|verdict|asks?\b|answers?)\b/i.test(
     text,
   );
+}
+
+// ¿La voz es NARRACIÓN EN OFF (voiceover), no habla en cámara? Marca explícita en el
+// guion (Voiceover/VO/narración/voz en off). Separa lip-sync (on-camera) de VO: una
+// línea entrecomillada bajo "Voiceover:" es voz, pero NO debe disparar lip-sync.
+export function isVoiceover(text: string): boolean {
+  return /\bvoice-?over\b|\bvoiceover\b|\bnarrat\w+|\bvoz en off\b|\bnarrador\w*/i.test(text);
 }
 
 // Timing (la T de CRAFT): para clips >8s con varias acciones, reparte la acción
@@ -297,7 +311,11 @@ export function compileSeedance(
 
   const duration = req.durationS ?? ctx.format?.defaultDurationS;
   const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
-  const speaker = generateAudio && hasSpokenDialogue(req.scenePrompt);
+  // Lip-sync SOLO para habla EN cámara: un voiceover (narración en off) es voz pero
+  // sin hablante en cámara → no debe recibir SPEECH_DIRECTION (lip-sync), que el
+  // modelo resolvía con voz robótica al "sincronizar" una cara inexistente.
+  const voiceover = isVoiceover(req.scenePrompt);
+  const speaker = generateAudio && hasSpokenDialogue(req.scenePrompt) && !voiceover;
   const voiced = generateAudio && sceneHasVoice(req.scenePrompt);
 
   const sections: string[] = [];
@@ -323,6 +341,7 @@ export function compileSeedance(
   // ejemplo) — la calidad del lip sync depende de que el modelo lo lea antes
   // de la acción.
   if (speaker) sections.push(SPEECH_DIRECTION);
+  else if (generateAudio && voiced && voiceover) sections.push(VOICEOVER_DIRECTION);
 
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);

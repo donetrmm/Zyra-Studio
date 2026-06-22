@@ -247,6 +247,26 @@ describe('compile seedance', () => {
     if (noSpeaker.ok) expect(noSpeaker.compiled.prompt).not.toContain('Synchronized on-camera speech');
   });
 
+  it('un voiceover lleva voz/acento pero NO lip-sync on-camera', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt:
+          'Tight product close-up — the canvas rests on a table. Voiceover (Marcela): "Manda tu foto por WhatsApp."',
+        durationS: 8,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    // NO dirección de lip-sync on-camera (es narración en off).
+    expect(prompt).not.toContain('The on-camera speaker talks directly to the camera');
+    // SÍ dirección de voiceover + idioma/acento (la voz se sigue dirigiendo).
+    expect(prompt).toContain('do NOT lip-sync any face');
+    expect(prompt).toContain('natural Mexican accent');
+  });
+
   it('recorta solo la acción para garantizar ≤4000, preservando las cláusulas finales', () => {
     const huge = '0-3s: Brenda stares into the camera as the LED wall scrolls endless family photographs. '.repeat(80);
     const res = compile(
