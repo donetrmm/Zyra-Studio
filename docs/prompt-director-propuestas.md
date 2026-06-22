@@ -219,13 +219,20 @@ el delta a decidir.
   No requiere acción.
 
 ### Q-04 — Locación solo-texto vs re-anclaje de imagen
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[x] resuelta (2026-06-22)` — **con fallback** (locación solo-texto soportada).
 - **Tensión:** `locations` permite master opcional (solo texto), pero §2/§8 y la migración
   041 asumen "re-anclar la imagen de locación en cada clip". Una locación sin imagen no
-  tiene referencia visual que re-anclar. (Nota: `onlyCharacterRefs` en `index.ts:63-77`
-  además desancla la locación en storyboard a propósito, porque el panel FLUX ya la
-  contiene.)
-- **Pregunta:** ¿exigir imagen a la locación, o documentar el fallback a texto?
+  tiene referencia visual que re-anclar.
+- **Resolución:** se **soporta** la locación solo-texto como fallback intencional. El
+  compiler ya lo maneja: sin `imagePaths` no agrega referencia `environment`, y la línea
+  `Location: <descripción>` ancla el "dónde" por texto. La locación nunca es ref obligatoria
+  (`FormatDirection.requiredRefs` no incluye location), así que nunca bloquea.
+  - **Encodeado:** comentario en `types.ts` (`DirectorContext.location`) marcando el fallback
+    como intencional (no exigir imagen) + test de regresión en `prompt-director.test.ts`.
+  - **Nota (no es degradación silenciosa, pero sí trade-off):** sin imagen, la consistencia
+    visual de la locación entre clips es más débil (se genera del texto cada vez). Con imagen
+    es mejor. `onlyCharacterRefs` además desancla la locación en storyboard a propósito (el
+    panel FLUX ya la contiene).
 
 ---
 

@@ -68,6 +68,10 @@ export type DirectorContext = {
   // Locación de la secuencia: su imagen se re-ancla como referencia environment
   // en cada clip y su descripción refuerza el "dónde". Antes de extraImagePaths
   // en prioridad. v1 usa solo la imagen master (imagePaths[0..]).
+  // FALLBACK soportado (Q-04): imagePaths puede venir VACÍO (locación solo-texto).
+  // En ese caso no hay referencia environment que re-anclar y la descripción
+  // ancla el "dónde" (línea `Location: ...`). NO exigir imagen — es un fallback
+  // intencional; con imagen la consistencia visual entre clips es mejor.
   location?: { name?: string; description?: string; imagePaths: string[] };
   // Escena elegida (de scene_library o libre). fragment va al prompt.
   scene?: { name?: string; fragment: string };

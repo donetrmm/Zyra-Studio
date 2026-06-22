@@ -584,6 +584,23 @@ describe('compile seedance', () => {
     expect(result.compiled.prompt).toContain('bright modern living room');
   });
 
+  it('locación solo-texto (sin imagen): la descripción ancla el "dónde", sin referencia environment (fallback Q-04)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product rests on a shelf' },
+      {
+        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        // Locación SIN imagen: fallback soportado (el schema permite master opcional).
+        location: { name: 'Tienda', description: 'a warm boutique interior with wooden shelves', imagePaths: [] },
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // El "dónde" entra por TEXTO.
+    expect(res.compiled.prompt).toContain('a warm boutique interior with wooden shelves');
+    // No hay referencia de imagen de locación (no hay imagen que re-anclar).
+    expect(res.compiled.references.some((r) => r.role === 'environment')).toBe(false);
+  });
+
   it('reparte en pocos beats coarse cuando hay acciones separadas por oración', () => {
     const action = 'She walks to the table. She picks up the product. She smiles at the camera.';
     const res = compile(
