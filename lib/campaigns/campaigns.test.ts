@@ -415,6 +415,27 @@ describe('buildDirectedPlan', () => {
     expect(items[0].characterIds).toEqual(['c2', 'c1']);
   });
 
+  it('sube la duración de una escena de secuencia cuando el diálogo no cabe (PD-12, speech-fit)', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [{
+          format: fmt('el-icono'), // solo product: sin presentador inyectado
+          count: 1, durationS: null, scenePrompt: null, sceneSummary: null,
+          characterIds: [], invented: [],
+          scenes: [{
+            // 15 palabras / 2.5 wps ≈ 6s necesarios en un clip de 4s → debe subir (clamp 8).
+            scenePrompt: 'medium shot — she speaks to camera. Dialogue: "Esto cambió por completo todas y cada una de mis mañanas desde el primer día."',
+            durationS: 4, sceneSummary: null,
+          }],
+          sequenceLabel: 'X',
+        }],
+      }),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].durationS).toBeGreaterThan(4);
+    expect(items[0].durationS).toBeLessThanOrEqual(8);
+  });
+
   it('sin mención rota un personaje del pool', () => {
     const items = buildDirectedPlan(
       directedInput({

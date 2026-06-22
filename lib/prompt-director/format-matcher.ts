@@ -57,11 +57,29 @@ function stripEmoji(text: string): string {
     .replace(/[ \t]{2,}/g, ' ');
 }
 
-// Saneo común del scenePrompt del modelo: no-string → null; quita emojis;
-// recorta en frontera de palabra si excede el techo. null descarta la escena.
+// PD-11: cada escena de una secuencia es un CLIP independiente y debe empezar en 0,
+// pero el matcher a veces continúa el timeline GLOBAL del guion ("4-9s", "9-13s")
+// pese a la regla del SYSTEM. Red determinista: un solo marcador → se quita (beat
+// único, no necesita timeline); varios → se rebasan restando el offset del primero
+// para que arranquen en 0. No-op si no hay marcadores o ya empiezan en 0.
+function normalizeSceneTimeline(text: string): string {
+  const re = /(\d{1,2})\s*-\s*(\d{1,2})\s*s\b/gi;
+  const markers = [...text.matchAll(re)];
+  if (markers.length === 0) return text;
+  if (markers.length === 1) {
+    return text.replace(/\s*\d{1,2}\s*-\s*\d{1,2}\s*s\s*:?\s*/i, ' ').replace(/\s{2,}/g, ' ').trim();
+  }
+  const offset = parseInt(markers[0][1], 10);
+  if (offset === 0) return text;
+  return text.replace(re, (_m, a: string, b: string) => `${parseInt(a, 10) - offset}-${parseInt(b, 10) - offset}s`);
+}
+
+// Saneo común del scenePrompt del modelo: no-string → null; quita emojis; rebasa
+// los marcadores de tiempo (PD-11); recorta en frontera de palabra si excede el
+// techo. null descarta la escena.
 function sanitizeScenePrompt(v: unknown): string | null {
   if (typeof v !== 'string') return null;
-  const t = stripEmoji(v).trim();
+  const t = normalizeSceneTimeline(stripEmoji(v)).trim();
   if (!t) return null;
   return t.length > SCENE_PROMPT_MAX ? clampToWord(t, SCENE_PROMPT_MAX) : t;
 }
@@ -272,7 +290,10 @@ Por cada idea distinta devuelve un match:
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
-  a un amigo, nunca como locutor. Si el usuario NO pidió diálogo, no lo
+  a un amigo, nunca como locutor. HABLANTE: si hay 2 o más personajes del Cast en
+  cámara, nombra QUIÉN dice cada línea (ej. "Pedro, a cámara: ...") y deja claro
+  que el otro NO habla en ese tramo (sonríe, asiente) — así el modelo sincroniza
+  una sola boca, no las dos. Si el usuario NO pidió diálogo, no lo
   inventes. Si recibes imágenes adjuntas (producto y personajes), describe la
   acción usando lo que VES: colores, materiales, contexto físico real del
   producto y apariencia real de los personajes. Cuando un personaje del Cast ACTÚA en

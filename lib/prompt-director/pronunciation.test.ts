@@ -29,9 +29,15 @@ describe('applyRespellings', () => {
     expect(applyRespellings('Te traje un Prolienzo nuevo')).toContain('Prólienzo');
   });
 
+  it('respela Contactanos con la tónica esdrújula, preservando la mayúscula', () => {
+    expect(applyRespellings('Contactanos hoy mismo')).toContain('Contáctanos');
+    expect(applyRespellings('ya contactanos')).toContain('contáctanos');
+  });
+
   it('incluye las palabras confirmadas y la marca', () => {
     expect(PRONUNCIATION_RESPELLINGS.imprimiste).toBe('imprimíste');
     expect(PRONUNCIATION_RESPELLINGS.regalado).toBe('regaládo');
     expect(PRONUNCIATION_RESPELLINGS.prolienzo).toBe('prólienzo');
+    expect(PRONUNCIATION_RESPELLINGS.contactanos).toBe('contáctanos');
   });
 });

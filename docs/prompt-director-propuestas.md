@@ -187,6 +187,44 @@ el delta a decidir.
   —el matiz real de P4— ya está; la marca/lente arriesga pelear con el registro. Decisión de
   alcance, **no** auto-implementar.
 
+### PD-11 — Reset de marcadores de tiempo en escenas de secuencia
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** alto
+- **Origen:** review de la campaña real "Nuestra primera pared juntos V2" — el matcher dejó
+  marcadores acumulativos (`4-9s`, `9-13s`) en clips que son independientes (deberían
+  empezar en 0), pese a la regla del SYSTEM. **Fix en el generador, no hand-patch** (ver
+  [[feedback-fix-generator-not-output]]).
+- **Implementación:** red determinista `normalizeSceneTimeline` en `format-matcher.ts`
+  (dentro de `sanitizeScenePrompt`, aplica a todo scenePrompt/escena): 1 marcador → se quita
+  (beat único); varios → se rebasan al offset del primero (empiezan en 0). Tests en
+  `format-matcher.test.ts`.
+
+### PD-12 — speech-fit en el planner (subir duración si el diálogo no cabe)
+- **Decisión:** `[x] implementada (2026-06-22)` — cierra la observación de **Q-03**.
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** alto
+- **Origen:** la misma campaña — diálogo apretado (~2.5 pal/seg superado) → voz acelerada.
+  El matcher subestimó la duración; `speech-fit` no corría en el flujo del plan.
+- **Implementación:** `fitDialogueDuration` en `planner.ts` (importa `speech-fit`, sigue
+  puro): extrae el diálogo, estima los segundos, y si está `tight` sube `durationS` a la
+  sugerida (clamp 8 en secuencia, 15 en clip suelto). Aplica a ambas ramas. Test en
+  `campaigns.test.ts`.
+
+### PD-13 — Hablante explícito con 2+ personajes en cámara
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** medio
+- **Origen:** la misma campaña — Pedro y Grecia en cuadro sin decir quién habla → lip-sync
+  ambiguo (el modelo puede animar las dos bocas).
+- **Implementación:** directiva `HABLANTE` en el SYSTEM del matcher (`format-matcher.ts`):
+  con 2+ cast en cámara, nombrar quién dice cada línea y que el otro no hable en ese tramo.
+  Copy de prompt; smoke test del usuario.
+
+### PD-14 — Pronunciación: `Contáctanos` en el mapa curado
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P3 · **Esfuerzo:** S · **Valor:** bajo
+- **Implementación:** `contactanos → contáctanos` (esdrújula) en `PRONUNCIATION_RESPELLINGS`
+  (`pronunciation.ts`). Se corrige sola al compilar aunque Gemini la escriba sin tilde. Test
+  en `pronunciation.test.ts`.
+
 ---
 
 ## B. A rechazar o diferir (con razón)

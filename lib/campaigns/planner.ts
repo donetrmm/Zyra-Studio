@@ -4,6 +4,7 @@
 
 import type { ProductCategory } from './brief';
 import { buildCaption, type CaptionGoal } from './captions';
+import { extractDialogue, estimateSpeechSeconds, fitVerdict, DUR_MAX } from './speech-fit';
 
 export type PlannerFormat = {
   id: string;
@@ -302,6 +303,17 @@ export type DirectedPlanInput = {
   aspectRatio: string;
 };
 
+// PD-12: ajusta la duración de un clip a su diálogo. El matcher a veces deja la
+// duración corta y la voz sale apresurada/robótica. Si el diálogo no cabe a ritmo
+// natural (~2.5 palabras/seg ES, speech-fit), sube la duración a la sugerida, con
+// tope maxS. No-op si no hay diálogo o ya cabe holgado.
+function fitDialogueDuration(scenePrompt: string, baseDurationS: number, lang: 'es' | 'en', maxS: number): number {
+  const dialogo = extractDialogue(scenePrompt);
+  if (!dialogo) return baseDurationS;
+  const { level, suggestedDurationS } = fitVerdict(estimateSpeechSeconds(dialogo, lang), baseDurationS);
+  return level === 'tight' ? Math.min(suggestedDurationS, maxS) : baseDurationS;
+}
+
 export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
   // Igual que el mix: nunca proponer un formato cuyas referencias faltan.
   const viable = input.ideas.filter((idea) => formatFitsRefs(idea.format, input.available));
@@ -335,8 +347,14 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           formatId: format.id,
           formatSlug: format.slug,
           modelSlug: input.draftModelSlug,
-          // Beat corto: clampa la duración resuelta (matcher o default del formato).
-          durationS: Math.min(sc.durationS ?? format.defaultDurationS, SEQUENCE_SCENE_MAX_S),
+          // Beat corto: clampa la duración resuelta (matcher o default del formato),
+          // luego la sube si el diálogo no cabe (PD-12).
+          durationS: fitDialogueDuration(
+            scenePrompt,
+            Math.min(sc.durationS ?? format.defaultDurationS, SEQUENCE_SCENE_MAX_S),
+            input.language,
+            SEQUENCE_SCENE_MAX_S,
+          ),
           aspectRatio: input.aspectRatio,
           scene: '', // autocontenido en scenePrompt; sin fragmento impuesto
           audio: format.defaultAudio,
@@ -397,8 +415,14 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         formatId: format.id,
         formatSlug: format.slug,
         modelSlug: input.draftModelSlug,
-        // La duración la decide la escena (matcher); sin ella, el formato.
-        durationS: idea.durationS ?? format.defaultDurationS,
+        // La duración la decide la escena (matcher); sin ella, el formato. Se sube
+        // si el diálogo no cabe a ritmo natural (PD-12).
+        durationS: fitDialogueDuration(
+          scenePrompt,
+          idea.durationS ?? format.defaultDurationS,
+          input.language,
+          DUR_MAX,
+        ),
         // El formato de video lo decide la campaña (034), sin excepciones por
         // slug: la elección explícita del usuario manda.
         aspectRatio: input.aspectRatio,

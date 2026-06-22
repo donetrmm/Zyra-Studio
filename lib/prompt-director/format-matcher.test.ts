@@ -398,6 +398,39 @@ describe('matchIdeas', () => {
     expect(res.matches[0].scenes[1].durationS).toBe(6); // intacta
   });
 
+  it('rebasea/quita marcadores de tiempo acumulativos de las escenas de secuencia (PD-11)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [
+          { scenePrompt: '0-4s: she enters the room', durationS: 4 },
+          { scenePrompt: '4-9s: she lifts the product', durationS: 5 },
+          { scenePrompt: '9-13s: she smiles to camera', durationS: 4 },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
+    const prompts = res.matches[0].scenes.map((s) => s.scenePrompt);
+    // Beat único por escena → se quita el marcador (cada clip empieza en 0).
+    expect(prompts[0]).toBe('she enters the room');
+    expect(prompts[1]).toBe('she lifts the product');
+    expect(prompts[2]).toBe('she smiles to camera');
+    expect(prompts.join(' | ')).not.toMatch(/\d+\s*-\s*\d+\s*s\b/);
+  });
+
+  it('rebasea un timeline multi-beat de escena para que empiece en 0 (PD-11)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [{ scenePrompt: '13-15s: a wall ignites. 15-17s: the artwork appears', durationS: 4 }],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
+    expect(res.matches[0].scenes[0].scenePrompt).toBe('0-2s: a wall ignites. 2-4s: the artwork appears');
+  });
+
   it('quita emojis del scenePrompt (no van dentro del video) y conserva el texto', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{
