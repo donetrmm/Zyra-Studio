@@ -225,6 +225,18 @@ el delta a decidir.
   (`pronunciation.ts`). Se corrige sola al compilar aunque Gemini la escriba sin tilde. Test
   en `pronunciation.test.ts`.
 
+### PD-15 — Hablante único determinista con 2+ personajes (endurece PD-13)
+- **Decisión:** `[x] implementada (2026-06-22)`
+- **Prioridad:** P1 · **Esfuerzo:** S · **Valor:** medio
+- **Origen:** validación de la campaña **V3** — el nudge PD-13 cayó **a medias** (Gemini marcó
+  al hablante en 1 de 3 escenas; las otras dejaron "They … Dialogue"). Un nudge de prompt es
+  estocástico; hacía falta una red determinista (lección [[feedback-fix-generator-not-output]]).
+- **Implementación:** `MULTI_SPEAKER_DIRECTION` en `compilers/seedance.ts`: cuando hay habla
+  EN cámara y `ctx.characters.length >= 2`, el compiler agrega "only ONE person speaks… never
+  animate two mouths". Determinista. **Complementa** a PD-13 (el nudge sigue eligiendo *quién*;
+  la red evita el peor caso: dos bocas / unísono). Tests en `prompt-director.test.ts`.
+- **Estado:** implementada; smoke de lip-sync pendiente.
+
 ---
 
 ## B. A rechazar o diferir (con razón)

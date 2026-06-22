@@ -210,6 +210,32 @@ describe('compile seedance', () => {
     expect(prompt).toContain('articulate every word completely and correctly');
   });
 
+  it('con 2+ personajes en cámara y diálogo, fija un solo hablante (PD-15)', () => {
+    const ctx = fullContext();
+    ctx.characters = [
+      { name: 'Maya', description: 'curly dark hair', masterImagePath: 'm1.png' },
+      { name: 'Leo', description: 'short beard', masterImagePath: 'm2.png' },
+    ];
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'They smile. Dialogue: "Lo logramos juntos."', durationS: 6 },
+      ctx,
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/Only ONE person speaks/i);
+    expect(res.compiled.prompt).toMatch(/never animate two mouths/i);
+  });
+
+  it('con un solo personaje y diálogo NO mete la cláusula de un solo hablante (PD-15)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She speaks. Dialogue: "Hola a todos."', durationS: 6 },
+      fullContext(), // 1 personaje (Maya)
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toMatch(/Only ONE person speaks/i);
+  });
+
   it('sin diálogo explícito no hay dirección de lip sync (aunque haya personajes)', () => {
     // generateAudio: false → ni lip sync ni directiva de idioma.
     const silent = compile(

@@ -52,6 +52,12 @@ export const SPEECH_DIRECTION =
 export const VOICEOVER_DIRECTION =
   'The dialogue is voice-over narration: there is no on-camera speaker, so do NOT lip-sync any face to it. Deliver it as a natural, warm spoken voice-over, not as on-camera speech.';
 
+// Con 2+ personajes del Cast en cámara, fija que SOLO uno habla: red determinista que
+// respalda el nudge del matcher (PD-13, estocástico, que a veces deja "They … Dialogue").
+// Evita que el modelo sincronice las dos bocas o que ambos hablen al unísono.
+export const MULTI_SPEAKER_DIRECTION =
+  'Only ONE person speaks this line on camera; the other people stay silent and attentive (mouth closed, listening or reacting). Lip-sync the single speaker only — never animate two mouths talking at once.';
+
 // Heurística determinista: la dirección de habla EN CÁMARA (lip sync) SOLO entra
 // cuando la acción trae diálogo explícito — líneas guionizadas (Dialogue: "..."),
 // texto entre comillas o verbos de habla. Tener personajes en escena NO implica
@@ -342,8 +348,13 @@ export function compileSeedance(
   // Habla en cámara: temprano y destacado (como el bloque VERY IMPORTANT del
   // ejemplo) — la calidad del lip sync depende de que el modelo lo lea antes
   // de la acción.
-  if (speaker) sections.push(SPEECH_DIRECTION);
-  else if (generateAudio && voiced && voiceover) sections.push(VOICEOVER_DIRECTION);
+  if (speaker) {
+    sections.push(SPEECH_DIRECTION);
+    // 2+ personajes del Cast en cámara → fija un solo hablante (PD-15).
+    if ((ctx.characters?.length ?? 0) >= 2) sections.push(MULTI_SPEAKER_DIRECTION);
+  } else if (generateAudio && voiced && voiceover) {
+    sections.push(VOICEOVER_DIRECTION);
+  }
 
   // C — Contexto: la escena.
   if (ctx.scene?.fragment) sections.push(`Scene: ${ctx.scene.fragment}.`);
