@@ -96,13 +96,26 @@ panel (re-ancla la referencia limpia) o refina re-mencionando el producto sin re
 **No pronuncia bien una palabra**
 → Pon la **tilde donde va la fuerza** (sílaba tónica) en el diálogo. Como el diálogo es
 guion hablado (no se ve en pantalla), puedes "mal escribirlo" para que suene bien.
-Ej.: `imprimiste → imprimíste`, `regalado → regaládo`, `Prolienzo → Prólienzo`.
+Ej.: `imprimiste → imprimíste`, `regalado → regaládo`, `Prolienzo → Prólienzo`,
+`Contactanos → Contáctanos`.
 → Si es recurrente, agrégala al mapa `PRONUNCIATION_RESPELLINGS` (una línea: palabra → con
 tilde) y se corrige sola en todos los clips.
 
+**Un número o símbolo suena entrecortado** (`$499`, `2x1`, `24/7`, `3km`, `Dr.`)
+→ Ya se expanden a palabras **automáticamente** en el diálogo (es-MX): `$499` → "cuatrocientos
+noventa y nueve pesos", `2x1` → "dos por uno". Solo toca el diálogo entrecomillado, no el
+andamiaje del prompt. Si un token nuevo no se expande, se agrega al normalizador
+(`lib/prompt-director/es-mx-normalize.ts`).
+
+**Con 2+ personajes en cámara, anima la boca equivocada o las dos**
+→ Marca **quién dice cada línea** en el scene_prompt ("Pedro, a cámara: …") y deja claro que
+el otro **no habla** en ese tramo (sonríe, asiente) — así sincroniza una sola boca. El matcher
+ya lo pide cuando hay 2+ del Cast en cuadro; si igual pasa, dilo explícito.
+
 **La voz suena apresurada / robótica**
-→ El diálogo **no cabe** en la duración. Sube la duración o acorta el diálogo hasta que el
-medidor del editor de audio diga **"Holgado"** (~2.5 palabras/seg en español).
+→ El diálogo **no cabe** en la duración. Al planear, la duración ya se **sube automáticamente**
+cuando el diálogo no entra a ritmo natural (~2.5 palabras/seg en español). Si igual va justo,
+ajústala en el **editor de audio por beat** hasta que el medidor diga **"Holgado"**.
 
 **La voz robótica en una narración (sin nadie hablando en cámara)**
 → Es un **voiceover**: márcalo como tal en el scene_prompt (`Voiceover:` / "narración en
@@ -211,6 +224,21 @@ escurre"* (empírico, no garantizado).
 → Ya se pide **abrir/cerrar en fotograma estable** para cortes limpios. Mantén encuadres y
 duraciones compatibles entre clips contiguos.
 
+**Un elemento se mueve en la dirección equivocada** (el coche da marcha atrás, el cohete no sube)
+→ Nombra la **dirección explícita** del movimiento en el scene_prompt (forward/backward,
+up/down, hacia/desde cámara), aparte del movimiento de cámara. El matcher ya lo pide; si el
+sentido sale invertido, dilo literal.
+
+**El video se ve demasiado "de IA" / la cámara demasiado perfecta**
+→ Para formatos **UGC/conversacionales** se inyecta un micro-movimiento handheld natural
+("como grabado por un camarógrafo real"). Si tu clip se ve demasiado perfecto, usa un formato
+con registro conversacional/cercano/UGC (no hero/producto en trípode).
+
+**Un clip de secuencia arranca con un "hueco" / mistimea**
+→ Cada clip de una secuencia es **independiente y empieza en 0**. Los marcadores acumulativos
+(`4-9s`, `9-13s`) confunden el timing; ya se **reinician automáticamente** a 0 por clip. Si
+editas el scene_prompt a mano, no copies los marcadores del guion global.
+
 **El video se ve "trabado" / entrecortado en la app**
 → Primero compara el **archivo fuente** (consola del proveedor) vs la reproducción en la
 app. Si el fuente está bien, es el **reproductor** (CSS/modal), no la generación.
@@ -242,3 +270,5 @@ fotogramas (las métricas de cuadro completo esconden la degradación en las car
    escondía en el promedio.
 6. **Refina un cambio a la vez:** el modelo edita mejor de a un cambio; no acumules varios
    en una instrucción ni re-subas las referencias originales en el refinado.
+7. **Marca quién habla** cuando hay 2+ personajes en cámara, y deja al otro en silencio en
+   ese tramo: lip-sync limpio de una sola boca.
