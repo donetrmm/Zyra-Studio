@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   beatsNeedingPanel,
+  chainedProductFidelity,
   compilePanel,
   compilePanelEdit,
   humanRealismDirective,
@@ -68,6 +69,28 @@ describe('humanRealismDirective', () => {
   it('detecta estilos de render inequívocos', () => {
     expect(isStylized('3d render, stylized', 'x')).toBe(true);
     expect(isStylized('', 'a surreal dreamlike animado clip')).toBe(true);
+  });
+});
+
+describe('chainedProductFidelity', () => {
+  it('ancla el producto por texto con sus visualDetails (la cadena descarta la imagen)', () => {
+    const d = chainedProductFidelity({
+      product: {
+        name: 'Family Portrait Canvas Print',
+        visualDetails: 'a canvas print of two women and one man, deep greens and greys',
+        imagePaths: ['ws/canvas.png'],
+      },
+    });
+    expect(d).toContain('Family Portrait Canvas Print');
+    expect(d).toContain('two women and one man');
+    expect(d).toContain('Reproduce the product');
+    // NO debe apuntar a imágenes de referencia (en la cadena no viajan).
+    expect(d).not.toContain('reference image');
+    expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('devuelve vacío si no hay producto', () => {
+    expect(chainedProductFidelity({ characters: [] })).toBe('');
   });
 });
 

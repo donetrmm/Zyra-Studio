@@ -2,6 +2,7 @@
 // prompt del panel (FLUX) y de su edición (Nano Banana). Sin DB ni red: la acción
 // server (server-actions/storyboard.ts) hace el IO y llama a esta lógica.
 import { compile, type CompileResult, type DirectorContext } from '@/lib/prompt-director';
+import { describeProduct } from '@/lib/prompt-director/inventory';
 
 export type PanelBeat = {
   id: string;
@@ -58,6 +59,19 @@ export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string)
   if ((ctx.characters?.length ?? 0) === 0) return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt)) return '';
   return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
+}
+
+// Fidelidad del producto para paneles ENCADENADOS (edición conversacional). La
+// cadena de Nano descarta las referencias externas en chat (refSlots=0 en el
+// provider), así que el producto solo se ancla por TEXTO aquí: usa los atributos
+// declarados (describeProduct con fidelity:false, sin apuntar a imágenes que no
+// viajan) + instrucción de reproducir/conservar idéntico el contenido impreso entre
+// tomas. Resuelve el caso "el panel ancla mostraba el producto envuelto o de lejos y
+// el close-up lo inventa". Devuelve '' si no hay producto; empieza con espacio.
+export function chainedProductFidelity(ctx: DirectorContext): string {
+  if (!ctx.product) return '';
+  const facts = describeProduct(ctx.product, { fidelity: false });
+  return ` ${facts} Reproduce the product's printed image and design exactly as described, and keep it identical in every shot; do not invent, restyle or change what is printed on it.`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

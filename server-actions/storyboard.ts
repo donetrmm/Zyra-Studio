@@ -28,7 +28,7 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, humanRealismDirective } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, humanRealismDirective, chainedProductFidelity } from '@/lib/campaigns/storyboard';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -269,8 +269,13 @@ export async function generatePanelAction(
   // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
   // PRESERVARSE); inyectar ahí un re-render hacía derivar la cara y cambiar el producto.
   // La cláusula del panel fresco va atada a la fidelidad (no cambia identidad/producto).
+  //
+  // En la rama encadenada se inyecta la fidelidad del producto por TEXTO: la cadena
+  // descarta las referencias externas (refSlots=0 en el provider), así que el contenido
+  // impreso del producto solo se ancla aquí. Antes el close-up del producto lo inventaba
+  // cuando el panel ancla no lo mostraba claro (p.ej. canvas envuelto).
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and where it hangs on the wall), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
