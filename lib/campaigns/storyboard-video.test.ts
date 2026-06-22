@@ -14,6 +14,10 @@ describe('buildCastR2VRefs', () => {
     expect(extraCitation).toContain('the product');
     expect(extraCitation).toContain('@image4');
     expect(extraCitation).toContain('exact opening frame');
+    // Condicional a visibilidad: no fuerza el impreso a cámara (tomas de reacción).
+    expect(extraCitation).toContain('whenever the product is visible');
+    expect(extraCitation).toContain('turned away');
+    expect(extraCitation).not.toContain('throughout the shot');
   });
 
   it('sin producto, el panel queda justo después del cast', () => {

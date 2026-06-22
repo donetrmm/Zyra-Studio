@@ -42,7 +42,11 @@ export function buildCastR2VRefs(
   if (productRefs.length > 0) {
     const nums = productRefs.map((_, i) => `@image${n + 1 + i}`);
     const verb = productRefs.length > 1 ? 'are' : 'is';
-    extraCitation += ` ${nums.join(' and ')} ${verb} the product — reproduce its printed image, design and colors exactly and keep it identical throughout the shot; do not restyle or change what is printed on it.`;
+    // Condicional a visibilidad y SUBORDINADO al encuadre: la cita anterior decía
+    // "reproduce... throughout the shot" y forzaba el impreso a cámara, anulando tomas
+    // de reacción donde el cuadro está volteado (POV only). Ahora solo fija la apariencia
+    // cuando el producto se ve; sigue el encuadre para si mira a cámara o está de espaldas.
+    extraCitation += ` ${nums.join(' and ')} ${verb} the product reference — whenever the product is visible, reproduce its printed image, design and colors exactly; do not restyle or change what is printed on it. Follow the shot's framing for whether the product faces the camera or is turned away, and do not reveal the print to camera unless the shot itself shows it.`;
     n += productRefs.length;
   }
   const panelNum = n + 1;
