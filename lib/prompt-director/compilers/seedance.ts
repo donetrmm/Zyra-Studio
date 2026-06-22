@@ -33,8 +33,8 @@ const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
 // robótica. OJO: acento mexicano sustituye al "neutral LatAm" original —
 // decisión tomada de ese ejemplo que funcionó.
 export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
-  es: 'All spoken dialogue and any voice-over must be in Spanish with a natural Mexican accent. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend.',
-  en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend.',
+  es: 'All spoken dialogue and any voice-over must be in Spanish with a natural Mexican accent. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
 };
 
 // Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en

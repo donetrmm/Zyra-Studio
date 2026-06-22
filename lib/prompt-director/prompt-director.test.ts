@@ -206,6 +206,8 @@ describe('compile seedance', () => {
     // Voz natural anti-robótica.
     expect(prompt).toContain('natural Mexican accent');
     expect(prompt).toContain('Avoid robotic speech');
+    // Articulación clara: rescata palabras menos comunes que el modelo mastica.
+    expect(prompt).toContain('articulate every word completely and correctly');
   });
 
   it('sin diálogo explícito no hay dirección de lip sync (aunque haya personajes)', () => {
