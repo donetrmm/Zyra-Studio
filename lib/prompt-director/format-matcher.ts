@@ -253,7 +253,12 @@ Por cada idea distinta devuelve un match:
   con la etiqueta de frente. Ejemplo: "0-3s: medium shot, eye level — she lifts
   the can to camera. 3-7s: slow dolly in to close-up — she takes a sip and nods.
   7-9s: tight product close-up, shallow depth of field — the can rests, label
-  forward". SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  forward". VISIBILIDAD: declara en POSITIVO qué se ve y qué no — "solo vemos
+  su cara", "el producto de espaldas a cámara", "el celular de frente". No uses
+  paréntesis débiles tipo "(desde su POV)" para insinuarlo; si es primera persona,
+  dilo explícito ("vista en primera persona, solo se ven sus manos"). EMOCIÓN: una
+  sola emoción dominante por toma; no apiles señales (no "ojos muy abiertos + mano
+  en la boca + lágrimas" a la vez), que sale falso. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
   concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
   porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
@@ -298,7 +303,9 @@ Por cada idea distinta devuelve un match:
 NUNCA escribas texto en pantalla (subtítulos, carteles, "Text on screen", copy
 escrito) ni emojis dentro de scenePrompt ni en scenes: el modelo de video los
 renderiza deforme y la marca no usa emojis. La acción describe lo que se VE y
-se OYE; el copy y el CTA no van dentro del video.
+se OYE; el copy y el CTA no van dentro del video. Para evitar texto generado,
+describe las superficies en POSITIVO (paredes y mesas lisas y limpias, empaque sin
+sobreimpresos) y encuadra fuera de letreros, en lugar de solo prohibirlo.
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
 {"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"characterIds":[],"inventedCharacters":[]}]}`;
 

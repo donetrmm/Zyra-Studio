@@ -56,20 +56,25 @@ el delta a decidir.
   (es-MX). Smoke test con voz real lo corre el usuario.
 
 ### PD-02 — Afinar la redacción del scene_prompt en el SYSTEM del matcher
-- **Decisión:** `[ ] pendiente`
+- **Decisión:** `[x] implementada (2026-06-22)`
 - **Prioridad:** P1 · **Esfuerzo:** M · **Valor:** medio
 - **Qué:** tres directivas cortas en `format-matcher.ts` (`const SYSTEM`, líneas 217-303):
   1. **Visibilidad positiva** explícita ("solo vemos su cara") y reformular el `POV`
-     suelto (línea 249) a primera persona escrita en positivo.
+     suelto a primera persona escrita en positivo.
   2. **Una sola emoción dominante** por toma, no apilar señales (alineado con
      `errores-generacion-video §3.1`).
   3. **Supresión de texto por descripción positiva** de superficie limpia, como
      complemento (no reemplazo) de la cláusula negativa.
-- **Estado hoy:** visibilidad positiva existe puntual (scope de personaje en
-  `seedance.ts:192`, producto en `storyboard-video.ts:49`) pero no como política general.
-  "Una sola emoción" está completamente ausente.
-- **Riesgo:** subir tokens de salida puede truncar el JSON (`maxOutputTokens: 4000`, 1
-  retry). **Medir antes de cablear.**
+- **Implementación:** dos bloques nuevos en `SYSTEM`:
+  - `VISIBILIDAD` + `EMOCIÓN` tras el ejemplo de cámara: declarar en positivo qué entra
+    en cuadro, prohibir el `(POV)` débil (primera persona explícita), una emoción dominante.
+  - Supresión de texto **positiva** (superficies limpias, encuadre fuera de letreros)
+    como complemento de la prohibición negativa existente.
+  - Solo es copy de prompt LLM: no se agregan campos de salida → riesgo de truncado del
+    JSON (`maxOutputTokens: 4000`) mínimo. Sin test unitario (su efecto se valida con
+    smoke test de voz/video, que corre el usuario). typecheck + 372 tests verdes.
+- **Nota:** el bloque `scenes[]` (secuencias) NO se duplicó para no inflar el output por
+  escena; las directivas globales del scenePrompt aplican igual al razonar las escenas.
 
 ### PD-03 — Endurecer beatNamesCast con characterIds
 - **Decisión:** `[ ] pendiente`
