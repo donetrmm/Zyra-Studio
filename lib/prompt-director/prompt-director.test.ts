@@ -262,6 +262,28 @@ describe('compile seedance', () => {
     expect(res.compiled.prompt).toContain('imprimíste');
   });
 
+  it('normaliza números/símbolos hablados es-MX SOLO en el diálogo, sin tocar el andamiaje', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: '0-4s: she shows the can. Dialogue: "Solo por hoy, 2x1 y a $499." 4-9s: she smiles',
+        durationS: 9,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    // El diálogo se expande a palabras (no se masca en la voz).
+    expect(prompt).toContain('dos por uno');
+    expect(prompt).toContain('cuatrocientos noventa y nueve pesos');
+    expect(prompt).not.toContain('$499');
+    expect(prompt).not.toContain('2x1');
+    // El andamiaje (marcadores de timeline) sigue intacto: la normalización es
+    // solo del diálogo, no de la acción visual.
+    expect(prompt).toContain('0-4s:');
+  });
+
   it('un voiceover lleva voz/acento pero NO lip-sync on-camera', () => {
     const res = compile(
       {

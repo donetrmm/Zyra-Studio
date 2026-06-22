@@ -4,6 +4,7 @@
 // docs/modelos/06-seedance-2.md.
 
 import { describeCharacter, describeProduct } from '../inventory';
+import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import type {
@@ -388,9 +389,12 @@ export function compileSeedance(
     duration && duration > 8 && !hasTimeline(req.scenePrompt)
       ? toTimeline(req.scenePrompt.trim(), duration)
       : req.scenePrompt.trim().replace(/\.?$/, '.');
-  // Respelling de pronunciación: corrige palabras que el modelo mastica (mapa curado,
-  // tónica marcada). Solo en el prompt; el diálogo guardado no cambia.
-  const action = applyRespellings(rawAction);
+  // Habla es-MX: primero se normalizan números/símbolos del DIÁLOGO ($499, 2x1,
+  // 24/7, 3km, Dr.) a palabras —un token crudo se masca en la voz—, luego se
+  // aplica el respelling de tónica (mapa curado). Ambos pasos tocan SOLO el
+  // diálogo entrecomillado, nunca el andamiaje del prompt (9:16, 480p, 3-7s:,
+  // @imageN). Solo en el prompt enviado; el diálogo guardado no cambia.
+  const action = applyRespellings(normalizeSpokenInDialogue(rawAction));
   sections.push(action);
 
   // F — Encuadre, registro y ritmo del formato.
