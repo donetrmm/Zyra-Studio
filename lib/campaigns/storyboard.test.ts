@@ -38,6 +38,12 @@ describe('humanRealismDirective', () => {
     expect(d.startsWith(' ')).toBe(true);
   });
 
+  it('la cláusula está subordinada a la fidelidad (no cambia identidad ni producto)', () => {
+    const d = humanRealismDirective(withChar, 'she smiles at the camera');
+    expect(d).toContain('keep their exact identity');
+    expect(d).toContain('keep the product');
+  });
+
   it('no inyecta nada si no hay personajes', () => {
     expect(humanRealismDirective({ product: { name: 'Canvas', imagePaths: [] } }, 'a hand places the canvas')).toBe('');
   });

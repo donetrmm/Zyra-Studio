@@ -265,13 +265,13 @@ export async function generatePanelAction(
   // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
   const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
-  // Foto-realismo humano por defecto cuando el beat tiene personajes (se omite si el
-  // creativo es estilizado). Se concatena en ambas ramas: la encadenada usa prompt a
-  // mano y la fresca el del compiler; ninguna lo trae por sí sola.
-  const realism = humanRealismDirective(dirCtx, item.scene_prompt);
+  // Foto-realismo humano SOLO en el panel fresco (no encadenado): la rama encadenada
+  // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
+  // PRESERVARSE); inyectar ahí un re-render hacía derivar la cara y cambiar el producto.
+  // La cláusula del panel fresco va atada a la fidelidad (no cambia identidad/producto).
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and where it hangs on the wall), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${realism}${noText}`
-    : `${compiled.compiled.prompt}${realism}${noText}`;
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and where it hangs on the wall), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${noText}`
+    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.

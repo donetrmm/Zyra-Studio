@@ -42,15 +42,22 @@ export function isStylized(register: string, scenePrompt: string): boolean {
   return STYLIZED_RE.test(`${register} ${scenePrompt}`);
 }
 
-// Directiva INTERNA de foto-realismo humano para paneles del storyboard CON
+// Directiva INTERNA de foto-realismo humano para el panel FRESCO del storyboard CON
 // personajes. Default ON; se omite cuando el creativo es estilizado (isStylized) o
 // no hay personajes. Devuelve la cláusula con espacio inicial (lista para concatenar)
 // o '' cuando no aplica. Solo paneles (decisión de alcance): el video la hereda vía
 // el panel como first-frame/referencia y el compiler de video ya pide "ultra realistic".
+//
+// CRÍTICO (bug fijo): la cláusula está SUBORDINADA a la fidelidad — prohíbe cambiar
+// identidad/cara/cuerpo/vestuario y el producto, y solo permite mejorar el realismo
+// fotográfico del render. Una versión anterior sin esta guardia (y aplicada también
+// a la edición encadenada) hacía que el modelo re-renderizara al sujeto: la cara
+// derivaba y el producto cambiaba por completo. Por eso NO se usa en la rama
+// encadenada (esa edita el panel anterior, que ya es foto-real, y debe preservar).
 export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string): string {
   if ((ctx.characters?.length ?? 0) === 0) return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt)) return '';
-  return ' The people must look like real, photographed human beings: natural skin with visible pores and subtle texture, realistic eyes with natural catchlights, natural hair, and lifelike body proportions and posture; avoid any plastic, waxy, airbrushed, doll-like, CGI or AI-generated look.';
+  return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
