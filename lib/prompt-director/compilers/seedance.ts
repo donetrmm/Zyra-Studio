@@ -5,6 +5,7 @@
 
 import { describeCharacter, describeProduct } from '../inventory';
 import { directionFor } from '../format-director';
+import { applyRespellings } from '../pronunciation';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -383,10 +384,13 @@ export function compileSeedance(
   // T — Timing: si el clip dura >8s y la acción tiene varios beats sin timeline,
   // se reparte en marcadores por segundos (CRAFT; cubre el camino de semillas).
   const actionIndex = sections.length;
-  const action =
+  const rawAction =
     duration && duration > 8 && !hasTimeline(req.scenePrompt)
       ? toTimeline(req.scenePrompt.trim(), duration)
       : req.scenePrompt.trim().replace(/\.?$/, '.');
+  // Respelling de pronunciación: corrige palabras que el modelo mastica (mapa curado,
+  // tónica marcada). Solo en el prompt; el diálogo guardado no cambia.
+  const action = applyRespellings(rawAction);
   sections.push(action);
 
   // F — Encuadre, registro y ritmo del formato.

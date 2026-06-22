@@ -247,6 +247,21 @@ describe('compile seedance', () => {
     if (noSpeaker.ok) expect(noSpeaker.compiled.prompt).not.toContain('Synchronized on-camera speech');
   });
 
+  it('respela palabras de pronunciación difícil en el diálogo compilado', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She holds the canvas. Dialogue: "Nunca le había regalado una foto que imprimiste."',
+        durationS: 6,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('regaládo');
+    expect(res.compiled.prompt).toContain('imprimíste');
+  });
+
   it('un voiceover lleva voz/acento pero NO lip-sync on-camera', () => {
     const res = compile(
       {
