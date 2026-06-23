@@ -7,7 +7,7 @@ import { describeCharacter, describeProduct } from '../inventory';
 import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
-import { actingDirectionFor, declaresHighEmotion, facesIntended } from '../acting';
+import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -289,7 +289,7 @@ function audioDirection(register: string): string {
   if (/asmr|susurro|whisper|macro|t[aá]ctil/.test(r)) {
     return 'Audio: no music. Foley-forward — every contact and texture sound crisp, close and detailed; let the product sounds carry the scene.';
   }
-  if (/beat|r[ií]tmic|kinet|en[eé]rg|bold|dance|drop|speed ?ramp/.test(r)) {
+  if (ENERGETIC_REGISTER_RE.test(r)) {
     return 'Audio: a rhythmic music bed whose energy matches the cut; keep the key diegetic product sounds audible over it.';
   }
   if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv|emotion/.test(r)) {

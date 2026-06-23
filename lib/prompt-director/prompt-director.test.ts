@@ -1102,6 +1102,23 @@ describe('P20 — directiva de actuación (Seedance)', () => {
   });
 });
 
+describe('registro festivo en español (acting + audio)', () => {
+  it('un clip Seedance con registro festivo y personaje recibe actuación enérgica y cama musical rítmica', () => {
+    const r = compile(
+      { modelSlug: 'seedance-2', scenePrompt: 'Pedro hangs the canvas, steps back and claps twice', durationS: 6 },
+      {
+        format: { slug: 'fiesta', name: 'Fiesta', register: 'alegre/festivo', cameraStyle: 'dinamico', pacing: 'medio', requiredRefs: [], defaultDurationS: 8, defaultAudio: true },
+        product: { name: 'Canvas', imagePaths: ['ws/c.png'] },
+        characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
+      },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).toContain('energetic physical performance');
+    expect(r.compiled.prompt).toContain('rhythmic music bed');
+  });
+});
+
 describe('P20 — directiva de actuación (Veo/Kling vía video-prose)', () => {
   it('inyecta restraint con hablante en cámara (Kling)', () => {
     const r = compile(

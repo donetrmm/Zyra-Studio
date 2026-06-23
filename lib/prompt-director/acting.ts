@@ -17,9 +17,12 @@ export const ACTING_RESTRAINT_DIRECTION =
 export const ACTING_ENERGETIC_DIRECTION =
   'Acting: confident, energetic physical performance — still controlled and believable, never mugging or over-the-top; the body carries the energy through clean, intentional movement.';
 
-// Registros que piden energía física (mismo criterio que audioDirection #2 en
-// compilers/seedance.ts).
-const ENERGETIC_REGISTER_RE = /beat|r[ií]tmic|kinet|en[eé]rg|bold|dance|drop|speed ?ramp/i;
+// Registros que piden energía física (mismo criterio compartido con audioDirection en
+// compilers/seedance.ts — UN solo regex para que no diverjan). Cubre vocabulario en
+// inglés y español; \b en los tokens cortos (bold/drop/beat/dance) evita falsos
+// positivos por subcadena (backdrop, emboldened, heartbeat, abundance).
+export const ENERGETIC_REGISTER_RE =
+  /\bbeat\b|r[ií]tmic|kinet|en[eé]rg|\bbold\b|\bdance\b|\bdrop\b|speed ?ramp|alegr|festiv|fiesta|celebra|din[áa]mic|vibra|\bupbeat\b|j[úu]bil|euf[óo]r/i;
 
 // ¿El guion declara una emoción grande (grito/llanto/furia/pánico)? Cuando la hay,
 // NO se inyecta restraint: dejamos pasar la emoción declarada sin contenerla.

@@ -28,6 +28,12 @@ describe('actingDirectionFor', () => {
   it('registro neutro -> base restraint', () => {
     expect(actingDirectionFor('testimonio cercano', false)).toBe(ACTING_RESTRAINT_DIRECTION);
   });
+  it('registro festivo en español -> variante enérgica', () => {
+    expect(actingDirectionFor('alegre/festivo', false)).toBe(ACTING_ENERGETIC_DIRECTION);
+  });
+  it('registro celebratorio en español -> variante enérgica', () => {
+    expect(actingDirectionFor('tono celebración, dinámico', false)).toBe(ACTING_ENERGETIC_DIRECTION);
+  });
 });
 
 describe('facesIntended', () => {
