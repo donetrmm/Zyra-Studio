@@ -44,3 +44,24 @@ export function actingDirectionFor(register: string, highEmotion: boolean): stri
 export function facesIntended(ctx: DirectorContext, speaker: boolean): boolean {
   return speaker || (ctx.characters ?? []).some((c) => !!c.masterImagePath);
 }
+
+// Detector P14: verbos de acción/emoción abstractos que NO traen micro-acciones
+// observables cerca. Heurística -> validators emite warning (no bloquea, no reescribe).
+const ABSTRACT_ACTION_RE =
+  /\b(dances?|dancing|celebrat\w*|part(?:y|ies|ying)|plays?|playing|works? out|working out|exercis\w*|relax\w*|hangs? out|fights?|fighting|(?:looks?|is|are|seems?)\s+(?:sad|happy|excited|angry|scared|nervous|emotional))\b/gi;
+
+const CONCRETE_ACTION_RE =
+  /\b(nods?|head|shoulders?|hips?|knees?|steps?|sway\w*|hands?|fingers?|snaps?|claps?|leans?|turns?|tilts?|jaw|eyes?|blinks?|breath\w*|swallows?|grins?|brow|twist\w*|bounc\w*|raises?|lifts?|points?|reaches?|taps?)\b/i;
+
+// Parte en oraciones/tramos y, por cada verbo abstracto, comprueba si su tramo tiene
+// algún token concreto. Devuelve los verbos abstractos sin desglosar (en minúsculas).
+export function findUnexpandedActions(text: string): string[] {
+  const segments = text.split(/(?<=[.;])\s+|\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\s*:/);
+  const flagged = new Set<string>();
+  for (const seg of segments) {
+    if (CONCRETE_ACTION_RE.test(seg)) continue;
+    const matches = seg.match(ABSTRACT_ACTION_RE);
+    if (matches) for (const m of matches) flagged.add(m.toLowerCase().replace(/\s+/g, ' '));
+  }
+  return [...flagged];
+}

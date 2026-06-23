@@ -4,6 +4,7 @@
 
 import { findClaims, findAgeWords } from './inventory';
 import { resolveRequiredRefs } from './format-director';
+import { findUnexpandedActions } from './acting';
 import type { CompileRequest, DirectorContext } from './types';
 
 export type ValidationResult = { errors: string[]; warnings: string[] };
@@ -138,6 +139,14 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
   FAST_RE.lastIndex = 0;
   if (hasSlow && hasFast) {
     warnings.push('ritmo: el prompt mezcla tempo lento y frenético; alinea acción, cámara y música');
+  }
+
+  // 10. Actuación sin desglosar (P14): verbos abstractos sin micro-acciones.
+  const unexpanded = findUnexpandedActions(prompt);
+  if (unexpanded.length) {
+    warnings.push(
+      `actuación: ${unexpanded.join(', ')} sin micro-acciones observables; desglosa en gestos secuenciales (asiente, gira el hombro, chasquea)`,
+    );
   }
 
   return { errors, warnings };

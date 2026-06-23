@@ -5,6 +5,7 @@ import {
   actingDirectionFor,
   declaresHighEmotion,
   facesIntended,
+  findUnexpandedActions,
 } from './acting';
 
 describe('declaresHighEmotion', () => {
@@ -43,5 +44,21 @@ describe('facesIntended', () => {
   });
   it('false en clip de puro producto', () => {
     expect(facesIntended({ product: { name: 'Canvas', imagePaths: ['ws/p.png'] } }, false)).toBe(false);
+  });
+});
+
+describe('findUnexpandedActions', () => {
+  it('marca un verbo abstracto sin micro-acciones', () => {
+    expect(findUnexpandedActions('he dances in the kitchen')).toContain('dances');
+  });
+  it('no marca un verbo ya desglosado en gestos', () => {
+    expect(
+      findUnexpandedActions('he dances: two head nods, a shoulder roll, a finger snap'),
+    ).toHaveLength(0);
+  });
+  it('marca un estado de emoción crudo', () => {
+    expect(findUnexpandedActions('she looks sad by the window')).toEqual(
+      expect.arrayContaining(['looks sad']),
+    );
   });
 });
