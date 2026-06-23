@@ -271,6 +271,11 @@ Por cada idea distinta devuelve un match:
   over-the-shoulder, POV), movimiento (dolly in/out, tracking, pan, tilt, crane,
   handheld, steadicam, rack focus) y, si suma, el ángulo (low/high/eye-level).
   Una acción + un movimiento por toma — nunca dos movimientos en el mismo tramo.
+  CÁMARA POR DEFECTO ESTÁTICA: empieza cada toma con la cámara fija (locked-off);
+  muévela solo cuando un beat lo justifique y nombra el motivo junto al movimiento
+  ("slow dolly in as she realizes", "pan to follow the can as it rolls"). Un
+  movimiento decorativo sin motivo se ve barato; si no hay motivo, deja la cámara
+  quieta.
   MOVIMIENTO DE ELEMENTOS: cuando un sujeto u objeto se DESPLAZA, nombra su
   dirección explícita (forward/backward, up/down, left-to-right, toward/away from
   camera), independiente del movimiento de cámara — no dejes que el modelo adivine
@@ -282,9 +287,13 @@ Por cada idea distinta devuelve un match:
   forward". VISIBILIDAD: declara en POSITIVO qué se ve y qué no — "solo vemos
   su cara", "el producto de espaldas a cámara", "el celular de frente". No uses
   paréntesis débiles tipo "(desde su POV)" para insinuarlo; si es primera persona,
-  dilo explícito ("vista en primera persona, solo se ven sus manos"). EMOCIÓN: una
-  sola emoción dominante por toma; no apiles señales (no "ojos muy abiertos + mano
-  en la boca + lágrimas" a la vez), que sale falso. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  dilo explícito ("vista en primera persona, solo se ven sus manos"). ACCIÓN Y EMOCIÓN: nunca dejes un verbo abstracto sin desglosar.
+  Convierte "baila", "celebra", "se ve triste", "se emociona" en 2-4 micro-acciones
+  observables repartidas EN SECUENCIA por el tramo (no "él baila" → "dos asentimientos
+  de cabeza, un giro de hombro, una flexión de rodilla, un chasquido de dedos"; no "se
+  ve triste" → "baja la mirada a la mesa, traga saliva, luego suelta el aire"). Una sola
+  señal por instante; nunca apiles varias a la vez en el mismo momento (no "ojos muy
+  abiertos + mano en la boca + lágrimas" simultáneos), que sale falso. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
   concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
   porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
