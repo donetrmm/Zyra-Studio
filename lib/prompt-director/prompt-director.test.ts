@@ -1101,3 +1101,25 @@ describe('P20 — directiva de actuación (Seedance)', () => {
     expect(r.compiled.prompt).not.toContain('restrained performance');
   });
 });
+
+describe('P20 — directiva de actuación (Veo/Kling vía video-prose)', () => {
+  it('inyecta restraint con hablante en cámara (Kling)', () => {
+    const r = compile(
+      { modelSlug: 'kling-3', scenePrompt: 'a presenter to camera says "this really works"', generateAudio: true },
+      {},
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).toContain('restrained performance');
+  });
+
+  it('no inyecta en clip de puro producto (Veo)', () => {
+    const r = compile(
+      { modelSlug: 'veo-3', scenePrompt: 'the bottle sits still on a shelf' },
+      { product: { name: 'X', imagePaths: ['ws/x.png'] } },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).not.toContain('restrained performance');
+  });
+});

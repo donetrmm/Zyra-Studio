@@ -7,6 +7,7 @@
 import { describeProduct } from '../inventory';
 import { directionFor } from '../format-director';
 import { DIALOGUE_LANGUAGE, sceneHasVoice } from './seedance';
+import { actingDirectionFor, declaresHighEmotion, facesIntended } from '../acting';
 import type { CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxChars: number): string {
@@ -19,6 +20,18 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
     const direction = [d.framing, d.pacing].filter(Boolean).join(' ');
     if (direction) sections.push(direction);
   }
+
+  // Dirección de actuación (P20) para Veo/Kling: mismas reglas que Seedance. Aquí
+  // el "hablante en cámara" se aproxima con sceneHasVoice (video-prose no separa
+  // lip-sync); basta para decidir si hay rostro intencional que dirigir.
+  const actingDir = actingDirectionFor(
+    ctx.format?.register ?? '',
+    declaresHighEmotion(req.scenePrompt),
+  );
+  if (actingDir && facesIntended(ctx, sceneHasVoice(req.scenePrompt))) {
+    sections.push(actingDir);
+  }
+
   // Idioma/acento de la voz solo cuando la escena trae habla o narración: en un
   // clip de puro producto la directiva sobra y arriesga una voz en off espuria.
   const generateAudio = req.generateAudio ?? ctx.format?.defaultAudio ?? true;
