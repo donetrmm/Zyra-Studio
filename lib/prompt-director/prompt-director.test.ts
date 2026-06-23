@@ -1058,3 +1058,46 @@ describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
     expect(result.compiled.prompt).not.toContain('@image');
   });
 });
+
+// ============ P20 — directiva de actuación (Seedance) ============
+
+describe('P20 — directiva de actuación (Seedance)', () => {
+  const product = { name: 'Canvas', imagePaths: ['ws/prod.png'] };
+
+  it('inyecta restraint con personaje en cámara', () => {
+    const r = compile(
+      { modelSlug: 'seedance-2', scenePrompt: 'Pedro lifts the product and nods to camera' },
+      {
+        product,
+        characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
+      },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).toContain('grounded, restrained performance');
+  });
+
+  it('no inyecta actuación en clip de puro producto', () => {
+    const r = compile(
+      { modelSlug: 'seedance-2', scenePrompt: 'the can rotates slowly on a table' },
+      { product },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).not.toContain('restrained performance');
+    expect(r.compiled.prompt).not.toContain('energetic physical performance');
+  });
+
+  it('omite restraint si el guion declara emoción alta', () => {
+    const r = compile(
+      { modelSlug: 'seedance-2', scenePrompt: 'Pedro screams in rage at the camera' },
+      {
+        product,
+        characters: [{ name: 'Pedro', description: 'man', masterImagePath: 'ws/pedro.png' }],
+      },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.compiled.prompt).not.toContain('restrained performance');
+  });
+});

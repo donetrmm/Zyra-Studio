@@ -7,6 +7,7 @@ import { describeCharacter, describeProduct } from '../inventory';
 import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
+import { actingDirectionFor, declaresHighEmotion, facesIntended } from '../acting';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -391,6 +392,16 @@ export function compileSeedance(
     }
   }
 
+  // Dirección de actuación (P20): restraint consciente del registro, solo cuando
+  // hay rostro intencional (personaje del Cast o hablante en cámara) y el beat no
+  // declara una emoción grande. Convive con SPEECH_DIRECTION (lip-sync) y
+  // cinematographyDefault (luz): esto es la INTENSIDAD de la performance.
+  const actingDir = actingDirectionFor(
+    ctx.format?.register ?? '',
+    declaresHighEmotion(req.scenePrompt),
+  );
+  if (actingDir && facesIntended(ctx, speaker)) sections.push(actingDir);
+
   // A — Acción: el scene_prompt del plan, sin reescritura. Guardamos su índice
   // para poder recortarla (y solo a ella) si el prompt final excede el techo.
   // T — Timing: si el clip dura >8s y la acción tiene varios beats sin timeline,
@@ -447,11 +458,9 @@ export function compileSeedance(
   }
 
   sections.push(NEGATIVE_CLAUSE);
-  // Guard anti-rostros solo si NINGÚN rostro es intencional: sin personaje del
-  // Cast (cara anclada) y sin habla en cámara (lip-sync). Con cualquiera de los
-  // dos, el rostro es el objetivo del clip y la cláusula lo contradiría.
-  const facesIntended = (ctx.characters ?? []).some((c) => c.masterImagePath) || speaker;
-  if (!facesIntended) sections.push(NO_REAL_FACES_CLAUSE);
+  // Guard anti-rostros solo si NINGÚN rostro es intencional (mismo criterio que la
+  // directiva de actuación, ahora compartido en acting.ts).
+  if (!facesIntended(ctx, speaker)) sections.push(NO_REAL_FACES_CLAUSE);
 
   const hasRefs = references.length > 0;
   let prompt = sections.filter(Boolean).join('\n');
