@@ -48,10 +48,10 @@ export function facesIntended(ctx: DirectorContext, speaker: boolean): boolean {
 // Detector P14: verbos de acción/emoción abstractos que NO traen micro-acciones
 // observables cerca. Heurística -> validators emite warning (no bloquea, no reescribe).
 const ABSTRACT_ACTION_RE =
-  /\b(dances?|dancing|celebrat\w*|part(?:y|ies|ying)|plays?|playing|works? out|working out|exercis\w*|relax\w*|hangs? out|fights?|fighting|(?:looks?|is|are|seems?)\s+(?:sad|happy|excited|angry|scared|nervous|emotional))\b/gi;
+  /\b(dances?|dancing|celebrat\w*|part(?:y|ies|ying)|works? out|working out|exercis\w*|relax\w*|hangs? out|fights?|fighting|(?:looks?|is|are|seems?)\s+(?:sad|happy|excited|angry|scared|nervous|emotional))\b/gi;
 
 const CONCRETE_ACTION_RE =
-  /\b(nods?|head|shoulders?|hips?|knees?|steps?|sway\w*|hands?|fingers?|snaps?|claps?|leans?|turns?|tilts?|jaw|eyes?|blinks?|breath\w*|swallows?|grins?|brow|twist\w*|bounc\w*|raises?|lifts?|points?|reaches?|taps?)\b/i;
+  /\b(nods?|nodding|head|shoulders?|hips?|knees?|steps?|stepping|sway\w*|hands?|fingers?|snaps?|snapping|claps?|clapping|leans?|leaning|turns?|turning|tilts?|tilting|jaw|eyes?|blinks?|blinking|breath\w*|swallows?|swallowing|grins?|grinning|brow|twist\w*|bounc\w*|raises?|raising|lifts?|lifting|points?|pointing|reaches?|reaching|taps?|tapping)\b/i;
 
 // Parte en oraciones/tramos y, por cada verbo abstracto, comprueba si su tramo tiene
 // algún token concreto. Devuelve los verbos abstractos sin desglosar (en minúsculas).

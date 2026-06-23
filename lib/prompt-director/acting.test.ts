@@ -61,4 +61,10 @@ describe('findUnexpandedActions', () => {
       expect.arrayContaining(['looks sad']),
     );
   });
+  it('no marca un beat desglosado en gerundios concretos', () => {
+    expect(findUnexpandedActions('she celebrates, raising a glass and nodding')).toHaveLength(0);
+  });
+  it('no marca "plays" en uso de reproducción de media', () => {
+    expect(findUnexpandedActions('the song plays as the logo appears on screen')).toHaveLength(0);
+  });
 });
