@@ -16,3 +16,14 @@ describe('validators P14 — actuación sin desglosar', () => {
     expect(w.some((x) => x.startsWith('actuación:'))).toBe(false);
   });
 });
+
+describe('validators P21 — cámara por tramo', () => {
+  it('avisa con 2 movimientos en el mismo tramo', () => {
+    const w = warnings('0-3s: dolly in and pan left as she enters. 3-6s: static close-up of the can.', 6);
+    expect(w.some((x) => x.startsWith('cámara: el tramo'))).toBe(true);
+  });
+  it('no avisa con un movimiento por tramo aunque haya varios en total', () => {
+    const w = warnings('0-3s: dolly in on her face. 3-6s: pan to the can. 6-9s: tilt up to the sign.', 9);
+    expect(w.some((x) => x.startsWith('cámara: el tramo'))).toBe(false);
+  });
+});

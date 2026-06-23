@@ -96,6 +96,22 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
     warnings.push(`cámara: ${moves.length} movimientos distintos (${moves.join(', ')}); deja uno principal`);
   }
 
+  // 3b. Cámara por tramo (P21): 2+ movimientos en el MISMO tramo del timeline son
+  // contradictorios (la regla del matcher pide uno por tramo). Más preciso que el
+  // conteo global de arriba, que es legítimo a lo largo de varios tramos.
+  const tramos = prompt
+    .split(/(?=\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s\s*:)/)
+    .filter((t) => /\b\d{1,2}\s*[-–]\s*\d{1,2}\s*s/.test(t));
+  for (const tramo of tramos) {
+    const tramoMoves = matchedLabels(tramo);
+    if (tramoMoves.length > 1) {
+      const label = tramo.match(/\d{1,2}\s*[-–]\s*\d{1,2}\s*s/)?.[0] ?? 'tramo';
+      warnings.push(
+        `cámara: el tramo '${label}' tiene ${tramoMoves.length} movimientos (${tramoMoves.join(', ')}); deja uno`,
+      );
+    }
+  }
+
   // 4. Identidad anclada: si el prompt habla de una persona, debe haber Cast
   const mentionsPerson =
     /\b(person|creator|presenter|man|woman|persona|creador|creadora|presentador|presentadora|modelo)\b/i.test(prompt);
