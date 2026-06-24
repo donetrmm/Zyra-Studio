@@ -260,6 +260,14 @@ export const MAX_PLAN_ITEMS = 30;
 // un formato custom puede tener default 15s, pensado para clip único, no beat).
 export const SEQUENCE_SCENE_MAX_S = 8;
 
+// P19: techo de duración por peso dramático del beat. reveal pide aire (plano
+// sostenido, hasta 12s); action comprime (cortes cortos); beat = default 8s.
+export function maxDurationFor(beatRole: 'reveal' | 'action' | 'beat'): number {
+  if (beatRole === 'reveal') return 12;
+  if (beatRole === 'action') return 5;
+  return SEQUENCE_SCENE_MAX_S;
+}
+
 // Plan dirigido por ideas: el usuario describió lo que quiere y el matcher
 // lo mapeó a formatos (existentes o recién creados). Aquí NO se rellena hasta
 // un volumen fijo — salen exactamente los creativos pedidos, uno por idea
@@ -283,7 +291,7 @@ export type DirectedIdea = {
   invented: Array<{ name: string; description: string }>;
   // Si la idea es un anuncio multi-escena, las escenas que el matcher propuso.
   // Vacio = idea normal (un solo clip).
-  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null }>;
+  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat' }>;
   sequenceLabel: string | null;
 };
 
@@ -351,9 +359,9 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           // luego la sube si el diálogo no cabe (PD-12).
           durationS: fitDialogueDuration(
             scenePrompt,
-            Math.min(sc.durationS ?? format.defaultDurationS, SEQUENCE_SCENE_MAX_S),
+            Math.min(sc.durationS ?? format.defaultDurationS, maxDurationFor(sc.beatRole)),
             input.language,
-            SEQUENCE_SCENE_MAX_S,
+            maxDurationFor(sc.beatRole),
           ),
           aspectRatio: input.aspectRatio,
           scene: '', // autocontenido en scenePrompt; sin fragmento impuesto
