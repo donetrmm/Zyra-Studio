@@ -329,7 +329,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
                 type="text"
                 defaultValue={productUsages[img.id] ?? ''}
                 placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
-                onBlur={(e) => { if (e.target.value !== (usages[img.id] ?? '')) void saveUsage(img.id, e.target.value.trim()); }}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
                 className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             ))}
