@@ -1145,6 +1145,31 @@ describe('registro festivo en español (acting + audio)', () => {
   });
 });
 
+// ============ Task 3 AM: imageUsages + hint multi-vista ============
+
+describe('AM: imageUsages en el compiler de Seedance', () => {
+  it('cita la imagen de producto con su uso cuando hay imageUsages (AM)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product on a table' } as CompileRequest,
+      { product: { name: 'Serum', imagePaths: ['ws/a.png', 'ws/b.png'], imageUsages: { 'ws/b.png': 'three-quarter view' } } } as DirectorContext,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.compiled.prompt).toMatch(/shown here as three-quarter view/);
+      expect(res.compiled.prompt).toMatch(/SAME single product/i);
+    }
+  });
+
+  it('una sola imagen de producto: sin hint multi-vista', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product on a table' } as CompileRequest,
+      { product: { name: 'Serum', imagePaths: ['ws/a.png'] } } as DirectorContext,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.compiled.prompt).not.toMatch(/SAME single product/i);
+  });
+});
+
 describe('P20 — directiva de actuación (Veo/Kling vía video-prose)', () => {
   it('inyecta restraint con hablante en cámara (Kling)', () => {
     const r = compile(

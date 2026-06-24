@@ -44,6 +44,9 @@ export type ProductInventory = {
   palette?: string[];
   variants?: string[];
   imagePaths: string[];        // multi-ángulo del Brand Kit
+  // AM: descripcion de uso por imagen (path -> "three-quarter view"). El compiler
+  // la cita junto a la referencia. Opcional; ausente = cita sin uso.
+  imageUsages?: Record<string, string>;
   packagingImagePaths?: string[];
 };
 

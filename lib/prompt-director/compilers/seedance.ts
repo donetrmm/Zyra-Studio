@@ -172,12 +172,21 @@ export function buildReferences(ctx: DirectorContext): {
   // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
   // dejar slots libres; el Brand Kit puede traer más.
   const productImages = ctx.product?.imagePaths.slice(0, 3) ?? [];
+  const productUsages = ctx.product?.imageUsages ?? {};
   for (const path of productImages) {
+    const usage = productUsages[path];
     pushImage(
       path,
       'product',
       (n) =>
-        `@image${n} is the product — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+        `@image${n} is the product${usage ? `, shown here as ${usage}` : ''} — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+    );
+  }
+  // AM: con 2+ vistas, dile al modelo que son el MISMO objeto (evita que trate
+  // el 3/4 generado como un producto distinto).
+  if (productImages.length >= 2) {
+    lines.push(
+      'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
     );
   }
 
