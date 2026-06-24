@@ -2,6 +2,55 @@
 
 # REPORTE: Workflow de video de Higgsfield vs 1to1 Studio
 
+## Estado de implementacion (actualizado 2026-06-23)
+
+**Tanda P0 IMPLEMENTADA y en `development`.** Los tres principios de direccion de mayor
+impacto/menor costo ya viven en el codigo (no clonan Higgsfield; adaptados a nuestro
+prompt-director determinista):
+
+- **P14 Coreografia verbal** — el SYSTEM del matcher descompone verbos abstractos
+  ("baila", "celebra", "se ve triste") en 2-4 micro-acciones SECUENCIALES; detector
+  determinista `findUnexpandedActions` que AVISA (no reescribe). Archivos:
+  `lib/prompt-director/acting.ts`, `format-matcher.ts`, `validators.ts`.
+- **P20 Restraint consciente del registro** — directivas `ACTING_RESTRAINT_DIRECTION` /
+  `ACTING_ENERGETIC_DIRECTION` inyectadas por los compilers de video (Seedance + Veo/Kling
+  via `video-prose`) cuando hay rostro intencional y no hay emocion alta declarada.
+  Archivos: `acting.ts`, `compilers/seedance.ts`, `compilers/video-prose.ts`.
+- **P21 Camara motivada** — regla "camara estatica por defecto, nombra el motivo" en el
+  matcher + warning determinista por tramo (2+ movimientos) en `validators.ts`.
+
+Diseno y plan: `docs/superpowers/specs/2026-06-23-p0-direccion-actuacion-design.md` y
+`docs/superpowers/plans/2026-06-23-p0-direccion-actuacion.md`. Commits `88a3b4a..872d769`
+en `development`. Verificacion: `pnpm typecheck` limpio, suite 406/406.
+
+**Smoke real (2026-06-23):** dos campanas de prueba confirmaron P14 (descomposicion de
+"celebra" -> "steps back, smiles, claps twice" y "baila" -> "sways hips, bobs head"),
+P21 (camara estatica, dolly motivado) y P20 (directiva inyectada en el prompt compilado
+real). El smoke destapo y se corrigio un hueco: el lexicon de registros energeticos no
+cubria vocabulario festivo en espanol ("alegre/festivo"); ahora `ENERGETIC_REGISTER_RE`
+es un regex COMPARTIDO (exportado de `acting.ts`, usado por `audioDirection`) con terminos
+es/en, cerrando tambien el riesgo de divergencia entre los dos detectores (commit
+`872d769`). El render real esta bloqueado solo por saldo de AtlasCloud (402), no por codigo.
+
+### Siguiente: tanda P1 (cablear datos al flujo de campana)
+
+Con P0 cerrado, lo siguiente son los P1: ya requieren migraciones aditivas y/o UI, pero
+reusan QStash/creditos/RLS existentes.
+
+- **P14b Accion como intencion+resultado (S)** — directiva anti-biomecanica en el matcher
+  + saneo determinista. Es el seguimiento mas barato de P0 (misma capa, effort S).
+- **P16 Pista musical en campana (M)** — llenar `audioRefPath` en el flujo de campana
+  (hoy `index.ts:71` lo fuerza a undefined); el smoke lo subrayo (escenas festivas piden
+  cama musical). Feature latente de alto valor para coreografia/dance.
+- **P12 Beats de actuacion (M)** y **P19 Densidad por ritmo (M)** — refinan el reparto de
+  tiempo y la actuacion por tramo, en la misma linea de P0/P14.
+- **P13 Bloqueo geo-espacial (M)** — posiciones relativas entre sujetos/entorno.
+- **P11 Style block editable por pieza (M)** — re-estilizar una campana desde un punto.
+
+Recomendacion de arranque: **P14b** (cierra la direccion de actuacion, effort S, misma
+arquitectura ya validada) y en paralelo **P16** (alto valor, conecta con el hueco de audio
+que el smoke ya mostro).
+
 ## 1. Resumen ejecutivo
 
 Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(LLM)/OFICIO(determinista), plan textual antes de quemar creditos (P09), prompts auto-contenidos por toma (P11b), antislop integrado (P28), pipeline por fases con gates (P29), reparto reutilizable (P06), hablante unico determinista (PD-15) y un plan persistente con IDs estables (P30). Donde el flujo Higgsfield nos saca ventaja es en la **direccion de actuacion** (coreografia verbal, restraint, motivacion de camara, bloqueo geo-espacial — todo cubierto solo a medias o ausente) y en la **fase de pre-produccion de assets** (hoja de producto multi-vista, variantes de estado, mapa de escala). Las 3 mayores oportunidades: (a) endurecer la direccion de actuacion/camara como redes deterministas baratas (P14/P20/P21, todo effort S); (b) cerrar el bucle de assets multi-vista y variantes de estado (P01/P05); (c) llevar la pista de audio y el bloqueo geo-espacial al flujo de campana (P16/P13), que hoy viven a medias o solo en generacion suelta.
@@ -34,9 +83,9 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 
 | Principio | Status | Prioridad | Esfuerzo | Adaptacion (1 frase) |
 |---|---|---|---|---|
-| P14 Coreografia verbal (no etiquetas abstractas) | PARTIAL | P0 | M | Regla en el matcher para expandir verbos abstractos en micro-acciones + detector determinista de no-expansion. |
-| P20 Restraint en actuacion por defecto | PARTIAL | P0 | S | Directiva determinista de contencion por defecto, condicional a emocion alta declarada. |
-| P21 Movimientos de camara motivados | PARTIAL | P0 | S | Regla "camara estatica salvo beat que la justifique" + colapso determinista de movimientos multiples. |
+| P14 Coreografia verbal (no etiquetas abstractas) | IMPLEMENTADO | P0 | M | Regla en el matcher para expandir verbos abstractos en micro-acciones + detector determinista de no-expansion. |
+| P20 Restraint en actuacion por defecto | IMPLEMENTADO | P0 | S | Directiva determinista de contencion por defecto, condicional a emocion alta declarada. |
+| P21 Movimientos de camara motivados | IMPLEMENTADO | P0 | S | Regla "camara estatica salvo beat que la justifique" + warning determinista por tramo. |
 | P14b Accion como intencion+resultado (no biomecanica) | PARTIAL | P1 | S | Directiva anti-biomecanica + red de saneo que colapsa mecanica articular. |
 | P12 Estructura CUT con beats de actuacion | PARTIAL | P1 | M | Beat de actuacion por tramo + bajar umbral de timeline a 5s + validador de plano/movimiento. |
 | P16 Pista musical para sincronia de beat | PARTIAL | P1 | M | Llevar `audioRefPath` al flujo de campana, propagar la pista a todos los clips de la secuencia. |
