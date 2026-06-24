@@ -34,6 +34,27 @@ import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
 import { usePreflight } from '@/components/ui/preflight-checklist';
 import { CAMPAIGN_CHECKLIST } from '@/lib/checklists';
+import { uploadMediaReferenceFile } from '@/lib/media-references/upload-client';
+
+// Lee la duración de un audio en el navegador (sin libs). Resuelve en segundos.
+function readAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const el = document.createElement('audio');
+    el.preload = 'metadata';
+    el.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(el.duration);
+    };
+    el.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('No se pudo leer el audio'));
+    };
+    el.src = url;
+  });
+}
+
+const MUSIC_MAX_SECONDS = 15;
 
 type BrandKitOption = {
   id: string;
@@ -95,6 +116,8 @@ export function CampaignStudioWizard({
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   // Empaque del Brand Kit: el usuario decide si entra a la campaña (032).
   const [includePackaging, setIncludePackaging] = useState(true);
+  const [music, setMusic] = useState<{ id: string; filename: string } | null>(null);
+  const [musicBusy, setMusicBusy] = useState(false);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
   // El orden de selección importa: [0] es el personaje principal.
@@ -105,6 +128,32 @@ export function CampaignStudioWizard({
   }
   function makePrincipal(id: string) {
     setSelectedCharacterIds((prev) => (prev.includes(id) ? [id, ...prev.filter((x) => x !== id)] : prev));
+  }
+
+  async function handleMusicSelected(file: File | undefined) {
+    if (!file) return;
+    setMusicBusy(true);
+    try {
+      let seconds: number;
+      try {
+        seconds = await readAudioDuration(file);
+      } catch {
+        toast.error('No se pudo leer la duración del audio');
+        return;
+      }
+      if (seconds > MUSIC_MAX_SECONDS) {
+        toast.error(`La pista de referencia debe durar máximo ${MUSIC_MAX_SECONDS}s; usa un clip corto del beat`);
+        return;
+      }
+      const res = await uploadMediaReferenceFile(file);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setMusic({ id: res.ref.id, filename: res.ref.filename });
+    } finally {
+      setMusicBusy(false);
+    }
   }
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
@@ -139,6 +188,7 @@ export function CampaignStudioWizard({
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       includePackaging,
       aspectRatio,
+      ...(music ? { musicRefId: music.id } : {}),
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -523,6 +573,30 @@ export function CampaignStudioWizard({
           <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
             Aplica a todos los creativos del plan; puedes cambiarlo por video al editar.
           </p>
+        </section>
+
+        <section className="space-y-2">
+          <Label>Pista musical (opcional)</Label>
+          <p className="text-sm text-muted-foreground">
+            Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
+            audio sincronizado al beat. No se usa como banda sonora final.
+          </p>
+          {music ? (
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+              <span className="truncate">{music.filename}</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setMusic(null)}>
+                Quitar
+              </Button>
+            </div>
+          ) : (
+            <Input
+              type="file"
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+              disabled={musicBusy}
+              onChange={(e) => void handleMusicSelected(e.target.files?.[0])}
+            />
+          )}
+          {musicBusy ? <p className="text-sm text-muted-foreground">Subiendo pista…</p> : null}
         </section>
 
         <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>
