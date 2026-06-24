@@ -9,6 +9,7 @@ import { getReferencePathsAction, analyzeKitFromImageAction } from '@/server-act
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
+import { generateProductAngle, isGenError } from '@/components/creation/generate';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -230,6 +231,7 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
   );
   const [saving, startSave] = useTransition();
   const [detecting, setDetecting] = useState(false);
+  const [angling, setAngling] = useState(false);
 
   // Auto-rellena nombre, paleta y tono leyendo la imagen de producto subida
   // (cuando el usuario sube imágenes pero no llena los campos).
@@ -244,6 +246,25 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
       if (res.data.tone) setTone(res.data.tone);
       toast.success('Campos detectados desde la imagen; ajústalos si quieres');
     } finally { setDetecting(false); }
+  }
+
+  // Genera la vista 3/4 del producto (P01) desde la PRIMERA imagen subida y la
+  // antepone a la lista (tope 4). Se conserva al Guardar (setBrandKitImagesAction).
+  async function generateThreeQuarter() {
+    if (productImages.length === 0 || productImages.length >= 4 || angling) return;
+    setAngling(true);
+    try {
+      const src = productImages[0];
+      const pathRes = await getReferencePathsAction([src.id]);
+      const storagePath = pathRes.ok ? pathRes.data[src.id] : undefined;
+      if (!storagePath) { toast.error('No se pudo resolver la imagen de producto'); return; }
+      const out = await generateProductAngle({ id: src.id, storagePath }, 'three-quarter');
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar la vista 3/4'); return; }
+      setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
+      toast.success('Vista 3/4 generada; guarda el kit para conservarla');
+    } finally {
+      setAngling(false);
+    }
   }
 
   function handleSave() {
@@ -296,6 +317,23 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
         >
           {detecting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
           Detectar nombre, paleta y tono desde la imagen
+        </button>
+
+        <button
+          type="button"
+          onClick={generateThreeQuarter}
+          disabled={angling || productImages.length === 0 || productImages.length >= 4}
+          title={
+            productImages.length === 0
+              ? 'Sube primero una imagen de producto'
+              : productImages.length >= 4
+                ? 'Ya tienes el máximo de vistas (4)'
+                : 'Genera una vista 3/4 para reducir la deriva geométrica en video'
+          }
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {angling ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+          Generar vista 3/4 del producto
         </button>
 
         <ReferenceImagesUploader
