@@ -404,7 +404,7 @@ export function compileSeedance(
 
   // A — Acción: el scene_prompt del plan, sin reescritura. Guardamos su índice
   // para poder recortarla (y solo a ella) si el prompt final excede el techo.
-  // T — Timing: si el clip dura >8s y la acción tiene varios beats sin timeline,
+  // T — Timing: si el clip dura 5s o más y la acción tiene varios beats sin timeline,
   // se reparte en marcadores por segundos (CRAFT; cubre el camino de semillas).
   const actionIndex = sections.length;
   const rawAction =
