@@ -155,6 +155,33 @@ export async function addGenerationAsReferenceAction(
   }
 }
 
+export const SetReferenceUsageSchema = z.object({
+  refId: z.string().uuid(),
+  usage: z.string().trim().max(120),
+});
+
+// AM: anota una media_reference con su descripcion de uso (o la limpia con "").
+// Ownership: el update exige id + workspace_id del usuario (ademas de RLS).
+export async function setReferenceUsageAction(input: unknown): Promise<Result<{ id: string }>> {
+  const parsed = SetReferenceUsageSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  try {
+    const { workspace } = await requireWorkspace();
+    const supabase = await createClient();
+    const { data: row, error } = await supabase
+      .from('media_references')
+      .update({ usage_description: parsed.data.usage || null })
+      .eq('id', parsed.data.refId)
+      .eq('workspace_id', workspace.id)
+      .select('id')
+      .single();
+    if (error || !row) return { ok: false, error: 'internal_error', message: error?.message ?? 'no row' };
+    return { ok: true, data: { id: row.id as string } };
+  } catch (e) {
+    return { ok: false, error: 'internal_error', message: (e as Error).message };
+  }
+}
+
 export async function deleteMediaReferenceAction(
   input: unknown,
 ): Promise<Result<{ id: string }>> {
