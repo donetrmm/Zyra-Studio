@@ -486,6 +486,23 @@ async function requestMatch(input: {
   // characterIds se filtra contra el pool y se recorta a 3 máximo.
   const known = new Set(input.formats.map((f) => f.id));
   const knownCharacters = new Set((input.characters ?? []).map((c) => c.id));
+  // [P16-DIAG] temporal: ver QUÉ devuelve el modelo en formatId vs el catálogo,
+  // para decidir el fix del sin_match en ideas multi-escena. Quitar tras confirmar.
+  console.warn(
+    '[P16-DIAG matcher]',
+    JSON.stringify({
+      catalog: input.formats.map((f) => ({ id: f.id, slug: f.slug })),
+      rawMatches: matches.map((m) => ({
+        formatId: m.formatId,
+        knownById: m.formatId ? known.has(m.formatId) : false,
+        knownBySlug: m.formatId ? input.formats.some((f) => f.slug === m.formatId) : false,
+        hasCustomFormat: !!m.customFormat,
+        customSlug: m.customFormat?.slug ?? null,
+        blocker: m.blocker,
+        scenes: m.scenes.length,
+      })),
+    }),
+  );
   return {
     matches: matches.map((m) => ({
       ...m,
