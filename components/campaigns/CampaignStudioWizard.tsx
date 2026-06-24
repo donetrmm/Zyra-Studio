@@ -147,7 +147,7 @@ export function CampaignStudioWizard({
       }
       const res = await uploadMediaReferenceFile(file);
       if (!res.ok) {
-        toast.error(res.message);
+        toast.error(res.message ?? 'No se pudo subir la pista');
         return;
       }
       setMusic({ id: res.ref.id, filename: res.ref.filename });
@@ -158,7 +158,7 @@ export function CampaignStudioWizard({
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
   const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
-  const canSubmit = name.trim().length > 0 && productReady && !submitting;
+  const canSubmit = name.trim().length > 0 && productReady && !submitting && !musicBusy;
 
   const preflight = usePreflight();
 
@@ -576,7 +576,7 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-2">
-          <Label>Pista musical (opcional)</Label>
+          <Label htmlFor="music-upload">Pista musical (opcional)</Label>
           <p className="text-sm text-muted-foreground">
             Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
             audio sincronizado al beat. No se usa como banda sonora final.
@@ -590,6 +590,7 @@ export function CampaignStudioWizard({
             </div>
           ) : (
             <Input
+              id="music-upload"
               type="file"
               accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
               disabled={musicBusy}
