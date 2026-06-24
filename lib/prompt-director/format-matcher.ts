@@ -293,7 +293,12 @@ Por cada idea distinta devuelve un match:
   de cabeza, un giro de hombro, una flexión de rodilla, un chasquido de dedos"; no "se
   ve triste" → "baja la mirada a la mesa, traga saliva, luego suelta el aire"). Una sola
   señal por instante; nunca apiles varias a la vez en el mismo momento (no "ojos muy
-  abiertos + mano en la boca + lágrimas" simultáneos), que sale falso. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  abiertos + mano en la boca + lágrimas" simultáneos), que sale falso. Pero no te
+  pases al otro extremo: describe cada acción por su INTENCIÓN y RESULTADO visible
+  ("destapa la botella y la deja en la mesa"), nunca por su biomecánica articular
+  ("la mano derecha rota la tapa en sentido antihorario mientras la izquierda
+  estabiliza"); el modelo resuelve el CÓMO con su prior físico y sobre-detallar la
+  mecánica (qué músculo, qué ángulo, qué articulación) genera artefactos. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
   concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
   porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
