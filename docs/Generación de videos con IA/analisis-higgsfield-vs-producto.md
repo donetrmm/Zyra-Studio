@@ -50,10 +50,16 @@ es/en, cerrando tambien el riesgo de divergencia entre los dos detectores (commi
   `docs/superpowers/{specs,plans}/2026-06-24-p16-pista-musical-campana*`. Commits
   `a4b2fb4..7cb5981` en `development`, suite 423/423, review amplio limpio.
 
+- **P12 Beats de actuacion + P19 Densidad por ritmo (M) — IMPLEMENTADO (2026-06-24).**
+  `beatRole` (reveal/action/beat) inferido por el matcher y aplicado por el planner
+  (`maxDurationFor`: reveal 12s / action 5s / beat 8s, escapando el clamp uniforme),
+  beat de actuacion por tramo en el SYSTEM (reconciliado con P20), umbral de `toTimeline`
+  a >=5s y validador warning de tramo sin plano. `beatRole` en plan-time -> sin migracion.
+  Diseno/plan: `docs/superpowers/{specs,plans}/2026-06-24-p12-p19-direccion-temporal-dramatica*`.
+  Commits `b92cbbf..8e1821a` en `development`, suite 433/433, review amplio limpio.
+
 Lo que falta de P1 (ya requieren migraciones aditivas y/o UI, pero reusan
 QStash/creditos/RLS existentes):
-- **P12 Beats de actuacion (M)** y **P19 Densidad por ritmo (M)** — refinan el reparto de
-  tiempo y la actuacion por tramo, en la misma linea de P0/P14.
 - **P13 Bloqueo geo-espacial (M)** — posiciones relativas entre sujetos/entorno.
 - **P11 Style block editable por pieza (M)** — re-estilizar una campana desde un punto.
 
@@ -75,8 +81,10 @@ descartar el artefacto).
   paso de vision (LLM extra = costo/latencia) y roza la leccion "arregla el generador, no
   la salida". Tener en el radar, no accionar aun.
 
-Con P14b y P16 cerrados, el siguiente arranque recomendado es **P12 + P19** (beats de
-actuacion y densidad por ritmo), que extienden la misma capa de direccion ya validada.
+Con P12+P19 cerrados, lo que queda de P1 es **P13** (bloqueo geo-espacial) y **P11**
+(style block editable). El siguiente salto de mayor valor, sin embargo, es el **cluster de
+assets** (P01 multi-vista + P05 variantes + AM manifiesto del backlog externo), el hueco
+mas grande del producto.
 
 ## 1. Resumen ejecutivo
 
@@ -114,10 +122,10 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P20 Restraint en actuacion por defecto | IMPLEMENTADO | P0 | S | Directiva determinista de contencion por defecto, condicional a emocion alta declarada. |
 | P21 Movimientos de camara motivados | IMPLEMENTADO | P0 | S | Regla "camara estatica salvo beat que la justifique" + warning determinista por tramo. |
 | P14b Accion como intencion+resultado (no biomecanica) | IMPLEMENTADO | P1 | S | Directiva anti-biomecanica en el matcher + detector findOvermechanicalActions que avisa (warning-only, sin reescribir). |
-| P12 Estructura CUT con beats de actuacion | PARTIAL | P1 | M | Beat de actuacion por tramo + bajar umbral de timeline a 5s + validador de plano/movimiento. |
+| P12 Estructura CUT con beats de actuacion | IMPLEMENTADO | P1 | M | Beat de actuacion por tramo en el SYSTEM + umbral de timeline a >=5s (con maxBeats>=2) + validador warning de tramo sin plano. |
 | P16 Pista musical para sincronia de beat | IMPLEMENTADO | P1 | M | `campaigns.music_ref_id` -> `CampaignContext.audioRefPath` -> `directorContextFor` + propagacion a clips encadenados; control en el wizard con guard de 15s. |
 | P13 Bloqueo geo-espacial | MISSING | P1 | M | Campo `blocking` por escena + seccion CRAFT determinista + re-inyeccion entre cortes. |
-| P19 Densidad de cortes por ritmo dramatico | PARTIAL | P1 | M | `beatRole` (setup/reveal/action) que module clamp de duracion y densidad de corte. |
+| P19 Densidad de cortes por ritmo dramatico | IMPLEMENTADO | P1 | M | `beatRole` (reveal/action/beat) inferido por el matcher -> `maxDurationFor` en el planner (reveal 12s/action 5s/beat 8s), sin clamp uniforme. |
 | P11 Style Prefix global editable por pieza | PARTIAL | P1 | M | `style_block` por campana/secuencia que el compiler antepone y cuya edicion re-estiliza todos los clips. |
 | P01 Hoja de producto multi-vista generada | PARTIAL | P2 | M | Boton "Generar vista 3/4" via Nano Banana + `product_angle_image_ids` + warning con una sola foto. |
 | P05 Variantes de estado pre-generadas | MISSING | P2 | M | Tabla `character_states` con variante horneada (mojado/sudado) que sustituye al master en esa escena. |
