@@ -6,6 +6,7 @@ import {
   declaresHighEmotion,
   facesIntended,
   findUnexpandedActions,
+  findOvermechanicalActions,
 } from './acting';
 
 describe('declaresHighEmotion', () => {
@@ -72,5 +73,37 @@ describe('findUnexpandedActions', () => {
   });
   it('no marca "plays" en uso de reproducción de media', () => {
     expect(findUnexpandedActions('the song plays as the logo appears on screen')).toHaveLength(0);
+  });
+});
+
+describe('findOvermechanicalActions', () => {
+  it('marca el sentido de rotación', () => {
+    expect(findOvermechanicalActions('the right hand rotates the cap counterclockwise')).toEqual(
+      expect.arrayContaining(['counterclockwise']),
+    );
+  });
+  it('marca grados explícitos', () => {
+    expect(findOvermechanicalActions('she turns the lid at a 90-degree angle')).not.toHaveLength(0);
+  });
+  it('marca mano-estabiliza-mano', () => {
+    expect(
+      findOvermechanicalActions('she twists it while the left hand stabilizes the bottle'),
+    ).not.toHaveLength(0);
+  });
+  it('marca mecánica articular nombrada', () => {
+    expect(findOvermechanicalActions('he flexes the wrist and extends the elbow')).not.toHaveLength(0);
+  });
+  it('marca sobre-mecánica en español (respaldo)', () => {
+    expect(findOvermechanicalActions('gira la tapa en sentido antihorario')).not.toHaveLength(0);
+  });
+  it('NO marca las micro-acciones buenas de P14', () => {
+    expect(
+      findOvermechanicalActions('two head nods, a shoulder turn, a knee bend, a finger snap'),
+    ).toHaveLength(0);
+  });
+  it('NO marca una acción intención-resultado normal', () => {
+    expect(
+      findOvermechanicalActions('she uncaps the bottle and sets it on the table'),
+    ).toHaveLength(0);
   });
 });

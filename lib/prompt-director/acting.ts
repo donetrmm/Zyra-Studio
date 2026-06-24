@@ -68,3 +68,19 @@ export function findUnexpandedActions(text: string): string[] {
   }
   return [...flagged];
 }
+
+// Detector P14b: sobre-mecánica articular en el scenePrompt. A diferencia de P14
+// (que pide DESCOMPONER verbos abstractos en gestos observables), aquí marcamos el
+// extremo OPUESTO: mecánica articulación-por-articulación (sentido de rotación,
+// grados, mano-estabiliza-mano, articulación/músculo nombrados) que confunde al
+// modelo y genera artefactos. El marcador set es DISJUNTO de los gestos buenos de
+// P14 (nod/snap/lean/step/knee bend): la presencia de un marcador basta para marcar.
+const OVERMECHANICAL_RE =
+  /\b(?:counter|anti)?clockwise\b|\b\d{1,3}[- ]?degrees?\b|\bwhile the (?:left|right|other) hand (?:stabiliz|steadi|hold|brac)\w*|\b(?:flex|extend|rotat)\w* the (?:wrist|elbow|knee|shoulder|ankle|hip)\b|\bjoint by joint\b|\bmuscle by muscle\b|\bsentido (?:horario|antihorario)\b|\barticulaci[óo]n\w*/gi;
+
+// Frases de sobre-mecánica halladas (minúsculas, deduplicadas). [] si no hay.
+export function findOvermechanicalActions(text: string): string[] {
+  const matches = text.match(OVERMECHANICAL_RE);
+  if (!matches) return [];
+  return [...new Set(matches.map((m) => m.toLowerCase().replace(/\s+/g, ' ')))];
+}
