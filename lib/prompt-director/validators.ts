@@ -4,7 +4,7 @@
 
 import { findClaims, findAgeWords } from './inventory';
 import { resolveRequiredRefs } from './format-director';
-import { findUnexpandedActions } from './acting';
+import { findUnexpandedActions, findOvermechanicalActions } from './acting';
 import type { CompileRequest, DirectorContext } from './types';
 
 export type ValidationResult = { errors: string[]; warnings: string[] };
@@ -162,6 +162,16 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
   if (unexpanded.length) {
     warnings.push(
       `actuación: ${unexpanded.join(', ')} sin micro-acciones observables; desglosa en gestos secuenciales (asiente, gira el hombro, chasquea)`,
+    );
+  }
+
+  // 11. Sobre-mecánica (P14b): acción descrita por biomecánica articular en vez
+  // de intención + resultado. La directiva del matcher debería evitarlo; esto es
+  // la red de seguridad si se cuela. No bloquea, no reescribe.
+  const overmechanical = findOvermechanicalActions(prompt);
+  if (overmechanical.length) {
+    warnings.push(
+      `actuación: sobre-mecánica (${overmechanical.join(', ')}); descríbela por intención y resultado, no por la mecánica articular`,
     );
   }
 

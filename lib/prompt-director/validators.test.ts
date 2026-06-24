@@ -27,3 +27,14 @@ describe('validators P21 — cámara por tramo', () => {
     expect(w.some((x) => x.startsWith('cámara: el tramo'))).toBe(false);
   });
 });
+
+describe('validators P14b — sobre-mecánica', () => {
+  it('avisa cuando la acción se describe por mecánica articular', () => {
+    const w = warnings('she twists the cap counterclockwise while the left hand stabilizes the bottle');
+    expect(w.some((x) => x.startsWith('actuación: sobre-mecánica'))).toBe(true);
+  });
+  it('no avisa cuando la acción va por intención y resultado', () => {
+    const w = warnings('she uncaps the bottle and sets it on the table, then nods');
+    expect(w.some((x) => x.startsWith('actuación: sobre-mecánica'))).toBe(false);
+  });
+});
