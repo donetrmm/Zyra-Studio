@@ -104,6 +104,22 @@ export async function editUploaded(
   return fixAsReference(res.data.generationId);
 }
 
+// Vista 3/4 de un PRODUCTO (P01). El producto suele ser una foto SUBIDA, así que
+// va por editUploaded (la foto entra como referencia de Nano Banana, no como parent
+// conversacional). Rota la cámara preservando la identidad del producto; NO altera
+// ni inventa la etiqueta (respeta "no fabricar texto de marca").
+const PRODUCT_ANGLE_PROMPT: Record<'three-quarter', string> = {
+  'three-quarter':
+    'Show the exact same product from a three-quarter view (about 45 degrees). Identical shape, colors, label, logo, materials and proportions; same soft even studio lighting and clean plain background. Only the camera angle changes — keep the product perfectly consistent. Do not alter or invent any label text.',
+};
+
+export async function generateProductAngle(
+  productRef: { id: string; storagePath: string },
+  view: 'three-quarter',
+): Promise<GeneratedImage | GenError> {
+  return editUploaded(productRef, PRODUCT_ANGLE_PROMPT[view]);
+}
+
 // Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.
 // Legítimo solo cuando no hay producto real — es un concepto, no una foto fiel.
 function buildProductPrompt(description: string): string {
