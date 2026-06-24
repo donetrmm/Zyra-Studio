@@ -38,3 +38,14 @@ describe('validators P14b — sobre-mecánica', () => {
     expect(w.some((x) => x.startsWith('actuación: sobre-mecánica'))).toBe(false);
   });
 });
+
+describe('validators P12 — estructura por tramo', () => {
+  it('avisa cuando un tramo multi-beat no nombra plano ni movimiento', () => {
+    const w = warnings('0-3s: wide shot, she enters. 3-6s: she takes a sip and nods.', 6);
+    expect(w.some((x) => x.startsWith('cámara: tramo'))).toBe(true);
+  });
+  it('no avisa cuando cada tramo nombra plano o movimiento', () => {
+    const w = warnings('0-3s: wide shot, she enters. 3-6s: close-up as she sips.', 6);
+    expect(w.some((x) => x.startsWith('cámara: tramo'))).toBe(false);
+  });
+});

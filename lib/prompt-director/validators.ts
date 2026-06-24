@@ -9,6 +9,11 @@ import type { CompileRequest, DirectorContext } from './types';
 
 export type ValidationResult = { errors: string[]; warnings: string[] };
 
+// Tipos de plano reconocidos (en/es): un tramo dirigido nombra un plano o un
+// movimiento de cámara. Su ausencia en un tramo multi-beat = actuación sin encuadre.
+const SHOT_RE =
+  /\b(wide|medium|close[- ]?up|extreme close[- ]?up|ecu|over[- ]the[- ]shoulder|ots|pov|establishing|two[- ]shot|insert|macro|aerial|plano (general|medio|cerrado|americano)|primer plano)\b/i;
+
 // Movimientos de cámara reconocidos (en/es). Más de 2 distintos en una toma
 // = instrucciones contradictorias.
 const CAMERA_MOVES: Array<{ re: RegExp; label: string }> = [
@@ -173,6 +178,21 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
     warnings.push(
       `actuación: sobre-mecánica (${overmechanical.join(', ')}); descríbela por intención y resultado, no por la mecánica articular`,
     );
+  }
+
+  // 12. Estructura por tramo (P12): en un timeline de 2+ tramos, cada tramo
+  // debería abrir con un plano o un movimiento de cámara. Un tramo sin ninguno
+  // deja la actuación sin encuadre. Warning, no bloqueo (el compiler ya inyecta
+  // cinematographyDefault); usa el mismo split por tramos de la regla 3b.
+  for (const tramo of tramos) {
+    const hasShot = SHOT_RE.test(tramo);
+    const hasMove = matchedLabels(tramo).length > 0;
+    if (!hasShot && !hasMove) {
+      const label = tramo.match(/\d{1,2}\s*[-–]\s*\d{1,2}\s*s/)?.[0] ?? 'tramo';
+      warnings.push(
+        `cámara: tramo '${label}' sin plano ni movimiento; nómbralo (wide/medium/close-up, dolly/pan...)`,
+      );
+    }
   }
 
   return { errors, warnings };
