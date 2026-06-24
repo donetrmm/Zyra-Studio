@@ -36,7 +36,7 @@ const SCENE_PROMPT_MAX = 3000;
 // Tope de duración de UNA escena de secuencia: es un beat corto, no un clip
 // suelto. El modelo a veces devuelve 15 (el máximo de un clip) para un beat
 // trivial — un reveal de 15s sale lento y caro. Se clampa aquí.
-const SCENE_MAX_DURATION_S = 8;
+const SCENE_MAX_DURATION_S = 12;
 
 // Recorta en frontera de frase/palabra para no cortar a media palabra.
 function clampToWord(text: string, max: number): string {
@@ -105,8 +105,16 @@ const SceneSchema = z.object({
     .default(null)
     .transform((n) => (n == null ? null : Math.min(n, SCENE_MAX_DURATION_S))),
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
+  // Peso dramático del beat (P19): modula duración/cortes en el planner. El LLM
+  // lo infiere; si falla o lo omite, cae a 'beat' (comportamiento default).
+  beatRole: z.enum(['reveal', 'action', 'beat']).catch('beat').default('beat'),
 });
-export type MatchedScene = { scenePrompt: string; durationS: number | null; sceneSummary: string | null };
+export type MatchedScene = {
+  scenePrompt: string;
+  durationS: number | null;
+  sceneSummary: string | null;
+  beatRole: 'reveal' | 'action' | 'beat';
+};
 
 const MatchSchema = z.object({
   // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt.
@@ -146,6 +154,7 @@ const MatchSchema = z.object({
           scenePrompt: parsed.data.scenePrompt,
           durationS: parsed.data.durationS,
           sceneSummary: parsed.data.sceneSummary,
+          beatRole: parsed.data.beatRole,
         } satisfies MatchedScene];
       }),
     ),

@@ -394,7 +394,7 @@ describe('matchIdeas', () => {
     expect(m.scenes[1].scenePrompt).toContain('museum');
   });
 
-  it('clampa la duración de una escena de secuencia a 8s (beat corto), sin tocar las menores', async () => {
+  it('clampa la duración de una escena de secuencia a 12s (techo del schema)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{
         ideaText: 'anuncio de 4 actos', formatId: 'f1', customFormat: null, sequenceLabel: 'Reveal',
@@ -406,8 +406,40 @@ describe('matchIdeas', () => {
     })));
     process.env.GEMINI_API_KEY = 'test';
     const res = await matchIdeas({ ideasText: 'anuncio', formats: FORMATS });
-    expect(res.matches[0].scenes[0].durationS).toBe(8); // 15 → 8
+    expect(res.matches[0].scenes[0].durationS).toBe(12); // 15 → 12 (techo del schema subio)
     expect(res.matches[0].scenes[1].durationS).toBe(6); // intacta
+  });
+
+  it('parsea beatRole reveal/action en las escenas', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia con reveal', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [
+          { scenePrompt: 'she slowly realizes and holds the gaze', durationS: 12, beatRole: 'reveal' },
+          { scenePrompt: 'she snaps the cap and turns fast', durationS: 5, beatRole: 'action' },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].scenes[0].beatRole).toBe('reveal');
+    expect(res.matches[0].scenes[1].beatRole).toBe('action');
+  });
+
+  it('beatRole ausente o inválido cae a beat (catch)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [
+          { scenePrompt: 'a normal beat happens here', durationS: 6 },
+          { scenePrompt: 'another normal beat', durationS: 6, beatRole: 'nonsense' },
+        ],
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].scenes[0].beatRole).toBe('beat');
+    expect(res.matches[0].scenes[1].beatRole).toBe('beat');
   });
 
   it('rebasea/quita marcadores de tiempo acumulativos de las escenas de secuencia (PD-11)', async () => {
