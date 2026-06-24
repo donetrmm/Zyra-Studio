@@ -6,6 +6,7 @@ import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { getReferencePathsAction, analyzeKitFromImageAction } from '@/server-actions/creation';
+import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
@@ -29,7 +30,7 @@ type AiState =
   | { mode: 'create' }
   | { mode: 'improve'; kit: BrandKit; existing: { product?: ImgRef; packaging?: ImgRef } };
 
-export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; previews: Record<string, string> }) {
+export function BrandKitsPage({ kits: initial, previews, usages }: { kits: BrandKit[]; previews: Record<string, string>; usages: Record<string, string> }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
@@ -121,6 +122,7 @@ export function BrandKitsPage({ kits: initial, previews }: { kits: BrandKit[]; p
         <BrandKitEditor
           kit={editing === 'new' ? null : editing}
           previews={previews}
+          usages={usages}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />
@@ -217,7 +219,7 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
   );
 }
 
-function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; onClose: () => void; onSaved: () => void }) {
+function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; usages: Record<string, string>; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(kit?.name ?? '');
   const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#009fff' }]);
   const [fonts, setFonts] = useState(kit?.fonts?.join(', ') ?? '');
@@ -229,9 +231,18 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
   const [packagingImages, setPackagingImages] = useState<RefImage[]>(
     (kit?.packaging_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
+  const [productUsages, setProductUsages] = useState<Record<string, string>>(
+    Object.fromEntries(productImages.map((i) => [i.id, usages[i.id] ?? ''])),
+  );
   const [saving, startSave] = useTransition();
   const [detecting, setDetecting] = useState(false);
   const [angling, setAngling] = useState(false);
+
+  async function saveUsage(refId: string, value: string) {
+    setProductUsages((prev) => ({ ...prev, [refId]: value }));
+    const res = await setReferenceUsageAction({ refId, usage: value });
+    if (!res.ok) toast.error(res.message || 'No se pudo guardar el uso');
+  }
 
   // Auto-rellena nombre, paleta y tono leyendo la imagen de producto subida
   // (cuando el usuario sube imágenes pero no llena los campos).
@@ -261,6 +272,7 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
       const out = await generateProductAngle({ id: src.id, storagePath }, 'three-quarter');
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar la vista 3/4'); return; }
       setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
+      await setReferenceUsageAction({ refId: out.refId, usage: 'three-quarter view' });
       toast.success('Vista 3/4 generada; guarda el kit para conservarla');
     } finally {
       setAngling(false);
@@ -307,6 +319,22 @@ function BrandKitEditor({ kit, previews, onClose, onSaved }: { kit: BrandKit | n
           onChange={setProductImages}
           max={4}
         />
+
+        {productImages.length > 0 ? (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
+            {productImages.map((img) => (
+              <input
+                key={img.id}
+                type="text"
+                defaultValue={productUsages[img.id] ?? ''}
+                placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
+                onBlur={(e) => { if (e.target.value !== (usages[img.id] ?? '')) void saveUsage(img.id, e.target.value.trim()); }}
+                className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            ))}
+          </div>
+        ) : null}
 
         <button
           type="button"

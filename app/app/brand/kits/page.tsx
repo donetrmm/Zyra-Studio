@@ -24,13 +24,15 @@ export default async function BrandKitsRoute() {
     ),
   ];
   const previews: Record<string, string> = {};
+  const usages: Record<string, string> = {};
   if (allImageIds.length) {
     const { data: refs } = await supabase
       .from('media_references')
-      .select('id, storage_url')
+      .select('id, storage_url, usage_description')
       .in('id', allImageIds);
     await Promise.all(
       (refs ?? []).map(async (r) => {
+        if (r.usage_description) usages[r.id as string] = r.usage_description as string;
         if (!r.storage_url) return;
         try {
           previews[r.id as string] = await signedReferenceUrl(r.storage_url as string);
@@ -41,5 +43,5 @@ export default async function BrandKitsRoute() {
     );
   }
 
-  return <BrandKitsPage kits={(kits ?? []) as never} previews={previews} />;
+  return <BrandKitsPage kits={(kits ?? []) as never} previews={previews} usages={usages} />;
 }
