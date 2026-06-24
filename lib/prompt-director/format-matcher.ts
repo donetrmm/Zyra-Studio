@@ -308,7 +308,14 @@ Por cada idea distinta devuelve un match:
   ("destapa la botella y la deja en la mesa"), nunca por su biomecánica articular
   ("la mano derecha rota la tapa en sentido antihorario mientras la izquierda
   estabiliza"); el modelo resuelve el CÓMO con su prior físico y sobre-detallar la
-  mecánica (qué músculo, qué ángulo, qué articulación) genera artefactos. SONIDO: nombra el sonido diegético clave de cada tramo, breve y
+  mecánica (qué músculo, qué ángulo, qué articulación) genera artefactos.
+ BEAT DE ACTUACIÓN POR TRAMO: cada tramo lleva UN beat de actuación
+  concreto y observable — un gesto O una dirección de mirada O una respiración/
+  micro-pausa (no los tres a la vez): "inhala", "baja la mirada a la mesa",
+  "fija los ojos en cámara". Encadénalos EN SECUENCIA por el timeline, una señal
+  por instante; nunca apiles varias en el mismo momento (eso es sobreactuar y se
+  ve falso). Por defecto contenido, no histriónico.
+  SONIDO: nombra el sonido diegético clave de cada tramo, breve y
   concreto (el fizz al abrir la lata, pasos sobre grava, el murmullo del café),
   porque el modelo genera audio nativo y nombrar el sonido lo mejora; nunca
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
@@ -342,8 +349,15 @@ Por cada idea distinta devuelve un match:
   es un solo beat, no necesita timeline",
   "durationS":"AJUSTA al tiempo que toma DECIR la linea de dialogo de ESA escena
   (o la accion si no hay dialogo): una frase corta = 4-5s, una mas larga hasta 8;
-  entero 4-8. NUNCA infles una linea corta a 8s — el modelo rellena el silencio
-  repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__, 1 frase"}.
+  un beat 'reveal' sostenido puede llegar a 12. entero 4-12. NUNCA infles una
+  linea corta — el modelo rellena el silencio repitiendo palabras y el clip se
+  traba","sceneSummary":"resumen __SUMMARY_LANG__,
+  1 frase","beatRole":"el peso dramático de la escena: 'reveal' (una
+  revelación, una confesión, un cambio emocional que aterriza — pídela como UN
+  plano sostenido, sin cortes internos, con aire/silencio, y dale más segundos
+  (hasta 12); minimiza el movimiento de cámara), 'action' (acción física rápida —
+  cortes cortos, beats breves, 4-5s), o 'beat' (cualquier otra, ritmo normal).
+  Si dudas, 'beat'"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].
