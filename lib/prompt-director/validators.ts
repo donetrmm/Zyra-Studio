@@ -184,14 +184,18 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
   // debería abrir con un plano o un movimiento de cámara. Un tramo sin ninguno
   // deja la actuación sin encuadre. Warning, no bloqueo (el compiler ya inyecta
   // cinematographyDefault); usa el mismo split por tramos de la regla 3b.
-  for (const tramo of tramos) {
-    const hasShot = SHOT_RE.test(tramo);
-    const hasMove = matchedLabels(tramo).length > 0;
-    if (!hasShot && !hasMove) {
-      const label = tramo.match(/\d{1,2}\s*[-–]\s*\d{1,2}\s*s/)?.[0] ?? 'tramo';
-      warnings.push(
-        `cámara: tramo '${label}' sin plano ni movimiento; nómbralo (wide/medium/close-up, dolly/pan...)`,
-      );
+  // Solo aplica a timelines multi-beat (2+ tramos): un único tramo no es un
+  // timeline dirigido, así que no debe disparar un warning espurio.
+  if (tramos.length >= 2) {
+    for (const tramo of tramos) {
+      const hasShot = SHOT_RE.test(tramo);
+      const hasMove = matchedLabels(tramo).length > 0;
+      if (!hasShot && !hasMove) {
+        const label = tramo.match(/\d{1,2}\s*[-–]\s*\d{1,2}\s*s/)?.[0] ?? 'tramo';
+        warnings.push(
+          `cámara: tramo '${label}' sin plano ni movimiento; nómbralo (wide/medium/close-up, dolly/pan...)`,
+        );
+      }
     }
   }
 
