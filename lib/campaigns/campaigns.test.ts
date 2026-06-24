@@ -321,7 +321,7 @@ describe('buildDirectedPlan', () => {
     );
     expect(items).toHaveLength(2);
     expect(items[0].durationS).toBe(5); // explícita, intacta
-    expect(items[1].durationS).toBe(8); // null → default 15 → clampada a 8
+    expect(items[1].durationS).toBe(8); // null → default 15 → clampada a 8 (beat-role max)
   });
 
   it('sin scenePrompt usa las semillas del formato', () => {
