@@ -337,6 +337,7 @@ export async function createCampaignStudioAction(
       character_ids: characterIds,
       include_packaging: parsed.data.includePackaging,
       aspect_ratio: parsed.data.aspectRatio,
+      music_ref_id: parsed.data.musicRefId ?? null,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',

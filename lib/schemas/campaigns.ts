@@ -88,6 +88,8 @@ export const CreateCampaignStudioSchema = z
     // Formato de video de la campaña (034): default de todos los creativos
     // del plan; cada item puede cambiarlo en la edición.
     aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
+    // P16: pista de audio de referencia de ritmo (media_reference type='audio', <=15s).
+    musicRefId: z.string().uuid().optional(),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
   })
