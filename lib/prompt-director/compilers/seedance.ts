@@ -107,7 +107,7 @@ function hasTimeline(text: string): boolean {
 // ~1 beat por 4s (guía: 1 idea ≈ 4s); si no encaja en pocos beats, se deja como
 // prosa y el modelo reparte el tiempo (como en los prompts que salen fluidos).
 function toTimeline(action: string, duration: number): string {
-  const maxBeats = Math.max(1, Math.floor(duration / 4));
+  const maxBeats = Math.max(2, Math.floor(duration / 4));
   const beats = action
     .split(/(?<=[.;])\s+/)
     .map((b) => b.trim().replace(/[.;]+$/, ''))
@@ -408,7 +408,7 @@ export function compileSeedance(
   // se reparte en marcadores por segundos (CRAFT; cubre el camino de semillas).
   const actionIndex = sections.length;
   const rawAction =
-    duration && duration > 8 && !hasTimeline(req.scenePrompt)
+    duration && duration >= 5 && !hasTimeline(req.scenePrompt)
       ? toTimeline(req.scenePrompt.trim(), duration)
       : req.scenePrompt.trim().replace(/\.?$/, '.');
   // Habla es-MX: primero se normalizan números/símbolos del DIÁLOGO ($499, 2x1,

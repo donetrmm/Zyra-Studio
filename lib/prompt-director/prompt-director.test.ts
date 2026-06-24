@@ -3,7 +3,7 @@ import { compile, onlyCharacterRefs } from './index';
 import { stripSlop } from './antislop';
 import { findClaims, stripAgeWords } from './inventory';
 import { fromFormatRow, resolveRequiredRefs } from './format-director';
-import type { DirectorContext, FormatDirection } from './types';
+import type { CompileRequest, DirectorContext, FormatDirection } from './types';
 
 // El storyboard generaba paneles FLUX y "perdía el hilo del personaje": compileFlux
 // ignoraba ctx.characters (ni descripción ni imagen master). El compiler debe anclar
@@ -639,6 +639,32 @@ describe('compile seedance', () => {
     // 3 oraciones en 12s → 3 beats coarse (~4s c/u), nunca por segundo.
     expect(markers).toBe(3);
     expect(res.compiled.prompt).toContain('0-4s:');
+  });
+
+  it('reparte en timeline un clip de 6s con 2 oraciones (P12 umbral >=5s)', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She lifts the can to camera. She takes a sip and nods.',
+        durationS: 6,
+      } as CompileRequest,
+      {},
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.compiled.prompt).toMatch(/\b0-3s:|\b3-6s:/);
+  });
+
+  it('no reparte un clip de 6s con una sola oración', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'She lifts the can to camera in soft light.',
+        durationS: 6,
+      } as CompileRequest,
+      {},
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.compiled.prompt).not.toMatch(/\b\d-\ds:/);
   });
 });
 
