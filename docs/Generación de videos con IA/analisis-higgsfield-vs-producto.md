@@ -81,10 +81,17 @@ descartar el artefacto).
   paso de vision (LLM extra = costo/latencia) y roza la leccion "arregla el generador, no
   la salida". Tener en el radar, no accionar aun.
 
-Con P12+P19 cerrados, lo que queda de P1 es **P13** (bloqueo geo-espacial) y **P11**
-(style block editable). El siguiente salto de mayor valor, sin embargo, es el **cluster de
-assets** (P01 multi-vista + P05 variantes + AM manifiesto del backlog externo), el hueco
-mas grande del producto.
+**P01 (hoja multi-vista de producto) IMPLEMENTADO (2026-06-24):** `generateProductAngle`
+genera la vista 3/4 desde la foto subida (reusando `editUploaded`/Nano Banana con prompt
+de producto que no inventa etiqueta), un botón en el Brand Kit la agrega a
+`product_image_ids` (sin migración) y un warning determinista avisa con una sola vista.
+Diseño/plan: `docs/superpowers/{specs,plans}/2026-06-24-p01-hoja-multivista-producto*`.
+Commits `7599640..297b1e4`, review amplio limpio. Corrige el catálogo: el motor generativo
+ya existía (estaba marcado ausente).
+
+Lo que queda del **cluster de assets** es **AM** (manifiesto con uso, ahora con varias vistas
+que diferenciar gracias a P01) y **P05** (variantes de estado). Lo que queda de P1 directo es
+**P13** (bloqueo geo-espacial) y **P11** (style block editable).
 
 ## 1. Resumen ejecutivo
 
@@ -127,7 +134,7 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P13 Bloqueo geo-espacial | MISSING | P1 | M | Campo `blocking` por escena + seccion CRAFT determinista + re-inyeccion entre cortes. |
 | P19 Densidad de cortes por ritmo dramatico | IMPLEMENTADO | P1 | M | `beatRole` (reveal/action/beat) inferido por el matcher -> `maxDurationFor` en el planner (reveal 12s/action 5s/beat 8s), sin clamp uniforme. |
 | P11 Style Prefix global editable por pieza | PARTIAL | P1 | M | `style_block` por campana/secuencia que el compiler antepone y cuya edicion re-estiliza todos los clips. |
-| P01 Hoja de producto multi-vista generada | PARTIAL | P2 | M | Boton "Generar vista 3/4" via Nano Banana + `product_angle_image_ids` + warning con una sola foto. |
+| P01 Hoja de producto multi-vista generada | IMPLEMENTADO | P2 | M | Boton "Generar vista 3/4" (Nano Banana via editUploaded) que agrega a `product_image_ids` (sin slot nuevo) + warning determinista con una sola vista. |
 | P05 Variantes de estado pre-generadas | MISSING | P2 | M | Tabla `character_states` con variante horneada (mojado/sudado) que sustituye al master en esa escena. |
 | P07 Locaciones en angulo 3/4 | PARTIAL | P2 | S | Cambiar `buildLocationPrompt` de "eye-level frontal" a placa 3/4 con lineas de fuga. |
 | P10 Imagenes definitivas nombradas al LLM | PARTIAL | P2 | S | Adjuntar locaciones al matcher, usar nombre real del producto, subir cap de 4 a ~6-8. |

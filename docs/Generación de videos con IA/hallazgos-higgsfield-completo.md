@@ -12,13 +12,13 @@ Todos los principios destilados del material de Higgsfield, cada uno contrastado
 
 ## Conteo
 
-Total principios: **34**. IMPLEMENTADO (P0+P1): **7** · Parcial (mejorable): **19** · Ausente: **3** · Ya cubierto: **5**.
+Total principios: **34**. IMPLEMENTADO: **8** · Parcial (mejorable): **18** · Ausente: **3** · Ya cubierto: **5**.
 
 ## Tabla resumen (todos)
 
 | ID | Principio | Estado | Prio | Esf | Categoria |
 |---|---|---|---|---|---|
-| P01 | Hoja de producto/utileria en frente + 3/4 | Parcial (mejorable) | P2 | M | assets |
+| P01 | Hoja de producto/utileria en frente + 3/4 | IMPLEMENTADO | P2 | M | assets |
 | P03 | Truco de cara limpia: una sola cara canonica en la hoja | Parcial (mejorable) | P2 | S | consistency |
 | P04 | Compositado de ropa preservando textura de piel/rostro | Parcial (mejorable) | P2 | M | assets |
 | P05 | Variantes de estado pre-generadas (seco vs mojado/sudado) | Ausente | P2 | M | assets |
@@ -59,12 +59,13 @@ Total principios: **34**. IMPLEMENTADO (P0+P1): **7** · Parcial (mejorable): **
 
 #### P01 — Hoja de producto/utileria en frente + 3/4
 
-`Parcial (mejorable)` · **Prioridad** P2 · **Esfuerzo** M · confianza high · **Categoria** assets · **Fuente** realistic-video-IA
+`IMPLEMENTADO` (2026-06-24) · **Prioridad** P2 · **Esfuerzo** M · confianza high · **Categoria** assets · **Fuente** realistic-video-IA
 
 - **Tecnica (Higgsfield):** Generan una 'hoja de producto' con GPT Image 2.0 que muestra cada objeto (auriculares, cafetera, taza) de frente Y en perspectiva 3/4, antes de tocar el generador de video.
 - **Por que funciona:** El modelo de video alucina geometria y detalles cuando solo ve una vista. Dos angulos ortogonales le dan suficiente informacion 3D para reconstruir el objeto de forma consistente desde cualquier camara, eliminando deriva de forma/logo/proporcion.
 - **Principio generalizado:** Para cualquier objeto cuya identidad debe persistir a traves de tomas, genera una hoja de referencia multi-vista (minimo frontal + 3/4) ANTES de animar. Pasar varias vistas ortogonales de un asset como referencia reduce la alucinacion geometrica de cualquier modelo I2V/R2V, porque le entregas estructura 3D en vez de obligarlo a inventarla.
-- **Estado en 1to1:** Parcial (mejorable)
+- **Estado en 1to1:** IMPLEMENTADO (2026-06-24, commits 7599640..297b1e4)
+- **Implementado:** la SÍNTESIS de la vista 3/4 (lo que faltaba; el consumo ya existía). `generateProductAngle` (`components/creation/generate.ts`) rota el producto a 3/4 vía `editUploaded`/Nano Banana con un prompt de producto que prohíbe inventar la etiqueta; botón "Generar vista 3/4" en `BrandKitEditor` que antepone el resultado a `brand_kits.product_image_ids` (tope 4, **sin migración** — se descartó el slot `product_angle_image_ids` propuesto, se reusa la lista); warning determinista en `validators.ts` (regla 13, prefijo "producto:") con una sola vista. Review amplio limpio. El análisis de brecha de abajo refleja el estado PRE-implementación y se conserva como racional.
 - **Evidencia en el producto:** `lib/prompt-director/types.ts:39-48`; `lib/prompt-director/compilers/seedance.ts:173-186`; `lib/prompt-director/inventory.ts:71-84`; `lib/campaigns/orchestrator.ts:183-200`; `supabase/migrations/021_v2_brand_cast.sql:13-16`; `components/cast/CastPage.tsx:208-241`; `components/locations/LocationsPage.tsx:186-219`
 - **Brecha / mejora posible:** El producto YA consume varias vistas de un objeto como referencia (imagePaths multi-angulo del Brand Kit y packagingImagePaths, citadas con fidelidad de forma, logo y proporcion), justo el mecanismo que el principio recomienda para reducir alucinacion geometrica I2V/R2V. Falta la pieza generativa: no existe flujo que cree la hoja de producto multi-vista (frontal y tres-cuartos) cuando el usuario solo subio una foto, ni un slot estructurado de angulos de producto poblado por IA equivalente a angle_image_ids del Cast. Hoy el multi-angulo de producto depende de que el usuario suba esas vistas a mano; con una sola, el modelo sigue alucinando la geometria no vista. El Cast y las Locaciones si tienen generador FLUX asistido; el producto no.
 - **Adaptacion propuesta (nuestro stack):** Espejar el patron de Cast y Locaciones para producto. Primero anadir una migracion product_angle_image_ids analoga al angle_image_ids de la migracion 021. Segundo un boton Generar vista tres-cuartos en el editor de Brand Kit que tome la foto frontal como referencia y llame a Nano Banana en modo edicion para rotar el objeto manteniendo logo y proporciones con fondo neutro; Nano Banana preserva el objeto en vez de inventarlo como FLUX. Va sincrono igual que generatePanelAction si es rapido, o por QStash si excede 60s, y el worker baja el output a bucket references y devuelve un path interno. Tercero el compiler seedance ya cita las primeras tres imagePaths, asi que basta incluir frontal y tres-cuartos y anadir una linea de referencia que indique que es el mismo producto desde un angulo de tres cuartos para consistencia geometrica. Cuarto un warning determinista en validators cuando el producto tiene una sola imagen en toma R2V o I2V. El fix vive en el generador y el validador, nunca en un hand-patch de la salida.
