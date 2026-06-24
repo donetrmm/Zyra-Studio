@@ -40,20 +40,25 @@ es/en, cerrando tambien el riesgo de divergencia entre los dos detectores (commi
   (warning-only, marcador set disjunto de los gestos buenos de P14). Diseno/plan:
   `docs/superpowers/{specs,plans}/2026-06-24-p14b-accion-intencion-resultado*`. Commits
   `14e1629..bf6ae62` en `development`, suite 418/418, review amplio limpio.
+- **P16 Pista musical en campana (M) — IMPLEMENTADO (2026-06-24).** Referencia de ritmo
+  nivel campana: columna `campaigns.music_ref_id` (migracion 043, aplicada) enhebrada por
+  `CampaignContext.audioRefPath` -> `loadCampaignContext` -> `directorContextFor`, con
+  propagacion a los clips encadenados via `ChainParams`. El pipe aguas abajo
+  (compiler -> `referenceAudioPaths` -> worker -> Seedance `reference_audios`) ya existia.
+  Control de subida en el wizard con guard client-side de 15s (sin ffmpeg). Solo subida,
+  nivel campana (se descarto `setCampaignMusicAction` por YAGNI). Diseno/plan:
+  `docs/superpowers/{specs,plans}/2026-06-24-p16-pista-musical-campana*`. Commits
+  `a4b2fb4..7cb5981` en `development`, suite 423/423, review amplio limpio.
 
 Lo que falta de P1 (ya requieren migraciones aditivas y/o UI, pero reusan
 QStash/creditos/RLS existentes):
-- **P16 Pista musical en campana (M)** — llenar `audioRefPath` en el flujo de campana
-  (hoy `index.ts:71` lo fuerza a undefined); el smoke lo subrayo (escenas festivas piden
-  cama musical). Feature latente de alto valor para coreografia/dance.
 - **P12 Beats de actuacion (M)** y **P19 Densidad por ritmo (M)** — refinan el reparto de
   tiempo y la actuacion por tramo, en la misma linea de P0/P14.
 - **P13 Bloqueo geo-espacial (M)** — posiciones relativas entre sujetos/entorno.
 - **P11 Style block editable por pieza (M)** — re-estilizar una campana desde un punto.
 
-Con P14b cerrado, el siguiente arranque recomendado es **P16** (pista musical, alto valor,
-conecta con el hueco de audio que el smoke ya mostro) — en su propio spec, por ser un
-feature transversal (storage + DB + UI + propagacion).
+Con P14b y P16 cerrados, el siguiente arranque recomendado es **P12 + P19** (beats de
+actuacion y densidad por ritmo), que extienden la misma capa de direccion ya validada.
 
 ## 1. Resumen ejecutivo
 
@@ -92,7 +97,7 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P21 Movimientos de camara motivados | IMPLEMENTADO | P0 | S | Regla "camara estatica salvo beat que la justifique" + warning determinista por tramo. |
 | P14b Accion como intencion+resultado (no biomecanica) | IMPLEMENTADO | P1 | S | Directiva anti-biomecanica en el matcher + detector findOvermechanicalActions que avisa (warning-only, sin reescribir). |
 | P12 Estructura CUT con beats de actuacion | PARTIAL | P1 | M | Beat de actuacion por tramo + bajar umbral de timeline a 5s + validador de plano/movimiento. |
-| P16 Pista musical para sincronia de beat | PARTIAL | P1 | M | Llevar `audioRefPath` al flujo de campana, propagar la pista a todos los clips de la secuencia. |
+| P16 Pista musical para sincronia de beat | IMPLEMENTADO | P1 | M | `campaigns.music_ref_id` -> `CampaignContext.audioRefPath` -> `directorContextFor` + propagacion a clips encadenados; control en el wizard con guard de 15s. |
 | P13 Bloqueo geo-espacial | MISSING | P1 | M | Campo `blocking` por escena + seccion CRAFT determinista + re-inyeccion entre cortes. |
 | P19 Densidad de cortes por ritmo dramatico | PARTIAL | P1 | M | `beatRole` (setup/reveal/action) que module clamp de duracion y densidad de corte. |
 | P11 Style Prefix global editable por pieza | PARTIAL | P1 | M | `style_block` por campana/secuencia que el compiler antepone y cuya edicion re-estiliza todos los clips. |
