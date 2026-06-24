@@ -344,6 +344,9 @@ type ChainParams = {
   // Idioma del diálogo de la campaña: se re-ancla en cada clip para no perder el
   // acento es-MX ni el lip-sync a mitad de la toma continua (#3). undefined → 'es'.
   language?: 'es' | 'en';
+  // P16: pista de referencia de ritmo de la campaña; se re-ancla en cada clip
+  // de la cadena (los encadenados no pasan por el compiler). undefined → sin pista.
+  audioRefPath?: string;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -535,6 +538,7 @@ export async function advanceSequenceChain(
         duration,
         generateAudio: nextRow.audio ?? true,
         referenceImagePaths,
+        ...(chain.audioRefPath ? { referenceAudioPaths: [chain.audioRefPath] } : {}),
         returnLastFrame: returnLast,
         chain: {
           campaignId: chain.campaignId,
@@ -545,6 +549,7 @@ export async function advanceSequenceChain(
           prevFramePath: framePath,
           resolution,
           language,
+          ...(chain.audioRefPath ? { audioRefPath: chain.audioRefPath } : {}),
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -895,6 +900,7 @@ export async function enqueueBatch(params: {
                       // heredan para no saltar de nitidez (#1) ni perder es-MX (#3).
                       resolution,
                       language: ctx.language,
+                      ...(ctx.audioRefPath ? { audioRefPath: ctx.audioRefPath } : {}),
                     } satisfies ChainParams,
                   }
                 : {}),
