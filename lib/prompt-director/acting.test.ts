@@ -93,6 +93,15 @@ describe('findOvermechanicalActions', () => {
   it('marca mecánica articular nombrada', () => {
     expect(findOvermechanicalActions('he flexes the wrist and extends the elbow')).not.toHaveLength(0);
   });
+  it('marca "joint by joint"', () => {
+    expect(findOvermechanicalActions('the arm moves joint by joint to the shelf')).not.toHaveLength(0);
+  });
+  it('marca "muscle by muscle"', () => {
+    expect(findOvermechanicalActions('she tenses muscle by muscle as she lifts')).not.toHaveLength(0);
+  });
+  it('marca articulación nombrada en español (respaldo)', () => {
+    expect(findOvermechanicalActions('describe cada articulación de la muñeca')).not.toHaveLength(0);
+  });
   it('marca sobre-mecánica en español (respaldo)', () => {
     expect(findOvermechanicalActions('gira la tapa en sentido antihorario')).not.toHaveLength(0);
   });
