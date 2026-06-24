@@ -12,7 +12,7 @@ Todos los principios destilados del material de Higgsfield, cada uno contrastado
 
 ## Conteo
 
-Total principios: **34**. IMPLEMENTADO (P0): **3** · Parcial (mejorable): **23** · Ausente: **3** · Ya cubierto: **5**.
+Total principios: **34**. IMPLEMENTADO (P0+P1): **4** · Parcial (mejorable): **22** · Ausente: **3** · Ya cubierto: **5**.
 
 ## Tabla resumen (todos)
 
@@ -32,7 +32,7 @@ Total principios: **34**. IMPLEMENTADO (P0): **3** · Parcial (mejorable): **23*
 | P12 | Estructura CUT por corte con beats de actuacion | Parcial (mejorable) | P2 | M | directing |
 | P13 | Bloqueo geo-espacial (posiciones relativas) | Ausente | P2 | M | continuity |
 | P14 | Coreografia verbal en vez de etiquetas abstractas | IMPLEMENTADO | P0 | M | directing |
-| P14b | Accion como intencion + resultado, no biomecanica | Parcial (mejorable) | P2 | S | directing |
+| P14b | Accion como intencion + resultado, no biomecanica | IMPLEMENTADO | P1 | S | directing |
 | P16 | Pista musical como referencia para sincronia de beat | Parcial (mejorable) | P2 | M | audio |
 | P17 | Tracking de continuidad invisible (carry-forward de estado) | Parcial (mejorable) | P2 | M | continuity |
 | P17b | Continuidad como lenguaje concreto, no metadato visible | Parcial (mejorable) | P2 | S | continuity |
@@ -303,12 +303,13 @@ No hallo contra-evidencia que mueva el status ni a EXISTS (faltan locaciones/SKU
 
 #### P14b — Accion como intencion + resultado, no biomecanica
 
-`Parcial (mejorable)` · **Prioridad** P2 · **Esfuerzo** S · confianza high · **Categoria** directing · **Fuente** inferred
+`IMPLEMENTADO` (P1, 2026-06-24) · **Prioridad** P1 · **Esfuerzo** S · confianza high · **Categoria** directing · **Fuente** inferred
 
 - **Tecnica (Higgsfield):** El marketing-studio-director regla: accion = intencion + resultado ('destapa la botella, la deja en la mesa'), NO biomecanica ('mano derecha rota la tapa en sentido antihorario mientras la izquierda estabiliza').
 - **Por que funciona:** Sobre-especificar la mecanica fisica confunde al modelo y produce artefactos; describir el resultado deseado deja que el modelo use su prior fisico aprendido para llegar ahi de forma natural.
 - **Principio generalizado:** Hay un punto optimo de especificidad: describe la accion por su intencion y resultado visible, no por su biomecanica articulacion-por-articulacion. Muy abstracto pierde control (P14); demasiado mecanico genera artefactos. La direccion efectiva apunta al QUE-se-ve, dejando que el prior fisico del modelo resuelva el COMO.
-- **Estado en 1to1:** Parcial (mejorable)
+- **Estado en 1to1:** IMPLEMENTADO (P1, 2026-06-24, commits 14e1629..bf6ae62)
+- **Implementado:** directiva anti-biomecanica anadida a la regla ACCION Y EMOCION del SYSTEM del matcher (describe por intencion+resultado, nunca por mecanica articular) + detector determinista `findOvermechanicalActions` en `acting.ts` (marca sentido de rotacion, grados, mano-estabiliza-mano, articulacion/musculo nombrados; marcador set disjunto de los gestos buenos de P14) + warning no bloqueante en `validators.ts` (regla 11, prefijo "actuacion: sobre-mecanica"). Warning-only, no reescribe. Diseno/plan en `docs/superpowers/`; suite 418/418, review amplio limpio. El analisis de brecha de abajo refleja el estado PRE-implementacion y se conserva como racional.
 - **Evidencia en el producto:** `lib/prompt-director/format-matcher.ts:256-302 (scenePrompt: dirige la accion por su intencion/resultado visible en terminologia de cine, ej. 'she lifts the can to camera. she takes a sip and nods. the can rests, label forward' — el QUE-se-ve, no biomecanica articular)`; `lib/prompt-director/format-matcher.ts:274-277 (MOVIMIENTO DE ELEMENTOS: nombra direccion explicita forward/backward/up/down del desplazamiento; resultado observable, no mecanica muscular)`; `lib/prompt-director/format-matcher.ts:285-287 (EMOCION: una sola dominante por toma, 'no apiles senales... que sale falso' — evita sobre-especificar)`; `lib/prompt-director/compilers/seedance.ts:108-122 (toTimeline reparte 1 beat por ~4s; antes partia por cada coma y trababa el video por exceso de micro-instrucciones)`; `lib/prompt-director/antislop.ts:6-47 (stripSlop limpia adjetivos vacios y keyword-soup, paso final de todo compiler — pero NO ataca sobre-mecanica biomecanica)`
 - **Brecha / mejora posible:** El SYSTEM prompt del matcher ya MODELA por ejemplo el punto optimo (intencion + resultado en terminologia de cine), pero no existe una REGLA EXPLICITA anti-biomecanica. No hay (1) instruccion en el SYSTEM que prohiba describir la mecanica articulacion-por-articulacion ('mano derecha rota la tapa en sentido antihorario mientras la otra estabiliza'), ni (2) una red determinista en el compiler/antislop que detecte y limpie sobre-mecanica si el brief del usuario la introduce o el LLM la genera. El antislop solo ataca adjetivos vacios y keyword-soup, no over-specification fisica. Resultado: si un brief trae biomecanica detallada, hoy pasa intacta y puede producir artefactos. El balance correcto (ni demasiado abstracto -P14- ni demasiado mecanico) se logra hoy por buen ejemplo, no por contrato verificable.
 - **Adaptacion propuesta (nuestro stack):** Cerrar el principio en las dos capas del Prompt Director: (1) Capa de IDEA (estocastica): anadir una directiva corta al SYSTEM de format-matcher.ts junto a las reglas de DIRECCION DE CAMARA/MOVIMIENTO DE ELEMENTOS: 'Describe la accion por su INTENCION y RESULTADO visible (destapa la botella, la deja en la mesa), NUNCA por su biomecanica articular (que mano rota, en que sentido, que musculo estabiliza); el modelo resuelve el COMO con su prior fisico. Sobre-detallar la mecanica produce artefactos.' Reusa el patron de ejemplo concreto ya presente (lift/sip/rest). (2) Capa de OFICIO (determinista, pura): anadir una red de saneo determinista (similar a stripSlop/normalizeSceneTimeline PD-11) que detecte marcadores de sobre-mecanica en el scenePrompt — frases tipo 'rotates clockwise/counterclockwise', 'with the right hand while the left stabilizes', 'flexes/extends the wrist', grados de rotacion ('90-degree'), 'joint by joint' — y las colapse a la accion-resultado o emita un warning suave en validators.ts (regla no bloqueante, como los 9 checks de producibilidad). Esto sigue la leccion feedback_fix_generator_not_output: arreglar el generador determinista, no hand-patch del output. Documentarlo como PD-16 en docs/prompt-director-propuestas.md y cubrirlo con tests en prompt-director.test.ts (mismo input -> mismo output), sin llamar APIs reales.

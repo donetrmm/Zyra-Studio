@@ -2,7 +2,7 @@
 
 # REPORTE: Workflow de video de Higgsfield vs 1to1 Studio
 
-## Estado de implementacion (actualizado 2026-06-23)
+## Estado de implementacion (actualizado 2026-06-24)
 
 **Tanda P0 IMPLEMENTADA y en `development`.** Los tres principios de direccion de mayor
 impacto/menor costo ya viven en el codigo (no clonan Higgsfield; adaptados a nuestro
@@ -32,13 +32,17 @@ es un regex COMPARTIDO (exportado de `acting.ts`, usado por `audioDirection`) co
 es/en, cerrando tambien el riesgo de divergencia entre los dos detectores (commit
 `872d769`). El render real esta bloqueado solo por saldo de AtlasCloud (402), no por codigo.
 
-### Siguiente: tanda P1 (cablear datos al flujo de campana)
+### Tanda P1 (en progreso)
 
-Con P0 cerrado, lo siguiente son los P1: ya requieren migraciones aditivas y/o UI, pero
-reusan QStash/creditos/RLS existentes.
+- **P14b Accion como intencion+resultado (S) — IMPLEMENTADO (2026-06-24).** Directiva
+  anti-biomecanica en el SYSTEM del matcher + detector determinista
+  `findOvermechanicalActions` (`acting.ts`) que AVISA via regla 11 de `validators.ts`
+  (warning-only, marcador set disjunto de los gestos buenos de P14). Diseno/plan:
+  `docs/superpowers/{specs,plans}/2026-06-24-p14b-accion-intencion-resultado*`. Commits
+  `14e1629..bf6ae62` en `development`, suite 418/418, review amplio limpio.
 
-- **P14b Accion como intencion+resultado (S)** — directiva anti-biomecanica en el matcher
-  + saneo determinista. Es el seguimiento mas barato de P0 (misma capa, effort S).
+Lo que falta de P1 (ya requieren migraciones aditivas y/o UI, pero reusan
+QStash/creditos/RLS existentes):
 - **P16 Pista musical en campana (M)** — llenar `audioRefPath` en el flujo de campana
   (hoy `index.ts:71` lo fuerza a undefined); el smoke lo subrayo (escenas festivas piden
   cama musical). Feature latente de alto valor para coreografia/dance.
@@ -47,9 +51,9 @@ reusan QStash/creditos/RLS existentes.
 - **P13 Bloqueo geo-espacial (M)** — posiciones relativas entre sujetos/entorno.
 - **P11 Style block editable por pieza (M)** — re-estilizar una campana desde un punto.
 
-Recomendacion de arranque: **P14b** (cierra la direccion de actuacion, effort S, misma
-arquitectura ya validada) y en paralelo **P16** (alto valor, conecta con el hueco de audio
-que el smoke ya mostro).
+Con P14b cerrado, el siguiente arranque recomendado es **P16** (pista musical, alto valor,
+conecta con el hueco de audio que el smoke ya mostro) — en su propio spec, por ser un
+feature transversal (storage + DB + UI + propagacion).
 
 ## 1. Resumen ejecutivo
 
@@ -86,7 +90,7 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P14 Coreografia verbal (no etiquetas abstractas) | IMPLEMENTADO | P0 | M | Regla en el matcher para expandir verbos abstractos en micro-acciones + detector determinista de no-expansion. |
 | P20 Restraint en actuacion por defecto | IMPLEMENTADO | P0 | S | Directiva determinista de contencion por defecto, condicional a emocion alta declarada. |
 | P21 Movimientos de camara motivados | IMPLEMENTADO | P0 | S | Regla "camara estatica salvo beat que la justifique" + warning determinista por tramo. |
-| P14b Accion como intencion+resultado (no biomecanica) | PARTIAL | P1 | S | Directiva anti-biomecanica + red de saneo que colapsa mecanica articular. |
+| P14b Accion como intencion+resultado (no biomecanica) | IMPLEMENTADO | P1 | S | Directiva anti-biomecanica en el matcher + detector findOvermechanicalActions que avisa (warning-only, sin reescribir). |
 | P12 Estructura CUT con beats de actuacion | PARTIAL | P1 | M | Beat de actuacion por tramo + bajar umbral de timeline a 5s + validador de plano/movimiento. |
 | P16 Pista musical para sincronia de beat | PARTIAL | P1 | M | Llevar `audioRefPath` al flujo de campana, propagar la pista a todos los clips de la secuencia. |
 | P13 Bloqueo geo-espacial | MISSING | P1 | M | Campo `blocking` por escena + seccion CRAFT determinista + re-inyeccion entre cortes. |
