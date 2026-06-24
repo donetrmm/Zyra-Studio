@@ -199,5 +199,14 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
     }
   }
 
+  // 13. Vista única del producto (P01): con una sola imagen de referencia, I2V/R2V
+  // deriva la geometría del producto (no tiene estructura 3D que anclar). Warning ->
+  // el usuario genera un 3/4 en el Brand Kit (botón en BrandKitsPage).
+  if (ctx.product?.imagePaths?.length === 1) {
+    warnings.push(
+      'producto: vista única — riesgo de deriva geométrica en I2V/R2V; genera un 3/4 en el Brand Kit',
+    );
+  }
+
   return { errors, warnings };
 }

@@ -49,3 +49,24 @@ describe('validators P12 — estructura por tramo', () => {
     expect(w.some((x) => x.startsWith('cámara: tramo'))).toBe(false);
   });
 });
+
+describe('validators P01 — vista única del producto', () => {
+  function warnFor(product: DirectorContext['product']): string[] {
+    return validate(
+      { modelSlug: 'seedance-2', scenePrompt: 'the product on a clean table' } as CompileRequest,
+      { product } as DirectorContext,
+    ).warnings;
+  }
+  it('avisa cuando el producto tiene una sola imagen', () => {
+    const w = warnFor({ name: 'Serum', imagePaths: ['ws/a.png'] });
+    expect(w.some((x) => x.startsWith('producto:'))).toBe(true);
+  });
+  it('no avisa con 2+ imágenes', () => {
+    const w = warnFor({ name: 'Serum', imagePaths: ['ws/a.png', 'ws/b.png'] });
+    expect(w.some((x) => x.startsWith('producto:'))).toBe(false);
+  });
+  it('no avisa sin producto', () => {
+    const w = warnFor(undefined);
+    expect(w.some((x) => x.startsWith('producto:'))).toBe(false);
+  });
+});
