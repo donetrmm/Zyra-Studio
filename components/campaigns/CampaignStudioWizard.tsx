@@ -44,6 +44,12 @@ function readAudioDuration(file: File): Promise<number> {
     el.preload = 'metadata';
     el.onloadedmetadata = () => {
       URL.revokeObjectURL(url);
+      // Audio malformado/streamed puede dar NaN o Infinity: tratarlo como
+      // ilegible (el guard de 15s no debe dejarlo pasar por NaN > 15 === false).
+      if (!Number.isFinite(el.duration)) {
+        reject(new Error('duración no finita'));
+        return;
+      }
       resolve(el.duration);
     };
     el.onerror = () => {
