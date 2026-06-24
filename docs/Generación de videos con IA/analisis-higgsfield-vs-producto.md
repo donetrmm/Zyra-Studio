@@ -57,6 +57,24 @@ QStash/creditos/RLS existentes):
 - **P13 Bloqueo geo-espacial (M)** — posiciones relativas entre sujetos/entorno.
 - **P11 Style block editable por pieza (M)** — re-estilizar una campana desde un punto.
 
+### Backlog externo (no-Higgsfield)
+
+Ideas destiladas de otras fuentes, adaptadas al stack (principio: extraer el porque,
+descartar el artefacto).
+
+- **AM Manifiesto de assets con descripcion de uso (M)** — fuente: skill `brand-research`
+  de goose-skills (gooseworks-ai/goose-skills). Hoy las `media_references` se eligen por
+  rol/orden; anotar cada imagen de producto/marca con su PROPOSITO ("frente 3/4 en blanco",
+  "en mano lifestyle", "empaque") permitiria al matcher/compiler elegir la vista correcta
+  POR INTENCION por escena, en vez de adivinar por filename/orden. Extiende **P01** (hoja
+  multi-vista de producto, hoy parcial). Fit limpio: un campo de descripcion en
+  `media_references` + uso en el inventory/compiler. Bajo costo, sin nuevos servicios.
+- **(radar) QC sobre la salida** — fuente: skill `verify-product-image` de goose-skills.
+  Gate post-generacion del output (producto correcto, texto no distorsionado, color
+  on-brand) antes de mostrar/encadenar. Red de seguridad opcional; tradeoff: requiere un
+  paso de vision (LLM extra = costo/latencia) y roza la leccion "arregla el generador, no
+  la salida". Tener en el radar, no accionar aun.
+
 Con P14b y P16 cerrados, el siguiente arranque recomendado es **P12 + P19** (beats de
 actuacion y densidad por ritmo), que extienden la misma capa de direccion ya validada.
 
