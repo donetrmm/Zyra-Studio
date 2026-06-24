@@ -104,6 +104,9 @@ export type CampaignContext = {
   characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }>;
   // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
   language: 'es' | 'en';
+  // P16: storage path de la pista de referencia de ritmo (media_reference
+  // type='audio'). undefined cuando la campaña no tiene pista.
+  audioRefPath?: string;
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -169,6 +172,8 @@ export async function loadCampaignContext(
     // Toggle del wizard (migración 032): false = el empaque del kit no viaja
     // al modelo. undefined (callers viejos) se trata como true.
     include_packaging?: boolean | null;
+    // P16: media_reference id de la pista de referencia de ritmo.
+    music_ref_id?: string | null;
   },
   characterIds: string[],
 ): Promise<CampaignContext> {
@@ -231,6 +236,12 @@ export async function loadCampaignContext(
     }
   }
 
+  let audioRefPath: string | undefined;
+  if (campaign.music_ref_id) {
+    const audioMap = await resolvePaths(supabase, workspaceId, [campaign.music_ref_id]);
+    audioRefPath = audioMap.get(campaign.music_ref_id);
+  }
+
   return {
     productName: brief.productName ?? 'the product',
     visualDetails: brief.visualDetails,
@@ -239,6 +250,7 @@ export async function loadCampaignContext(
     packagingImagePaths,
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
+    audioRefPath,
   };
 }
 
@@ -277,6 +289,7 @@ export function directorContextFor(
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,
     language: ctx.language,
+    audioRefPath: ctx.audioRefPath,
   };
 }
 
@@ -609,6 +622,7 @@ export async function enqueueBatch(params: {
     product_brief: Record<string, unknown> | null;
     language?: string | null;
     include_packaging?: boolean | null;
+    music_ref_id?: string | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;

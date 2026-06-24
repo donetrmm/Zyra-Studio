@@ -1235,7 +1235,7 @@ export async function generateItemAction(
   // reusando el orquestador para un único item.
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, brand_kit_id, product_brief, language, include_packaging')
+    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id')
     .eq('id', item.campaign_id as string)
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
@@ -1275,6 +1275,7 @@ export async function generateItemAction(
       product_brief: campaign.product_brief as Record<string, unknown> | null,
       language: campaign.language as string | null,
       include_packaging: campaign.include_packaging as boolean | null,
+      music_ref_id: (campaign.music_ref_id as string | null) ?? null,
     },
     items: [{ ...item, status: 'planned' }] as never,
     formats: formatsMap as never,
@@ -1302,7 +1303,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -1346,6 +1347,7 @@ export async function approveBatchAction(
       product_brief: campaign.product_brief as Record<string, unknown> | null,
       language: campaign.language as string | null,
       include_packaging: campaign.include_packaging as boolean | null,
+      music_ref_id: (campaign.music_ref_id as string | null) ?? null,
     },
     items: itemRows as never,
     formats: formatsMap,
@@ -2194,10 +2196,10 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id)')
     .eq('id', itemId)
     .single();
-  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null } } | null)?.campaigns;
+  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null } } | null)?.campaigns;
   if (!item || camp?.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
 
   let format: FormatDirection | undefined;
@@ -2228,6 +2230,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
       product_brief: (camp.product_brief as Record<string, unknown> | null) ?? null,
       language: (camp.language as string | null) ?? null,
       include_packaging: camp.include_packaging ?? null,
+      music_ref_id: (camp.music_ref_id as string | null) ?? null,
     },
     charIds,
   );
