@@ -239,7 +239,8 @@ const SUMMARY_LANGUAGE: Record<'es' | 'en', string> = {
 const SYSTEM = `Eres director creativo de una plataforma de anuncios con IA.
 Recibes ideas de campaña en lenguaje natural y un catálogo de formatos.
 Por cada idea distinta devuelve un match:
-- Si encaja en un formato del catálogo: formatId con su id exacto y customFormat null.
+- Si encaja en un formato del catálogo: formatId con su slug EXACTO (la cadena
+  corta tras "slug=", no el id largo) y customFormat null.
 - Si NO encaja: formatId null y customFormat con EXACTAMENTE estas claves
   (claves en inglés, valores en español):
   {"slug":"kebab-case-sin-acentos","name":"Nombre del formato","description":"una línea: qué es",
@@ -482,31 +483,22 @@ async function requestMatch(input: {
     );
   }
 
-  // Saneo: formatId debe existir en el catálogo recibido; si no, null.
+  // Saneo del formatId contra el catálogo. El modelo reproduce mal los UUID
+  // (sobre todo en ideas multi-escena, más largas) y a veces devuelve el slug;
+  // aceptamos id O slug y normalizamos al UUID canónico. Sin esto, un formatId no
+  // exacto sin customFormat se descartaba en silencio aguas abajo → sin_match.
   // characterIds se filtra contra el pool y se recorta a 3 máximo.
   const known = new Set(input.formats.map((f) => f.id));
+  const idBySlug = new Map(input.formats.map((f) => [f.slug, f.id]));
   const knownCharacters = new Set((input.characters ?? []).map((c) => c.id));
-  // [P16-DIAG] temporal: ver QUÉ devuelve el modelo en formatId vs el catálogo,
-  // para decidir el fix del sin_match en ideas multi-escena. Quitar tras confirmar.
-  console.warn(
-    '[P16-DIAG matcher]',
-    JSON.stringify({
-      catalog: input.formats.map((f) => ({ id: f.id, slug: f.slug })),
-      rawMatches: matches.map((m) => ({
-        formatId: m.formatId,
-        knownById: m.formatId ? known.has(m.formatId) : false,
-        knownBySlug: m.formatId ? input.formats.some((f) => f.slug === m.formatId) : false,
-        hasCustomFormat: !!m.customFormat,
-        customSlug: m.customFormat?.slug ?? null,
-        blocker: m.blocker,
-        scenes: m.scenes.length,
-      })),
-    }),
-  );
   return {
     matches: matches.map((m) => ({
       ...m,
-      formatId: m.formatId && known.has(m.formatId) ? m.formatId : null,
+      formatId: m.formatId
+        ? known.has(m.formatId)
+          ? m.formatId
+          : (idBySlug.get(m.formatId) ?? null)
+        : null,
       characterIds: [...new Set(m.characterIds.filter((id) => knownCharacters.has(id)))].slice(0, 3),
     })),
   };

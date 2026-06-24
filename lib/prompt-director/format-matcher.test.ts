@@ -220,6 +220,18 @@ describe('matchIdeas', () => {
     expect(res.matches[0].formatId).toBeNull(); // saneado a custom pendiente o null
   });
 
+  it('resuelve formatId cuando el modelo devuelve el slug en vez del id', async () => {
+    // El modelo reproduce mal los UUID (sobre todo en ideas multi-escena) y a
+    // veces devuelve el slug. Resolver por slug evita el descarte silencioso que
+    // dejaba el plan en sin_match.
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'una revelación', formatId: 'el-descubrimiento', customFormat: null }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'una revelación', formats: FORMATS });
+    expect(res.matches[0].formatId).toBe('f1'); // 'el-descubrimiento' es el slug de f1
+  });
+
   it('devuelve characterIds saneados contra el pool', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
       matches: [{
