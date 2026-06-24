@@ -68,13 +68,15 @@ QStash/creditos/RLS existentes):
 Ideas destiladas de otras fuentes, adaptadas al stack (principio: extraer el porque,
 descartar el artefacto).
 
-- **AM Manifiesto de assets con descripcion de uso (M)** — fuente: skill `brand-research`
-  de goose-skills (gooseworks-ai/goose-skills). Hoy las `media_references` se eligen por
-  rol/orden; anotar cada imagen de producto/marca con su PROPOSITO ("frente 3/4 en blanco",
-  "en mano lifestyle", "empaque") permitiria al matcher/compiler elegir la vista correcta
-  POR INTENCION por escena, en vez de adivinar por filename/orden. Extiende **P01** (hoja
-  multi-vista de producto, hoy parcial). Fit limpio: un campo de descripcion en
-  `media_references` + uso en el inventory/compiler. Bajo costo, sin nuevos servicios.
+- **AM Manifiesto de assets con descripcion de uso (M) — IMPLEMENTADO (2026-06-24).** Fuente:
+  skill `brand-research` de goose-skills. Columna `media_references.usage_description` (migración
+  044, aplicada) + `setReferenceUsageAction` (auto-set "three-quarter view" en el 3/4 de P01 +
+  input manual por imagen en el Brand Kit); el orchestrator resuelve el uso a un mapa
+  `ProductInventory.imageUsages` (sin cambiar `imagePaths`) y el compiler cita cada referencia por
+  su propósito ("@image2 … shown here as three-quarter view") + un hint "SAME single product" con
+  2+ vistas. Solo producto en v1; sin AI-suggest. Diseño/plan:
+  `docs/superpowers/{specs,plans}/2026-06-24-am-manifiesto-assets-uso*`. Commits `779f6da..83fc16d`,
+  review amplio limpio.
 - **(radar) QC sobre la salida** — fuente: skill `verify-product-image` de goose-skills.
   Gate post-generacion del output (producto correcto, texto no distorsionado, color
   on-brand) antes de mostrar/encadenar. Red de seguridad opcional; tradeoff: requiere un
@@ -89,9 +91,9 @@ Diseño/plan: `docs/superpowers/{specs,plans}/2026-06-24-p01-hoja-multivista-pro
 Commits `7599640..297b1e4`, review amplio limpio. Corrige el catálogo: el motor generativo
 ya existía (estaba marcado ausente).
 
-Lo que queda del **cluster de assets** es **AM** (manifiesto con uso, ahora con varias vistas
-que diferenciar gracias a P01) y **P05** (variantes de estado). Lo que queda de P1 directo es
-**P13** (bloqueo geo-espacial) y **P11** (style block editable).
+Con P01 y AM cerrados, lo que queda del **cluster de assets** es **P05** (variantes de estado, el
+más complejo: tabla nueva + integración matcher + relajar `humanRealismDirective`). Lo que queda de
+P1 directo es **P13** (bloqueo geo-espacial) y **P11** (style block editable).
 
 ## 1. Resumen ejecutivo
 
