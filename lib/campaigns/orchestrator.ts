@@ -107,6 +107,8 @@ export type CampaignContext = {
   // P16: storage path de la pista de referencia de ritmo (media_reference
   // type='audio'). undefined cuando la campaña no tiene pista.
   audioRefPath?: string;
+  // AM: uso por imagen de producto (path -> "three-quarter view"). Opcional.
+  productImageUsages?: Record<string, string>;
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -124,6 +126,27 @@ async function resolvePaths(
   for (const row of data ?? []) {
     if (row.workspace_id === workspaceId && row.storage_url) {
       map.set(row.id as string, row.storage_url as string);
+    }
+  }
+  return map;
+}
+
+// AM: resuelve usage_description por media_reference id (validando workspace).
+// Dedicado para no tocar resolvePaths (compartido por cast/locacion).
+async function resolveUsages(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  ids: string[],
+): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { data } = await supabase
+    .from('media_references')
+    .select('id, usage_description, workspace_id')
+    .in('id', ids);
+  const map = new Map<string, string>();
+  for (const row of data ?? []) {
+    if (row.workspace_id === workspaceId && row.usage_description) {
+      map.set(row.id as string, row.usage_description as string);
     }
   }
   return map;
@@ -186,6 +209,7 @@ export async function loadCampaignContext(
 
   let productImagePaths: string[] = [];
   let packagingImagePaths: string[] = [];
+  const productImageUsages: Record<string, string> = {};
   if (campaign.brand_kit_id) {
     const { data: kit } = await supabase
       .from('brand_kits')
@@ -203,6 +227,12 @@ export async function loadCampaignContext(
       const paths = await resolvePaths(supabase, workspaceId, [...productIds, ...packagingIds]);
       productImagePaths = productIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
       packagingImagePaths = packagingIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+      const usages = await resolveUsages(supabase, workspaceId, productIds);
+      for (const id of productIds) {
+        const path = paths.get(id);
+        const usage = usages.get(id);
+        if (path && usage) productImageUsages[path] = usage;
+      }
     }
   }
 
@@ -248,6 +278,7 @@ export async function loadCampaignContext(
     palette: brief.palette,
     productImagePaths,
     packagingImagePaths,
+    productImageUsages,
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
@@ -278,6 +309,7 @@ export function directorContextFor(
       visualDetails: ctx.visualDetails,
       palette: ctx.palette,
       imagePaths: ctx.productImagePaths,
+      imageUsages: ctx.productImageUsages,
       packagingImagePaths: format?.required_refs.includes('packaging')
         ? ctx.packagingImagePaths
         : undefined,

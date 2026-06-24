@@ -30,3 +30,18 @@ describe('directorContextFor — audioRefPath (P16)', () => {
     expect(dc.audioRefPath).toBeUndefined();
   });
 });
+
+describe('directorContextFor — productImageUsages (AM)', () => {
+  it('propaga productImageUsages al imageUsages del producto (AM)', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum',
+      productImagePaths: ['ws/a.png', 'ws/b.png'],
+      productImageUsages: { 'ws/b.png': 'three-quarter view' },
+      packagingImagePaths: [],
+      characters: new Map(),
+      language: 'es',
+    };
+    const dc = directorContextFor(item, null, ctx);
+    expect(dc.product?.imageUsages).toEqual({ 'ws/b.png': 'three-quarter view' });
+  });
+});
