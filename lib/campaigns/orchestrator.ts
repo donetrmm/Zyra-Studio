@@ -876,9 +876,13 @@ export async function enqueueBatch(params: {
     // quitó del dirCtx del compile). El cast lo cita el compiler (@image1..N); producto
     // y panel se citan en extraCitation.
     const storyboardProductRefs = useR2V ? (baseDirCtx.product?.imagePaths ?? []).slice(0, 2) : [];
-    const { referenceImagePaths: castR2VRefs, extraCitation } = useR2V
-      ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string)
-      : { referenceImagePaths: [] as string[], extraCitation: '' };
+    // P16: la música (audioRefPath) no está en el panel; se toma del contexto
+    // base ANTES de onlyCharacterRefs (que lo quitó del dirCtx del compile) y se
+    // re-ancla solo en beats R2V (reference2video la soporta; image2video no).
+    const storyboardAudioRef = useR2V ? baseDirCtx.audioRefPath : undefined;
+    const { referenceImagePaths: castR2VRefs, referenceAudioPaths: castR2VAudios, extraCitation } = useR2V
+      ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string, storyboardAudioRef)
+      : { referenceImagePaths: [] as string[], referenceAudioPaths: [] as string[], extraCitation: '' };
     // Manijas de entrada/salida solo en clips de storyboard (independientes): puntos
     // de corte limpios para montaje en post.
     const storyboardPrompt =
@@ -914,6 +918,7 @@ export async function enqueueBatch(params: {
               // cast (@image1..N) + panel (@image{N+1}) como reference_image.
               operation: 'reference2video',
               referenceImagePaths: castR2VRefs,
+              referenceAudioPaths: castR2VAudios,
               aspectRatio: p.aspectRatio,
               resolution,
               duration: durationS,
