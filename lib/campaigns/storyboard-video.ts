@@ -1,5 +1,7 @@
 // Helpers puros del video desde storyboard (modo B). El orquestador hace el IO.
 
+import { AUDIO_BEAT_SYNC_CITATION } from '../prompt-director/compilers/seedance';
+
 // Manijas de edición: clips independientes (sin encadenar) necesitan puntos de
 // corte limpios para montarse en post. Se pide abrir en el fotograma inicial
 // sostenido un instante y cerrar en un fotograma estable y casi quieto → entradas
@@ -56,7 +58,7 @@ export function buildCastR2VRefs(
   // propio contador, separado de @image1..N, igual que el compiler normal.
   const referenceAudioPaths = audioRef ? [audioRef] : [];
   if (audioRef) {
-    extraCitation += ' @audio1 sets the background audio mood and rhythm; sync scene energy to its beats.';
+    extraCitation += ` ${AUDIO_BEAT_SYNC_CITATION}`;
   }
   return { referenceImagePaths, referenceAudioPaths, extraCitation };
 }

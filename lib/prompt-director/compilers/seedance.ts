@@ -29,6 +29,13 @@ const NEGATIVE_CLAUSE =
 // contradice con la referencia y la dirección de lip-sync → degrada la cara.
 const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
 
+// Directiva de beat-sync del audio de referencia. Fuente única: la cita el compiler
+// normal (rama @audio1) y la rama R2V del storyboard (buildCastR2VRefs) para que la
+// dirección de música sea idéntica en todo el producto. Sin espacio inicial: el
+// compiler la usa como línea propia; el storyboard antepone el espacio al concatenar.
+export const AUDIO_BEAT_SYNC_CITATION =
+  '@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.';
+
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
 // La dirección de voz natural (cadencia, pausas, anti-locutor) viene del
@@ -259,7 +266,7 @@ export function buildReferences(ctx: DirectorContext): {
   // Audio de referencia: mood y ritmo.
   if (ctx.audioRefPath) {
     references.push({ storagePath: ctx.audioRefPath, kind: 'audio', role: 'audio_rhythm' });
-    lines.push('@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.');
+    lines.push(AUDIO_BEAT_SYNC_CITATION);
   }
 
   if (references.length > 12) {
