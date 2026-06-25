@@ -790,7 +790,8 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     parsed.data.durationS !== undefined ||
     parsed.data.aspectRatio !== undefined ||
     parsed.data.characterId !== undefined ||
-    parsed.data.characterIds !== undefined;
+    parsed.data.characterIds !== undefined ||
+    parsed.data.characterStateHint !== undefined;
   if (touchesProduction && !['planned', 'skipped', 'failed'].includes(item.status as string)) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
@@ -831,6 +832,9 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     patch.scheduled_date = parsed.data.scheduledDate.toISOString().slice(0, 10);
   }
   if (parsed.data.caption !== undefined) patch.caption = parsed.data.caption;
+  if (parsed.data.characterStateHint !== undefined) {
+    patch.character_state_hint = parsed.data.characterStateHint; // null limpia a neutral
+  }
   if (touchesProduction) patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
 
   // Devolver el status REAL post-update (no el snapshot pre-lectura): en una

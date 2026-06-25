@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateCampaignStudioSchema } from './campaigns';
+import { CreateCampaignStudioSchema, UpdateCampaignItemSchema } from './campaigns';
 
 // NOTE: zod v4 enforces strict RFC 9562 UUID validation (version nibble [1-8],
 // variant nibble [89ab]). The brief used all-repeated-digit UUIDs which fail
@@ -20,5 +20,21 @@ describe('CreateCampaignStudioSchema — musicRefId', () => {
   });
   it('es opcional (sin musicRefId sigue siendo válido)', () => {
     expect(CreateCampaignStudioSchema.safeParse(base).success).toBe(true);
+  });
+});
+
+describe('UpdateCampaignItemSchema — characterStateHint (P05)', () => {
+  const id = '00000000-0000-4000-8000-000000000000';
+  it('acepta un label de estado', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterStateHint: 'sudado' });
+    expect(r.success).toBe(true);
+  });
+  it('acepta null (limpiar a neutral)', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterStateHint: null });
+    expect(r.success).toBe(true);
+  });
+  it('rechaza un valor no string|null', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterStateHint: 123 });
+    expect(r.success).toBe(false);
   });
 });

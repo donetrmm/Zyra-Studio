@@ -189,6 +189,8 @@ export const CampaignItemSchema = z.object({
 
 export const UpdateCampaignItemSchema = CampaignItemSchema.partial().extend({
   itemId: z.string().uuid(),
+  // P05 clip único: fijar/limpiar el estado del item a mano. null = neutral.
+  characterStateHint: z.string().trim().nullable().optional(),
 });
 
 export const MergeSequenceSchema = z.object({
