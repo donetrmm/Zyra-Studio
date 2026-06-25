@@ -45,3 +45,25 @@ describe('directorContextFor — productImageUsages (AM)', () => {
     expect(dc.product?.imageUsages).toEqual({ 'ws/b.png': 'three-quarter view' });
   });
 });
+
+describe('directorContextFor — character_state_hint (P05)', () => {
+  it('sustituye el master por la variante de estado y setea stateLabel (P05)', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png',
+        angleImagePaths: [], states: { sudado: 'ws/sweaty.png' },
+      }]]),
+      language: 'es',
+    };
+    const sweaty = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: 'sudado' } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc = directorContextFor(sweaty, null, ctx);
+    expect(dc.characters?.[0].masterImagePath).toBe('ws/sweaty.png');
+    expect(dc.characters?.[0].stateLabel).toBe('sudado');
+
+    const neutral = { id: 'i2', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc2 = directorContextFor(neutral, null, ctx);
+    expect(dc2.characters?.[0].masterImagePath).toBe('ws/master.png');
+    expect(dc2.characters?.[0].stateLabel).toBeUndefined();
+  });
+});

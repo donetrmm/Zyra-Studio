@@ -57,6 +57,9 @@ export type CharacterInventory = {
   description: string;
   masterImagePath: string;
   angleImagePaths?: string[];
+  // P05: label del estado fisico activo en ESTA escena (sudado/mojado/...). Cuando
+  // existe, masterImagePath es la variante de estado y el compiler usa su vestuario.
+  stateLabel?: string;
 };
 
 export type DirectorContext = {

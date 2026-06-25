@@ -103,7 +103,7 @@ export type CampaignContext = {
   palette?: string[];
   productImagePaths: string[];
   packagingImagePaths: string[];
-  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }>;
+  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string> }>;
   // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
   language: 'es' | 'en';
   // P16: storage path de la pista de referencia de ritmo (media_reference
@@ -238,7 +238,7 @@ export async function loadCampaignContext(
     }
   }
 
-  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }>();
+  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string> }>();
   if (characterIds.length) {
     const { data: rows } = await supabase
       .from('characters')
@@ -265,6 +265,22 @@ export async function loadCampaignContext(
           angleImagePaths,
         });
       }
+    }
+  }
+
+  // P05: cargar variantes de estado de cada personaje (character_states) y
+  // resolver state_image_id → path. Se mezclan en el Map de characters.
+  const charIds = [...characters.keys()];
+  if (charIds.length) {
+    const { data: stRows } = await supabase
+      .from('character_states').select('character_id, label, state_image_id')
+      .in('character_id', charIds);
+    const stImgIds = (stRows ?? []).map((r) => r.state_image_id as string | null).filter((x): x is string => !!x);
+    const stPaths = await resolvePaths(supabase, workspaceId, stImgIds);
+    for (const r of stRows ?? []) {
+      const ent = characters.get(r.character_id as string);
+      const path = (r.state_image_id as string | null) ? stPaths.get(r.state_image_id as string) : undefined;
+      if (ent && path) { (ent.states ??= {})[r.label as string] = path; }
     }
   }
 
@@ -295,15 +311,20 @@ export function directorContextFor(
   extraImagePaths?: string[],
   location?: { name?: string; description?: string; imagePaths: string[] },
 ): DirectorContext {
+  const stateHint = (item.character_state_hint as string | null) ?? null;
   const characters = itemCharacterIds(item)
     .map((id) => ctx.characters.get(id))
     .filter((c): c is NonNullable<typeof c> => !!c)
-    .map((c) => ({
-      name: c.name,
-      description: c.description,
-      masterImagePath: c.masterImagePath,
-      angleImagePaths: c.angleImagePaths,
-    }));
+    .map((c) => {
+      const statePath = stateHint ? c.states?.[stateHint] : undefined;
+      return {
+        name: c.name,
+        description: c.description,
+        masterImagePath: statePath ?? c.masterImagePath,
+        angleImagePaths: c.angleImagePaths,
+        ...(statePath ? { stateLabel: stateHint as string } : {}),
+      };
+    });
   return {
     format: format ? fromFormatRow(format) : undefined,
     product: {
