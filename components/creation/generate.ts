@@ -104,6 +104,21 @@ export async function editUploaded(
   return fixAsReference(res.data.generationId);
 }
 
+// Hornea una VARIANTE DE ESTADO de un personaje (P05) desde su hoja maestra,
+// vía editUploaded (la master entra como referencia). Preserva la identidad
+// EXACTA; cambia solo el estado fisico (vestuario/piel). El `state` describe el
+// estado ("wet hair and soaked clothing, sweat on the forehead").
+export async function generateCharacterState(
+  masterRef: { id: string; storagePath: string },
+  state: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Same exact face, hairstyle, build and identity as the reference person, now with ${state}. ` +
+    `Keep the person's identity perfectly consistent — only the physical state (wardrobe and skin) changes. ` +
+    `Same plain background and even studio lighting.`;
+  return editUploaded(masterRef, prompt);
+}
+
 // Vista 3/4 de un PRODUCTO (P01). El producto suele ser una foto SUBIDA, así que
 // va por editUploaded (la foto entra como referencia de Nano Banana, no como parent
 // conversacional). Rota la cámara preservando la identidad del producto; NO altera

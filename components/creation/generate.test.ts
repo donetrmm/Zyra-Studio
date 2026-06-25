@@ -6,7 +6,7 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { generateProductAngle, isGenError } from './generate';
+import { generateProductAngle, generateCharacterState, isGenError } from './generate';
 
 describe('generateProductAngle', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -36,5 +36,22 @@ describe('generateProductAngle', () => {
     const res = await generateProductAngle({ id: 'src', storagePath: 'ws/src.png' }, 'three-quarter');
     expect(isGenError(res)).toBe(true);
     if (isGenError(res)) expect(res.message).toBe('boom');
+  });
+});
+
+describe('generateCharacterState', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('hornea un estado preservando identidad vía editUploaded', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({ ok: true, data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' } });
+    const res = await generateCharacterState({ id: 'm', storagePath: 'ws/m.png' }, 'wet hair and soaked clothing, sweat on the forehead');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'nano-banana' }>).conversational).toBe(false);
+    expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
+    expect(call.prompt).toMatch(/wet hair and soaked clothing/);
+    expect(call.prompt).toMatch(/Keep the person's identity perfectly consistent/i);
   });
 });
