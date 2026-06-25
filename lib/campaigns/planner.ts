@@ -66,6 +66,9 @@ export type PlanItemDraft = {
   sequenceId: string | null;
   sceneIndex: number | null;
   sequenceLabel: string | null;
+  // Estado físico del personaje para esta escena (P05): label de character_states.
+  // null en creativos normales (un solo clip sin estado declarado).
+  characterStateHint: string | null;
 };
 
 // Presentador inventado cuando el formato pide personaje y la campaña no
@@ -291,7 +294,7 @@ export type DirectedIdea = {
   invented: Array<{ name: string; description: string }>;
   // Si la idea es un anuncio multi-escena, las escenas que el matcher propuso.
   // Vacio = idea normal (un solo clip).
-  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat' }>;
+  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat'; characterStateHint: string | null }>;
   sequenceLabel: string | null;
 };
 
@@ -374,6 +377,7 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           sequenceId,
           sceneIndex,
           sequenceLabel: idea.sequenceLabel,
+          characterStateHint: sc.characterStateHint ?? null,
         } satisfies PlanItemDraft;
       });
     }
@@ -454,6 +458,9 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         sequenceId: null,
         sceneIndex: null,
         sequenceLabel: null,
+        // Idea normal (un solo clip): sin state hint; solo las escenas de
+        // secuencia (buildDirectedPlan rama sequence) lo declaran.
+        characterStateHint: null,
       });
     }
     return items;
@@ -538,6 +545,8 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         sequenceId: null,
         sceneIndex: null,
         sequenceLabel: null,
+        // buildPlan genera creativos normales (sin secuencias): sin state hint.
+        characterStateHint: null,
       });
     }
     return items;

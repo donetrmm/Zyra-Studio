@@ -242,6 +242,7 @@ export async function generatePanelAction(
     status: item.status,
     sequence_id: item.sequence_id,
     scene_index: item.scene_index,
+    character_state_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
   };
@@ -561,6 +562,7 @@ export async function refinePanelAction(
     scene_index: item.scene_index,
     location_id: item.location_id,
     storyboard_image_id: null,
+    character_state_hint: null,
   };
 
   const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);

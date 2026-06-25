@@ -48,6 +48,8 @@ export type ItemRow = {
   // Panel de storyboard (sub-proyecto B): si no es null, el clip se genera
   // image2video desde el panel (fotograma inicial), sin encadenar.
   storyboard_image_id: string | null;
+  // Estado físico del personaje para esta escena (P05). null = sin estado declarado.
+  character_state_hint: string | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -501,7 +503,7 @@ export async function advanceSequenceChain(
 
   const { data: itemRows } = await admin
     .from('campaign_items')
-    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids')
+    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint')
     .eq('campaign_id', chain.campaignId)
     .eq('sequence_id', chain.sequenceId);
   if (!itemRows?.length) return;
