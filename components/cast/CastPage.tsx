@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, describeCharacterAction, updateCharacterAction } from '@/server-actions/cast';
+import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction } from '@/server-actions/character-states';
+import { getReferencePathsAction } from '@/server-actions/creation';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
+import { generateCharacterState, isGenError } from '@/components/creation/generate';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard } from '@/components/creation/CreationWizard';
@@ -158,6 +161,8 @@ function buildMasterPrompt(description: string): string {
   );
 }
 
+type CharacterState = { id: string; label: string; stateImageId: string | null; description: string | null };
+
 function CharacterEditor({
   character,
   previews,
@@ -184,6 +189,56 @@ function CharacterEditor({
   const [saving, startSave] = useTransition();
   const [generating, setGenerating] = useState(false);
   const [describing, setDescribing] = useState(false);
+
+  // Estados (only for existing characters with a master image)
+  const [states, setStates] = useState<CharacterState[]>([]);
+  const [statesLoaded, setStatesLoaded] = useState(false);
+  const [stateLabel, setStateLabel] = useState('');
+  const [stateDesc, setStateDesc] = useState('');
+  const [bakingState, setBakingState] = useState(false);
+
+  useEffect(() => {
+    if (!character?.id) return;
+    listCharacterStatesAction(character.id).then((res) => {
+      if (res.ok) setStates(res.data);
+      setStatesLoaded(true);
+    });
+  }, [character?.id]);
+
+  async function handleBakeState() {
+    if (!character?.id || !character.master_image_id) return;
+    if (!stateLabel.trim()) { toast.error('Escribe una etiqueta para el estado'); return; }
+    if (!stateDesc.trim()) { toast.error('Describe el estado físico'); return; }
+    setBakingState(true);
+    try {
+      const pathsRes = await getReferencePathsAction([character.master_image_id]);
+      if (!pathsRes.ok) { toast.error(pathsRes.message || 'No se pudo resolver la imagen maestra'); return; }
+      const storagePath = pathsRes.data[character.master_image_id];
+      if (!storagePath) { toast.error('La hoja maestra no tiene ruta de almacenamiento'); return; }
+      const out = await generateCharacterState({ id: character.master_image_id, storagePath }, stateDesc.trim());
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el estado'); return; }
+      const saveRes = await createCharacterStateAction({
+        characterId: character.id,
+        label: stateLabel.trim(),
+        stateImageId: out.refId,
+        description: stateDesc.trim(),
+      });
+      if (!saveRes.ok) { toast.error(saveRes.message || 'No se pudo guardar el estado'); return; }
+      toast.success('Estado generado y guardado');
+      setStateLabel('');
+      setStateDesc('');
+      const refreshRes = await listCharacterStatesAction(character.id);
+      if (refreshRes.ok) setStates(refreshRes.data);
+    } finally {
+      setBakingState(false);
+    }
+  }
+
+  async function handleDeleteState(id: string) {
+    const res = await deleteCharacterStateAction(id);
+    if (!res.ok) { toast.error(res.message || 'No se pudo borrar el estado'); return; }
+    setStates((prev) => prev.filter((s) => s.id !== id));
+  }
 
   const canSave = name.trim().length > 0 && masterImages.length === 1;
   const canGenerate = description.trim().length >= 10 && !generating;
@@ -345,6 +400,78 @@ function CharacterEditor({
           onChange={setAngleImages}
           max={2}
         />
+
+        {character?.master_image_id && (
+          <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Estados (opcional)
+              </h3>
+              <p className="mt-0.5 text-[12px] text-muted-foreground/70">
+                Variantes físicas del personaje (mojado, sudado, etc.) generadas desde la hoja maestra.
+              </p>
+            </div>
+
+            {statesLoaded && states.length > 0 && (
+              <ul className="space-y-1.5">
+                {states.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2">
+                    <div className="min-w-0">
+                      <span className="block truncate text-[12.5px] font-medium text-foreground">{s.label}</span>
+                      {s.description && (
+                        <span className="block truncate text-[11.5px] text-muted-foreground/70">{s.description}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteState(s.id)}
+                      className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                      title="Borrar estado"
+                    >
+                      <Trash2 className="size-3" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {statesLoaded && states.length === 0 && (
+              <p className="text-[12px] text-muted-foreground/50">Sin estados guardados.</p>
+            )}
+
+            <div className="space-y-2">
+              <input
+                value={stateLabel}
+                onChange={(e) => setStateLabel(e.target.value)}
+                placeholder="Etiqueta (ej. Mojado)"
+                maxLength={40}
+                disabled={bakingState}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+              <input
+                value={stateDesc}
+                onChange={(e) => setStateDesc(e.target.value)}
+                placeholder="Descripción del estado (ej. wet hair and soaked clothing, sweat on the forehead)"
+                maxLength={300}
+                disabled={bakingState}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleBakeState}
+                disabled={bakingState || !stateLabel.trim() || !stateDesc.trim()}
+                className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {bakingState ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Sparkles className="size-3.5 text-primary" aria-hidden />
+                )}
+                {bakingState ? 'Generando estado…' : 'Generar estado'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button
