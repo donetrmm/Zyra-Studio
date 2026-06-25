@@ -99,8 +99,14 @@ matcher elige de los labels conocidos por escena (sin fuzzy); el orchestrator su
 `masterImagePath` por la variante (match exacto, cae al master neutro si no matchea) y el compiler
 usa cita condicional (vestuario/piel del estado, identidad exacta). Diseño/plan:
 `docs/superpowers/{specs,plans}/2026-06-24-p05-variantes-de-estado*`. Commits `d8881ed..12def06`,
-review amplio limpio. Diferido: `humanRealismDirective` del storyboard, estado intra-cadena,
-estados de producto, Veo/Kling (la cita es Seedance-only).
+review amplio limpio. **Clip único + override manual: IMPLEMENTADO (2026-06-25).** El matcher
+infiere el estado también para ideas de un solo clip (no solo secuencias) y el editor de item
+trae un selector "Estado" para fijarlo/limpiarlo a mano (`character_state_hint` por item, mismo
+downstream). Diseño/plan: `docs/superpowers/{specs,plans}/2026-06-25-p05-estado-clip-unico*`;
+commits `6a135d7..b44c8c1`, review amplio limpio. Diferido: `humanRealismDirective` del storyboard,
+estado intra-cadena, estados de producto, Veo/Kling (la cita es Seedance-only), y que el RPC
+`merge_sequence` (036) preserve el estado al fusionar una secuencia (bug pre-existente; requiere
+migración nueva).
 
 Con esto el **cluster de pre-producción de assets (P01 + AM + P05) queda CERRADO.** Lo que queda
 de P1 directo es **P11** (style block editable); **P13** (bloqueo geo-espacial) quedó

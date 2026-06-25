@@ -365,9 +365,9 @@ Expected: PASS los dos casos.
 Añade `, character_state_hint` a la lista de columnas en:
 - `app/app/campaigns/[id]/page.tsx:47` (loader — CRÍTICO: aquí viven los items con estado inferido).
 - `server-actions/campaigns.ts:1739` (retorno de `addCampaignItem`/serie).
-- `server-actions/campaigns.ts:2331` (retorno de merge de secuencia).
+- ~~`server-actions/campaigns.ts:2331` (retorno de merge de secuencia).~~ **CORRECCIÓN (post-impl):** este sitio NO aplica — el merge devuelve la fila del RPC `merge_sequence` (migración 036), no un `.select()` de cliente. El RPC omite `character_state_hint` en su INSERT (predata la columna 045), así que fusionar una secuencia descarta el estado. Es un **bug PRE-EXISTENTE** (no de esta feature) y se **DIFIRIÓ** (decisión del usuario, 2026-06-25): arreglarlo requiere una migración nueva, contradiciendo el "sin migración" del spec. Documentado en `project_operational_followups`.
 
-(En cada uno, agrega el token al final de la cadena del `.select('… , character_state_hint')`. Sin la columna en `:47`, el estado inferido nunca llegaría al editor.)
+(Para los dos sitios que sí aplican, agrega el token al final de la cadena del `.select('… , character_state_hint')`. Sin la columna en `:47`, el estado inferido nunca llegaría al editor.)
 
 - [ ] **Step 6: `StudioCharacterOption` gana `states`**
 
