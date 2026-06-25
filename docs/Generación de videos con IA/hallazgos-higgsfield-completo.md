@@ -12,7 +12,7 @@ Todos los principios destilados del material de Higgsfield, cada uno contrastado
 
 ## Conteo
 
-Total principios: **34**. IMPLEMENTADO: **8** · Parcial (mejorable): **18** · Ausente: **3** · Ya cubierto: **5**.
+Total principios: **34**. IMPLEMENTADO: **9** · Parcial (mejorable): **18** · Ausente: **2** · Ya cubierto: **5**.
 
 ## Tabla resumen (todos)
 
@@ -21,7 +21,7 @@ Total principios: **34**. IMPLEMENTADO: **8** · Parcial (mejorable): **18** · 
 | P01 | Hoja de producto/utileria en frente + 3/4 | IMPLEMENTADO | P2 | M | assets |
 | P03 | Truco de cara limpia: una sola cara canonica en la hoja | Parcial (mejorable) | P2 | S | consistency |
 | P04 | Compositado de ropa preservando textura de piel/rostro | Parcial (mejorable) | P2 | M | assets |
-| P05 | Variantes de estado pre-generadas (seco vs mojado/sudado) | Ausente | P2 | M | assets |
+| P05 | Variantes de estado pre-generadas (seco vs mojado/sudado) | IMPLEMENTADO | P2 | M | assets |
 | P06 | Reparto de elenco por rol con modelo especializado | Ya cubierto | P2 | S | assets |
 | P07 | Locaciones en angulo 3/4 para anclar la camara | Parcial (mejorable) | P2 | S | assets |
 | P08 | Pruebas de ensayo (animatic barato) para elegir combo | Parcial (mejorable) | P2 | M | iteration |
@@ -110,7 +110,9 @@ El principio original ('una sola CARA visible de alta calidad') es mas estricto 
 
 #### P05 — Variantes de estado pre-generadas (seco vs mojado/sudado)
 
-`Ausente` · **Prioridad** P2 · **Esfuerzo** M · confianza high · **Categoria** assets · **Fuente** realistic-video-IA
+`IMPLEMENTADO` (2026-06-24) · **Prioridad** P2 · **Esfuerzo** M · confianza high · **Categoria** assets · **Fuente** realistic-video-IA
+
+- **Implementado:** tabla `character_states` (label/state_image/description, RLS member-scoped) + columna `campaign_items.character_state_hint` (migración 045, aplicada). `generateCharacterState` hornea la variante desde el master vía `editUploaded`/Nano Banana preservando identidad; UI en el Cast. El matcher elige de los labels CONOCIDOS por escena (van en el pool, sin fuzzy) → persiste en el item → el orchestrator sustituye `masterImagePath` por el `state_image_path` (match EXACTO por label, cae al master neutro si no matchea) y el compiler usa una cita condicional ("keep the exact identity AND the {label} wardrobe and skin condition shown"). La variante SUSTITUYE el master (no suma al tope de 9). Commits d8881ed..12def06, review amplio limpio. Diferido: `humanRealismDirective` del storyboard, estado intra-cadena, estados de producto, Veo/Kling (cita Seedance-only). El análisis de brecha de abajo refleja el estado PRE-implementación.
 
 - **Tecnica (Higgsfield):** Como el personaje corre, generan DOS hojas de personaje separadas (seca y sudada) en vez de pedir 'que sude' por texto.
 - **Por que funciona:** Pedir un cambio de estado fisico drastico por texto fuerza al modelo a deformar el sujeto al intentarlo; tener la variante ya horneada como referencia evita esa deformacion.

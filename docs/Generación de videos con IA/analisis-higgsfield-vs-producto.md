@@ -91,9 +91,18 @@ Diseño/plan: `docs/superpowers/{specs,plans}/2026-06-24-p01-hoja-multivista-pro
 Commits `7599640..297b1e4`, review amplio limpio. Corrige el catálogo: el motor generativo
 ya existía (estaba marcado ausente).
 
-Con P01 y AM cerrados, lo que queda del **cluster de assets** es **P05** (variantes de estado, el
-más complejo: tabla nueva + integración matcher + relajar `humanRealismDirective`). Lo que queda de
-P1 directo es **P13** (bloqueo geo-espacial) y **P11** (style block editable).
+**P05 (variantes de estado del personaje) IMPLEMENTADO (2026-06-24):** tabla `character_states`
++ columna `campaign_items.character_state_hint` (migración 045, aplicada); `generateCharacterState`
+hornea la variante (sudado/mojado) desde el master vía `editUploaded` preservando identidad; el
+matcher elige de los labels conocidos por escena (sin fuzzy); el orchestrator sustituye
+`masterImagePath` por la variante (match exacto, cae al master neutro si no matchea) y el compiler
+usa cita condicional (vestuario/piel del estado, identidad exacta). Diseño/plan:
+`docs/superpowers/{specs,plans}/2026-06-24-p05-variantes-de-estado*`. Commits `d8881ed..12def06`,
+review amplio limpio. Diferido: `humanRealismDirective` del storyboard, estado intra-cadena,
+estados de producto, Veo/Kling (la cita es Seedance-only).
+
+Con esto el **cluster de pre-producción de assets (P01 + AM + P05) queda CERRADO.** Lo que queda
+de P1 directo es **P13** (bloqueo geo-espacial) y **P11** (style block editable).
 
 ## 1. Resumen ejecutivo
 
@@ -137,7 +146,7 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P19 Densidad de cortes por ritmo dramatico | IMPLEMENTADO | P1 | M | `beatRole` (reveal/action/beat) inferido por el matcher -> `maxDurationFor` en el planner (reveal 12s/action 5s/beat 8s), sin clamp uniforme. |
 | P11 Style Prefix global editable por pieza | PARTIAL | P1 | M | `style_block` por campana/secuencia que el compiler antepone y cuya edicion re-estiliza todos los clips. |
 | P01 Hoja de producto multi-vista generada | IMPLEMENTADO | P2 | M | Boton "Generar vista 3/4" (Nano Banana via editUploaded) que agrega a `product_image_ids` (sin slot nuevo) + warning determinista con una sola vista. |
-| P05 Variantes de estado pre-generadas | MISSING | P2 | M | Tabla `character_states` con variante horneada (mojado/sudado) que sustituye al master en esa escena. |
+| P05 Variantes de estado pre-generadas | IMPLEMENTADO | P2 | M | Tabla `character_states` + variante horneada (mojado/sudado) que sustituye al master en esa escena (match exacto del hint del matcher) + cita condicional. |
 | P07 Locaciones en angulo 3/4 | PARTIAL | P2 | S | Cambiar `buildLocationPrompt` de "eye-level frontal" a placa 3/4 con lineas de fuga. |
 | P10 Imagenes definitivas nombradas al LLM | PARTIAL | P2 | S | Adjuntar locaciones al matcher, usar nombre real del producto, subir cap de 4 a ~6-8. |
 | P25 Vocabulario de camara nombrado (SnorriCam) | PARTIAL | P2 | S | Ampliar catalogo SHOTS con tecnicas firma + pasarlo al matcher como menu cerrado. |
