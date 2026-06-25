@@ -1743,7 +1743,7 @@ export async function generateSeriesAction(
       })),
     )
     .select(
-      'id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label',
+      'id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint',
     );
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
 

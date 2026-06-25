@@ -71,7 +71,7 @@ export type StudioTemplate = {
   usesCount: number;
 };
 
-export type StudioCharacterOption = { id: string; name: string };
+export type StudioCharacterOption = { id: string; name: string; states: string[] };
 export type StudioLocationOption = { id: string; name: string };
 
 export type StudioCampaign = {

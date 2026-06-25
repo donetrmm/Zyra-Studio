@@ -40,11 +40,11 @@ export default async function CampaignDetailRoute({
   // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
   // las generaciones de la campaña, no el pipeline.
   if (brief?.productName && view !== 'assets') {
-    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }] =
+    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }] =
       await Promise.all([
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint')
           .eq('campaign_id', id)
           .order('scheduled_date'),
         supabase.from('formats').select('id, name, description'),
@@ -59,6 +59,10 @@ export default async function CampaignDetailRoute({
           .select('id, name')
           .eq('workspace_id', workspace.id)
           .order('name'),
+        supabase
+          .from('character_states')
+          .select('character_id, label')
+          .eq('workspace_id', workspace.id),
       ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
@@ -78,9 +82,17 @@ export default async function CampaignDetailRoute({
       usesCount: (t.uses_count as number) ?? 0,
     }));
 
+    const statesByCharacter = new Map<string, string[]>();
+    for (const s of stateRows ?? []) {
+      const cid = s.character_id as string;
+      const arr = statesByCharacter.get(cid) ?? [];
+      arr.push(s.label as string);
+      statesByCharacter.set(cid, arr);
+    }
     const characterOptions = (characterRows ?? []).map((c) => ({
       id: c.id as string,
       name: c.name as string,
+      states: statesByCharacter.get(c.id as string) ?? [],
     }));
 
     const locationOptions: StudioLocationOption[] = (locationRows ?? []).map((l) => ({

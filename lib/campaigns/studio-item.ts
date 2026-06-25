@@ -27,6 +27,10 @@ export type StudioItem = {
   sceneIndex: number | null;
   sequenceLabel: string | null;
   locationId: string | null;
+  // P05: estado físico fijado para este item (label de un estado horneado del
+  // personaje), o null = master neutro. Lo fija el matcher (inferencia) o el
+  // usuario (override en el editor).
+  characterStateHint: string | null;
 };
 
 // Proyecta una fila cruda de campaign_items a StudioItem. Los nombres de formato
@@ -66,5 +70,6 @@ export function toStudioItem(
     sceneIndex: (row.scene_index as number | null) ?? null,
     sequenceLabel: (row.sequence_label as string | null) ?? null,
     locationId: (row.location_id as string | null) ?? null,
+    characterStateHint: (row.character_state_hint as string | null) ?? null,
   };
 }
