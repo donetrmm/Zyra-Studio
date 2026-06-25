@@ -1191,3 +1191,26 @@ describe('P20 — directiva de actuación (Veo/Kling vía video-prose)', () => {
     expect(r.compiled.prompt).not.toContain('restrained performance');
   });
 });
+
+describe('P05 — cita condicional del personaje por estado (Seedance)', () => {
+  it('con stateLabel, la cita usa el vestuario del estado (P05)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'she runs in the heat' } as CompileRequest,
+      { characters: [{ name: 'Marcela', description: 'x', masterImagePath: 'ws/sweaty.png', stateLabel: 'sudado' }] } as DirectorContext,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.compiled.prompt).toMatch(/sudado wardrobe and skin condition shown here/i);
+      expect(res.compiled.prompt).not.toMatch(/not its clothing/);
+    }
+  });
+
+  it('sin stateLabel, la cita conserva "not its clothing"', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'she smiles' } as CompileRequest,
+      { characters: [{ name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png' }] } as DirectorContext,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.compiled.prompt).toMatch(/not its clothing/);
+  });
+});

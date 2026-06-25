@@ -202,12 +202,15 @@ export function buildReferences(ctx: DirectorContext): {
   const anglesPer = characters.length >= 3 ? 0 : characters.length === 2 ? 1 : 2;
   for (const character of characters) {
     if (!character.masterImagePath) continue;
+    const stateLabel = character.stateLabel;
     pushImage(
       character.masterImagePath,
       'character',
       (n) =>
-        `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
-      'rostro, peinado y complexión; no la ropa ni el fondo',
+        stateLabel
+          ? `@image${n} is ${character.name} — keep the exact face, hair, build and identity, and the ${stateLabel} wardrobe and skin condition shown here; only the physical state may differ, never who they are.`
+          : `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
+      stateLabel ? `identidad exacta + vestuario/piel del estado ${stateLabel}` : 'rostro, peinado y complexión; no la ropa ni el fondo',
     );
     // Ángulos extra: se citan AGRUPADOS en una sola línea (no una por imagen,
     // que apilaba directivas redundantes y saturaba el prompt).
