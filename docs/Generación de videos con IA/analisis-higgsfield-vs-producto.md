@@ -49,6 +49,10 @@ es/en, cerrando tambien el riesgo de divergencia entre los dos detectores (commi
   nivel campana (se descarto `setCampaignMusicAction` por YAGNI). Diseno/plan:
   `docs/superpowers/{specs,plans}/2026-06-24-p16-pista-musical-campana*`. Commits
   `a4b2fb4..7cb5981` en `development`, suite 423/423, review amplio limpio.
+  **Storyboard (beats R2V) IMPLEMENTADO (2026-06-25):** los beats con cast (reference2video)
+  reciben la pista (`buildCastR2VRefs` cita `@audio1` + `referenceAudioPaths` desde `baseDirCtx`);
+  los `image2video` (panel-locked, sin cast) quedan sin musica por la limitacion de Atlas. Diseno/plan:
+  `docs/superpowers/{specs,plans}/2026-06-25-p16-musica-storyboard*`. Commits `863d560..00bdf47`.
 
 - **P12 Beats de actuacion + P19 Densidad por ritmo (M) — IMPLEMENTADO (2026-06-24).**
   `beatRole` (reveal/action/beat) inferido por el matcher y aplicado por el planner
@@ -150,7 +154,7 @@ Ya hacemos bien el nucleo del workflow profesional: pipeline de dos capas IDEA(L
 | P21 Movimientos de camara motivados | IMPLEMENTADO | P0 | S | Regla "camara estatica salvo beat que la justifique" + warning determinista por tramo. |
 | P14b Accion como intencion+resultado (no biomecanica) | IMPLEMENTADO | P1 | S | Directiva anti-biomecanica en el matcher + detector findOvermechanicalActions que avisa (warning-only, sin reescribir). |
 | P12 Estructura CUT con beats de actuacion | IMPLEMENTADO | P1 | M | Beat de actuacion por tramo en el SYSTEM + umbral de timeline a >=5s (con maxBeats>=2) + validador warning de tramo sin plano. |
-| P16 Pista musical para sincronia de beat | IMPLEMENTADO | P1 | M | `campaigns.music_ref_id` -> `CampaignContext.audioRefPath` -> `directorContextFor` + propagacion a clips encadenados; control en el wizard con guard de 15s. |
+| P16 Pista musical para sincronia de beat | IMPLEMENTADO | P1 | M | `campaigns.music_ref_id` -> `CampaignContext.audioRefPath` -> `directorContextFor` + propagacion a clips encadenados; control en el wizard con guard de 15s. Storyboard (2026-06-25): beats R2V con cast reciben la pista; I2V sin musica (limitacion Atlas). |
 | P13 Bloqueo geo-espacial | IMPLEMENTADO | P1 | M | Lean: directiva `SPATIAL BLOCKING` en el SYSTEM del matcher + `spatial.ts`/`hasSpatialBlocking` + validator rule 14 (warning `espacial:`). Diferido: campo `staging`/seccion CRAFT "Staging:"/re-inyeccion entre cortes. |
 | P19 Densidad de cortes por ritmo dramatico | IMPLEMENTADO | P1 | M | `beatRole` (reveal/action/beat) inferido por el matcher -> `maxDurationFor` en el planner (reveal 12s/action 5s/beat 8s), sin clamp uniforme. |
 | P11 Style Prefix global editable por pieza | PARTIAL | P1 | M | `style_block` por campana/secuencia que el compiler antepone y cuya edicion re-estiliza todos los clips. |

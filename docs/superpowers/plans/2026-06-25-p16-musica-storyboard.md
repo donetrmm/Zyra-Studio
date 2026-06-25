@@ -14,7 +14,7 @@
 - **No `any`** (tipos explícitos), **no emojis**.
 - **Tests sin APIs reales** (`feedback_no_real_api_in_tests`): el helper es puro y se unit-testea; el wiring del orchestrator y que Atlas acepte `reference2video + reference_audios` los valida el smoke del usuario.
 - **Alcance R2V:** la música solo entra a los beats con cast (reference2video). Los `image2video` NO se tocan (sin música; limitación Atlas).
-- **Cita de audio VERBATIM** de la del compiler normal (`seedance.ts:262`): `@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.` (con espacio inicial para concatenar en `extraCitation`).
+- **Cita de audio VERBATIM** de la del compiler normal (`lib/prompt-director/compilers/seedance.ts:262`): `@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.` (con espacio inicial para concatenar en `extraCitation`).
 - **`onlyCharacterRefs`, provider, handler, rama I2V y rama normal: SIN CAMBIO.**
 - **Sin migración, sin schema.**
 - **Commits sin trailer `Co-Authored-By`.**
@@ -182,7 +182,7 @@ git commit -m "feat(storyboard): la musica entra a los beats R2V del storyboard 
 
 ## Notas para el implementador
 
-- La cita `@audio1` es VERBATIM de `seedance.ts:262` (con espacio inicial, como el resto de piezas de `extraCitation`).
+- La cita `@audio1` es VERBATIM de `lib/prompt-director/compilers/seedance.ts:262` (con espacio inicial, como el resto de piezas de `extraCitation`).
 - `onlyCharacterRefs` NO se toca: los beats I2V no deben citar `@audio` (no llevan la pista); por eso el audio se inyecta solo en la rama R2V desde `baseDirCtx`.
 - Provider/handler SIN cambio: `reference2video` ya soporta `reference_audios`; el handler firma `referenceAudioPaths` para cualquier operación.
 - Beats I2V sin música = limitación de Atlas (no mezcla first_frame + referencias), fuera de alcance.

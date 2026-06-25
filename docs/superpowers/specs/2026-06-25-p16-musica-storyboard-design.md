@@ -31,7 +31,7 @@ El audio R2V se construye igual que el resto de referencias del R2V (cast/produc
 
 2. **`buildCastR2VRefs` (`lib/campaigns/storyboard-video.ts:34`):** gana un cuarto parámetro opcional `audioRef?: string` y su retorno pasa de `{ referenceImagePaths, extraCitation }` a `{ referenceImagePaths, referenceAudioPaths, extraCitation }`:
    - sin `audioRef`: `referenceAudioPaths: []`, `extraCitation` sin cambio.
-   - con `audioRef`: `referenceAudioPaths: [audioRef]`, y se añade a `extraCitation` la directiva verbatim del compiler (`seedance.ts:262`): ` @audio1 sets the background audio mood and rhythm; sync scene energy to its beats.`
+   - con `audioRef`: `referenceAudioPaths: [audioRef]`, y se añade a `extraCitation` la directiva verbatim del compiler (`lib/prompt-director/compilers/seedance.ts:262`): ` @audio1 sets the background audio mood and rhythm; sync scene energy to its beats.`
    - `@audio1` usa su propio contador (separado de `@image1..N`), igual que el compiler normal.
 
 3. **Orchestrator (rama R2V, `lib/campaigns/orchestrator.ts`):**
