@@ -22,7 +22,7 @@ export type MatcherFormat = {
   // scenePrompt necesita timeline por segundos (guía Morphic §T).
   defaultDurationS?: number;
 };
-export type MatcherCharacter = { id: string; name: string };
+export type MatcherCharacter = { id: string; name: string; states?: string[] };
 // Imagen de referencia para el matcher (multimodal): el modelo VE el producto
 // y los personajes y escribe acciones fieles a lo que existe. label entra al
 // texto del usuario para atar cada imagen a su rol.
@@ -108,12 +108,15 @@ const SceneSchema = z.object({
   // Peso dramático del beat (P19): modula duración/cortes en el planner. El LLM
   // lo infiere; si falla o lo omite, cae a 'beat' (comportamiento default).
   beatRole: z.enum(['reveal', 'action', 'beat']).catch('beat').default('beat'),
+  // P05: label EXACTO de un estado fisico del personaje listado, o null. Patron beatRole.
+  characterStateHint: z.string().trim().nullable().catch(null).default(null),
 });
 export type MatchedScene = {
   scenePrompt: string;
   durationS: number | null;
   sceneSummary: string | null;
   beatRole: 'reveal' | 'action' | 'beat';
+  characterStateHint: string | null;
 };
 
 const MatchSchema = z.object({
@@ -155,6 +158,7 @@ const MatchSchema = z.object({
           durationS: parsed.data.durationS,
           sceneSummary: parsed.data.sceneSummary,
           beatRole: parsed.data.beatRole,
+          characterStateHint: parsed.data.characterStateHint,
         } satisfies MatchedScene];
       }),
     ),
@@ -357,7 +361,10 @@ Por cada idea distinta devuelve un match:
   plano sostenido, sin cortes internos, con aire/silencio, y dale más segundos
   (hasta 12); minimiza el movimiento de cámara), 'action' (acción física rápida —
   cortes cortos, beats breves, 4-5s), o 'beat' (cualquier otra, ritmo normal).
-  Si dudas, 'beat'"}.
+  Si dudas, 'beat'","characterStateHint":"Si en esta escena un personaje del Cast
+  está en un ESTADO FÍSICO listado entre paréntesis junto a su nombre
+  (estados: sudado, mojado…), pon ese label EXACTO aquí; si no aplica o no hay
+  estados listados, null"}.
   Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].
@@ -428,7 +435,7 @@ async function requestMatch(input: {
   const system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[input.language ?? 'es']);
 
   const cast = (input.characters ?? [])
-    .map((c) => `- id=${c.id} ${c.name}`)
+    .map((c) => `- id=${c.id} ${c.name}${c.states?.length ? ` (estados: ${c.states.join(', ')})` : ''}`)
     .join('\n') || '(ninguno)';
 
   // Multimodal: las imágenes van después del texto, con sus roles declarados

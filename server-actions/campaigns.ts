@@ -498,6 +498,17 @@ export async function generatePlanAction(input: unknown): Promise<
       console.warn('[generatePlanAction] imágenes para el matcher no disponibles', err);
     }
     try {
+      // antes del matchIdeas: cargar estados de los personajes del pool
+      const { data: stateRows } = await supabase
+        .from('character_states')
+        .select('character_id, label')
+        .in('character_id', characters.map((c) => c.id));
+      const statesByChar = new Map<string, string[]>();
+      for (const r of stateRows ?? []) {
+        const arr = statesByChar.get(r.character_id as string) ?? [];
+        arr.push(r.label as string);
+        statesByChar.set(r.character_id as string, arr);
+      }
       const matched = await matchIdeas({
         ideasText: parsed.data.userIdeas,
         formats: (formatRows ?? []).map((f) => ({
@@ -507,7 +518,7 @@ export async function generatePlanAction(input: unknown): Promise<
           description: (f.description as string | null) ?? null,
           defaultDurationS: f.default_duration_s as number,
         })),
-        characters: characters.map((c) => ({ id: c.id, name: c.name })),
+        characters: characters.map((c) => ({ id: c.id, name: c.name, ...(statesByChar.get(c.id)?.length ? { states: statesByChar.get(c.id) } : {}) })),
         ...(matcherImages.length ? { images: matcherImages } : {}),
         language: campaignLanguage,
       });

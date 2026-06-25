@@ -553,4 +553,35 @@ describe('matchIdeas', () => {
     expect(res.matches[0].scenes).toEqual([]);
     expect(res.matches[0].sequenceLabel).toBeNull();
   });
+
+  it('parsea characterStateHint de una escena (P05)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'corre y suda', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [{ scenePrompt: 'she runs in the heat', durationS: 5, characterStateHint: 'sudado' }] }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].scenes[0].characterStateHint).toBe('sudado');
+  });
+
+  it('characterStateHint ausente cae a null', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{ ideaText: 'normal', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
+        scenes: [{ scenePrompt: 'she smiles', durationS: 5 }] }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
+    expect(res.matches[0].scenes[0].characterStateHint).toBeNull();
+  });
+
+  it('pasa los labels de estado del personaje en el pool del prompt', async () => {
+    const fetchMock = vi.fn(async () => geminiOk({ matches: [{ ideaText: 'x', formatId: 'f1', customFormat: null }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.GEMINI_API_KEY = 'test';
+    await matchIdeas({ ideasText: 'x', formats: FORMATS, characters: [{ id: 'c1', name: 'Marcela', states: ['sudado', 'mojado'] }] });
+    // mismo patrón de parseo del body que el test existente "las imágenes adjuntas viajan…"
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as { body: string };
+    const body = JSON.parse(init.body) as { contents: Array<{ parts: Array<Record<string, unknown>> }> };
+    expect(String(body.contents[0].parts[0].text)).toContain('estados: sudado, mojado');
+  });
 });
