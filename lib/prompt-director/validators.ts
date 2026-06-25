@@ -5,6 +5,7 @@
 import { findClaims, findAgeWords } from './inventory';
 import { resolveRequiredRefs } from './format-director';
 import { findUnexpandedActions, findOvermechanicalActions } from './acting';
+import { hasSpatialBlocking } from './spatial';
 import type { CompileRequest, DirectorContext } from './types';
 
 export type ValidationResult = { errors: string[]; warnings: string[] };
@@ -205,6 +206,17 @@ export function validate(req: CompileRequest, ctx: DirectorContext): ValidationR
   if (ctx.product?.imagePaths?.length === 1) {
     warnings.push(
       'producto: vista única — riesgo de deriva geométrica en I2V/R2V; genera un 3/4 en el Brand Kit',
+    );
+  }
+
+  // 14. Bloqueo geo-espacial (P13): una escena con 2+ sujetos sin marcadores de
+  // posición/orientación deja al modelo libre de reubicarlos entre cortes. El
+  // SYSTEM del matcher debería emitir el bloqueo; esto es la red de seguridad.
+  const multiSubject = (ctx.characters?.length ?? 0) >= 2 || MULTI_SUBJECT_RE.test(prompt);
+  MULTI_SUBJECT_RE.lastIndex = 0;
+  if (multiSubject && !hasSpatialBlocking(prompt)) {
+    warnings.push(
+      'espacial: escena con 2+ sujetos sin bloqueo (posición relativa/orientación); el modelo puede reubicarlos entre cortes',
     );
   }
 

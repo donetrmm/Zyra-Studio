@@ -50,6 +50,48 @@ describe('validators P12 — estructura por tramo', () => {
   });
 });
 
+describe('regla 14 — bloqueo geo-espacial (P13)', () => {
+  const hasEspacial = (r: { warnings: string[] }) => r.warnings.some((w) => w.startsWith('espacial:'));
+
+  it('2+ personajes sin marcadores espaciales → warning', () => {
+    const res = validate(
+      { scenePrompt: 'Marco and Ana talk excitedly in the kitchen' } as CompileRequest,
+      { characters: [
+        { name: 'Marco', description: 'x', masterImagePath: 'p' },
+        { name: 'Ana', description: 'y', masterImagePath: 'q' },
+      ] } as DirectorContext,
+    );
+    expect(hasEspacial(res)).toBe(true);
+  });
+
+  it('2+ personajes CON bloqueo → sin warning espacial', () => {
+    const res = validate(
+      { scenePrompt: 'Marco on the left facing camera-right, Ana on the right' } as CompileRequest,
+      { characters: [
+        { name: 'Marco', description: 'x', masterImagePath: 'p' },
+        { name: 'Ana', description: 'y', masterImagePath: 'q' },
+      ] } as DirectorContext,
+    );
+    expect(hasEspacial(res)).toBe(false);
+  });
+
+  it('1 personaje sin marcadores → sin warning (no es multi-sujeto)', () => {
+    const res = validate(
+      { scenePrompt: 'Ana smiles at the camera in the kitchen' } as CompileRequest,
+      { characters: [{ name: 'Ana', description: 'y', masterImagePath: 'q' }] } as DirectorContext,
+    );
+    expect(hasEspacial(res)).toBe(false);
+  });
+
+  it('prosa multi-sujeto (MULTI_SUBJECT_RE) sin personajes ni marcadores → warning', () => {
+    const res = validate(
+      { scenePrompt: 'three friends laugh together at a bar' } as CompileRequest,
+      {} as DirectorContext,
+    );
+    expect(hasEspacial(res)).toBe(true);
+  });
+});
+
 describe('validators P01 — vista única del producto', () => {
   function warnFor(product: DirectorContext['product']): string[] {
     return validate(
