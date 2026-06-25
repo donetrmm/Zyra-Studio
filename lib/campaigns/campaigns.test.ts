@@ -600,6 +600,40 @@ describe('buildDirectedPlan', () => {
     expect(items[0].sequenceId).toBeNull();
     expect(items[0].sceneIndex).toBeNull();
   });
+
+  it('buildDirectedPlan rama normal: traslada characterStateHint al item (P05)', () => {
+    const idea = {
+      format: fmt('voz-cercana'),
+      count: 1,
+      scenePrompt: 'Marco shows the product, sweating',
+      durationS: null,
+      sceneSummary: null,
+      characterIds: [],
+      invented: [],
+      scenes: [],
+      sequenceLabel: null,
+      characterStateHint: 'sudado',
+    };
+    const items = buildDirectedPlan(directedInput({ ideas: [idea] }));
+    expect(items[0].characterStateHint).toBe('sudado');
+  });
+
+  it('buildDirectedPlan rama normal: characterStateHint null cuando la idea no lo trae (P05)', () => {
+    const idea = {
+      format: fmt('voz-cercana'),
+      count: 1,
+      scenePrompt: 'Marco shows the product',
+      durationS: null,
+      sceneSummary: null,
+      characterIds: [],
+      invented: [],
+      scenes: [],
+      sequenceLabel: null,
+      characterStateHint: null,
+    };
+    const items = buildDirectedPlan(directedInput({ ideas: [idea] }));
+    expect(items[0].characterStateHint).toBeNull();
+  });
 });
 
 // ============ Estimador ============

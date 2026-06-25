@@ -549,6 +549,7 @@ export async function generatePlanAction(input: unknown): Promise<
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
               scenes: m.scenes,
               sequenceLabel: m.sequenceLabel,
+              characterStateHint: m.characterStateHint ?? null,
             });
           }
         } else if (m.customFormat) {
@@ -568,6 +569,7 @@ export async function generatePlanAction(input: unknown): Promise<
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
               scenes: m.scenes,
               sequenceLabel: m.sequenceLabel,
+              characterStateHint: m.characterStateHint ?? null,
             });
             continue;
           }
@@ -597,6 +599,7 @@ export async function generatePlanAction(input: unknown): Promise<
               invented: m.inventedCharacters.map((p) => inventedByName.get(p.name.toLowerCase())!),
               scenes: m.scenes,
               sequenceLabel: m.sequenceLabel,
+              characterStateHint: m.characterStateHint ?? null,
             });
           } else {
             console.error('[generatePlanAction] formato custom no creado; idea descartada', {

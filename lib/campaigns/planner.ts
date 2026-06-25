@@ -296,6 +296,10 @@ export type DirectedIdea = {
   // Vacio = idea normal (un solo clip).
   scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat'; characterStateHint: string | null }>;
   sequenceLabel: string | null;
+  // P05 clip único: estado físico inferido por el matcher a nivel idea (label
+  // EXACTO de un estado horneado del personaje), o null/ausente. Las escenas de
+  // secuencia usan su propio characterStateHint dentro de scenes[].
+  characterStateHint?: string | null;
 };
 
 export type DirectedPlanInput = {
@@ -458,9 +462,9 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         sequenceId: null,
         sceneIndex: null,
         sequenceLabel: null,
-        // Idea normal (un solo clip): sin state hint; solo las escenas de
-        // secuencia (buildDirectedPlan rama sequence) lo declaran.
-        characterStateHint: null,
+        // Idea normal (un solo clip): el matcher pudo inferir un estado a nivel
+        // idea (P05); los N creativos de count>1 comparten el mismo estado.
+        characterStateHint: idea.characterStateHint ?? null,
       });
     }
     return items;
