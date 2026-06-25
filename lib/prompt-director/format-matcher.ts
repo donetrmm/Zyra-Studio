@@ -301,7 +301,8 @@ Por cada idea distinta devuelve un match:
   forward". VISIBILIDAD: declara en POSITIVO qué se ve y qué no — "solo vemos
   su cara", "el producto de espaldas a cámara", "el celular de frente". No uses
   paréntesis débiles tipo "(desde su POV)" para insinuarlo; si es primera persona,
-  dilo explícito ("vista en primera persona, solo se ven sus manos"). ACCIÓN Y EMOCIÓN: nunca dejes un verbo abstracto sin desglosar.
+  dilo explícito ("vista en primera persona, solo se ven sus manos"). SPATIAL BLOCKING: when a scene has two or more subjects (or a clear spatial relationship between a subject and the set), state their blocking explicitly in the scenePrompt — each subject's relative position (left/right/foreground/background/between/behind), their orientation (facing camera-left/right or toward each other), and the key set anchor. This gives the model a stable floor plan so subjects do not drift or swap places between cuts. Keep it brief and woven into the prose, not a separate list.
+  ACCIÓN Y EMOCIÓN: nunca dejes un verbo abstracto sin desglosar.
   Convierte "baila", "celebra", "se ve triste", "se emociona" en 2-4 micro-acciones
   observables repartidas EN SECUENCIA por el tramo (no "él baila" → "dos asentimientos
   de cabeza, un giro de hombro, una flexión de rodilla, un chasquido de dedos"; no "se
