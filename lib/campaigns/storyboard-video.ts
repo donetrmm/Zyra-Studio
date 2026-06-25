@@ -35,7 +35,8 @@ export function buildCastR2VRefs(
   castRefs: string[],
   productRefs: string[],
   panelPath: string,
-): { referenceImagePaths: string[]; extraCitation: string } {
+  audioRef?: string,
+): { referenceImagePaths: string[]; referenceAudioPaths: string[]; extraCitation: string } {
   const referenceImagePaths = [...castRefs, ...productRefs, panelPath];
   let n = castRefs.length;
   let extraCitation = '';
@@ -51,5 +52,11 @@ export function buildCastR2VRefs(
   }
   const panelNum = n + 1;
   extraCitation += ` @image${panelNum} is the exact opening frame and overall composition of this shot — reproduce it as the starting look (same framing, colors and layout).`;
-  return { referenceImagePaths, extraCitation };
+  // P16 storyboard: música de referencia (beat-sync) solo en R2V. @audio1 usa su
+  // propio contador, separado de @image1..N, igual que el compiler normal.
+  const referenceAudioPaths = audioRef ? [audioRef] : [];
+  if (audioRef) {
+    extraCitation += ' @audio1 sets the background audio mood and rhythm; sync scene energy to its beats.';
+  }
+  return { referenceImagePaths, referenceAudioPaths, extraCitation };
 }

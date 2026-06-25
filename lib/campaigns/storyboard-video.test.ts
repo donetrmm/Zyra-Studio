@@ -37,6 +37,24 @@ describe('buildCastR2VRefs', () => {
     expect(extraCitation).toContain('@image2 and @image3');
     expect(extraCitation).toContain('@image4'); // panel
   });
+
+  it('con audioRef: referenceAudioPaths = [audioRef] y cita @audio1', () => {
+    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+      ['cast-a.png'],
+      ['prod.png'],
+      'panel.png',
+      'music.mp3',
+    );
+    expect(referenceAudioPaths).toEqual(['music.mp3']);
+    expect(extraCitation).toContain('@audio1');
+    expect(extraCitation).toContain('sync scene energy to its beats');
+  });
+
+  it('sin audioRef: referenceAudioPaths vacío y sin cita @audio1', () => {
+    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(['cast-a.png'], [], 'panel.png');
+    expect(referenceAudioPaths).toEqual([]);
+    expect(extraCitation).not.toContain('@audio1');
+  });
 });
 
 describe('beatNamesCast', () => {
