@@ -584,4 +584,31 @@ describe('matchIdeas', () => {
     const body = JSON.parse(init.body) as { contents: Array<{ parts: Array<Record<string, unknown>> }> };
     expect(String(body.contents[0].parts[0].text)).toContain('estados: sudado, mojado');
   });
+
+  it('clip único: parsea characterStateHint a nivel idea', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'Marco sudado mostrando el producto', formatId: 'f1', customFormat: null,
+        scenePrompt: 'Marco shows the product, sweating',
+        characterStateHint: 'sudado',
+        scenes: [], count: 1,
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'Marco sudado mostrando el producto', formats: FORMATS });
+    expect(res.matches[0].characterStateHint).toBe('sudado');
+  });
+
+  it('clip único: characterStateHint ausente → null', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: 'un unboxing', formatId: 'f1', customFormat: null,
+        scenePrompt: 'Hands open the box slowly',
+        scenes: [], count: 1,
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
+    expect(res.matches[0].characterStateHint).toBeNull();
+  });
 });

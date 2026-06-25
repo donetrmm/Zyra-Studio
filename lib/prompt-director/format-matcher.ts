@@ -163,6 +163,10 @@ const MatchSchema = z.object({
       }),
     ),
   sequenceLabel: z.string().trim().min(1).max(120).nullable().catch(null).default(null),
+  // P05 clip único: label EXACTO de un estado físico del personaje listado, o
+  // null. Nivel idea (para ideas de un solo clip); las escenas de secuencia
+  // usan su propio characterStateHint dentro de scenes[].
+  characterStateHint: z.string().trim().nullable().catch(null).default(null),
   // PD-04: motivo legible cuando la idea es demasiado vaga para volverse una toma
   // concreta (ni nombra un formato). El wizard lo muestra y el item NO se crea, en
   // vez de descartar la idea en silencio. null = idea trabajable.
@@ -372,6 +376,10 @@ Por cada idea distinta devuelve un match:
 - sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
   1 frase, máximo 200 caracteres, sin marcadores de segundos. Si scenePrompt es
   null, sceneSummary = null.
+- characterStateHint: para una idea de UN SOLO CLIP (scenes = []), si la acción
+  describe a un personaje del Cast en uno de sus ESTADOS FÍSICOS listados entre
+  paréntesis junto a su nombre (estados: sudado, mojado…), pon ese label EXACTO;
+  si no aplica, no hay estados listados, o la idea es multi-escena, null.
 - characterIds: si la idea nombra personajes del Cast listado abajo, devuelve sus
   ids exactos (máximo 3). Si no nombra a nadie, [].
 - inventedCharacters: si la idea nombra a una persona que NO está en el Cast,
