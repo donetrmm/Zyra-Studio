@@ -1767,6 +1767,7 @@ function EditItemDialog({
   );
   const [caption, setCaption] = useState(item.caption ?? '');
   const [scheduledDate, setScheduledDate] = useState(item.scheduledDate ?? '');
+  const [characterStateHint, setCharacterStateHint] = useState<string | null>(item.characterStateHint);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -1778,6 +1779,7 @@ function EditItemDialog({
       ...(scenePrompt !== item.scenePrompt ? { scenePrompt } : {}),
       scene: scene.trim() || undefined,
       ...(characterId ? { characterId } : {}),
+      ...(characterStateHint !== item.characterStateHint ? { characterStateHint } : {}),
       caption,
       ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
     });
@@ -1801,6 +1803,7 @@ function EditItemDialog({
         : item.characterNames,
       caption: caption || null,
       scheduledDate: scheduledDate || item.scheduledDate,
+      characterStateHint,
       // Estado autoritativo del server: 'planned' si se tocó producción, o el
       // estado real conservado para ediciones de solo caption/fecha.
       status: res.data.status,
@@ -1858,6 +1861,30 @@ function EditItemDialog({
               ))}
             </select>
           </div>
+          {(() => {
+            const states = characterOptions.find((c) => c.id === characterId)?.states ?? [];
+            if (states.length === 0) return null;
+            return (
+              <div>
+                <label htmlFor="edit-state" className="block text-[12.5px] font-medium text-foreground/80">
+                  Estado del personaje
+                </label>
+                <select
+                  id="edit-state"
+                  value={characterStateHint ?? ''}
+                  onChange={(e) => setCharacterStateHint(e.target.value || null)}
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <option value="">Ninguno (neutral)</option>
+                  {states.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })()}
         </div>
 
         <label htmlFor="edit-caption" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
