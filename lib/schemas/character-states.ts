@@ -8,3 +8,9 @@ export const CreateCharacterStateSchema = z.object({
   stateImageId: z.string().uuid(),
   description: z.string().trim().max(300).optional(),
 });
+
+// P05 refinado: reemplaza la imagen de un estado por una version re-editada.
+export const UpdateCharacterStateImageSchema = z.object({
+  stateId: z.string().uuid(),
+  stateImageId: z.string().uuid(),
+});

@@ -125,7 +125,7 @@ export async function generateCharacterState(
 // ni inventa la etiqueta (respeta "no fabricar texto de marca").
 const PRODUCT_ANGLE_PROMPT: Record<'three-quarter', string> = {
   'three-quarter':
-    'Show the exact same product from a three-quarter view (about 45 degrees). Identical shape, colors, label, logo, materials and proportions; same soft even studio lighting and clean plain background. Only the camera angle changes — keep the product perfectly consistent. Do not alter or invent any label text.',
+    'Rotate the camera to show the exact same product from a three-quarter angle (turned about 45 degrees), so its front and one side are both visible at once. This MUST be a newly rendered view from a clearly different angle — do NOT return the original framing or a copy of the input image. Keep the product identity perfectly consistent: identical shape, colors, label, logo, materials and proportions; same soft even studio lighting and clean plain background. Do not alter or invent any label text.',
 };
 
 export async function generateProductAngle(
@@ -133,6 +133,20 @@ export async function generateProductAngle(
   view: 'three-quarter',
 ): Promise<GeneratedImage | GenError> {
   return editUploaded(productRef, PRODUCT_ANGLE_PROMPT[view]);
+}
+
+// Refina un ESTADO ya generado (P05): re-edita la imagen del estado con una
+// instrucción libre del usuario, preservando identidad y composición. Va por
+// editUploaded (el estado entra como referencia, sin cadena conversacional).
+export async function refineCharacterState(
+  stateRef: { id: string; storagePath: string },
+  instruction: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Keep the exact same person identity, face, hairstyle and overall framing as the reference image. ` +
+    `Apply only this change: ${instruction}. ` +
+    `Same plain background and even studio lighting unless the change explicitly says otherwise.`;
+  return editUploaded(stateRef, prompt);
 }
 
 // Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.

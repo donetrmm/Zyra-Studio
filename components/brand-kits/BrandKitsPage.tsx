@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
-import { getReferencePathsAction, analyzeKitFromImageAction } from '@/server-actions/creation';
+import { getReferencePathsAction, analyzeKitFromImageAction, compareReferencesAction } from '@/server-actions/creation';
 import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
@@ -277,7 +277,14 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar la vista 3/4'); return; }
       setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
       await setReferenceUsageAction({ refId: out.refId, usage: 'three-quarter view' });
-      toast.success('Vista 3/4 generada; guarda el kit para conservarla');
+      // El modelo a veces devuelve la imagen casi intacta (no rota). Lo detectamos
+      // por hash perceptual y avisamos para que el usuario regenere.
+      const cmp = await compareReferencesAction({ a: src.id, b: out.refId });
+      if (cmp.ok && cmp.data.nearlyIdentical) {
+        toast.warning('La vista salió casi idéntica a la original: el modelo no rotó esta vez. Bórrala y genera de nuevo.');
+      } else {
+        toast.success('Vista 3/4 generada; guarda el kit para conservarla');
+      }
     } finally {
       setAngling(false);
     }
@@ -331,15 +338,22 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
             {productImages.map((img) => (
-              <input
-                key={img.id}
-                type="text"
-                aria-label="Uso de esta vista de producto"
-                defaultValue={productUsages[img.id] ?? ''}
-                placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
-                onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
-                className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
-              />
+              <div key={img.id} className="flex items-center gap-2">
+                {img.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img.previewUrl} alt="" width={40} height={40} loading="lazy" decoding="async" className="size-10 shrink-0 rounded-md border border-border object-cover" />
+                ) : (
+                  <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
+                )}
+                <input
+                  type="text"
+                  aria-label="Uso de esta vista de producto"
+                  defaultValue={productUsages[img.id] ?? ''}
+                  placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                />
+              </div>
             ))}
           </div>
         ) : null}

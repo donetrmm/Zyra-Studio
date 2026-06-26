@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, describeCharacterAction, updateCharacterAction } from '@/server-actions/cast';
-import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction } from '@/server-actions/character-states';
+import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction, updateCharacterStateImageAction } from '@/server-actions/character-states';
 import { getReferencePathsAction } from '@/server-actions/creation';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
-import { generateCharacterState, isGenError } from '@/components/creation/generate';
+import { generateCharacterState, refineCharacterState, isGenError } from '@/components/creation/generate';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard } from '@/components/creation/CreationWizard';
@@ -162,7 +162,7 @@ function buildMasterPrompt(description: string): string {
   );
 }
 
-type CharacterState = { id: string; label: string; stateImageId: string | null; description: string | null };
+type CharacterState = { id: string; label: string; stateImageId: string | null; description: string | null; previewUrl: string | null };
 
 function CharacterEditor({
   character,
@@ -197,6 +197,10 @@ function CharacterEditor({
   const [stateLabel, setStateLabel] = useState('');
   const [stateDesc, setStateDesc] = useState('');
   const [bakingState, setBakingState] = useState(false);
+  // Refinado de un estado existente: id en edición + instrucción + flag.
+  const [refiningId, setRefiningId] = useState<string | null>(null);
+  const [refineInstruction, setRefineInstruction] = useState('');
+  const [applyingRefine, setApplyingRefine] = useState(false);
 
   useEffect(() => {
     if (!character?.id) return;
@@ -239,6 +243,36 @@ function CharacterEditor({
     const res = await deleteCharacterStateAction(id);
     if (!res.ok) { toast.error(res.message || 'No se pudo borrar el estado'); return; }
     setStates((prev) => prev.filter((s) => s.id !== id));
+    if (refiningId === id) { setRefiningId(null); setRefineInstruction(''); }
+  }
+
+  // Re-edita la imagen del estado con una instrucción libre (Nano Banana) y
+  // apunta el estado a la nueva imagen, refrescando la miniatura.
+  async function handleRefineState(state: CharacterState) {
+    if (!state.stateImageId) { toast.error('Este estado no tiene imagen para refinar'); return; }
+    const instruction = refineInstruction.trim();
+    if (!instruction) { toast.error('Describe el cambio a aplicar'); return; }
+    setApplyingRefine(true);
+    try {
+      const pathsRes = await getReferencePathsAction([state.stateImageId]);
+      if (!pathsRes.ok) { toast.error(pathsRes.message || 'No se pudo resolver la imagen del estado'); return; }
+      const storagePath = pathsRes.data[state.stateImageId];
+      if (!storagePath) { toast.error('La imagen del estado no tiene ruta de almacenamiento'); return; }
+      const out = await refineCharacterState({ id: state.stateImageId, storagePath }, instruction);
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo refinar el estado'); return; }
+      const upd = await updateCharacterStateImageAction({ stateId: state.id, stateImageId: out.refId });
+      if (!upd.ok) { toast.error(upd.message || 'No se pudo guardar el estado refinado'); return; }
+      setStates((prev) =>
+        prev.map((s) =>
+          s.id === state.id ? { ...s, stateImageId: out.refId, previewUrl: upd.data.previewUrl ?? out.previewUrl } : s,
+        ),
+      );
+      toast.success('Estado refinado');
+      setRefiningId(null);
+      setRefineInstruction('');
+    } finally {
+      setApplyingRefine(false);
+    }
   }
 
   const canSave = name.trim().length > 0 && masterImages.length === 1;
@@ -416,21 +450,69 @@ function CharacterEditor({
             {statesLoaded && states.length > 0 && (
               <ul className="space-y-1.5">
                 {states.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2">
-                    <div className="min-w-0">
-                      <span className="block truncate text-[12.5px] font-medium text-foreground">{s.label}</span>
-                      {s.description && (
-                        <span className="block truncate text-[11.5px] text-muted-foreground/70">{s.description}</span>
-                      )}
+                  <li key={s.id} className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {s.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.previewUrl} alt={s.label} width={44} height={44} loading="lazy" decoding="async" className="size-11 shrink-0 rounded-md border border-border object-cover" />
+                        ) : (
+                          <div className="grid size-11 shrink-0 place-items-center rounded-md border border-border bg-muted/30">
+                            <Sparkles className="size-4 text-muted-foreground/40" aria-hidden />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="block truncate text-[12.5px] font-medium text-foreground">{s.label}</span>
+                          {s.description && (
+                            <span className="block truncate text-[11.5px] text-muted-foreground/70">{s.description}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRefiningId((cur) => (cur === s.id ? null : s.id));
+                            setRefineInstruction('');
+                          }}
+                          disabled={!s.stateImageId}
+                          className="rounded-md border border-border px-2 py-1.5 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Refinar estado"
+                        >
+                          {refiningId === s.id ? 'Cerrar' : 'Refinar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteState(s.id)}
+                          className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                          title="Borrar estado"
+                        >
+                          <Trash2 className="size-3" aria-hidden />
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteState(s.id)}
-                      className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                      title="Borrar estado"
-                    >
-                      <Trash2 className="size-3" aria-hidden />
-                    </button>
+                    {refiningId === s.id && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={refineInstruction}
+                          onChange={(e) => setRefineInstruction(e.target.value)}
+                          placeholder="Cambio a aplicar (ej. más sudor, luz más cálida)"
+                          maxLength={300}
+                          disabled={applyingRefine}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleRefineState(s); } }}
+                          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRefineState(s)}
+                          disabled={applyingRefine || !refineInstruction.trim()}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {applyingRefine ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+                          {applyingRefine ? 'Refinando…' : 'Aplicar'}
+                        </button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
