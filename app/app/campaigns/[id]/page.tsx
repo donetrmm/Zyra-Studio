@@ -18,10 +18,13 @@ export default async function CampaignDetailRoute({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; plan?: string; reason?: string }>;
 }) {
   const { id } = await params;
-  const { view } = await searchParams;
+  const { view, plan, reason } = await searchParams;
+  // R6: el wizard navega con ?plan=generic&reason=... cuando el matcher degrada el plan;
+  // se traduce a un banner persistente en la vista de campaña (no un toast efímero).
+  const planNotice = plan === 'generic' ? { reason: reason ?? null } : null;
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -115,6 +118,7 @@ export default async function CampaignDetailRoute({
         templates={templates}
         characterOptions={characterOptions}
         locationOptions={locationOptions}
+        planNotice={planNotice}
       />
     );
   }

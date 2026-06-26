@@ -112,14 +112,19 @@ export function CampaignStudioView({
   templates,
   characterOptions,
   locationOptions,
+  planNotice,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
   templates: StudioTemplate[];
   characterOptions: StudioCharacterOption[];
   locationOptions: StudioLocationOption[];
+  // R6: si el matcher degradó el plan a un mix genérico, el wizard navega con
+  // ?plan=generic; el aviso vive aquí como banner persistente (no un toast efímero).
+  planNotice: { reason: string | null } | null;
 }) {
   const [items, setItems] = useState(initialItems);
+  const [planNoticeDismissed, setPlanNoticeDismissed] = useState(false);
   const [tab, setTab] = useState<'plan' | 'produccion' | 'plantillas' | 'calendario'>('plan');
   const [editing, setEditing] = useState<StudioItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -221,6 +226,29 @@ export function CampaignStudioView({
         <ArrowLeft className="size-3.5" aria-hidden />
         Campañas
       </Link>
+
+      {planNotice && !planNoticeDismissed && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5 text-[12px] leading-snug text-muted-foreground"
+        >
+          <Info className="mt-0.5 size-3.5 shrink-0 text-amber-400" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-foreground">El plan salió genérico</p>
+            <p className="mt-0.5">
+              No pudimos interpretar tus ideas contra el catálogo, así que se armó un mix
+              estándar. Revisa cada creativo en el plan o rehazlo desde «Nueva campaña».
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPlanNoticeDismissed(true)}
+            className="shrink-0 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

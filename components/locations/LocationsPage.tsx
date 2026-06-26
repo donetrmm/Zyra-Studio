@@ -25,9 +25,12 @@ export type Location = {
 export function LocationsPage({
   locations,
   previews,
+  generateCost,
 }: {
   locations: Location[];
   previews: Record<string, string>;
+  // Costo en creditos de "Generar locacion con IA" (null si no se pudo cargar el pricing).
+  generateCost: number | null;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -57,6 +60,7 @@ export function LocationsPage({
         <LocationEditor
           location={editing === 'new' ? null : editing}
           previews={previews}
+          generateCost={generateCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />
@@ -158,11 +162,13 @@ function buildLocationPrompt(description: string): string {
 function LocationEditor({
   location,
   previews,
+  generateCost,
   onClose,
   onSaved,
 }: {
   location: Location | null;
   previews: Record<string, string>;
+  generateCost: number | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -301,7 +307,9 @@ function LocationEditor({
             ) : (
               <Sparkles className="size-3.5" aria-hidden />
             )}
-            {generating ? 'Generando…' : 'Generar locación con IA'}
+            {generating
+              ? 'Generando…'
+              : `Generar locación con IA${generateCost != null ? ` · −${generateCost} cr` : ''}`}
           </button>
         </div>
 

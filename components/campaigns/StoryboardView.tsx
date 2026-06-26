@@ -33,9 +33,14 @@ type Props = {
   locations: { id: string; name: string }[];
   currentLocationId: string | null;
   language: 'es' | 'en';
+  // Costo en creditos por panel (null si no se pudo cargar el pricing). fresh = generar
+  // un panel nuevo (conversational:false); chained = regenerar/refinar un panel que ya
+  // existe (la accion usa el turno previo => conversational:true, 1.5x).
+  panelCostFresh: number | null;
+  panelCostChained: number | null;
 };
 
-export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId, language }: Props) {
+export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId, language, panelCostFresh, panelCostChained }: Props) {
   const router = useRouter();
   const [savingLocation, setSavingLocation] = useState(false);
 
@@ -227,6 +232,11 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
               <Sparkles className="size-3.5" aria-hidden />
             )}
             Generar storyboard
+            {panelCostFresh != null && (
+              <span className="text-primary-foreground/80">
+                · −{panelCostFresh * withoutPanel.length} cr
+              </span>
+            )}
           </Button>
         )}
       </div>
@@ -273,6 +283,9 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
             const panelUrl = state.status === 'idle' ? state.panelUrl : null;
             const hasError = state.status === 'error';
             const instruction = instructions[beat.id] ?? '';
+            // Regenerar un panel que ya existe pasa por el turno previo (chained, 1.5x);
+            // sin panel todavia es una generacion nueva (fresh).
+            const regenCost = panelUrl ? panelCostChained : panelCostFresh;
 
             return (
               <div key={beat.id} className="flex flex-col gap-2">
@@ -322,6 +335,9 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                 >
                   <RefreshCw className="size-3" aria-hidden />
                   Regenerar
+                  {regenCost != null && (
+                    <span className="text-muted-foreground">· −{regenCost} cr</span>
+                  )}
                 </Button>
 
                 {/* Mantener el producto idéntico al regenerar (re-ancla la imagen del
@@ -367,7 +383,13 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                     disabled={isGenerating || isRefining || generatingAll || !panelUrl || !instruction.trim()}
                     onClick={() => void handleRefine(beat.id)}
                   >
-                    {isRefining ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : 'Refinar'}
+                    {isRefining ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : panelCostChained != null ? (
+                      `Refinar · −${panelCostChained} cr`
+                    ) : (
+                      'Refinar'
+                    )}
                   </Button>
                 </div>
                 {refineErrors[beat.id] && (

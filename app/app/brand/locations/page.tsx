@@ -1,6 +1,8 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { loadPricing } from '@/lib/credits/pricing';
+import { estimateCredits } from '@/lib/credits/estimator';
 import { LocationsPage, type Location } from '@/components/locations/LocationsPage';
 
 export const dynamic = 'force-dynamic';
@@ -48,5 +50,21 @@ export default async function LocationsRoute() {
     );
   }
 
-  return <LocationsPage locations={locations} previews={previews} />;
+  // Costo de "Generar locacion con IA" para mostrarlo en el boton ANTES de actuar.
+  // Input = mirror de components/locations/LocationsPage.tsx (FLUX 2 Pro, 2 megapixels,
+  // sin referencias).
+  let generateCost: number | null = null;
+  try {
+    const pricing = await loadPricing();
+    generateCost = estimateCredits(pricing, {
+      provider: 'flux',
+      model: 'flux-2-pro-preview',
+      variant: 'default',
+      params: { megapixels: 2, references: 0 },
+    }).total;
+  } catch {
+    // Sin pricing no mostramos costo (el boton sigue funcionando).
+  }
+
+  return <LocationsPage locations={locations} previews={previews} generateCost={generateCost} />;
 }

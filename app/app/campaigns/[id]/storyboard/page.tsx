@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { loadPricing } from '@/lib/credits/pricing';
+import { estimateCredits } from '@/lib/credits/estimator';
 import { StoryboardView } from '@/components/campaigns/StoryboardView';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 
@@ -77,6 +79,27 @@ export default async function StoryboardPage({
 
   const language = (campaign.language === 'en' ? 'en' : 'es') as 'es' | 'en';
 
+  // Costo en creditos por panel para mostrarlo en los botones ANTES de generar.
+  // Slugs/variant = mirror de server-actions/storyboard.ts (genera con Nano Banana Pro
+  // a 2k). fresh = panel nuevo (conversational:false); chained = regenerar/refinar un
+  // panel existente, que pasa por el turno previo (conversational:true, 1.5x).
+  let panelCostFresh: number | null = null;
+  let panelCostChained: number | null = null;
+  try {
+    const pricing = await loadPricing();
+    const nano = (conversational: boolean) =>
+      estimateCredits(pricing, {
+        provider: 'nano-banana',
+        model: 'gemini-3-pro-image-preview',
+        variant: '2k',
+        params: { conversational },
+      }).total;
+    panelCostFresh = nano(false);
+    panelCostChained = nano(true);
+  } catch {
+    // Sin pricing no mostramos costo (los botones siguen funcionando).
+  }
+
   return (
     <StoryboardView
       campaignId={id}
@@ -85,6 +108,8 @@ export default async function StoryboardPage({
       locations={locations}
       currentLocationId={currentLocationId}
       language={language}
+      panelCostFresh={panelCostFresh}
+      panelCostChained={panelCostChained}
     />
   );
 }
