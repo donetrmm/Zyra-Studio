@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SetReferenceUsageSchema } from './media-references';
+import { SetReferenceUsageSchema } from '@/lib/schemas/generations';
 
 describe('SetReferenceUsageSchema', () => {
   it('acepta refId uuid + usage corto', () => {

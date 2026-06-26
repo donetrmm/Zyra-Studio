@@ -72,6 +72,13 @@ export const CreateMediaReferenceSchema = z.object({
   sizeBytes: z.number().int().nonnegative().optional(),
 });
 
+// AM: validación de setReferenceUsageAction. Vive aquí (no en el módulo
+// 'use server') porque un archivo 'use server' solo puede exportar funciones async.
+export const SetReferenceUsageSchema = z.object({
+  refId: z.string().uuid(),
+  usage: z.string().trim().max(120),
+});
+
 // Límites por tipo. Video/audio existen por las referencias multimodales de
 // Seedance 2.0 (videos <50 MB, audios <15 MB — docs/modelos/06-seedance-2.md).
 const UPLOAD_LIMITS: Array<{ re: RegExp; maxBytes: number }> = [

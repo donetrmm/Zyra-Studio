@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateCharacterStateSchema } from './character-states';
+import { CreateCharacterStateSchema } from '@/lib/schemas/character-states';
 
 const uuid = '11111111-1111-4111-a111-111111111111';
 

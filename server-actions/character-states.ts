@@ -2,18 +2,11 @@
 
 import 'server-only';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
+import { CreateCharacterStateSchema } from '@/lib/schemas/character-states';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
-
-export const CreateCharacterStateSchema = z.object({
-  characterId: z.string().uuid(),
-  label: z.string().trim().min(1).max(40),
-  stateImageId: z.string().uuid(),
-  description: z.string().trim().max(300).optional(),
-});
 
 async function ownsImage(
   supabase: Awaited<ReturnType<typeof createClient>>,

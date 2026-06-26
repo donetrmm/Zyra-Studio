@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import {
   CreateMediaReferenceSchema,
   GetUploadUrlSchema,
+  SetReferenceUsageSchema,
 } from '@/lib/schemas/generations';
 import {
   REFERENCES_BUCKET,
@@ -154,11 +155,6 @@ export async function addGenerationAsReferenceAction(
     return { ok: false, error: 'internal_error', message: (e as Error).message };
   }
 }
-
-export const SetReferenceUsageSchema = z.object({
-  refId: z.string().uuid(),
-  usage: z.string().trim().max(120),
-});
 
 // AM: anota una media_reference con su descripcion de uso (o la limpia con "").
 // Ownership: el update exige id + workspace_id del usuario (ademas de RLS).
