@@ -1196,7 +1196,7 @@ function ProductionView({
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={busy !== null}
                         onClick={() => handleCancel(g.generationId as string)}
                         title="Cancelar esta generación (libera el crédito reservado)"
@@ -1239,7 +1239,7 @@ function ProductionView({
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            size="xs"
                             onClick={() =>
                               setViewing({
                                 generationId: d.generationId as string,
@@ -1251,7 +1251,7 @@ function ProductionView({
                             Ver
                           </Button>
                         )}
-                        <Button asChild variant="outline" size="sm">
+                        <Button asChild variant="outline" size="xs">
                           <Link
                             href={`/app/campaigns/${campaignId}/refine/${d.id}`}
                             title="Refinar el prompt con el asistente"
@@ -1266,7 +1266,7 @@ function ProductionView({
                             <Button
                               type="button"
                               variant="outline"
-                              size="sm"
+                              size="xs"
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'only-this')}
                               title="Rehace solo este clip, conservando los vecinos (lo ancla al inicio del siguiente)"
@@ -1281,7 +1281,7 @@ function ProductionView({
                             <Button
                               type="button"
                               variant="outline"
-                              size="sm"
+                              size="xs"
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'this-and-forward')}
                               title="Rehace este clip y vuelve a encadenar los siguientes"
@@ -1293,7 +1293,7 @@ function ProductionView({
                           <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            size="xs"
                             disabled={busy !== null}
                             onClick={() => handleRegenerate(d.id)}
                             title="Regenerar esta escena (reemplaza el borrador)"
@@ -1365,7 +1365,7 @@ function ProductionView({
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
+                          size="xs"
                           onClick={() =>
                             setViewing({
                               generationId: f.generationId as string,
@@ -1380,7 +1380,7 @@ function ProductionView({
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={busy !== null}
                         onClick={() => handleWinner(f)}
                         title={
@@ -1400,7 +1400,7 @@ function ProductionView({
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={!f.generationId}
                         onClick={() => setDistilling(f)}
                       >
@@ -1409,7 +1409,7 @@ function ProductionView({
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="xs"
                         disabled={!f.generationId}
                         onClick={() => setVarianting(f)}
                       >
