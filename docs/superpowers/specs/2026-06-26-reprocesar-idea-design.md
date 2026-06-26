@@ -37,8 +37,9 @@ No se cambia el backend del re-plan.
 5. **`CampaignStudioView`**: el prop `campaign` gana `ideaText: string | null`. Un botón
    **"Reprocesar idea con IA"** en el header abre un diálogo (shadcn `Dialog`) con un `textarea`
    pre-llenado con `ideaText`. Al enviar: `generatePlanAction({ campaignId, userIdeas })`, luego:
-   - `source:'ideas'` → toast de éxito + `router.refresh()` (el plan genérico se reemplaza por el
-     dirigido).
+   - `source:'ideas'` → si no hay avisos, `window.location.reload()` directo (el plan local se
+     sembró una vez, sin reconciliación); si hay avisos (inventados/ideas no convertibles) se
+     muestran inline con un botón "Ver el plan nuevo" que recarga, para no perderlos.
    - `source:'mix'` → toast.warning con el motivo (`MATCHER_ERROR_HINTS[matcherError]`), no se
      degrada en silencio. También se surfacean `inventedNames` y `blockers` (mismo patrón que el
      wizard).

@@ -166,6 +166,9 @@ export function CampaignStudioView({
   // Motivo inline cuando vuelve a caer al mix (no degradar en silencio): se queda
   // en el diálogo para que el usuario refine la idea y reintente sin perder contexto.
   const [reprocessError, setReprocessError] = useState<string | null>(null);
+  // Resumen de éxito CON avisos (inventados/ideas no convertibles): se muestra
+  // inline con un botón para recargar y ver el plan, así el aviso no se pierde.
+  const [reprocessDone, setReprocessDone] = useState<{ items: number; credits: number; notes: string[] } | null>(null);
 
   async function handleReprocess() {
     const idea = reprocessIdea.trim();
@@ -189,21 +192,27 @@ export function CampaignStudioView({
       return;
     }
     // source === 'ideas': el plan se reemplazó por los creativos interpretados.
-    toast.success(`Plan reprocesado: ${res.data.items} creativos · ~${res.data.creditsEstimated} cr en borradores`);
+    // Avisos que NO deben perderse (nunca degradar en silencio): personajes
+    // inventados e ideas no convertibles. Si los hay, se muestran INLINE en el
+    // diálogo (un toast moriría con el reload); si no hay nada que avisar, se
+    // recarga directo para mostrar el plan nuevo (el plan local se sembró una vez).
+    const notes: string[] = [];
     if (res.data.inventedNames?.length) {
-      toast.info(
+      notes.push(
         `${res.data.inventedNames.join(', ')}: no está(n) en la campaña, se inventó su apariencia (sin imagen de referencia).`,
-        { duration: 9000 },
       );
     }
     if (res.data.blockers?.length) {
-      toast.warning(`No pude convertir algunas ideas en tomas: ${res.data.blockers.join(' · ')}`, {
-        description: 'Reescríbelas diciendo qué pasa en pantalla (una acción concreta).',
-        duration: 10000,
-      });
+      notes.push(
+        `No pude convertir algunas ideas en tomas: ${res.data.blockers.join(' · ')}. Reescríbelas con una acción concreta.`,
+      );
     }
-    // El plan local se sembró una vez; recargar para mostrar el plan nuevo.
-    window.location.reload();
+    if (notes.length === 0) {
+      window.location.reload();
+      return;
+    }
+    setReprocessing(false);
+    setReprocessDone({ items: res.data.items, credits: res.data.creditsEstimated, notes });
   }
 
   function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
@@ -413,7 +422,7 @@ export function CampaignStudioView({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => { setReprocessIdea(campaign.ideaText ?? ''); setReprocessError(null); setReprocessOpen(true); }}
+              onClick={() => { setReprocessIdea(campaign.ideaText ?? ''); setReprocessError(null); setReprocessDone(null); setReprocessOpen(true); }}
               title="Re-interpretar tu idea con IA y rehacer el plan"
             >
               <Wand2 className="size-3.5" aria-hidden />
@@ -507,38 +516,58 @@ export function CampaignStudioView({
               que ya generaste se conservan.
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={reprocessIdea}
-            onChange={(e) => setReprocessIdea(e.target.value)}
-            disabled={reprocessing}
-            rows={6}
-            maxLength={6000}
-            placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
-            className="text-xs"
-          />
-          {reprocessError && (
-            <p className="text-2xs text-amber-400/90">{reprocessError}</p>
+          {reprocessDone ? (
+            <>
+              <p className="text-xs text-foreground">
+                Plan reprocesado: {reprocessDone.items} creativos · ~{reprocessDone.credits} cr en borradores.
+              </p>
+              <ul className="space-y-1">
+                {reprocessDone.notes.map((n, i) => (
+                  <li key={i} className="text-2xs text-amber-400/90">{n}</li>
+                ))}
+              </ul>
+              <div className="flex justify-end">
+                <Button type="button" size="sm" onClick={() => window.location.reload()}>
+                  Ver el plan nuevo
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Textarea
+                value={reprocessIdea}
+                onChange={(e) => setReprocessIdea(e.target.value)}
+                disabled={reprocessing}
+                rows={6}
+                maxLength={6000}
+                placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
+                className="text-xs"
+              />
+              {reprocessError && (
+                <p className="text-2xs text-amber-400/90">{reprocessError}</p>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={reprocessing}
+                  onClick={() => setReprocessOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={reprocessing || reprocessIdea.trim().length === 0}
+                  onClick={handleReprocess}
+                >
+                  {reprocessing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Wand2 className="size-3.5" aria-hidden />}
+                  Reprocesar
+                </Button>
+              </div>
+            </>
           )}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={reprocessing}
-              onClick={() => setReprocessOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={reprocessing || reprocessIdea.trim().length === 0}
-              onClick={handleReprocess}
-            >
-              {reprocessing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Wand2 className="size-3.5" aria-hidden />}
-              Reprocesar
-            </Button>
-          </div>
         </DialogContent>
       </Dialog>
 
