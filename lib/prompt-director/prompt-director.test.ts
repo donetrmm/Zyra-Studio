@@ -500,6 +500,61 @@ describe('compile seedance', () => {
     expect(res.compiled.warnings.some((w) => w.includes('tope de 9'))).toBe(true);
   });
 
+  it('cita el mapa de escala como rol scale_map con directiva top-down (P15)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The mascot dances on the sidewalk' },
+      {
+        location: {
+          name: 'Calle',
+          description: 'a city sidewalk',
+          imagePaths: ['ws/street.png'],
+          scaleMap: { path: 'ws/map.png', notes: 'the inflatable mascot is twice the person, left of the door' },
+        },
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const images = res.compiled.references.filter((r) => r.kind === 'image');
+    const sm = images.find((r) => r.role === 'scale_map');
+    expect(sm?.storagePath).toBe('ws/map.png');
+    expect(res.compiled.prompt).toMatch(/TOP-DOWN SCALE SCHEMATIC/);
+    expect(res.compiled.prompt).toContain('twice the person');
+  });
+
+  it('sin scaleMap no cita ninguna referencia scale_map (P15)', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A can on a table' },
+      { location: { name: 'Calle', description: 'a city sidewalk', imagePaths: ['ws/street.png'] } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.references.some((r) => r.role === 'scale_map')).toBe(false);
+  });
+
+  it('el scale_map tiene MAYOR prioridad que los extras ante el tope de 9 (P15)', () => {
+    // 8 imágenes ocupadas (3 producto + 2 empaque + master+2 ángulos) + 1 slot:
+    // compiten location, scale_map y extra → el orden de empuje es la prioridad
+    // (producto > empaque > personaje > locación > scale_map > extra).
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She opens the can' },
+      {
+        format: { ...vozCercana, requiredRefs: ['product', 'character', 'packaging'] },
+        product: { name: 'Canvas', imagePaths: ['p1.png', 'p2.png', 'p3.png'], packagingImagePaths: ['k1.png', 'k2.png'] },
+        characters: [{ name: 'Maya', description: 'd', masterImagePath: 'm.png', angleImagePaths: ['ma1.png', 'ma2.png'] }],
+        location: { name: 'Calle', description: 'd', imagePaths: [], scaleMap: { path: 'map.png' } },
+        extraImagePaths: ['x1.png'],
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const images = res.compiled.references.filter((r) => r.kind === 'image');
+    expect(images).toHaveLength(9);
+    // El 9º slot es el scale_map; el extra se recorta primero.
+    expect(images[8].role).toBe('scale_map');
+    expect(images.some((r) => r.role === 'environment' && r.storagePath === 'x1.png')).toBe(false);
+    expect(res.compiled.warnings.some((w) => w.includes('tope de 9'))).toBe(true);
+  });
+
   it('formato que pide personaje sin Cast ya NO bloquea (se inventa en el prompt)', () => {
     const res = compile(
       {

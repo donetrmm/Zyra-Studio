@@ -244,6 +244,22 @@ export function buildReferences(ctx: DirectorContext): {
     );
   }
 
+  // P15: mapa de escala top-down. Va tras la locación y antes de los extras en
+  // prioridad. Directiva propia: NO es una escena a renderizar, fija proporciones.
+  if (ctx.location?.scaleMap) {
+    const { path, notes } = ctx.location.scaleMap;
+    pushImage(
+      path,
+      'scale_map',
+      (n) =>
+        `@image${n} is a TOP-DOWN SCALE SCHEMATIC of the set, not a scene to render: ` +
+        `it fixes the relative SIZE and POSITION of the elements` +
+        (notes ? ` — ${notes}` : '') +
+        `. Keep these proportions and placement consistent across shots; do not resize or ` +
+        `relocate objects, and do not copy its flat diagram look into the video.`,
+    );
+  }
+
   // Referencias extra del refinado: entorno/estilo, última prioridad.
   for (const path of ctx.extraImagePaths ?? []) {
     pushImage(path, 'environment', (n) => `@image${n} is an additional scene reference — match its environment, mood and look.`);
@@ -251,7 +267,7 @@ export function buildReferences(ctx: DirectorContext): {
 
   if (droppedImages > 0) {
     warnings.push(
-      `referencias: ${droppedImages} imágenes recortadas por el tope de 9 del modelo (prioridad: producto > empaque > personaje > locación > extra)`,
+      `referencias: ${droppedImages} imágenes recortadas por el tope de 9 del modelo (prioridad: producto > empaque > personaje > locación > mapa de escala > extra)`,
     );
   }
 

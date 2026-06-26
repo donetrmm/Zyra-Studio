@@ -8,6 +8,7 @@ export type ReferenceRole =
   | 'packaging'      // empaque (El Descubrimiento)
   | 'character'      // hoja maestra / ángulos del Cast
   | 'environment'    // entorno o escena de referencia
+  | 'scale_map'      // esquema top-down: fija escala/posicion de objetos (P15)
   | 'style'          // dirección estética
   | 'camera_motion'  // video: replicar cámara/ritmo (plantillas vivas)
   | 'audio_rhythm'   // audio: mood y beats
@@ -78,7 +79,14 @@ export type DirectorContext = {
   // En ese caso no hay referencia environment que re-anclar y la descripción
   // ancla el "dónde" (línea `Location: ...`). NO exigir imagen — es un fallback
   // intencional; con imagen la consistencia visual entre clips es mejor.
-  location?: { name?: string; description?: string; imagePaths: string[] };
+  location?: {
+    name?: string;
+    description?: string;
+    imagePaths: string[];
+    // P15: esquema top-down que fija escala/posicion; se cita como rol scale_map
+    // y se re-ancla por clip (igual que imagePaths). `notes` = proporciones en texto.
+    scaleMap?: { path: string; notes?: string };
+  };
   // Escena elegida (de scene_library o libre). fragment va al prompt.
   scene?: { name?: string; fragment: string };
   // Plantilla viva: video ganador como referencia de estructura/cámara/ritmo.
