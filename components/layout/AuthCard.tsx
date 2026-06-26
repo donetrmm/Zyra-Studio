@@ -16,7 +16,7 @@ type AuthCardProps = {
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
   return (
     <Card
-      className="border-brand/15 bg-card/60 shadow-xl shadow-black/30 backdrop-blur"
+      className="border-brand/15 bg-card/60 backdrop-blur"
       style={{ boxShadow: "0 0 40px -12px rgba(0,159,255,0.10), 0 8px 24px -8px rgba(0,0,0,0.40)" }}
     >
       <CardHeader className="space-y-2">
