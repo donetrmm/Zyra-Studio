@@ -154,35 +154,50 @@ async function resolveUsages(
   return map;
 }
 
-// Resuelve location_id -> { name, description, imagePaths }. v1 usa SOLO la imagen
+// Resuelve location_id -> { name, description, imagePaths, scaleMap? }. v1 usa SOLO la imagen
 // master de la locación (1 por clip); los ángulos se difieren. Valida ownership.
 export async function resolveLocations(
   supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string,
   locationIds: string[],
-): Promise<Map<string, { name: string; description: string | null; imagePaths: string[] }>> {
+): Promise<
+  Map<
+    string,
+    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string } }
+  >
+> {
   const ids = [...new Set(locationIds.filter(Boolean))];
-  const out = new Map<string, { name: string; description: string | null; imagePaths: string[] }>();
+  const out = new Map<
+    string,
+    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string } }
+  >();
   if (ids.length === 0) return out;
   const { data: rows } = await supabase
     .from('locations')
-    .select('id, workspace_id, name, description, master_image_id')
+    .select('id, workspace_id, name, description, master_image_id, scale_map_image_id, scale_map_notes')
     .in('id', ids);
   const masterByLoc = new Map<string, string>();
+  const scaleByLoc = new Map<string, string>();
   for (const r of rows ?? []) {
     if (r.workspace_id !== workspaceId) continue;
     if (r.master_image_id) masterByLoc.set(r.id as string, r.master_image_id as string);
+    if (r.scale_map_image_id) scaleByLoc.set(r.id as string, r.scale_map_image_id as string);
   }
-  const masterIds = [...masterByLoc.values()];
-  const paths = await resolvePaths(supabase, workspaceId, masterIds);
+  // Una sola resolución de paths para masters + mapas de escala.
+  const paths = await resolvePaths(supabase, workspaceId, [...masterByLoc.values(), ...scaleByLoc.values()]);
   for (const r of rows ?? []) {
     if (r.workspace_id !== workspaceId) continue;
     const masterId = masterByLoc.get(r.id as string);
     const masterPath = masterId ? paths.get(masterId) : undefined;
+    const scaleId = scaleByLoc.get(r.id as string);
+    const scalePath = scaleId ? paths.get(scaleId) : undefined;
     out.set(r.id as string, {
       name: r.name as string,
       description: (r.description as string | null) ?? null,
       imagePaths: masterPath ? [masterPath] : [],
+      ...(scalePath
+        ? { scaleMap: { path: scalePath, ...((r.scale_map_notes as string | null) ? { notes: r.scale_map_notes as string } : {}) } }
+        : {}),
     });
   }
   return out;
@@ -309,7 +324,7 @@ export function directorContextFor(
   ctx: CampaignContext,
   templateVideoPath?: string,
   extraImagePaths?: string[],
-  location?: { name?: string; description?: string; imagePaths: string[] },
+  location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
   const characters = itemCharacterIds(item)
@@ -339,7 +354,7 @@ export function directorContextFor(
     },
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
-    location: (location?.imagePaths.length || location?.description?.trim()) ? location : undefined,
+    location: (location?.imagePaths.length || location?.description?.trim() || location?.scaleMap) ? location : undefined,
     scene: item.scene ? { fragment: item.scene } : undefined,
     // Plantilla viva: el video ganador entra como @Video1 (estructura/cámara/ritmo).
     templateVideoPath,
@@ -817,7 +832,7 @@ export async function enqueueBatch(params: {
       (() => {
         const loc = item.location_id ? locations.get(item.location_id) : undefined;
         if (!loc) return undefined;
-        return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths };
+        return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
       })(),
     );
     const dirCtx = storyboardMode ? onlyCharacterRefs(baseDirCtx) : baseDirCtx;

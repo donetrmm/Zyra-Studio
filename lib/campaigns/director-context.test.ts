@@ -1,5 +1,55 @@
 import { describe, it, expect } from 'vitest';
-import { directorContextFor, type CampaignContext } from './orchestrator';
+import { directorContextFor, resolveLocations, type CampaignContext } from './orchestrator';
+
+// Supabase falso: despacha por tabla. Cubre las dos queries de resolveLocations
+// (locations + media_references vía resolvePaths). Sin red.
+function fakeSupabase(byTable: Record<string, unknown[]>) {
+  return {
+    from: (table: string) => ({
+      select: () => ({ in: async () => ({ data: byTable[table] ?? [] }) }),
+    }),
+  } as unknown as Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>;
+}
+
+describe('resolveLocations — mapa de escala (P15)', () => {
+  it('resuelve scale_map_image_id a un path y adjunta las notas', async () => {
+    const sb = fakeSupabase({
+      locations: [{
+        id: 'loc1', workspace_id: 'ws', name: 'Calle', description: 'd',
+        master_image_id: 'm1', scale_map_image_id: 'sm1', scale_map_notes: 'mascota 2x',
+      }],
+      media_references: [
+        { id: 'm1', storage_url: 'ws/master.png', workspace_id: 'ws' },
+        { id: 'sm1', storage_url: 'ws/map.png', workspace_id: 'ws' },
+      ],
+    });
+    const map = await resolveLocations(sb, 'ws', ['loc1']);
+    expect(map.get('loc1')?.imagePaths).toEqual(['ws/master.png']);
+    expect(map.get('loc1')?.scaleMap).toEqual({ path: 'ws/map.png', notes: 'mascota 2x' });
+  });
+
+  it('sin scale_map_image_id, scaleMap queda undefined', async () => {
+    const sb = fakeSupabase({
+      locations: [{ id: 'loc1', workspace_id: 'ws', name: 'Calle', description: null, master_image_id: null, scale_map_image_id: null, scale_map_notes: null }],
+      media_references: [],
+    });
+    const map = await resolveLocations(sb, 'ws', ['loc1']);
+    expect(map.get('loc1')?.scaleMap).toBeUndefined();
+  });
+});
+
+describe('directorContextFor — propaga scaleMap (P15)', () => {
+  const baseItem = { id: 'i1', scene: null, character_id: null, character_ids: null } as unknown as Parameters<typeof directorContextFor>[0];
+  const ctx: CampaignContext = {
+    productName: 'Serum', productImagePaths: ['ws/p.png'], packagingImagePaths: [],
+    characters: new Map(), language: 'es',
+  };
+  it('lleva el scaleMap de la locación al DirectorContext', () => {
+    const loc = { name: 'Calle', description: 'd', imagePaths: ['ws/street.png'], scaleMap: { path: 'ws/map.png', notes: 'n' } };
+    const dc = directorContextFor(baseItem, null, ctx, undefined, undefined, loc);
+    expect(dc.location?.scaleMap).toEqual({ path: 'ws/map.png', notes: 'n' });
+  });
+});
 
 // ItemRow mínimo: directorContextFor solo lee scene, character ids y formato.
 const item = {
