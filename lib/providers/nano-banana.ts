@@ -28,11 +28,15 @@ const PartSchema = z.union([
   }),
 ]);
 
+// Gemini devuelve HTTP 200 sin `parts` (a veces sin `content`) cuando bloquea
+// o no produce salida: el motivo viaja en `finishReason`/`promptFeedback`. Por
+// eso content y parts son opcionales aquí; interpretResponse clasifica el caso
+// sin imagen en un error accionable en vez de un fallo de schema.
 const ResponseSchema = z.object({
   candidates: z
     .array(
       z.object({
-        content: z.object({ parts: z.array(PartSchema) }),
+        content: z.object({ parts: z.array(PartSchema).optional() }).optional(),
         finishReason: z.string().optional(),
       }),
     )
@@ -44,6 +48,16 @@ const ResponseSchema = z.object({
     })
     .optional(),
 });
+
+// finishReasons de Gemini que significan "bloqueado por políticas".
+const SAFETY_FINISH_REASONS = new Set([
+  'SAFETY',
+  'IMAGE_SAFETY',
+  'PROHIBITED_CONTENT',
+  'BLOCKLIST',
+  'SPII',
+  'RECITATION',
+]);
 
 const ErrorSchema = z.object({
   error: z.object({
@@ -224,6 +238,56 @@ function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
   };
 }
 
+// Interpreta la respuesta JSON de Gemini. Exportada para test determinista (no
+// llama a red). Devuelve la imagen decodificada, o lanza un ProviderError con
+// motivo accionable cuando Gemini bloquea o responde 200 sin imagen.
+export function interpretResponse(json: unknown): GenerationResult {
+  const parsed = ResponseSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new ProviderError(
+      `Respuesta inesperada de Gemini: ${parsed.error.message}`,
+      'unknown',
+      false,
+    );
+  }
+
+  const data = parsed.data;
+  if (data.promptFeedback?.blockReason) {
+    throw new ProviderError(
+      `El proveedor rechazó el contenido por políticas de seguridad (${data.promptFeedback.blockReason}).`,
+      'safety',
+      false,
+    );
+  }
+
+  const candidate = data.candidates[0];
+  const result = decodeImagePart(candidate.content?.parts ?? []);
+  if (result) return result;
+
+  // HTTP 200 sin imagen: el motivo viaja en finishReason. Lo surfaceamos en vez
+  // de fallar el schema con un error críptico.
+  const reason = candidate.finishReason ?? 'UNKNOWN';
+  if (SAFETY_FINISH_REASONS.has(reason)) {
+    throw new ProviderError(
+      `El proveedor rechazó el contenido por políticas de seguridad (${reason}).`,
+      'safety',
+      false,
+    );
+  }
+  if (reason === 'MAX_TOKENS') {
+    throw new ProviderError(
+      'Gemini agotó el presupuesto de tokens antes de emitir la imagen. Reintenta o simplifica el prompt.',
+      'server',
+      true,
+    );
+  }
+  throw new ProviderError(
+    `La respuesta no incluyó imagen (finishReason: ${reason}). Reintenta o ajusta el prompt.`,
+    'unknown',
+    false,
+  );
+}
+
 async function callOnce(
   params: NanoBananaParams,
   apiKey: string,
@@ -290,41 +354,7 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
   }
 
   const json = await res.json();
-  const parsed = ResponseSchema.safeParse(json);
-  if (!parsed.success) {
-    throw new ProviderError(
-      `Respuesta inesperada de Gemini: ${parsed.error.message}`,
-      'unknown',
-      false,
-    );
-  }
-
-  const data = parsed.data;
-  if (data.promptFeedback?.blockReason) {
-    throw new ProviderError(
-      `El proveedor rechazó el contenido por políticas de seguridad (${data.promptFeedback.blockReason}).`,
-      'safety',
-      false,
-    );
-  }
-
-  const candidate = data.candidates[0];
-  if (candidate.finishReason && candidate.finishReason === 'SAFETY') {
-    throw new ProviderError(
-      'El proveedor rechazó el contenido por políticas de seguridad.',
-      'safety',
-      false,
-    );
-  }
-
-  const result = decodeImagePart(candidate.content.parts);
-  if (!result) {
-    throw new ProviderError(
-      'La respuesta no incluyó imagen. Reintenta o ajusta el prompt.',
-      'unknown',
-      false,
-    );
-  }
+  const result = interpretResponse(json);
 
   if (params.noBackground) {
     const sharp = (await import('sharp')).default;

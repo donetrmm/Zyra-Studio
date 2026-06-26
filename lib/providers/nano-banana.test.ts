@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildBody } from './nano-banana';
-import type { NanoBananaParams } from './types';
+import { buildBody, interpretResponse } from './nano-banana';
+import { ProviderError, type NanoBananaParams } from './types';
 
 const img = (data: string) => ({ buffer: Buffer.from(data), mimeType: 'image/png' });
 const b64 = (data: string) => Buffer.from(data).toString('base64');
@@ -56,5 +56,66 @@ describe('buildBody — chatReferences en modo chat', () => {
     const data = imageDataIn(contents[0].parts);
     expect(data).toContain(b64('charref'));
     expect(data).not.toContain(b64('productref'));
+  });
+});
+
+describe('interpretResponse — Gemini puede devolver 200 sin parts', () => {
+  const imagePart = (data: string) => ({
+    inlineData: { mimeType: 'image/png', data: Buffer.from(data).toString('base64') },
+  });
+
+  it('decodifica la imagen de una respuesta válida', () => {
+    const res = interpretResponse({
+      candidates: [{ content: { parts: [imagePart('pixels')] }, finishReason: 'STOP' }],
+    });
+    expect(res.buffer.toString()).toBe('pixels');
+    expect(res.mimeType).toBe('image/png');
+  });
+
+  // El bug reportado: candidato con content pero SIN parts (bloqueo) → antes
+  // crasheaba con 'Respuesta inesperada' (zod). Ahora surfacea el finishReason.
+  it('candidato sin parts + finishReason de seguridad → ProviderError safety con el motivo', () => {
+    try {
+      interpretResponse({
+        candidates: [{ content: { role: 'model' }, finishReason: 'IMAGE_SAFETY' }],
+      });
+      expect.unreachable('debió lanzar ProviderError');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProviderError);
+      expect((e as ProviderError).code).toBe('safety');
+      expect((e as ProviderError).message).toContain('IMAGE_SAFETY');
+    }
+  });
+
+  it('promptFeedback.blockReason → ProviderError safety', () => {
+    try {
+      interpretResponse({ candidates: [{ content: {} }], promptFeedback: { blockReason: 'SAFETY' } });
+      expect.unreachable('debió lanzar ProviderError');
+    } catch (e) {
+      expect((e as ProviderError).code).toBe('safety');
+    }
+  });
+
+  it('MAX_TOKENS sin imagen → error reintentable con mensaje accionable', () => {
+    try {
+      interpretResponse({ candidates: [{ content: { parts: [] }, finishReason: 'MAX_TOKENS' }] });
+      expect.unreachable('debió lanzar ProviderError');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProviderError);
+      expect((e as ProviderError).retryable).toBe(true);
+      expect((e as ProviderError).message).toMatch(/token/i);
+    }
+  });
+
+  it('respuesta solo-texto (sin imagen) → reporta el finishReason, no crashea', () => {
+    try {
+      interpretResponse({
+        candidates: [{ content: { parts: [{ text: 'no puedo generar eso' }] }, finishReason: 'STOP' }],
+      });
+      expect.unreachable('debió lanzar ProviderError');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ProviderError);
+      expect((e as ProviderError).message).toContain('STOP');
+    }
   });
 });
