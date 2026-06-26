@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -113,6 +113,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 
+const STUDIO_TABS = ['plan', 'produccion', 'plantillas', 'calendario'] as const;
+
 export function CampaignStudioView({
   campaign,
   initialItems,
@@ -147,6 +149,21 @@ export function CampaignStudioView({
     warnings: string[];
     errors: string[];
   } | null>(null);
+
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
+    let next: number | null = null;
+    if (e.key === 'ArrowRight') next = (idx + 1) % STUDIO_TABS.length;
+    else if (e.key === 'ArrowLeft') next = (idx - 1 + STUDIO_TABS.length) % STUDIO_TABS.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = STUDIO_TABS.length - 1;
+    if (next !== null) {
+      e.preventDefault();
+      setTab(STUDIO_TABS[next]);
+      tabRefs.current[next]?.focus();
+    }
+  }
 
   async function handlePreviewPrompt(itemId: string) {
     setPromptPreview({ itemId, loading: true, prompt: null, references: [], warnings: [], errors: [] });
@@ -306,13 +323,17 @@ export function CampaignStudioView({
             aria-label="Vistas del studio"
             className="flex gap-1 rounded-lg border border-border bg-card p-0.5"
           >
-            {(['plan', 'produccion', 'plantillas', 'calendario'] as const).map((t) => (
+            {STUDIO_TABS.map((t, idx) => (
               <button
                 key={t}
+                ref={(el) => { tabRefs.current[idx] = el; }}
                 type="button"
                 role="tab"
+                id={`studio-tab-${t}`}
                 aria-selected={tab === t}
+                tabIndex={tab === t ? 0 : -1}
                 onClick={() => setTab(t)}
+                onKeyDown={(e) => handleTabKeyDown(e, idx)}
                 className={`rounded-md px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}

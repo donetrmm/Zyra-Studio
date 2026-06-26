@@ -522,7 +522,7 @@ export function CampaignStudioWizard({
 
         <section className="space-y-1.5">
           <Label htmlFor="campaign-goal" className="text-xs font-medium text-foreground/80">
-            Texto sugerido para publicar
+            Objetivo del texto (caption)
           </Label>
           <Select value={goal} onValueChange={setGoal}>
             <SelectTrigger id="campaign-goal" className="w-full">
