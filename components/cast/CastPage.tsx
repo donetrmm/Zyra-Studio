@@ -12,6 +12,7 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import { generateCharacterState, refineCharacterState, isGenError } from '@/components/creation/generate';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
+import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 
 export type CastCharacter = {
@@ -109,8 +110,7 @@ export function CastPage({
             <div key={c.id} className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
               <div className="flex items-center gap-3 p-4">
                 {c.master_image_id && previews[c.master_image_id] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previews[c.master_image_id]} alt={c.name} width={56} height={56} loading="lazy" decoding="async" className="size-14 shrink-0 rounded-full border border-border object-cover" />
+                  <ZoomableImage src={previews[c.master_image_id]} alt={c.name} className="size-14 shrink-0 rounded-full border border-border" />
                 ) : (
                   <div className="grid size-14 shrink-0 place-items-center rounded-full border border-border bg-muted/30">
                     <Users className="size-5 text-muted-foreground/40" aria-hidden />
@@ -454,8 +454,7 @@ function CharacterEditor({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2.5">
                         {s.previewUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.previewUrl} alt={s.label} width={44} height={44} loading="lazy" decoding="async" className="size-11 shrink-0 rounded-md border border-border object-cover" />
+                          <ZoomableImage src={s.previewUrl} alt={s.label} className="size-11 shrink-0 rounded-md border border-border" />
                         ) : (
                           <div className="grid size-11 shrink-0 place-items-center rounded-md border border-border bg-muted/30">
                             <Sparkles className="size-4 text-muted-foreground/40" aria-hidden />

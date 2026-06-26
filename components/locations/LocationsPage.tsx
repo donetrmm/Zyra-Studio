@@ -13,6 +13,7 @@ import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
+import { ZoomableImage } from '@/components/shared/ZoomableImage';
 
 export type Location = {
   id: string;
@@ -86,12 +87,7 @@ export function LocationsPage({
             >
               <div className="flex items-center gap-3 p-4">
                 {l.master_image_id && previews[l.master_image_id] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={previews[l.master_image_id]}
-                    alt={l.name}
-                    className="size-14 shrink-0 rounded-lg border border-border object-cover"
-                  />
+                  <ZoomableImage src={previews[l.master_image_id]} alt={l.name} className="size-14 shrink-0 rounded-lg border border-border" />
                 ) : (
                   <div className="grid size-14 shrink-0 place-items-center rounded-lg border border-border bg-muted/30">
                     <MapPin className="size-5 text-muted-foreground/40" aria-hidden />

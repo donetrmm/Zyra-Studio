@@ -10,6 +10,7 @@ import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
+import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
 import { generateProductAngle, isGenError } from '@/components/creation/generate';
 
@@ -340,8 +341,7 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
             {productImages.map((img) => (
               <div key={img.id} className="flex items-center gap-2">
                 {img.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img.previewUrl} alt="" width={40} height={40} loading="lazy" decoding="async" className="size-10 shrink-0 rounded-md border border-border object-cover" />
+                  <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
                 ) : (
                   <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
                 )}

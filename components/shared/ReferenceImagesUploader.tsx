@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
+import { ZoomableImage } from '@/components/shared/ZoomableImage';
 
 export type RefImage = { id: string; previewUrl: string | null };
 
@@ -76,8 +77,7 @@ export function ReferenceImagesUploader({
         {images.map((img, i) => (
           <div key={img.id} className="group relative size-16 overflow-hidden rounded-lg border border-border bg-muted/30">
             {img.previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={img.previewUrl} alt={`${label} ${i + 1}`} className="size-full object-cover" />
+              <ZoomableImage src={img.previewUrl} alt={`${label} ${i + 1}`} className="size-full" />
             ) : (
               <div className="grid size-full place-items-center text-[11px] text-muted-foreground/60">img {i + 1}</div>
             )}
@@ -85,7 +85,7 @@ export function ReferenceImagesUploader({
               type="button"
               aria-label={`Quitar ${label.toLowerCase()} ${i + 1}`}
               onClick={() => onChange(images.filter((x) => x.id !== img.id))}
-              className="absolute right-0.5 top-0.5 grid size-6 place-items-center rounded-full bg-background/80 text-muted-foreground opacity-100 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0"
+              className="absolute right-0.5 top-0.5 z-10 grid size-6 place-items-center rounded-full bg-background/80 text-muted-foreground opacity-100 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0"
             >
               <X className="size-3.5" aria-hidden />
             </button>
