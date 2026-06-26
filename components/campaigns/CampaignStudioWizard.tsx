@@ -32,6 +32,7 @@ import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
+import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { usePreflight } from '@/components/ui/preflight-checklist';
 import { CAMPAIGN_CHECKLIST } from '@/lib/checklists';
 import { uploadMediaReferenceFile } from '@/lib/media-references/upload-client';
@@ -71,14 +72,6 @@ type BrandKitOption = {
 
 // Motivos legibles del fallback del plan dirigido (codes de ProviderError
 // más 'sin_match' del saneo de la action).
-const MATCHER_ERROR_HINTS: Record<string, string> = {
-  rate_limit: 'Gemini alcanzó su límite de peticiones, intenta en un minuto',
-  auth: 'la API key de Gemini no es válida en este entorno',
-  server: 'Gemini respondió con error',
-  unknown: 'la respuesta de Gemini no se pudo interpretar',
-  sin_match: 'Gemini no logró mapear tus ideas al catálogo',
-};
-
 // Etiquetas en lenguaje simple (el usuario no es del medio): los valores
 // internos siguen siendo mixed/awareness/conversion (CaptionGoal). Solo deciden
 // el llamado a la acción del caption sugerido, no qué se genera.

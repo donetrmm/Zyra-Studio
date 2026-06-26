@@ -20,6 +20,7 @@ import {
   Sparkles,
   Trash2,
   Trophy,
+  Wand2,
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,6 +34,7 @@ import {
   distillTemplateAction,
   exportCampaignCsvAction,
   generateItemAction,
+  generatePlanAction,
   generateSeriesAction,
   mergeSequenceAction,
   previewItemPromptAction,
@@ -45,6 +47,7 @@ import {
   type RegenMode,
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
+import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import type { PricingRow } from '@/lib/credits/types';
@@ -58,6 +61,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { GenerationViewer } from './GenerationViewer';
@@ -85,6 +89,8 @@ export type StudioCampaign = {
   productName: string;
   category: string;
   creditsEstimated: number | null;
+  // Idea con que se generó el plan (P: reprocesar idea). null = se generó por mix.
+  ideaText: string | null;
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -151,6 +157,54 @@ export function CampaignStudioView({
   } | null>(null);
 
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Reprocesar idea: re-corre el matcher (Gemini) y reemplaza los borradores del
+  // plan por lo que la IA interprete de la idea. Pre-llena con la idea guardada.
+  const [reprocessOpen, setReprocessOpen] = useState(false);
+  const [reprocessIdea, setReprocessIdea] = useState(campaign.ideaText ?? '');
+  const [reprocessing, setReprocessing] = useState(false);
+  // Motivo inline cuando vuelve a caer al mix (no degradar en silencio): se queda
+  // en el diálogo para que el usuario refine la idea y reintente sin perder contexto.
+  const [reprocessError, setReprocessError] = useState<string | null>(null);
+
+  async function handleReprocess() {
+    const idea = reprocessIdea.trim();
+    if (!idea) return;
+    setReprocessing(true);
+    setReprocessError(null);
+    const res = await generatePlanAction({ campaignId: campaign.id, userIdeas: idea });
+    if (!res.ok) {
+      setReprocessing(false);
+      setReprocessError(res.message ?? 'No se pudo reprocesar la idea');
+      return;
+    }
+    if (res.data.source === 'mix') {
+      // El matcher no interpretó la idea: explicar por qué, sin cerrar el diálogo.
+      setReprocessing(false);
+      const reason = MATCHER_ERROR_HINTS[res.data.matcherError ?? ''] ?? 'no se pudo consultar a Gemini';
+      const blockers = res.data.blockers?.length ? ` ${res.data.blockers.join(' · ')}` : '';
+      setReprocessError(
+        `No pude interpretar tu idea (${reason}). Reescríbela diciendo qué pasa en pantalla (una acción concreta).${blockers}`,
+      );
+      return;
+    }
+    // source === 'ideas': el plan se reemplazó por los creativos interpretados.
+    toast.success(`Plan reprocesado: ${res.data.items} creativos · ~${res.data.creditsEstimated} cr en borradores`);
+    if (res.data.inventedNames?.length) {
+      toast.info(
+        `${res.data.inventedNames.join(', ')}: no está(n) en la campaña, se inventó su apariencia (sin imagen de referencia).`,
+        { duration: 9000 },
+      );
+    }
+    if (res.data.blockers?.length) {
+      toast.warning(`No pude convertir algunas ideas en tomas: ${res.data.blockers.join(' · ')}`, {
+        description: 'Reescríbelas diciendo qué pasa en pantalla (una acción concreta).',
+        duration: 10000,
+      });
+    }
+    // El plan local se sembró una vez; recargar para mostrar el plan nuevo.
+    window.location.reload();
+  }
 
   function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>, idx: number) {
     let next: number | null = null;
@@ -354,7 +408,17 @@ export function CampaignStudioView({
 
       {tab === 'plan' ? (
         <>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { setReprocessIdea(campaign.ideaText ?? ''); setReprocessError(null); setReprocessOpen(true); }}
+              title="Re-interpretar tu idea con IA y rehacer el plan"
+            >
+              <Wand2 className="size-3.5" aria-hidden />
+              Reprocesar idea con IA
+            </Button>
             <Button asChild variant="outline" size="sm">
               <Link href={`/app/campaigns/${campaign.id}/refine/new`}>
                 <Sparkles className="size-3.5" aria-hidden />
@@ -433,6 +497,50 @@ export function CampaignStudioView({
       {settingsOpen && (
         <CampaignSettingsDialog campaign={campaign} onClose={() => setSettingsOpen(false)} />
       )}
+
+      <Dialog open={reprocessOpen} onOpenChange={(o) => { if (!reprocessing) setReprocessOpen(o); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Reprocesar idea con IA</DialogTitle>
+            <DialogDescription>
+              La IA interpreta tu idea y rehace el plan. Reemplaza los creativos en borrador; los
+              que ya generaste se conservan.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reprocessIdea}
+            onChange={(e) => setReprocessIdea(e.target.value)}
+            disabled={reprocessing}
+            rows={6}
+            maxLength={6000}
+            placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
+            className="text-xs"
+          />
+          {reprocessError && (
+            <p className="text-2xs text-amber-400/90">{reprocessError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={reprocessing}
+              onClick={() => setReprocessOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={reprocessing || reprocessIdea.trim().length === 0}
+              onClick={handleReprocess}
+            >
+              {reprocessing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Wand2 className="size-3.5" aria-hidden />}
+              Reprocesar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

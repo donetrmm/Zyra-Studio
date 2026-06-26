@@ -749,7 +749,14 @@ export async function generatePlanAction(input: unknown): Promise<
 
   await supabase
     .from('campaigns')
-    .update({ status: 'planned', total_items: items.length, credits_estimated: total })
+    .update({
+      status: 'planned',
+      total_items: items.length,
+      credits_estimated: total,
+      // Persistir la idea (si vino) para poder reprocesarla luego desde el Studio
+      // y pre-llenar el diálogo. No se sobrescribe con null si no hubo idea (mix).
+      ...(parsed.data.userIdeas ? { idea_text: parsed.data.userIdeas } : {}),
+    })
     .eq('id', campaign.id);
 
   revalidatePath(`/app/campaigns/${campaign.id}`);

@@ -31,7 +31,7 @@ export default async function CampaignDetailRoute({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items')
+    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -118,6 +118,7 @@ export default async function CampaignDetailRoute({
           productName: brief.productName,
           category: brief.category ?? 'other',
           creditsEstimated: (campaign.credits_estimated as number | null) ?? null,
+          ideaText: (campaign.idea_text as string | null) ?? null,
         }}
         initialItems={items}
         templates={templates}
