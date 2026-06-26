@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -104,7 +104,7 @@ const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean
 function StatusBadge({ status }: { status: string }) {
   const s = STATUS_LABEL[status] ?? STATUS_LABEL.planned;
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] ${s.tone}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs ${s.tone}`}>
       {s.live && <Loader2 className="size-2.5 animate-spin" aria-hidden />}
       {s.label}
     </span>
@@ -230,7 +230,7 @@ export function CampaignStudioView({
     <div className="mx-auto max-w-5xl">
       <Link
         href="/app/campaigns"
-        className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
         Campañas
@@ -239,7 +239,7 @@ export function CampaignStudioView({
       {planNotice && !planNoticeDismissed && (
         <div
           role="alert"
-          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5 text-[12px] leading-snug text-muted-foreground"
+          className="mb-4 flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2.5 text-xs leading-snug text-muted-foreground"
         >
           <Info className="mt-0.5 size-3.5 shrink-0 text-amber-400" aria-hidden />
           <div className="min-w-0 flex-1">
@@ -252,7 +252,7 @@ export function CampaignStudioView({
           <button
             type="button"
             onClick={() => setPlanNoticeDismissed(true)}
-            className="shrink-0 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="shrink-0 rounded px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             Entendido
           </button>
@@ -262,7 +262,7 @@ export function CampaignStudioView({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">{campaign.name}</h1>
-          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {campaign.productName} · {items.length} creativos
             {campaign.creditsEstimated ? ` · ~${campaign.creditsEstimated} cr en borradores` : ''}
           </p>
@@ -272,21 +272,21 @@ export function CampaignStudioView({
             type="button"
             onClick={handleExport}
             disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
           >
             {exporting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Download className="size-3.5" aria-hidden />}
             CSV
           </button>
           <Link
             href={`/app/campaigns/${campaign.id}/storyboard`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <Clapperboard className="size-3.5" aria-hidden />
             Storyboard
           </Link>
           <Link
             href={`/app/campaigns/${campaign.id}/report`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <FileBarChart className="size-3.5" aria-hidden />
             Reporte
@@ -312,7 +312,7 @@ export function CampaignStudioView({
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => setTab(t)}
-                className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -334,7 +334,7 @@ export function CampaignStudioView({
           <div className="mt-4 flex justify-end">
             <Link
               href={`/app/campaigns/${campaign.id}/refine/new`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               <Sparkles className="size-3.5" aria-hidden />
               Agregar creativo
@@ -478,7 +478,7 @@ function CampaignSettingsDialog({
           <DialogTitle>Ajustes de la campaña</DialogTitle>
         </DialogHeader>
 
-        <label htmlFor="campaign-name" className="block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="campaign-name" className="block text-xs font-medium text-foreground/80">
           Nombre
         </label>
         <input
@@ -486,17 +486,17 @@ function CampaignSettingsDialog({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={100}
-          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
-        <label htmlFor="campaign-goal" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="campaign-goal" className="mt-3 block text-xs font-medium text-foreground/80">
           Objetivo
         </label>
         <select
           id="campaign-goal"
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
-          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {Object.entries(GOAL_LABEL).map(([value, label]) => (
             <option key={value} value={value}>
@@ -509,7 +509,7 @@ function CampaignSettingsDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+            className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground"
           >
             Cancelar
           </button>
@@ -517,7 +517,7 @@ function CampaignSettingsDialog({
             type="button"
             onClick={handleSave}
             disabled={saving || name.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
@@ -525,14 +525,14 @@ function CampaignSettingsDialog({
         </div>
 
         <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
-          <p className="text-[11.5px] text-muted-foreground">Estado de la campaña</p>
+          <p className="text-2xs text-muted-foreground">Estado de la campaña</p>
           <div className="flex flex-wrap gap-2">
             {campaign.status !== 'delivered' && (
               <button
                 type="button"
                 disabled={saving}
                 onClick={() => handleStatus('delivered')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 px-3 py-1.5 text-[12px] text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 px-3 py-1.5 text-xs text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
               >
                 <Trophy className="size-3.5" aria-hidden />
                 Marcar como entregada
@@ -543,7 +543,7 @@ function CampaignSettingsDialog({
                 type="button"
                 disabled={saving}
                 onClick={() => handleStatus('archived')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-[12px] text-destructive transition-colors hover:bg-destructive/15 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/15 disabled:opacity-40"
               >
                 {saving ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
                 Confirmar archivar
@@ -553,14 +553,14 @@ function CampaignSettingsDialog({
                 type="button"
                 disabled={saving}
                 onClick={() => setConfirmArchive(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
               >
                 <Trash2 className="size-3.5" aria-hidden />
                 Archivar campaña
               </button>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Archivar la saca de la lista de campañas y del dashboard. Sus creativos generados se conservan.
           </p>
         </div>
@@ -659,30 +659,30 @@ function PlanTable({
         >
           {item.formatName}
           {item.templateId && (
-            <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[11px] text-primary">
+            <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-2xs text-primary">
               serie
             </span>
           )}
           {item.characterNames.length > 0 && (
-            <span className="ml-1.5 text-[11px] text-muted-foreground">
+            <span className="ml-1.5 text-2xs text-muted-foreground">
               · {item.characterNames.join(' + ')}
             </span>
           )}
         </td>
         <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
           {item.scene && (
-            <p className="line-clamp-1 text-[11px] text-muted-foreground">{item.scene}</p>
+            <p className="line-clamp-1 text-2xs text-muted-foreground">{item.scene}</p>
           )}
           <p className="line-clamp-2 text-muted-foreground/80">
             {item.sceneSummary ?? item.scenePrompt}
           </p>
           {item.caption && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 line-clamp-1 text-2xs text-muted-foreground">
               Caption: {item.caption}
             </p>
           )}
           {item.warnings.length > 0 && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{item.warnings[0]}</p>
+            <p className="mt-0.5 line-clamp-1 text-2xs text-amber-400/70">{item.warnings[0]}</p>
           )}
         </td>
         <td className="whitespace-nowrap px-3 py-2.5">
@@ -697,7 +697,7 @@ function PlanTable({
                   onClick={() => handleGenerateItem(item)}
                   disabled={generatingItem === item.id}
                   title="Generar esta escena"
-                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                 >
                   {generatingItem === item.id ? (
                     <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -760,7 +760,7 @@ function PlanTable({
   return (
     <div className="mt-5 space-y-3">
       {sequenceGroups.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/[0.06] px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
+        <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/[0.06] px-3 py-2.5 text-xs leading-snug text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
           <p>
             La IA interpretó tus ideas y creó{' '}
@@ -784,8 +784,8 @@ function PlanTable({
       )}
       {singleGroups.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-left text-[12.5px]">
-            <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-border bg-muted/20 text-2xs uppercase tracking-wide text-muted-foreground/60">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
                 <th scope="col" className="px-3 py-2 font-medium">Formato</th>
@@ -802,14 +802,14 @@ function PlanTable({
           <div key={group.sequenceId} className="rounded-xl border border-border bg-card/40 p-3">
             <div className="mb-2 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-2sm font-medium text-foreground">
                   <Layers className="size-3.5 text-primary" aria-hidden />
                   Secuencia{group.label ? `: «${group.label}»` : ''} · {group.scenes.length} escenas
-                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-primary">
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-2xs uppercase tracking-wide text-primary">
                     sugerida por IA
                   </span>
                 </div>
-                <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
+                <p className="mt-1 text-2xs leading-snug text-muted-foreground">
                   La IA dividió esta idea en {group.scenes.length} escenas que se generan por
                   separado y juntas forman un anuncio.
                 </p>
@@ -823,7 +823,7 @@ function PlanTable({
                     onChange={(e) =>
                       handleAssignLocation(group.sequenceId, e.target.value === '' ? null : e.target.value)
                     }
-                    className="rounded-md border border-border bg-background px-2 py-1.5 text-[11.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-2xs text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
                   >
                     <option value="">Sin locación</option>
                     {locationOptions.map((l) => (
@@ -836,7 +836,7 @@ function PlanTable({
                 <button
                   type="button"
                   title={`Une las ${group.scenes.length} escenas en un solo video continuo (máx 15s). Si no las unes, se generan por separado.`}
-                  className="rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                  className="rounded-md border border-border px-2.5 py-1.5 text-2xs text-muted-foreground transition-colors hover:text-foreground"
                   onClick={() => handleMergeSequence(group.sequenceId, group.scenes.length)}
                 >
                   Unir en 1 clip
@@ -844,8 +844,8 @@ function PlanTable({
               </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-border">
-              <table className="w-full text-left text-[12.5px]">
-                <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-border bg-muted/20 text-2xs uppercase tracking-wide text-muted-foreground/60">
                   <tr>
                     <th scope="col" className="px-3 py-2 font-medium">#</th>
                     <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
@@ -858,7 +858,7 @@ function PlanTable({
                 <tbody>
                   {group.scenes.map((scene, i) => (
                     <tr key={scene.id} className="border-b border-border/50 last:border-0">
-                      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-muted-foreground">{i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-2xs text-muted-foreground">{i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
@@ -873,30 +873,30 @@ function PlanTable({
                       >
                         {scene.formatName}
                         {scene.templateId && (
-                          <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-[11px] text-primary">
+                          <span className="ml-1.5 rounded-full border border-primary/40 px-1.5 py-0.5 text-2xs text-primary">
                             serie
                           </span>
                         )}
                         {scene.characterNames.length > 0 && (
-                          <span className="ml-1.5 text-[11px] text-muted-foreground">
+                          <span className="ml-1.5 text-2xs text-muted-foreground">
                             · {scene.characterNames.join(' + ')}
                           </span>
                         )}
                       </td>
                       <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
                         {scene.scene && (
-                          <p className="line-clamp-1 text-[11px] text-muted-foreground">{scene.scene}</p>
+                          <p className="line-clamp-1 text-2xs text-muted-foreground">{scene.scene}</p>
                         )}
                         <p className="line-clamp-2 text-muted-foreground/80">
                           {scene.sceneSummary ?? scene.scenePrompt}
                         </p>
                         {scene.caption && (
-                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                          <p className="mt-0.5 line-clamp-1 text-2xs text-muted-foreground">
                             Caption: {scene.caption}
                           </p>
                         )}
                         {scene.warnings.length > 0 && (
-                          <p className="mt-0.5 line-clamp-1 text-[11px] text-amber-400/70">{scene.warnings[0]}</p>
+                          <p className="mt-0.5 line-clamp-1 text-2xs text-amber-400/70">{scene.warnings[0]}</p>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5">
@@ -911,7 +911,7 @@ function PlanTable({
                                 onClick={() => handleGenerateItem(scene)}
                                 disabled={generatingItem === scene.id}
                                 title="Generar esta escena (continúa desde la anterior)"
-                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                                className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                               >
                                 {generatingItem === scene.id ? (
                                   <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1116,7 +1116,7 @@ function ProductionView({
                 </div>
                 <div title={group.items[0]?.formatDescription || undefined}>
                   <p className="text-[13.5px] font-medium text-foreground">{group.formatName}</p>
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {group.items.length} creativos · {pending} pendientes
                     {generating > 0 && ` · ${generating} generando`}
                     {drafts.length > 0 && ` · ${drafts.length} borradores`}
@@ -1127,7 +1127,7 @@ function ProductionView({
                     return (
                       <p
                         key={sid}
-                        className="mt-1 flex items-center gap-1.5 text-[11.5px] text-muted-foreground/80"
+                        className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground/80"
                       >
                         <Layers className="size-3 text-primary/70" aria-hidden />
                         Secuencia{label ? ` «${label}»` : ''}: {n} escenas en orden
@@ -1146,7 +1146,7 @@ function ProductionView({
                       : undefined
                   }
                   onClick={() => handleBatch(group.formatId, 'sample')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:sample` ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1159,7 +1159,7 @@ function ProductionView({
                   type="button"
                   disabled={pending === 0 || busy !== null}
                   onClick={() => handleBatch(group.formatId, 'full')}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:full` ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1172,7 +1172,7 @@ function ProductionView({
             </div>
 
             {sequences.length > 0 && pending > 0 && (
-              <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-[11.5px] leading-snug text-amber-300/90">
+              <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-2xs leading-snug text-amber-300/90">
                 <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                 <span>
                   {pureSequence
@@ -1185,7 +1185,7 @@ function ProductionView({
             {generatingItems.length > 0 && (
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
                 {generatingItems.map((g) => (
-                  <div key={g.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                  <div key={g.id} className="flex items-center justify-between gap-3 text-xs">
                     <p className="line-clamp-1 flex-1 text-muted-foreground">
                       <Loader2 className="mr-1.5 inline size-3 animate-spin align-[-2px]" aria-hidden />
                       {g.sceneSummary ?? g.scenePrompt}
@@ -1196,7 +1196,7 @@ function ProductionView({
                         disabled={busy !== null}
                         onClick={() => handleCancel(g.generationId as string)}
                         title="Cancelar esta generación (libera el crédito reservado)"
-                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
                       >
                         {busy === `cancel:${g.generationId}` ? (
                           <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1226,7 +1226,7 @@ function ProductionView({
                       : { onlyThis: false, thisAndForward: false };
                   const isSeqMiddle = modes.onlyThis || modes.thisAndForward;
                   return (
-                    <div key={d.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                    <div key={d.id} className="flex items-center justify-between gap-3 text-xs">
                       <p className="line-clamp-1 flex-1 text-muted-foreground/80">
                         {d.sceneSummary ?? d.scenePrompt}
                       </p>
@@ -1240,7 +1240,7 @@ function ProductionView({
                                 title: d.sceneSummary ?? d.scenePrompt,
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
                           >
                             <Play className="size-3" aria-hidden />
                             Ver
@@ -1249,7 +1249,7 @@ function ProductionView({
                         <Link
                           href={`/app/campaigns/${campaignId}/refine/${d.id}`}
                           title="Refinar el prompt con el asistente"
-                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-primary"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-primary"
                         >
                           <Sparkles className="size-3" aria-hidden />
                           Refinar
@@ -1261,7 +1261,7 @@ function ProductionView({
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'only-this')}
                               title="Rehace solo este clip, conservando los vecinos (lo ancla al inicio del siguiente)"
-                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                             >
                               {busy === `regen:${d.id}` ? (
                                 <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1275,7 +1275,7 @@ function ProductionView({
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'this-and-forward')}
                               title="Rehace este clip y vuelve a encadenar los siguientes"
-                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                             >
                               Este y los siguientes
                             </button>
@@ -1286,7 +1286,7 @@ function ProductionView({
                             disabled={busy !== null}
                             onClick={() => handleRegenerate(d.id)}
                             title="Regenerar esta escena (reemplaza el borrador)"
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                           >
                             {busy === `regen:${d.id}` ? (
                               <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1297,7 +1297,7 @@ function ProductionView({
                           </button>
                         )}
                         <span
-                          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-brand/40 text-[11.5px]"
+                          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-brand/40 text-2xs"
                           title="Aprobar y renderizar la versión final con la misma composición"
                         >
                           <span className="px-2 py-1 text-brand/70">Final</span>
@@ -1334,7 +1334,7 @@ function ProductionView({
                   type="button"
                   disabled={busy !== null}
                   onClick={() => handleRedoSamples(group.formatId)}
-                  className="mt-1 text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
+                  className="mt-1 text-2xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:redo`
                     ? 'Regresando borradores…'
@@ -1346,7 +1346,7 @@ function ProductionView({
             {finalItems.length > 0 && (
               <div className="mt-3 space-y-1.5 border-t border-border/50 pt-3">
                 {finalItems.map((f) => (
-                  <div key={f.id} className="flex items-center justify-between gap-3 text-[12.5px]">
+                  <div key={f.id} className="flex items-center justify-between gap-3 text-xs">
                     <p className="line-clamp-1 flex-1 text-muted-foreground/80">
                       {f.sceneSummary ?? f.scenePrompt}
                     </p>
@@ -1360,7 +1360,7 @@ function ProductionView({
                               title: f.sceneSummary ?? f.scenePrompt,
                             })
                           }
-                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <Play className="size-3" aria-hidden />
                           Ver
@@ -1377,8 +1377,8 @@ function ProductionView({
                         }
                         className={
                           f.isWinner
-                            ? 'inline-flex items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1 text-[11.5px] text-amber-300 transition-colors hover:bg-amber-400/15 disabled:opacity-40'
-                            : 'inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40'
+                            ? 'inline-flex items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1 text-2xs text-amber-300 transition-colors hover:bg-amber-400/15 disabled:opacity-40'
+                            : 'inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40'
                         }
                       >
                         <Trophy className="size-3" aria-hidden />
@@ -1388,7 +1388,7 @@ function ProductionView({
                         type="button"
                         disabled={!f.generationId}
                         onClick={() => setDistilling(f)}
-                        className="rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                        className="rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                       >
                         Convertir en plantilla
                       </button>
@@ -1396,7 +1396,7 @@ function ProductionView({
                         type="button"
                         disabled={!f.generationId}
                         onClick={() => setVarianting(f)}
-                        className="rounded-lg border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                        className="rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                       >
                         Variante
                       </button>
@@ -1410,7 +1410,7 @@ function ProductionView({
       })}
       <ImagePackCard campaignId={campaignId} pricing={pricing} />
 
-      <p className="text-[11.5px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         Los lotes se encolan escalonados (20 s entre videos). Cuando un creativo termina, ábrelo con
         &ldquo;Ver&rdquo; aquí mismo; el borrador se genera en 480p y la versión final en 720p o 1080p, según elijas, con la misma composición.
       </p>
@@ -1470,8 +1470,8 @@ function TemplatesView({
   if (templates.length === 0) {
     return (
       <div className="mt-10 flex flex-col items-center gap-2 text-center text-muted-foreground/60">
-        <p className="text-[14px] text-foreground/70">Sin plantillas todavía</p>
-        <p className="max-w-md text-[12.5px]">
+        <p className="text-sm text-foreground/70">Sin plantillas todavía</p>
+        <p className="max-w-md text-xs">
           Cuando un creativo final te funcione, conviértelo en plantilla desde Producción: su estructura,
           cámara y ritmo quedan fijos y puedes generar series rotando escena y personaje.
         </p>
@@ -1481,7 +1481,7 @@ function TemplatesView({
 
   return (
     <div className="mt-5 space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/50 p-3 text-[12.5px]">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/50 p-3 text-xs">
         <span className="text-muted-foreground">Tamaño de la serie:</span>
         {[2, 3, 4, 6].map((n) => (
           <button
@@ -1515,7 +1515,7 @@ function TemplatesView({
           <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/50 p-4">
             <div className="min-w-0">
               <p className="truncate text-[13.5px] font-medium text-foreground">{t.name}</p>
-              <p className="text-[11.5px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t.formatName} · usada {t.usesCount} {t.usesCount === 1 ? 'vez' : 'veces'}
               </p>
             </div>
@@ -1523,7 +1523,7 @@ function TemplatesView({
               type="button"
               disabled={busy !== null}
               onClick={() => handleSeries(t.id)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity disabled:opacity-40"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity disabled:opacity-40"
             >
               {busy === t.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
               Generar serie ({count})
@@ -1531,7 +1531,7 @@ function TemplatesView({
           </div>
         ))}
       </div>
-      <p className="text-[11.5px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         La serie copia la estructura, cámara y ritmo del video ganador (entra como referencia @Video1) y
         rota la escena{rotateCharacters ? ' y el personaje' : ''}. Los items nuevos aparecen en el plan
         como planificados y se generan desde Producción con las compuertas normales.
@@ -1572,17 +1572,17 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
           onChange={(e) => setName(e.target.value)}
           maxLength={120}
           placeholder="Nombre de la plantilla"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground">
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleDistill}
             disabled={saving || name.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Crear plantilla
@@ -1675,7 +1675,7 @@ function VariantDialog({
               role="radio"
               aria-checked={mode === m.value}
               onClick={() => setMode(m.value)}
-              className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
                 mode === m.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1687,14 +1687,14 @@ function VariantDialog({
         {mode === 'extend' ? (
           <div className="mt-4 space-y-3">
             <div>
-              <span className="text-[12.5px] font-medium text-foreground/80">Segundos a extender</span>
+              <span className="text-xs font-medium text-foreground/80">Segundos a extender</span>
               <div className="mt-1.5 flex gap-2">
                 {[4, 5, 6, 8].map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setExtendSeconds(s)}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors ${
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
                       extendSeconds === s
                         ? 'border-primary/60 bg-primary/10 text-foreground'
                         : 'border-border text-muted-foreground hover:text-foreground'
@@ -1706,7 +1706,7 @@ function VariantDialog({
               </div>
             </div>
             <div>
-              <label htmlFor="variant-cont" className="text-[12.5px] font-medium text-foreground/80">
+              <label htmlFor="variant-cont" className="text-xs font-medium text-foreground/80">
                 Qué pasa en la continuación (opcional)
               </label>
               <textarea
@@ -1716,23 +1716,23 @@ function VariantDialog({
                 rows={2}
                 maxLength={500}
                 placeholder="She sets the can down and looks back to camera with a smile"
-                className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
           </div>
         ) : mode === 'replace_character' ? (
           <div className="mt-4">
-            <label htmlFor="variant-char" className="text-[12.5px] font-medium text-foreground/80">
+            <label htmlFor="variant-char" className="text-xs font-medium text-foreground/80">
               Nuevo personaje (acciones, escena y cámara se conservan)
             </label>
             {characterOptions.length === 0 ? (
-              <p className="mt-1.5 text-[12px] text-amber-400/80">No hay personajes en el Cast.</p>
+              <p className="mt-1.5 text-xs text-amber-400/80">No hay personajes en el Cast.</p>
             ) : (
               <select
                 id="variant-char"
                 value={characterId}
                 onChange={(e) => setCharacterId(e.target.value)}
-                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {characterOptions.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -1744,7 +1744,7 @@ function VariantDialog({
           </div>
         ) : mode === 'change_action' ? (
           <div className="mt-4">
-            <label htmlFor="variant-action" className="text-[12.5px] font-medium text-foreground/80">
+            <label htmlFor="variant-action" className="text-xs font-medium text-foreground/80">
               Nueva acción o desenlace (sujeto, escena y cámara se conservan)
             </label>
             <textarea
@@ -1754,17 +1754,17 @@ function VariantDialog({
               rows={3}
               maxLength={500}
               placeholder="She opens the can, takes a sip and raises it toward the camera"
-              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
         ) : (
           <div className="mt-4 space-y-3">
             <div>
-              <label htmlFor="variant-bridge" className="text-[12.5px] font-medium text-foreground/80">
+              <label htmlFor="variant-bridge" className="text-xs font-medium text-foreground/80">
                 Clip destino (el puente conecta el final de este clip con su inicio)
               </label>
               {bridgeOptions.length === 0 ? (
-                <p className="mt-1.5 text-[12px] text-amber-400/80">
+                <p className="mt-1.5 text-xs text-amber-400/80">
                   Necesitas otro final terminado en la campaña para conectar.
                 </p>
               ) : (
@@ -1772,7 +1772,7 @@ function VariantDialog({
                   id="variant-bridge"
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   {bridgeOptions.map((b) => (
                     <option key={b.id} value={b.generationId ?? ''}>
@@ -1783,14 +1783,14 @@ function VariantDialog({
               )}
             </div>
             <div>
-              <span className="text-[12.5px] font-medium text-foreground/80">Duración del puente</span>
+              <span className="text-xs font-medium text-foreground/80">Duración del puente</span>
               <div className="mt-1.5 flex gap-2">
                 {[4, 5, 6, 8].map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setBridgeSeconds(s)}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors ${
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
                       bridgeSeconds === s
                         ? 'border-primary/60 bg-primary/10 text-foreground'
                         : 'border-border text-muted-foreground hover:text-foreground'
@@ -1805,14 +1805,14 @@ function VariantDialog({
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground">
             Cancelar
           </button>
           <button
             type="button"
             onClick={handleCreate}
             disabled={saving || !canSubmit}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Encolar variante
@@ -1891,7 +1891,7 @@ function EditItemDialog({
           <DialogTitle>Editar creativo · {item.formatName}</DialogTitle>
         </DialogHeader>
 
-        <label htmlFor="edit-prompt" className="block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="edit-prompt" className="block text-xs font-medium text-foreground/80">
           Acción de la escena
         </label>
         <textarea
@@ -1900,12 +1900,12 @@ function EditItemDialog({
           onChange={(e) => setScenePrompt(e.target.value)}
           rows={4}
           maxLength={4000}
-          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor="edit-scene" className="block text-[12.5px] font-medium text-foreground/80">
+            <label htmlFor="edit-scene" className="block text-xs font-medium text-foreground/80">
               Escena (fragmento de contexto)
             </label>
             <input
@@ -1914,18 +1914,18 @@ function EditItemDialog({
               onChange={(e) => setScene(e.target.value)}
               maxLength={200}
               placeholder="a sunlit home kitchen"
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             />
           </div>
           <div>
-            <label htmlFor="edit-character" className="block text-[12.5px] font-medium text-foreground/80">
+            <label htmlFor="edit-character" className="block text-xs font-medium text-foreground/80">
               Personaje
             </label>
             <select
               id="edit-character"
               value={characterId}
               onChange={(e) => setCharacterId(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
             >
               <option value="">Sin cambio / sin personaje</option>
               {characterOptions.map((c) => (
@@ -1940,14 +1940,14 @@ function EditItemDialog({
             if (states.length === 0) return null;
             return (
               <div>
-                <label htmlFor="edit-state" className="block text-[12.5px] font-medium text-foreground/80">
+                <label htmlFor="edit-state" className="block text-xs font-medium text-foreground/80">
                   Estado del personaje
                 </label>
                 <select
                   id="edit-state"
                   value={characterStateHint ?? ''}
                   onChange={(e) => setCharacterStateHint(e.target.value || null)}
-                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                 >
                   <option value="">Ninguno (neutral)</option>
                   {states.map((s) => (
@@ -1961,7 +1961,7 @@ function EditItemDialog({
           })()}
         </div>
 
-        <label htmlFor="edit-caption" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="edit-caption" className="mt-3 block text-xs font-medium text-foreground/80">
           Caption de publicación
         </label>
         <textarea
@@ -1971,10 +1971,10 @@ function EditItemDialog({
           rows={2}
           maxLength={2200}
           placeholder="Texto que acompaña al post; va al export, nunca dentro del video"
-          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="mt-1.5 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
-        <label htmlFor="edit-date" className="mt-3 block text-[12.5px] font-medium text-foreground/80">
+        <label htmlFor="edit-date" className="mt-3 block text-xs font-medium text-foreground/80">
           Fecha programada
         </label>
         <input
@@ -1982,14 +1982,14 @@ function EditItemDialog({
           type="date"
           value={scheduledDate}
           onChange={(e) => setScheduledDate(e.target.value)}
-          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="mt-1.5 rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
 
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-[13px] text-muted-foreground hover:text-foreground"
+            className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground"
           >
             Cancelar
           </button>
@@ -1997,7 +1997,7 @@ function EditItemDialog({
             type="button"
             onClick={handleSave}
             disabled={saving || scenePrompt.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
@@ -2032,22 +2032,22 @@ function PromptPreviewDialog({
           </DialogDescription>
         </DialogHeader>
         {preview.loading ? (
-          <div className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground">
+          <div className="flex items-center gap-2 py-6 text-2sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden /> Compilando…
           </div>
         ) : preview.errors.length > 0 ? (
-          <div className="space-y-1 text-[12.5px] text-red-300/90">
+          <div className="space-y-1 text-xs text-red-300/90">
             {preview.errors.map((e) => (
               <p key={e}>{e}</p>
             ))}
           </div>
         ) : (
           <div className="space-y-3">
-            <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-3 text-[12px] leading-relaxed text-foreground/90">
+            <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-3 text-xs leading-relaxed text-foreground/90">
               {preview.prompt}
             </pre>
             {preview.references.length > 0 && (
-              <div className="text-[11.5px] text-muted-foreground">
+              <div className="text-2xs text-muted-foreground">
                 <p className="font-medium text-foreground/70">Referencias ({preview.references.length})</p>
                 <ul className="mt-1 space-y-0.5">
                   {preview.references.map((r, i) => (
@@ -2060,7 +2060,7 @@ function PromptPreviewDialog({
               </div>
             )}
             {preview.warnings.length > 0 && (
-              <div className="text-[11.5px] text-amber-300/80">
+              <div className="text-2xs text-amber-300/80">
                 {preview.warnings.map((w) => (
                   <p key={w}>{w}</p>
                 ))}

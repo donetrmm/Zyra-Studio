@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -13,7 +13,7 @@ export function Sidebar() {
         {APP_SIDEBAR.map((section, idx) => (
           <div key={idx} className="mt-6 first:mt-2">
             {section.title ? (
-              <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="px-3 pb-2 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.title}
               </p>
             ) : null}
@@ -55,7 +55,7 @@ function SidebarLink({ item }: { item: NavItem }) {
         href={item.href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-[13px] transition-colors",
+          "flex items-center gap-3 rounded-md px-3 py-2 text-2sm transition-colors",
           active
             ? "bg-sidebar-accent text-sidebar-accent-foreground"
             : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
@@ -64,7 +64,7 @@ function SidebarLink({ item }: { item: NavItem }) {
         <Icon className="size-4" aria-hidden />
         <span className="flex-1">{item.label}</span>
         {item.badge && (
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary">
             {item.badge}
           </span>
         )}

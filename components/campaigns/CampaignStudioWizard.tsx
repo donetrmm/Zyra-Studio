@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
@@ -267,20 +267,20 @@ export function CampaignStudioWizard({
     <div className="mx-auto max-w-xl">
       <Link
         href="/app/campaigns"
-        className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" aria-hidden />
         Campañas
       </Link>
 
       <h1 className="text-[18px] font-semibold text-foreground">Nueva campaña</h1>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-2sm text-muted-foreground">
         Sube tu producto y describe lo que imaginas: el plan se arma con esos creativos.
       </p>
 
       <div className="mt-6 space-y-6">
         <section>
-          <Label className="text-[12.5px] font-medium text-foreground/80">Tu producto</Label>
+          <Label className="text-xs font-medium text-foreground/80">Tu producto</Label>
           {mode === 'upload' ? (
             <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
               <ReferenceImagesUploader
@@ -294,7 +294,7 @@ export function CampaignStudioWizard({
                 <button
                   type="button"
                   onClick={() => setMode('kit')}
-                  className="mt-3 block text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                  className="mt-3 block text-2xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
                 >
                   ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
@@ -302,7 +302,7 @@ export function CampaignStudioWizard({
               <button
                 type="button"
                 onClick={() => setAiOpen(true)}
-                className="mt-2 inline-flex items-center gap-1 text-[11.5px] text-primary underline-offset-2 hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-2xs text-primary underline-offset-2 hover:underline"
               >
                 ¿No tienes una foto del producto? Créala con IA
                 <ArrowRight className="size-3" aria-hidden />
@@ -323,17 +323,17 @@ export function CampaignStudioWizard({
                 </SelectContent>
               </Select>
               {selectedKit && selectedKit.productImages === 0 && (
-                <p className="mt-2 text-[11.5px] text-amber-400/80">
+                <p className="mt-2 text-2xs text-amber-400/80">
                   Este kit no tiene imágenes de producto; el análisis usará sus referencias
                   generales.
                 </p>
               )}
               {selectedKit && selectedKit.packagingImages > 0 && (
                 <div className="mt-3 flex items-start justify-between gap-3">
-                  <span className="text-[12px] leading-snug text-muted-foreground">
+                  <span className="text-xs leading-snug text-muted-foreground">
                     Incluir las {selectedKit.packagingImages} imagen
                     {selectedKit.packagingImages !== 1 ? 'es' : ''} de empaque del kit
-                    <span className="block text-[11px] text-muted-foreground">
+                    <span className="block text-2xs text-muted-foreground">
                       Solo viajan al video en formatos que las usan (ej. unboxing). Si lo
                       desactivas, el plan no propondrá esos formatos.
                     </span>
@@ -349,7 +349,7 @@ export function CampaignStudioWizard({
               <button
                 type="button"
                 onClick={() => setMode('upload')}
-                className="mt-3 text-[11.5px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                className="mt-3 text-2xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
               >
                 Mejor subir fotos nuevas
               </button>
@@ -358,7 +358,7 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-1.5">
-          <Label htmlFor="campaign-name" className="text-[12.5px] font-medium text-foreground/80">
+          <Label htmlFor="campaign-name" className="text-xs font-medium text-foreground/80">
             Nombre de la campaña
           </Label>
           <Input
@@ -371,7 +371,7 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-1.5">
-          <Label htmlFor="campaign-url" className="text-[12.5px] font-medium text-foreground/80">
+          <Label htmlFor="campaign-url" className="text-xs font-medium text-foreground/80">
             URL del producto <span className="font-normal text-muted-foreground/50">(opcional)</span>
           </Label>
           <Input
@@ -382,13 +382,13 @@ export function CampaignStudioWizard({
             placeholder="https://mitienda.com/producto"
             maxLength={500}
           />
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             El texto de la página (nombre, descripción, tono) enriquece el análisis.
           </p>
         </section>
 
         <section className="space-y-1.5">
-          <Label htmlFor="campaign-ideas" className="text-[12.5px] font-medium text-foreground/80">
+          <Label htmlFor="campaign-ideas" className="text-xs font-medium text-foreground/80">
             Describe lo que imaginas
           </Label>
           <textarea
@@ -399,9 +399,9 @@ export function CampaignStudioWizard({
             placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
             maxLength={6000}
             rows={3}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             El plan tendrá un creativo por cada idea (o los que pidas: &ldquo;3 versiones
             de&hellip;&rdquo;). Lo que no encaje en el catálogo crea un formato nuevo tuyo.
             Techo demo: 30 creativos; los borradores salen en 480p.
@@ -409,10 +409,10 @@ export function CampaignStudioWizard({
         </section>
 
         <section>
-          <Label className="text-[12.5px] font-medium text-foreground/80">
+          <Label className="text-xs font-medium text-foreground/80">
             Personajes <span className="font-normal text-muted-foreground/50">(hasta 3)</span>
           </Label>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-0.5 text-2xs text-muted-foreground">
             Los personajes asignados pueden aparecer en los videos; nómbralos en tus ideas
             para dirigirlos (&ldquo;María hace un unboxing&rdquo;). Nombres que no asignes
             se inventan sin imagen de referencia.
@@ -420,7 +420,7 @@ export function CampaignStudioWizard({
           {characters.length === 0 ? (
             <div className="mt-1.5 flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
               <UserRound className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" aria-hidden />
-              <div className="flex-1 text-[12px] leading-relaxed text-muted-foreground">
+              <div className="flex-1 text-xs leading-relaxed text-muted-foreground">
                 <p>
                   Sin personajes en tu Cast, los formatos con presentador usarán un
                   personaje inventado (la cara cambiará entre videos).
@@ -472,10 +472,10 @@ export function CampaignStudioWizard({
                             <UserRound className="size-5 text-muted-foreground/40" aria-hidden />
                           </div>
                         )}
-                        <p className="mt-1.5 truncate text-[12px] text-foreground/90">{c.name}</p>
+                        <p className="mt-1.5 truncate text-xs text-foreground/90">{c.name}</p>
                       </button>
                       {idx === 0 && (
-                        <span className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground">
+                        <span className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full bg-primary px-2 py-1 text-2xs font-medium text-primary-foreground">
                           Principal
                         </span>
                       )}
@@ -484,7 +484,7 @@ export function CampaignStudioWizard({
                           type="button"
                           onClick={() => makePrincipal(c.id)}
                           aria-label={`Hacer a ${c.name} el personaje principal`}
-                          className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full border border-border bg-background/80 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full border border-border bg-background/80 px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
                           Hacer principal
                         </button>
@@ -494,7 +494,7 @@ export function CampaignStudioWizard({
                 })}
               </div>
               {selectedCharacterIds.length >= 3 && (
-                <p className="mt-1.5 text-[11.5px] text-amber-400/80">
+                <p className="mt-1.5 text-2xs text-amber-400/80">
                   Con 3 personajes la atención del modelo se reparte y el parecido puede
                   degradarse; considera 1-2 por video.
                 </p>
@@ -521,7 +521,7 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-1.5">
-          <Label htmlFor="campaign-goal" className="text-[12.5px] font-medium text-foreground/80">
+          <Label htmlFor="campaign-goal" className="text-xs font-medium text-foreground/80">
             Texto sugerido para publicar
           </Label>
           <Select value={goal} onValueChange={setGoal}>
@@ -536,13 +536,13 @@ export function CampaignStudioWizard({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] leading-snug text-muted-foreground">
+          <p className="text-2xs leading-snug text-muted-foreground">
             Solo ajusta el llamado a la acción del caption; lo puedes editar después.
           </p>
         </section>
 
         <section>
-          <span className="text-[12.5px] font-medium text-foreground/80">Idioma hablado</span>
+          <span className="text-xs font-medium text-foreground/80">Idioma hablado</span>
           <div className="mt-1.5 flex gap-2">
             {(
               [
@@ -554,7 +554,7 @@ export function CampaignStudioWizard({
                 key={l.value}
                 type="button"
                 onClick={() => setLanguage(l.value)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
                   language === l.value
                     ? 'border-primary/60 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground'
@@ -564,13 +564,13 @@ export function CampaignStudioWizard({
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-1.5 text-2xs text-muted-foreground">
             Idioma de los diálogos y voz en off de los videos; el caption sale en español.
           </p>
         </section>
 
         <section>
-          <span className="text-[12.5px] font-medium text-foreground/80">Formato de video</span>
+          <span className="text-xs font-medium text-foreground/80">Formato de video</span>
           <div className="mt-1.5 flex gap-2">
             {(
               [
@@ -583,7 +583,7 @@ export function CampaignStudioWizard({
                 key={a.value}
                 type="button"
                 onClick={() => setAspectRatio(a.value)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-[13px] transition-colors ${
+                className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
                   aspectRatio === a.value
                     ? 'border-primary/60 bg-primary/10 text-foreground'
                     : 'border-border bg-card text-muted-foreground hover:text-foreground'
@@ -593,16 +593,16 @@ export function CampaignStudioWizard({
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-1.5 text-2xs text-muted-foreground">
             Aplica a todos los creativos del plan; puedes cambiarlo por video al editar.
           </p>
         </section>
 
         <section className="space-y-2">
-          <Label htmlFor="music-upload" className="text-[12.5px] font-medium text-foreground/80">
+          <Label htmlFor="music-upload" className="text-xs font-medium text-foreground/80">
             Pista musical <span className="font-normal text-muted-foreground/50">(opcional)</span>
           </Label>
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
             audio sincronizado al beat. No se usa como banda sonora final.
           </p>
@@ -622,7 +622,7 @@ export function CampaignStudioWizard({
               onChange={(e) => void handleMusicSelected(e.target.files?.[0])}
             />
           )}
-          {musicBusy ? <p className="text-[11.5px] text-muted-foreground">Subiendo pista…</p> : null}
+          {musicBusy ? <p className="text-2xs text-muted-foreground">Subiendo pista…</p> : null}
         </section>
 
         <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>

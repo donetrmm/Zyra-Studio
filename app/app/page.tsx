@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,10 +75,10 @@ export default async function DashboardPage() {
               <Link
                 key={c.id}
                 href={`/app/campaigns/${c.id}`}
-                className="group flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5 text-[13px] transition-colors hover:border-primary/40"
+                className="group flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5 text-2sm transition-colors hover:border-primary/40"
               >
                 <span className="min-w-0 truncate text-foreground/90">{c.name}</span>
-                <span className="inline-flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground group-hover:text-foreground">
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground group-hover:text-foreground">
                   {gate.live && <Loader2 className="size-3 animate-spin" aria-hidden />}
                   {gate.cta}
                   <ArrowRight className="size-3" aria-hidden />
@@ -95,14 +95,14 @@ export default async function DashboardPage() {
             <h2 className="font-heading text-[15px] font-semibold">Actividad reciente</h2>
             <Link
               href="/app/library"
-              className="inline-flex items-center gap-1 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
             >
               Ir a la Biblioteca
               <ArrowUpRight className="size-3.5" aria-hidden />
             </Link>
           </div>
           {generations.length === 0 ? (
-            <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-6 text-center text-[12.5px] text-muted-foreground">
+            <p className="mt-3 rounded-lg border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
               Aquí aparecerá lo que generes — en campañas o en la Creación rápida.
             </p>
           ) : (
@@ -118,7 +118,7 @@ export default async function DashboardPage() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={thumb} alt={g.model_id ?? ""} className="size-full object-cover" />
                     ) : (
-                      <div className="flex h-full items-center justify-center px-1 text-center text-[11px] text-muted-foreground">
+                      <div className="flex h-full items-center justify-center px-1 text-center text-2xs text-muted-foreground">
                         {g.status === "done" ? g.type : g.status}
                       </div>
                     )}
@@ -130,16 +130,16 @@ export default async function DashboardPage() {
         </div>
 
         <div className="rounded-xl border border-border bg-card/50 p-4">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Créditos</p>
+          <p className="text-2xs uppercase tracking-wider text-muted-foreground">Créditos</p>
           <p className="mt-1 font-heading text-2xl font-semibold tabular-nums">
             <LiveCreditValue userId={user.id} initialBalance={balance} />
           </p>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-0.5 text-2xs text-muted-foreground">
             {pending > 0 ? `${fmt(pending)} reservados en producción` : "Listos para usar"}
           </p>
           <Link
             href="/app/billing"
-            className="mt-3 inline-flex items-center gap-1 text-[12.5px] text-primary underline-offset-2 hover:underline"
+            className="mt-3 inline-flex items-center gap-1 text-xs text-primary underline-offset-2 hover:underline"
           >
             Comprar más
             <ArrowUpRight className="size-3.5" aria-hidden />
@@ -155,7 +155,7 @@ function CampaignHero({ campaign }: { campaign: CampaignSummary }) {
   const gate = deriveGate(campaign);
   return (
     <section className="rounded-2xl border border-border bg-card/50 p-5 sm:p-6">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-primary">
+      <p className="text-2xs font-medium uppercase tracking-wider text-primary">
         Tu siguiente paso
       </p>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -163,7 +163,7 @@ function CampaignHero({ campaign }: { campaign: CampaignSummary }) {
           <h2 className="truncate font-heading text-xl font-semibold tracking-tight">
             {campaign.name}
           </h2>
-          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {campaign.productName}
             {campaign.total > 0 && ` · ${campaign.total} creativos`}
             {campaign.finals > 0 && ` · ${campaign.finals} finales`}
@@ -194,7 +194,7 @@ function FirstCampaignHero() {
   ];
   return (
     <section className="rounded-2xl border border-border bg-card/50 p-5 sm:p-6">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-primary">
+      <p className="text-2xs font-medium uppercase tracking-wider text-primary">
         Tu primera campaña
       </p>
       <h2 className="mt-2 font-heading text-xl font-semibold tracking-tight">
@@ -203,12 +203,12 @@ function FirstCampaignHero() {
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         {steps.map((s) => (
           <div key={s.n} className="flex gap-3">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-[12px] font-medium text-primary">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-xs font-medium text-primary">
               {s.n}
             </span>
             <div>
-              <p className="text-[13px] font-medium text-foreground">{s.title}</p>
-              <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{s.sub}</p>
+              <p className="text-2sm font-medium text-foreground">{s.title}</p>
+              <p className="mt-0.5 text-2xs leading-relaxed text-muted-foreground">{s.sub}</p>
             </div>
           </div>
         ))}

@@ -48,6 +48,12 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Escala tipográfica — tokens que no colisionan con los defaults de Tailwind.
+     text-xs (12px) y text-sm (14px) ya existen en Tailwind; NO se redefinen. */
+  --text-2xs: 0.6875rem;         /* 11px */
+  --text-2xs--line-height: 1rem;
+  --text-2sm: 0.8125rem;         /* 13px */
+  --text-2sm--line-height: 1.25rem;
 }
 
 :root {

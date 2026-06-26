@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -51,7 +51,7 @@ export function MobileBottomNav() {
         {open && (
           <div id="more-panel" className="absolute bottom-full left-0 right-0 border-t border-border bg-card px-4 pb-2 pt-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Más secciones
               </span>
               <button
@@ -74,7 +74,7 @@ export function MobileBottomNav() {
                     aria-current={active ? "page" : undefined}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5 text-[11px] transition-colors",
+                      "flex flex-col items-center gap-1.5 rounded-lg px-2 py-2.5 text-2xs transition-colors",
                       active
                         ? "bg-primary/10 text-foreground"
                         : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -99,7 +99,7 @@ export function MobileBottomNav() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 py-2 text-[11px] transition-colors",
+                "flex flex-col items-center justify-center gap-1 py-2 text-2xs transition-colors",
                 active
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -116,7 +116,7 @@ export function MobileBottomNav() {
           aria-expanded={open}
           aria-controls="more-panel"
           className={cn(
-            "flex flex-col items-center justify-center gap-1 py-2 text-[11px] transition-colors",
+            "flex flex-col items-center justify-center gap-1 py-2 text-2xs transition-colors",
             open || isMoreActive
               ? "text-foreground"
               : "text-muted-foreground hover:text-foreground",
