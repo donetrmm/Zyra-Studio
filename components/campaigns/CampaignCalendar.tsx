@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, ImageIcon, Loader2, Play } from 'lucide-reac
 import { toast } from 'sonner';
 import { buildImagePackAction, updateItemScheduleAction } from '@/server-actions/campaigns';
 import { submitGenerationAction } from '@/server-actions/generations';
+import { estimateCredits } from '@/lib/credits/estimator';
+import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from './CampaignStudioView';
 import { insufficientCreditsToast } from './credits-toast';
 import { Button } from '@/components/ui/button';
@@ -28,8 +30,21 @@ function genErrorReason(res: { error: string; message?: string }): string {
 // El server arma los prompts (FLUX + escenas ganadoras); el cliente genera
 // una imagen por llamada con el flujo normal — cada una se cobra y cae en
 // la librería de la campaña.
-export function ImagePackCard({ campaignId }: { campaignId: string }) {
+export function ImagePackCard({ campaignId, pricing }: { campaignId: string; pricing: PricingRow[] }) {
   const [count, setCount] = useState<4 | 6 | 8>(4);
+  // Costo estimado por imagen del pack (FLUX 1 megapixel). El bonus por imágenes de
+  // referencia (que arma el server) lo sumará la deducción real -> por eso es un "~".
+  let packUnit: number | null = null;
+  try {
+    packUnit = estimateCredits(pricing, {
+      provider: 'flux',
+      model: 'flux-2-pro-preview',
+      variant: 'default',
+      params: { megapixels: 1, references: 0 },
+    }).total;
+  } catch {
+    packUnit = null;
+  }
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [generated, setGenerated] = useState<Array<{ id: string; aspectRatio: string }>>([]);
   const [refineText, setRefineText] = useState(
@@ -178,6 +193,7 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
               <>
                 <Play className="size-3.5" aria-hidden />
                 Generar pack
+                {packUnit != null && <span className="text-primary-foreground/80">· ~{packUnit * count} cr</span>}
               </>
             )}
           </button>

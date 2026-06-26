@@ -31,7 +31,7 @@ type AiState =
   | { mode: 'create' }
   | { mode: 'improve'; kit: BrandKit; existing: { product?: ImgRef; packaging?: ImgRef } };
 
-export function BrandKitsPage({ kits: initial, previews, usages }: { kits: BrandKit[]; previews: Record<string, string>; usages: Record<string, string> }) {
+export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { kits: BrandKit[]; previews: Record<string, string>; usages: Record<string, string>; angleCost: number | null }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
@@ -124,6 +124,7 @@ export function BrandKitsPage({ kits: initial, previews, usages }: { kits: Brand
           kit={editing === 'new' ? null : editing}
           previews={previews}
           usages={usages}
+          angleCost={angleCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />
@@ -222,7 +223,7 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
   );
 }
 
-function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; usages: Record<string, string>; onClose: () => void; onSaved: () => void }) {
+function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; usages: Record<string, string>; angleCost: number | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(kit?.name ?? '');
   const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#009fff' }]);
   const [fonts, setFonts] = useState(kit?.fonts?.join(', ') ?? '');
@@ -369,6 +370,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
         >
           {angling ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
           Generar vista 3/4 del producto
+          {angleCost != null && <span className="text-muted-foreground">· −{angleCost} cr</span>}
         </button>
 
         <ReferenceImagesUploader

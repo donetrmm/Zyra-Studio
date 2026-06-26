@@ -46,6 +46,8 @@ import {
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
+import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
+import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
 import {
   Dialog,
@@ -84,6 +86,10 @@ export type StudioCampaign = {
   creditsEstimated: number | null;
 };
 
+// Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
+// Seedance reference-to-video; el costo per-item = duración × tarifa/segundo de la resolución.
+const FINAL_MODEL = 'bytedance/seedance-2.0/reference-to-video';
+
 const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean }> = {
   planned: { label: 'planificado', tone: 'text-muted-foreground/70 border-border' },
   sample: { label: 'muestra…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
@@ -113,6 +119,7 @@ export function CampaignStudioView({
   characterOptions,
   locationOptions,
   planNotice,
+  pricing,
 }: {
   campaign: StudioCampaign;
   initialItems: StudioItem[];
@@ -122,6 +129,8 @@ export function CampaignStudioView({
   // R6: si el matcher degradó el plan a un mix genérico, el wizard navega con
   // ?plan=generic; el aviso vive aquí como banner persistente (no un toast efímero).
   planNotice: { reason: string | null } | null;
+  // Filas de model_pricing para estimar costos en cliente (finales de video, pack).
+  pricing: PricingRow[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [planNoticeDismissed, setPlanNoticeDismissed] = useState(false);
@@ -353,6 +362,7 @@ export function CampaignStudioView({
           campaignId={campaign.id}
           groups={byFormat}
           characterOptions={characterOptions}
+          pricing={pricing}
           onWinner={(id, isWinner) =>
             setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isWinner } : i)))
           }
@@ -960,16 +970,28 @@ function ProductionView({
   campaignId,
   groups,
   characterOptions,
+  pricing,
   onWinner,
   onSamplesReset,
 }: {
   campaignId: string;
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
   characterOptions: StudioCharacterOption[];
+  pricing: PricingRow[];
   onWinner: (itemId: string, isWinner: boolean) => void;
   onSamplesReset: (formatId: string) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Costo del render final por item (Seedance, per-segundo según resolución). null si
+  // falta el pricing -> el botón cae a solo la etiqueta de resolución.
+  const finalCost = (resolution: '720p' | '1080p', durationS: number | null): number | null => {
+    try {
+      return seedanceCostPerItem(pricing, FINAL_MODEL, resolution, durationS ?? 8);
+    } catch {
+      return null;
+    }
+  };
   const [distilling, setDistilling] = useState<StudioItem | null>(null);
   const [varianting, setVarianting] = useState<StudioItem | null>(null);
   // Visor inline del creativo generado (evita ir a la Biblioteca).
@@ -1285,7 +1307,11 @@ function ProductionView({
                             onClick={() => handleFinal(d.id, '720p')}
                             className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
                           >
-                            {busy === `final:${d.id}:720p` ? '…' : '720p'}
+                            {busy === `final:${d.id}:720p`
+                              ? '…'
+                              : finalCost('720p', d.durationS) != null
+                                ? `720p · −${finalCost('720p', d.durationS)} cr`
+                                : '720p'}
                           </button>
                           <button
                             type="button"
@@ -1293,7 +1319,11 @@ function ProductionView({
                             onClick={() => handleFinal(d.id, '1080p')}
                             className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
                           >
-                            {busy === `final:${d.id}:1080p` ? '…' : '1080p'}
+                            {busy === `final:${d.id}:1080p`
+                              ? '…'
+                              : finalCost('1080p', d.durationS) != null
+                                ? `1080p · −${finalCost('1080p', d.durationS)} cr`
+                                : '1080p'}
                           </button>
                         </span>
                       </span>
@@ -1378,7 +1408,7 @@ function ProductionView({
           </div>
         );
       })}
-      <ImagePackCard campaignId={campaignId} />
+      <ImagePackCard campaignId={campaignId} pricing={pricing} />
 
       <p className="text-[11.5px] text-muted-foreground">
         Los lotes se encolan escalonados (20 s entre videos). Cuando un creativo termina, ábrelo con

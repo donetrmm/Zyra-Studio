@@ -9,6 +9,7 @@ import {
   type StudioTemplate,
 } from '@/components/campaigns/CampaignStudioView';
 import { toStudioItem } from '@/lib/campaigns/studio-item';
+import { loadPricing } from '@/lib/credits/pricing';
 import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +104,10 @@ export default async function CampaignDetailRoute({
       name: l.name as string,
     }));
 
+    // R12: pricing para estimar costos en cliente (finales de video, pack). [] si falla
+    // -> los controles caen a su etiqueta sin costo (no rompe la generación).
+    const pricing = await loadPricing().catch(() => []);
+
     return (
       <CampaignStudioView
         campaign={{
@@ -119,6 +124,7 @@ export default async function CampaignDetailRoute({
         characterOptions={characterOptions}
         locationOptions={locationOptions}
         planNotice={planNotice}
+        pricing={pricing}
       />
     );
   }

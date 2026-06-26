@@ -1,6 +1,8 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { loadPricing } from '@/lib/credits/pricing';
+import { estimateCredits } from '@/lib/credits/estimator';
 import { BrandKitsPage } from '@/components/brand-kits/BrandKitsPage';
 
 export const dynamic = 'force-dynamic';
@@ -43,5 +45,20 @@ export default async function BrandKitsRoute() {
     );
   }
 
-  return <BrandKitsPage kits={(kits ?? []) as never} previews={previews} usages={usages} />;
+  // R12: costo de "Generar vista 3/4 del producto" (va por editUploaded -> Nano Banana
+  // 2k; mirror de components/creation/generate.ts). null si falla el pricing.
+  let angleCost: number | null = null;
+  try {
+    const pricing = await loadPricing();
+    angleCost = estimateCredits(pricing, {
+      provider: 'nano-banana',
+      model: 'gemini-3-pro-image-preview',
+      variant: '2k',
+      params: { conversational: false },
+    }).total;
+  } catch {
+    angleCost = null;
+  }
+
+  return <BrandKitsPage kits={(kits ?? []) as never} previews={previews} usages={usages} angleCost={angleCost} />;
 }
