@@ -5,17 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
+import { UpsertLocationSchema } from '@/lib/schemas/locations';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
-
-// Locación: el "dónde" reutilizable de una secuencia. master_image_id OPCIONAL:
-// una locación puede ser solo descripción (sin imagen) — el spec lo permite.
-const UpsertLocationSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  description: z.string().trim().max(600).optional(),
-  masterImageId: z.string().uuid().optional(),
-  referenceImageIds: z.array(z.string().uuid()).max(4).default([]),
-});
 
 async function validateImageOwnership(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -41,7 +33,7 @@ export async function createLocationAction(input: unknown): Promise<Result<{ id:
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const allIds = [parsed.data.masterImageId, ...parsed.data.referenceImageIds].filter(
+  const allIds = [parsed.data.masterImageId, parsed.data.scaleMapImageId, ...parsed.data.referenceImageIds].filter(
     (x): x is string => !!x,
   );
   if (!(await validateImageOwnership(supabase, workspace.id, allIds))) {
@@ -56,6 +48,8 @@ export async function createLocationAction(input: unknown): Promise<Result<{ id:
       description: parsed.data.description ?? null,
       master_image_id: parsed.data.masterImageId ?? null,
       reference_image_ids: parsed.data.referenceImageIds,
+      scale_map_image_id: parsed.data.scaleMapImageId ?? null,
+      scale_map_notes: parsed.data.scaleMapNotes ?? null,
     })
     .select('id')
     .single();
@@ -70,7 +64,7 @@ export async function updateLocationAction(id: string, input: unknown): Promise<
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const allIds = [parsed.data.masterImageId, ...parsed.data.referenceImageIds].filter(
+  const allIds = [parsed.data.masterImageId, parsed.data.scaleMapImageId, ...parsed.data.referenceImageIds].filter(
     (x): x is string => !!x,
   );
   if (!(await validateImageOwnership(supabase, workspace.id, allIds))) {
@@ -85,6 +79,8 @@ export async function updateLocationAction(id: string, input: unknown): Promise<
         description: parsed.data.description ?? null,
         master_image_id: parsed.data.masterImageId ?? null,
         reference_image_ids: parsed.data.referenceImageIds,
+        scale_map_image_id: parsed.data.scaleMapImageId ?? null,
+        scale_map_notes: parsed.data.scaleMapNotes ?? null,
       },
       { count: 'exact' },
     )
