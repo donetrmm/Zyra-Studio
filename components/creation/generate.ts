@@ -149,6 +149,33 @@ export async function refineCharacterState(
   return editUploaded(stateRef, prompt);
 }
 
+// Mapa de escala (P15): diagrama top-down del set desde una descripción. FLUX
+// text2image, no photoreal (queremos un esquema plano, no una foto). Legítimo
+// porque es un esquema de proporciones, no una foto fiel de un producto/persona.
+function buildScaleMapPrompt(description: string): string {
+  return (
+    `Top-down schematic floor-plan diagram of ${description}. ` +
+    'Flat simple line drawing seen directly from above, labeled, showing the relative positions ' +
+    'and proportional sizes of the elements; plain background, no perspective, no photorealism, ' +
+    'no shadows, no people, no text other than short element labels.'
+  );
+}
+
+export async function generateScaleMap(description: string): Promise<GeneratedImage | GenError> {
+  const res = await submitGenerationAction({
+    provider: 'flux' as const,
+    model: 'flux-2-pro-preview' as const,
+    variant: 'default' as const,
+    prompt: buildScaleMapPrompt(description),
+    aspectRatio: '1:1' as const,
+    megapixels: 2 as const,
+    photoreal: false,
+    references: [],
+  });
+  if (!res.ok) return { error: res.error, message: res.message };
+  return fixAsReference(res.data.generationId);
+}
+
 // Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.
 // Legítimo solo cuando no hay producto real — es un concepto, no una foto fiel.
 function buildProductPrompt(description: string): string {

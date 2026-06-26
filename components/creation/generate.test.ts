@@ -6,7 +6,7 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { generateProductAngle, generateCharacterState, isGenError } from './generate';
+import { generateProductAngle, generateCharacterState, isGenError, generateScaleMap } from './generate';
 
 describe('generateProductAngle', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -53,5 +53,36 @@ describe('generateCharacterState', () => {
     expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
     expect(call.prompt).toMatch(/wet hair and soaked clothing/);
     expect(call.prompt).toMatch(/Keep the person's identity perfectly consistent/i);
+  });
+});
+
+describe('generateScaleMap', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('genera un diagrama top-down con FLUX (no photoreal) y lo fija como referencia', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+
+    const res = await generateScaleMap('a city sidewalk with an inflatable mascot');
+
+    expect(isGenError(res)).toBe(false);
+    if (!isGenError(res)) expect(res.refId).toBe('ref1');
+
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('flux');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'flux' }>).photoreal).toBe(false);
+    expect(call.references).toEqual([]);
+    expect(call.prompt).toMatch(/top-down/i);
+    expect(call.prompt).toMatch(/schematic|floor-plan/i);
+  });
+
+  it('propaga el error de la generación', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: false, error: 'provider_error', message: 'boom' });
+    const res = await generateScaleMap('x');
+    expect(isGenError(res)).toBe(true);
+    if (isGenError(res)) expect(res.message).toBe('boom');
   });
 });
