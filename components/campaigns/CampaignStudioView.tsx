@@ -92,11 +92,11 @@ const FINAL_MODEL = 'bytedance/seedance-2.0/reference-to-video';
 
 const STATUS_LABEL: Record<string, { label: string; tone: string; live?: boolean }> = {
   planned: { label: 'planificado', tone: 'text-muted-foreground/70 border-border' },
-  sample: { label: 'muestra…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
-  queued: { label: 'generando…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
+  sample: { label: 'muestra…', tone: 'text-brand/90 border-brand/30', live: true },
+  queued: { label: 'generando…', tone: 'text-brand/90 border-brand/30', live: true },
   draft_ready: { label: 'borrador listo', tone: 'text-emerald-400/90 border-emerald-400/30' },
-  approved: { label: 'versión final…', tone: 'text-sky-400/90 border-sky-400/30', live: true },
-  final_ready: { label: 'versión final lista', tone: 'text-sky-300 border-sky-300/40' },
+  approved: { label: 'versión final…', tone: 'text-brand/90 border-brand/30', live: true },
+  final_ready: { label: 'versión final lista', tone: 'text-brand border-brand/40' },
   failed: { label: 'falló', tone: 'text-red-400/90 border-red-400/30' },
   skipped: { label: 'bloqueado', tone: 'text-amber-400/90 border-amber-400/30' },
 };
@@ -532,7 +532,7 @@ function CampaignSettingsDialog({
                 type="button"
                 disabled={saving}
                 onClick={() => handleStatus('delivered')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/40 px-3 py-1.5 text-[12px] text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 px-3 py-1.5 text-[12px] text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
               >
                 <Trophy className="size-3.5" aria-hidden />
                 Marcar como entregada
@@ -1297,15 +1297,15 @@ function ProductionView({
                           </button>
                         )}
                         <span
-                          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-sky-400/40 text-[11.5px]"
+                          className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-brand/40 text-[11.5px]"
                           title="Aprobar y renderizar la versión final con la misma composición"
                         >
-                          <span className="px-2 py-1 text-sky-300/70">Final</span>
+                          <span className="px-2 py-1 text-brand/70">Final</span>
                           <button
                             type="button"
                             disabled={busy !== null}
                             onClick={() => handleFinal(d.id, '720p')}
-                            className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
                           >
                             {busy === `final:${d.id}:720p`
                               ? '…'
@@ -1317,7 +1317,7 @@ function ProductionView({
                             type="button"
                             disabled={busy !== null}
                             onClick={() => handleFinal(d.id, '1080p')}
-                            className="border-l border-sky-400/30 px-2 py-1 text-sky-300 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
+                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
                           >
                             {busy === `final:${d.id}:1080p`
                               ? '…'

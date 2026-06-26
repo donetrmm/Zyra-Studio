@@ -255,7 +255,7 @@ const WEEKDAYS: Array<{ short: string; long: string }> = [
 // Estado del creativo expuesto por texto + color (no solo color) en cada chip.
 function chipStatusMeta(status: string): { label: string; chip: string; dot: string } {
   if (status === 'final_ready') {
-    return { label: 'versión final lista', chip: 'border-sky-300/40 text-sky-300', dot: 'bg-sky-300' };
+    return { label: 'versión final lista', chip: 'border-brand/40 text-brand', dot: 'bg-brand' };
   }
   if (status === 'draft_ready') {
     return { label: 'borrador listo', chip: 'border-emerald-400/30 text-emerald-400/90', dot: 'bg-emerald-400' };
