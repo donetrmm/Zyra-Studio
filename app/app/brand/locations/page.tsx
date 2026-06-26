@@ -13,7 +13,7 @@ export default async function LocationsRoute() {
 
   const { data: rows } = await supabase
     .from('locations')
-    .select('id, name, description, master_image_id, reference_image_ids')
+    .select('id, name, description, master_image_id, reference_image_ids, scale_map_image_id, scale_map_notes')
     .eq('workspace_id', workspace.id)
     .order('created_at', { ascending: false });
 
@@ -23,12 +23,14 @@ export default async function LocationsRoute() {
     description: (l.description as string | null) ?? null,
     master_image_id: (l.master_image_id as string | null) ?? null,
     reference_image_ids: (l.reference_image_ids as string[]) ?? [],
+    scale_map_image_id: (l.scale_map_image_id as string | null) ?? null,
+    scale_map_notes: (l.scale_map_notes as string | null) ?? null,
   }));
 
   const allImageIds = [
     ...new Set(
       locations
-        .flatMap((l) => [l.master_image_id, ...l.reference_image_ids])
+        .flatMap((l) => [l.master_image_id, l.scale_map_image_id, ...l.reference_image_ids])
         .filter((id): id is string => !!id),
     ),
   ];

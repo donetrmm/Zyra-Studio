@@ -14,6 +14,7 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
+import { generateScaleMap, isGenError } from '@/components/creation/generate';
 
 export type Location = {
   id: string;
@@ -21,6 +22,8 @@ export type Location = {
   description: string | null;
   master_image_id: string | null;
   reference_image_ids: string[];
+  scale_map_image_id: string | null;
+  scale_map_notes: string | null;
 };
 
 export function LocationsPage({
@@ -180,6 +183,30 @@ function LocationEditor({
   );
   const [saving, startSave] = useTransition();
   const [generating, setGenerating] = useState(false);
+  const [scaleMapImages, setScaleMapImages] = useState<RefImage[]>(
+    location?.scale_map_image_id
+      ? [{ id: location.scale_map_image_id, previewUrl: previews[location.scale_map_image_id] ?? null }]
+      : [],
+  );
+  const [scaleMapNotes, setScaleMapNotes] = useState(location?.scale_map_notes ?? '');
+  const [generatingMap, setGeneratingMap] = useState(false);
+  const canGenerateMap = description.trim().length >= 10 && !generatingMap;
+
+  async function handleGenerateScaleMap() {
+    if (!canGenerateMap) return;
+    setGeneratingMap(true);
+    try {
+      const out = await generateScaleMap(description.trim());
+      if (isGenError(out)) {
+        toast.error(out.message || 'No se pudo generar el mapa de escala');
+        return;
+      }
+      setScaleMapImages([{ id: out.refId, previewUrl: out.previewUrl }]);
+      toast.success('Mapa de escala generado; revísalo y guarda');
+    } finally {
+      setGeneratingMap(false);
+    }
+  }
 
   // Master es opcional en locaciones — solo nombre requerido.
   const canSave = name.trim().length > 0;
@@ -227,6 +254,8 @@ function LocationEditor({
         description: description.trim() || undefined,
         masterImageId: masterImages[0]?.id,
         referenceImageIds: referenceImages.map((i) => i.id),
+        scaleMapImageId: scaleMapImages[0]?.id,
+        scaleMapNotes: scaleMapNotes.trim() || undefined,
       };
       const res = location
         ? await updateLocationAction(location.id, payload)
@@ -316,6 +345,64 @@ function LocationEditor({
           onChange={setReferenceImages}
           max={4}
         />
+
+        <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+          <div>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Mapa de escala (opcional)
+            </h3>
+            <p className="mt-0.5 text-[12px] text-muted-foreground/70">
+              Esquema top-down que fija el tamaño y la posición de los objetos (evita que cambien de
+              tamaño o se muevan entre tomas). Súbelo o genéralo desde la descripción.
+            </p>
+          </div>
+
+          {scaleMapImages[0]?.previewUrl ? (
+            <ZoomableImage
+              src={scaleMapImages[0].previewUrl}
+              alt="Mapa de escala"
+              className="size-24 rounded-md border border-border"
+            />
+          ) : null}
+
+          <ReferenceImagesUploader
+            label="Imagen del mapa"
+            hint="Diagrama visto desde arriba con proporciones marcadas. Opcional."
+            images={scaleMapImages}
+            onChange={(imgs) => setScaleMapImages(imgs.slice(-1))}
+            max={1}
+          />
+
+          <button
+            type="button"
+            onClick={handleGenerateScaleMap}
+            disabled={!canGenerateMap}
+            title={description.trim().length < 10 ? 'Escribe una descripción (mín. 10 caracteres)' : undefined}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {generatingMap ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden />
+            )}
+            {generatingMap ? 'Generando…' : `Generar mapa con IA${generateCost != null ? ` · −${generateCost} cr` : ''}`}
+          </button>
+
+          <div>
+            <label htmlFor="scale-map-notes" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Notas de proporciones (opcional)
+            </label>
+            <textarea
+              id="scale-map-notes"
+              value={scaleMapNotes}
+              onChange={(e) => setScaleMapNotes(e.target.value)}
+              placeholder="p. ej. la mascota mide 2× el humano, a la izquierda de la puerta"
+              rows={2}
+              maxLength={300}
+              className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+          </div>
+        </div>
 
         <div className="flex gap-2">
           <button
