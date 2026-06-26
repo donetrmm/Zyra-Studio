@@ -49,6 +49,7 @@ import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -268,38 +269,38 @@ export function CampaignStudioView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={handleExport}
             disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
           >
             {exporting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Download className="size-3.5" aria-hidden />}
             CSV
-          </button>
-          <Link
-            href={`/app/campaigns/${campaign.id}/storyboard`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Clapperboard className="size-3.5" aria-hidden />
-            Storyboard
-          </Link>
-          <Link
-            href={`/app/campaigns/${campaign.id}/report`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <FileBarChart className="size-3.5" aria-hidden />
-            Reporte
-          </Link>
-          <button
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/app/campaigns/${campaign.id}/storyboard`}>
+              <Clapperboard className="size-3.5" aria-hidden />
+              Storyboard
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/app/campaigns/${campaign.id}/report`}>
+              <FileBarChart className="size-3.5" aria-hidden />
+              Reporte
+            </Link>
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             onClick={() => setSettingsOpen(true)}
             title="Ajustes de la campaña"
             aria-label="Ajustes de la campaña"
-            className="inline-flex items-center rounded-lg border border-border px-2.5 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
           >
             <Settings className="size-3.5" aria-hidden />
-          </button>
+          </Button>
           <div
             role="tablist"
             aria-label="Vistas del studio"
@@ -312,7 +313,7 @@ export function CampaignStudioView({
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => setTab(t)}
-                className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
+                className={`rounded-md px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -332,13 +333,12 @@ export function CampaignStudioView({
       {tab === 'plan' ? (
         <>
           <div className="mt-4 flex justify-end">
-            <Link
-              href={`/app/campaigns/${campaign.id}/refine/new`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Sparkles className="size-3.5" aria-hidden />
-              Agregar creativo
-            </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/app/campaigns/${campaign.id}/refine/new`}>
+                <Sparkles className="size-3.5" aria-hidden />
+                Agregar creativo
+              </Link>
+            </Button>
           </div>
           <PlanTable
             campaignId={campaign.id}
@@ -506,58 +506,59 @@ function CampaignSettingsDialog({
         </select>
 
         <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground"
-          >
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving || name.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
-          </button>
+          </Button>
         </div>
 
         <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
           <p className="text-2xs text-muted-foreground">Estado de la campaña</p>
           <div className="flex flex-wrap gap-2">
             {campaign.status !== 'delivered' && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 disabled={saving}
                 onClick={() => handleStatus('delivered')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand/40 px-3 py-1.5 text-xs text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
+                className="border-brand/40 text-brand hover:bg-brand/10"
               >
                 <Trophy className="size-3.5" aria-hidden />
                 Marcar como entregada
-              </button>
+              </Button>
             )}
             {confirmArchive ? (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 disabled={saving}
                 onClick={() => handleStatus('archived')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive transition-colors hover:bg-destructive/15 disabled:opacity-40"
+                className="border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15"
               >
                 {saving ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
                 Confirmar archivar
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 disabled={saving}
                 onClick={() => setConfirmArchive(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+                className="text-muted-foreground hover:border-destructive/40 hover:text-destructive"
               >
                 <Trash2 className="size-3.5" aria-hidden />
                 Archivar campaña
-              </button>
+              </Button>
             )}
           </div>
           <p className="text-2xs text-muted-foreground">
@@ -1137,8 +1138,10 @@ function ProductionView({
                 </div>
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={pending === 0 || busy !== null || pureSequence}
                   title={
                     pureSequence
@@ -1146,7 +1149,6 @@ function ProductionView({
                       : undefined
                   }
                   onClick={() => handleBatch(group.formatId, 'sample')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:sample` ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1154,12 +1156,12 @@ function ProductionView({
                     <Play className="size-3.5" aria-hidden />
                   )}
                   Muestra (2)
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
                   disabled={pending === 0 || busy !== null}
                   onClick={() => handleBatch(group.formatId, 'full')}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:full` ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -1167,7 +1169,7 @@ function ProductionView({
                     <Play className="size-3.5" aria-hidden />
                   )}
                   Lote completo
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -1191,12 +1193,14 @@ function ProductionView({
                       {g.sceneSummary ?? g.scenePrompt}
                     </p>
                     {g.generationId && (
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={busy !== null}
                         onClick={() => handleCancel(g.generationId as string)}
                         title="Cancelar esta generación (libera el crédito reservado)"
-                        className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:opacity-40"
+                        className="shrink-0 hover:border-destructive/40 hover:text-destructive"
                       >
                         {busy === `cancel:${g.generationId}` ? (
                           <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1204,7 +1208,7 @@ function ProductionView({
                           <X className="size-3" aria-hidden />
                         )}
                         Cancelar
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}
@@ -1232,36 +1236,40 @@ function ProductionView({
                       </p>
                       <span className="flex shrink-0 gap-1.5">
                         {d.generationId && (
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() =>
                               setViewing({
                                 generationId: d.generationId as string,
                                 title: d.sceneSummary ?? d.scenePrompt,
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
                           >
                             <Play className="size-3" aria-hidden />
                             Ver
-                          </button>
+                          </Button>
                         )}
-                        <Link
-                          href={`/app/campaigns/${campaignId}/refine/${d.id}`}
-                          title="Refinar el prompt con el asistente"
-                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-primary"
-                        >
-                          <Sparkles className="size-3" aria-hidden />
-                          Refinar
-                        </Link>
+                        <Button asChild variant="outline" size="sm">
+                          <Link
+                            href={`/app/campaigns/${campaignId}/refine/${d.id}`}
+                            title="Refinar el prompt con el asistente"
+                            className="hover:text-primary"
+                          >
+                            <Sparkles className="size-3" aria-hidden />
+                            Refinar
+                          </Link>
+                        </Button>
                         {isSeqMiddle ? (
                           <>
-                            <button
+                            <Button
                               type="button"
+                              variant="outline"
+                              size="sm"
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'only-this')}
                               title="Rehace solo este clip, conservando los vecinos (lo ancla al inicio del siguiente)"
-                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                             >
                               {busy === `regen:${d.id}` ? (
                                 <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1269,24 +1277,26 @@ function ProductionView({
                                 <RefreshCw className="size-3" aria-hidden />
                               )}
                               Regenerar solo este
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
+                              variant="outline"
+                              size="sm"
                               disabled={busy !== null}
                               onClick={() => handleRegenerate(d.id, 'this-and-forward')}
                               title="Rehace este clip y vuelve a encadenar los siguientes"
-                              className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                             >
                               Este y los siguientes
-                            </button>
+                            </Button>
                           </>
                         ) : (
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             disabled={busy !== null}
                             onClick={() => handleRegenerate(d.id)}
                             title="Regenerar esta escena (reemplaza el borrador)"
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                           >
                             {busy === `regen:${d.id}` ? (
                               <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -1294,7 +1304,7 @@ function ProductionView({
                               <RefreshCw className="size-3" aria-hidden />
                             )}
                             Regenerar
-                          </button>
+                          </Button>
                         )}
                         <span
                           className="inline-flex shrink-0 items-center overflow-hidden rounded-lg border border-brand/40 text-2xs"
@@ -1305,7 +1315,7 @@ function ProductionView({
                             type="button"
                             disabled={busy !== null}
                             onClick={() => handleFinal(d.id, '720p')}
-                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
+                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-40"
                           >
                             {busy === `final:${d.id}:720p`
                               ? '…'
@@ -1317,7 +1327,7 @@ function ProductionView({
                             type="button"
                             disabled={busy !== null}
                             onClick={() => handleFinal(d.id, '1080p')}
-                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 disabled:opacity-40"
+                            className="border-l border-brand/30 px-2 py-1 text-brand transition-colors hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-40"
                           >
                             {busy === `final:${d.id}:1080p`
                               ? '…'
@@ -1352,22 +1362,25 @@ function ProductionView({
                     </p>
                     <span className="flex shrink-0 gap-1.5">
                       {f.generationId && (
-                        <button
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() =>
                             setViewing({
                               generationId: f.generationId as string,
                               title: f.sceneSummary ?? f.scenePrompt,
                             })
                           }
-                          className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <Play className="size-3" aria-hidden />
                           Ver
-                        </button>
+                        </Button>
                       )}
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={busy !== null}
                         onClick={() => handleWinner(f)}
                         title={
@@ -1377,29 +1390,31 @@ function ProductionView({
                         }
                         className={
                           f.isWinner
-                            ? 'inline-flex items-center gap-1 rounded-lg border border-amber-400/50 bg-amber-400/10 px-2.5 py-1 text-2xs text-amber-300 transition-colors hover:bg-amber-400/15 disabled:opacity-40'
-                            : 'inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40'
+                            ? 'border-amber-400/50 bg-amber-400/10 text-amber-300 hover:bg-amber-400/15'
+                            : ''
                         }
                       >
                         <Trophy className="size-3" aria-hidden />
                         {f.isWinner ? 'Ganador' : 'Marcar ganador'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={!f.generationId}
                         onClick={() => setDistilling(f)}
-                        className="rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                       >
                         Convertir en plantilla
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={!f.generationId}
                         onClick={() => setVarianting(f)}
-                        className="rounded-lg border border-border px-2.5 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                       >
                         Variante
-                      </button>
+                      </Button>
                     </span>
                   </div>
                 ))}
@@ -1519,15 +1534,16 @@ function TemplatesView({
                 {t.formatName} · usada {t.usesCount} {t.usesCount === 1 ? 'vez' : 'veces'}
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              size="sm"
               disabled={busy !== null}
               onClick={() => handleSeries(t.id)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity disabled:opacity-40"
+              className="shrink-0"
             >
               {busy === t.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
               Generar serie ({count})
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -1575,18 +1591,17 @@ function DistillDialog({ item, onClose }: { item: StudioItem; onClose: () => voi
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
         />
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground">
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleDistill}
             disabled={saving || name.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Crear plantilla
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -1675,7 +1690,7 @@ function VariantDialog({
               role="radio"
               aria-checked={mode === m.value}
               onClick={() => setMode(m.value)}
-              className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
+              className={`rounded-md px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 mode === m.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1694,7 +1709,7 @@ function VariantDialog({
                     key={s}
                     type="button"
                     onClick={() => setExtendSeconds(s)}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                       extendSeconds === s
                         ? 'border-primary/60 bg-primary/10 text-foreground'
                         : 'border-border text-muted-foreground hover:text-foreground'
@@ -1790,7 +1805,7 @@ function VariantDialog({
                     key={s}
                     type="button"
                     onClick={() => setBridgeSeconds(s)}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                       bridgeSeconds === s
                         ? 'border-primary/60 bg-primary/10 text-foreground'
                         : 'border-border text-muted-foreground hover:text-foreground'
@@ -1805,18 +1820,17 @@ function VariantDialog({
         )}
 
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground">
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleCreate}
             disabled={saving || !canSubmit}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Encolar variante
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -1986,22 +2000,17 @@ function EditItemDialog({
         />
 
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-2sm text-muted-foreground hover:text-foreground"
-          >
+          <Button type="button" variant="outline" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving || scenePrompt.trim().length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-2sm font-medium text-primary-foreground disabled:opacity-50"
           >
             {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
             Guardar
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
