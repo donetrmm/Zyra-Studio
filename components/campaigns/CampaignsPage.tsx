@@ -1,5 +1,3 @@
-'use client';
-
 import Link from 'next/link';
 import { ArrowRight, Clapperboard, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -63,7 +61,9 @@ export function CampaignsPage({ campaigns }: { campaigns: CampaignSummary[] }) {
                       {c.productName}
                       {c.total > 0 && ` · ${c.total} creativos`}
                       {c.finals > 0 && ` · ${c.finals} finales`}
-                      {c.failed > 0 && ` · ${c.failed} fallidos`}
+                      {c.failed > 0 && (
+                        <span className="text-destructive">{` · ${c.failed} fallidos`}</span>
+                      )}
                     </p>
                   </div>
                   <span

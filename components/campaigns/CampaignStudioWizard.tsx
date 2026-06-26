@@ -251,7 +251,16 @@ export function CampaignStudioWizard({
         duration: 10000,
       });
     }
-    router.push(`/app/campaigns/${created.data.id}`);
+    // R6: el toast es efímero y se auto-cierra antes de que el usuario lea el plan.
+    // Persistimos la degradación en la URL destino para que la vista de campaña pueda
+    // renderizar un aviso fijo (banner) explicando por qué el plan salió genérico.
+    const planParams = new URLSearchParams();
+    if (ideas.trim() && planned.data.source === 'mix') {
+      planParams.set('plan', 'generic');
+      planParams.set('reason', planned.data.matcherError ?? 'unknown');
+    }
+    const planQuery = planParams.toString();
+    router.push(`/app/campaigns/${created.data.id}${planQuery ? `?${planQuery}` : ''}`);
   }
 
   return (
@@ -324,7 +333,7 @@ export function CampaignStudioWizard({
                   <span className="text-[12px] leading-snug text-muted-foreground">
                     Incluir las {selectedKit.packagingImages} imagen
                     {selectedKit.packagingImages !== 1 ? 'es' : ''} de empaque del kit
-                    <span className="block text-[11px] text-muted-foreground/60">
+                    <span className="block text-[11px] text-muted-foreground">
                       Solo viajan al video en formatos que las usan (ej. unboxing). Si lo
                       desactivas, el plan no propondrá esos formatos.
                     </span>
@@ -373,7 +382,7 @@ export function CampaignStudioWizard({
             placeholder="https://mitienda.com/producto"
             maxLength={500}
           />
-          <p className="text-[11.5px] text-muted-foreground/60">
+          <p className="text-[11.5px] text-muted-foreground">
             El texto de la página (nombre, descripción, tono) enriquece el análisis.
           </p>
         </section>
@@ -392,7 +401,7 @@ export function CampaignStudioWizard({
             rows={3}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
-          <p className="text-[11.5px] text-muted-foreground/60">
+          <p className="text-[11.5px] text-muted-foreground">
             El plan tendrá un creativo por cada idea (o los que pidas: &ldquo;3 versiones
             de&hellip;&rdquo;). Lo que no encaje en el catálogo crea un formato nuevo tuyo.
             Techo demo: 30 creativos; los borradores salen en 480p.
@@ -403,7 +412,7 @@ export function CampaignStudioWizard({
           <Label className="text-[12.5px] font-medium text-foreground/80">
             Personajes <span className="font-normal text-muted-foreground/50">(hasta 3)</span>
           </Label>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground/60">
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
             Los personajes asignados pueden aparecer en los videos; nómbralos en tus ideas
             para dirigirlos (&ldquo;María hace un unboxing&rdquo;). Nombres que no asignes
             se inventan sin imagen de referencia.
@@ -445,10 +454,17 @@ export function CampaignStudioWizard({
                         } ${full ? 'opacity-40' : ''}`}
                       >
                         {c.previewUrl ? (
+                          // next/image se omite a propósito: previewUrl es una URL firmada
+                          // de Supabase (token efímero) y el optimizador la cachearía por un
+                          // token ya expirado. aspect-square + width/height + lazy cubren CLS
+                          // y carga diferida (regla de previews con URL firmada).
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={c.previewUrl}
                             alt={c.name}
+                            width={120}
+                            height={120}
+                            loading="lazy"
                             className="aspect-square w-full rounded-lg object-cover"
                           />
                         ) : (
@@ -459,7 +475,7 @@ export function CampaignStudioWizard({
                         <p className="mt-1.5 truncate text-[12px] text-foreground/90">{c.name}</p>
                       </button>
                       {idx === 0 && (
-                        <span className="absolute right-1.5 top-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[9.5px] font-medium text-primary-foreground">
+                        <span className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground">
                           Principal
                         </span>
                       )}
@@ -467,7 +483,8 @@ export function CampaignStudioWizard({
                         <button
                           type="button"
                           onClick={() => makePrincipal(c.id)}
-                          className="absolute right-1.5 top-1.5 rounded-full border border-border bg-background/80 px-1.5 py-0.5 text-[9.5px] text-muted-foreground hover:text-foreground"
+                          aria-label={`Hacer a ${c.name} el personaje principal`}
+                          className="absolute right-1.5 top-1.5 inline-flex min-h-[24px] items-center rounded-full border border-border bg-background/80 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         >
                           Hacer principal
                         </button>
@@ -547,7 +564,7 @@ export function CampaignStudioWizard({
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
             Idioma de los diálogos y voz en off de los videos; el caption sale en español.
           </p>
         </section>
@@ -576,14 +593,16 @@ export function CampaignStudioWizard({
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground/60">
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">
             Aplica a todos los creativos del plan; puedes cambiarlo por video al editar.
           </p>
         </section>
 
         <section className="space-y-2">
-          <Label htmlFor="music-upload">Pista musical (opcional)</Label>
-          <p className="text-sm text-muted-foreground">
+          <Label htmlFor="music-upload" className="text-[12.5px] font-medium text-foreground/80">
+            Pista musical <span className="font-normal text-muted-foreground/50">(opcional)</span>
+          </Label>
+          <p className="text-[11.5px] text-muted-foreground">
             Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
             audio sincronizado al beat. No se usa como banda sonora final.
           </p>
@@ -603,7 +622,7 @@ export function CampaignStudioWizard({
               onChange={(e) => void handleMusicSelected(e.target.files?.[0])}
             />
           )}
-          {musicBusy ? <p className="text-sm text-muted-foreground">Subiendo pista…</p> : null}
+          {musicBusy ? <p className="text-[11.5px] text-muted-foreground">Subiendo pista…</p> : null}
         </section>
 
         <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>

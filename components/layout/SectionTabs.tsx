@@ -18,6 +18,7 @@ export function SectionTabs({ tabs }: { tabs: SectionTab[] }) {
           <Link
             key={tab.href}
             href={tab.href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'whitespace-nowrap rounded-md px-3 py-1.5 text-[12.5px] transition-colors',
               active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',

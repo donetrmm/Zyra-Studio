@@ -161,6 +161,10 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
       {/* Dropzone visible — primary affordance para subir. Match del estilo del
           ReferencesPanel inline en image creator. */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Subir imágenes de referencia"
+        aria-disabled={uploading || undefined}
         onDragOver={(e) => {
           e.preventDefault();
           setDrag(true);
@@ -172,8 +176,14 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
           void handleFiles(e.dataTransfer.files);
         }}
         onClick={() => !uploading && fileRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!uploading) fileRef.current?.click();
+          }
+        }}
         className={cn(
-          'mt-5 cursor-pointer rounded-xl border border-dashed bg-muted/40 px-4 py-6 transition-colors',
+          'mt-5 cursor-pointer rounded-xl border border-dashed bg-muted/40 px-4 py-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
           drag ? 'border-primary/50 bg-primary/5' : 'border-border hover:border-muted-foreground/30',
           uploading && 'cursor-wait opacity-80',
         )}
@@ -291,6 +301,8 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                     <img
                       src={r.previewUrl}
                       alt={r.name}
+                      loading="lazy"
+                      decoding="async"
                       className="aspect-square w-full object-cover"
                     />
                   ) : (
@@ -339,9 +351,9 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                   onClick={() => handleDelete(r.id, r.name)}
                   disabled={deleting}
                   aria-label="Eliminar referencia"
-                  className="absolute -right-1 -top-1 grid size-9 place-items-center text-muted-foreground transition-all disabled:cursor-not-allowed"
+                  className="absolute -right-1 -top-1 grid size-9 place-items-center text-muted-foreground transition-colors disabled:cursor-not-allowed"
                 >
-                  <span className="grid size-6 place-items-center rounded-full bg-background/70 opacity-0 backdrop-blur transition-all group-hover:opacity-100 hover:text-destructive">
+                  <span className="grid size-6 place-items-center rounded-full bg-background/70 opacity-0 backdrop-blur transition-[opacity,color] group-hover:opacity-100 hover:text-destructive">
                     <Trash2 className="size-3" aria-hidden />
                   </span>
                 </button>

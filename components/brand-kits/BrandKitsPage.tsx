@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil } from 'lucide-react';
+import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { getReferencePathsAction, analyzeKitFromImageAction } from '@/server-actions/creation';
 import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { Button } from '@/components/ui/button';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
 import { generateProductAngle, isGenError } from '@/components/creation/generate';
@@ -102,7 +103,7 @@ export function BrandKitsPage({ kits: initial, previews, usages }: { kits: Brand
           <button
             type="button"
             onClick={() => setAi({ mode: 'create' })}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Sparkles className="size-4" aria-hidden />
             Crear con IA
@@ -110,7 +111,7 @@ export function BrandKitsPage({ kits: initial, previews, usages }: { kits: Brand
           <button
             type="button"
             onClick={() => setEditing('new')}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <Plus className="size-4" aria-hidden />
             Nuevo kit
@@ -139,7 +140,7 @@ export function BrandKitsPage({ kits: initial, previews, usages }: { kits: Brand
       )}
 
       {kits.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
           <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
             <Palette className="size-7" aria-hidden />
           </div>
@@ -155,7 +156,7 @@ export function BrandKitsPage({ kits: initial, previews, usages }: { kits: Brand
               onEdit={() => setEditing(kit)}
               onImprove={() => void openImprove(kit)}
               onDelete={async () => {
-                const ok = await confirm({ title: `Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
+                const ok = await confirm({ title: `¿Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
                 if (!ok) return;
                 deleteBrandKitAction(kit.id).then((res) => {
                   if (res.ok) {
@@ -182,6 +183,8 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
           {kit.colors.slice(0, 6).map((c, i) => (
             <div
               key={i}
+              role="img"
+              aria-label={`${c.name}: ${c.hex}`}
               className="size-5 rounded-full border border-border"
               style={{ backgroundColor: c.hex }}
               title={`${c.name}: ${c.hex}`}
@@ -200,18 +203,18 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
       {kit.tone_description && (
         <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
       )}
-      <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
         {kit.product_image_ids.length} img producto · {kit.packaging_image_ids.length} empaque
       </p>
       </div>
       <div className="flex gap-2 border-t border-border/30 p-3">
-        <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
-        <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15">
+        <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Sparkles className="size-3" aria-hidden /> Mejorar con IA
         </button>
-        <button type="button" onClick={onDelete} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive">
+        <button type="button" onClick={onDelete} aria-label="Eliminar kit" className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Trash2 className="size-3" aria-hidden />
         </button>
       </div>
@@ -310,7 +313,10 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
         <h2 className="text-[15px] font-medium text-foreground">{kit ? 'Editar' : 'Nuevo'} Brand Kit</h2>
       </div>
       <div className="space-y-3 p-5">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
+        <div>
+          <label htmlFor="kit-name" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre del kit</label>
+          <input id="kit-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
+        </div>
 
         <ReferenceImagesUploader
           label="Imágenes de producto"
@@ -327,6 +333,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
               <input
                 key={img.id}
                 type="text"
+                aria-label="Uso de esta vista de producto"
                 defaultValue={productUsages[img.id] ?? ''}
                 placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
@@ -341,7 +348,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
           onClick={detectFromImage}
           disabled={detecting || productImages.length === 0}
           title={productImages.length === 0 ? 'Sube primero una imagen de producto' : undefined}
-          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {detecting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
           Detectar nombre, paleta y tono desde la imagen
@@ -358,7 +365,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
                 ? 'Ya tienes el máximo de vistas (4)'
                 : 'Genera una vista 3/4 para reducir la deriva geométrica en video'
           }
-          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {angling ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
           Generar vista 3/4 del producto
@@ -381,6 +388,7 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
                   <div className="size-7 rounded-md border border-border" style={{ backgroundColor: c.hex }} />
                   <input
                     type="text"
+                    aria-label="Código hex del color"
                     value={c.hex}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -393,37 +401,39 @@ function BrandKitEditor({ kit, previews, usages, onClose, onSaved }: { kit: Bran
                     className="w-20 rounded-md border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                   />
                 </div>
-                <input value={c.name} onChange={(e) => { const next = [...colors]; next[i] = { ...c, name: e.target.value }; setColors(next); }} placeholder="Nombre" className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
-                <button type="button" onClick={() => setColors(colors.filter((_, j) => j !== i))} className="text-[11px] text-muted-foreground hover:text-destructive">x</button>
+                <input aria-label="Nombre del color" value={c.name} onChange={(e) => { const next = [...colors]; next[i] = { ...c, name: e.target.value }; setColors(next); }} placeholder="Nombre" className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
+                <Button type="button" variant="ghost" size="icon-xs" onClick={() => setColors(colors.filter((_, j) => j !== i))} aria-label={`Quitar color ${c.name || c.hex}`} className="text-muted-foreground hover:text-destructive">
+                  <X className="size-3" aria-hidden />
+                </Button>
               </div>
             ))}
             {colors.length < 10 && (
-              <button type="button" onClick={() => setColors([...colors, { name: '', hex: '#000000' }])} className="text-[11px] text-muted-foreground hover:text-foreground">+ Agregar color</button>
+              <button type="button" onClick={() => setColors([...colors, { name: '', hex: '#000000' }])} className="rounded-sm text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">+ Agregar color</button>
             )}
           </div>
         </div>
 
         <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Fuentes (separadas por coma)</label>
-          <input value={fonts} onChange={(e) => setFonts(e.target.value)} placeholder="Inter, Playfair Display" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
+          <label htmlFor="kit-fonts" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Fuentes (separadas por coma)</label>
+          <input id="kit-fonts" value={fonts} onChange={(e) => setFonts(e.target.value)} placeholder="Inter, Playfair Display" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
         </div>
 
         <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tono de voz</label>
-          <textarea value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Profesional pero cercano, optimista..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" rows={2} />
+          <label htmlFor="kit-tone" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Tono de voz</label>
+          <textarea id="kit-tone" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Profesional pero cercano, optimista..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" rows={2} />
         </div>
 
         <div>
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Guidelines de estilo</label>
-          <textarea value={guidelines} onChange={(e) => setGuidelines(e.target.value)} placeholder="Usar fondos limpios, evitar saturación..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" rows={2} />
+          <label htmlFor="kit-guidelines" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Guidelines de estilo</label>
+          <textarea id="kit-guidelines" value={guidelines} onChange={(e) => setGuidelines(e.target.value)} placeholder="Usar fondos limpios, evitar saturación..." className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" rows={2} />
         </div>
 
         <div className="flex gap-2">
-          <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60">
             {saving && <Loader2 className="size-3.5 animate-spin" />}
             {saving ? 'Guardando...' : 'Guardar'}
           </button>
-          <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground hover:bg-muted">Cancelar</button>
+          <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">Cancelar</button>
         </div>
       </div>
     </div>

@@ -71,7 +71,7 @@ export function ReferenceImagesUploader({
   return (
     <div>
       <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
-      {hint && <p className="mt-0.5 text-[11.5px] text-muted-foreground/60">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[11.5px] text-muted-foreground">{hint}</p>}
       <div className="mt-2 flex flex-wrap gap-2">
         {images.map((img, i) => (
           <div key={img.id} className="group relative size-16 overflow-hidden rounded-lg border border-border bg-muted/30">
@@ -83,11 +83,11 @@ export function ReferenceImagesUploader({
             )}
             <button
               type="button"
-              aria-label="Quitar imagen"
+              aria-label={`Quitar ${label.toLowerCase()} ${i + 1}`}
               onClick={() => onChange(images.filter((x) => x.id !== img.id))}
-              className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+              className="absolute right-0.5 top-0.5 grid size-6 place-items-center rounded-full bg-background/80 text-muted-foreground opacity-100 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 group-focus-within:opacity-100 sm:opacity-0"
             >
-              <X className="size-3" aria-hidden />
+              <X className="size-3.5" aria-hidden />
             </button>
           </div>
         ))}

@@ -27,6 +27,13 @@ type Campaign = {
 
 const TYPE_ICON = { image: ImageIcon, video: Video, audio: Mic } as const;
 
+const STATUS_LABEL: Record<string, string> = {
+  queued: 'en cola',
+  processing: 'generando…',
+  failed: 'falló',
+  cancelled: 'cancelada',
+};
+
 export function CampaignDetailPage({
   campaign,
   generations,
@@ -53,16 +60,16 @@ export function CampaignDetailPage({
           {campaign.description && (
             <p className="mt-0.5 text-[13px] text-muted-foreground">{campaign.description}</p>
           )}
-          <p className="mt-1 text-[11px] text-muted-foreground/50">
+          <p className="mt-1 text-[11px] text-muted-foreground">
             {generations.length} generacion{generations.length !== 1 ? 'es' : ''} · creada {new Date(campaign.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
         </div>
       </div>
 
       {generations.length === 0 ? (
-        <div className="mt-12 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+        <div className="mt-12 flex flex-col items-center gap-3 text-center text-muted-foreground">
           <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-            <FolderKanban className="size-7" aria-hidden />
+            <FolderKanban className="size-7 text-muted-foreground/60" aria-hidden />
           </div>
           <p className="text-[14px] text-foreground/70">Sin generaciones asignadas</p>
           <p className="max-w-xs text-[12.5px]">Asigna generaciones desde la biblioteca o al crear contenido</p>
@@ -80,7 +87,7 @@ export function CampaignDetailPage({
               >
                 {g.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={g.thumbnailUrl} alt={g.prompt} className="aspect-square w-full object-cover" />
+                  <img src={g.thumbnailUrl} alt={g.prompt} loading="lazy" decoding="async" className="aspect-square w-full object-cover" />
                 ) : (
                   <div className="grid aspect-square place-items-center bg-muted/20">
                     <Icon className="size-8 text-muted-foreground/30" aria-hidden />
@@ -90,7 +97,7 @@ export function CampaignDetailPage({
                   <p className="line-clamp-2 text-[11px] text-muted-foreground/70">{g.prompt || 'Sin prompt'}</p>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
                     <Icon className="size-3" aria-hidden />
-                    <span>{g.status === 'done' ? `−${g.credits} cr` : g.status}</span>
+                    <span>{g.status === 'done' ? `−${g.credits} cr` : (STATUS_LABEL[g.status] ?? g.status)}</span>
                   </div>
                 </div>
               </button>
@@ -157,11 +164,14 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
               </div>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={outputUrl} alt={generation.prompt} className="max-h-[50vh] w-full object-contain" />
+              <img src={outputUrl} alt={generation.prompt} decoding="async" className="max-h-[50vh] min-h-[40vh] w-full object-contain" />
             )
           ) : (
-            <div className="grid aspect-video place-items-center text-muted-foreground/40">
-              <Icon className="size-10" aria-hidden />
+            <div className="grid aspect-video place-items-center gap-3 px-6 text-center text-muted-foreground">
+              <Icon className="size-10 text-muted-foreground/40" aria-hidden />
+              <p className="text-[12.5px]">
+                El resultado todavía no está disponible. Si la generación sigue en curso, vuelve en unos segundos.
+              </p>
             </div>
           )}
         </div>
@@ -172,13 +182,18 @@ function GenerationModal({ generation, onClose }: { generation: Generation; onCl
               {generation.prompt && (
                 <p className="text-[13px] leading-relaxed text-foreground">{generation.prompt}</p>
               )}
-              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground/60">
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                 <Icon className="size-3" aria-hidden />
                 <span>−{generation.credits} cr</span>
                 <span>{new Date(generation.createdAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
               </div>
             </div>
-            <button type="button" onClick={onClose} className="shrink-0 text-muted-foreground hover:text-foreground">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
               <X className="size-5" aria-hidden />
             </button>
           </div>

@@ -126,13 +126,13 @@ export default async function CampaignReportPage({
 
           <div className="mt-8 overflow-hidden rounded-xl border border-border">
             <table className="w-full text-left text-[12.5px]">
-              <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+              <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/70">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Tipo de activo</th>
-                  <th className="px-3 py-2 text-right font-medium">Finales</th>
-                  <th className="px-3 py-2 text-right font-medium">Low</th>
-                  <th className="px-3 py-2 text-right font-medium">Mid</th>
-                  <th className="px-3 py-2 text-right font-medium">High</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Tipo de activo</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Finales</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Low</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">Mid</th>
+                  <th scope="col" className="px-3 py-2 text-right font-medium">High</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,7 +149,7 @@ export default async function CampaignReportPage({
             </table>
           </div>
 
-          <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground/50">
+          <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground">
             Metodología: los costos tradicionales son estimaciones de rangos de producción por tipo de
             activo (rate card editable en el panel admin), no cotizaciones. El gasto real suma los créditos
             confirmados de la campaña a {usdFine(CREDIT_USD_RATE)}/crédito. El tiempo tradicional estima 1

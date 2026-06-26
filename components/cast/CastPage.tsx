@@ -93,7 +93,7 @@ export function CastPage({
       )}
 
       {characters.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
           <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
             <Users className="size-7" aria-hidden />
           </div>
@@ -110,7 +110,7 @@ export function CastPage({
               <div className="flex items-center gap-3 p-4">
                 {c.master_image_id && previews[c.master_image_id] ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={previews[c.master_image_id]} alt={c.name} className="size-14 shrink-0 rounded-full border border-border object-cover" />
+                  <img src={previews[c.master_image_id]} alt={c.name} width={56} height={56} loading="lazy" decoding="async" className="size-14 shrink-0 rounded-full border border-border object-cover" />
                 ) : (
                   <div className="grid size-14 shrink-0 place-items-center rounded-full border border-border bg-muted/30">
                     <Users className="size-5 text-muted-foreground/40" aria-hidden />
@@ -129,6 +129,7 @@ export function CastPage({
                 </button>
                 <button
                   type="button"
+                  aria-label="Eliminar personaje"
                   onClick={async () => {
                     const ok = await confirm({ title: `Eliminar a "${c.name}"?`, description: 'Los items de campaña que lo usan quedarán sin personaje.', confirmLabel: 'Eliminar', destructive: true });
                     if (!ok) return;
@@ -436,7 +437,7 @@ function CharacterEditor({
             )}
 
             {statesLoaded && states.length === 0 && (
-              <p className="text-[12px] text-muted-foreground/50">Sin estados guardados.</p>
+              <p className="text-[12px] text-muted-foreground">Sin estados guardados.</p>
             )}
 
             <div className="space-y-2">

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
@@ -58,9 +60,41 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
     return init;
   });
 
+  // Reconciliar prop -> estado tras router.refresh(): el lazy initializer de useState
+  // solo siembra UNA vez, así que sin esto el panel recién generado/refinado se queda
+  // en "Sin panel" hasta un reload duro y withoutPanel/el contador/el botón quedan
+  // stale (riesgo de doble cobro al reclicar). Patrón de React "ajustar estado al
+  // cambiar una prop" EN RENDER (no en efecto: evita el cascading-render). `beats` solo
+  // cambia de referencia cuando el server vuelve a renderizar (el refresh), no en los
+  // re-render de cliente, así que esto corre exactamente cuando antes corría el efecto.
+  // Solo tocamos entradas 'idle' (no pisamos 'generating'/'error' en vuelo) y creamos
+  // la clave si falta.
+  const [reconciledBeats, setReconciledBeats] = useState(beats);
+  if (beats !== reconciledBeats) {
+    setReconciledBeats(beats);
+    setPanelStates((prev) => {
+      let changed = false;
+      const next: Record<string, PanelState> = { ...prev };
+      for (const b of beats) {
+        const cur = prev[b.id];
+        if (!cur) {
+          next[b.id] = { status: 'idle', panelUrl: b.panelUrl };
+          changed = true;
+        } else if (cur.status === 'idle' && cur.panelUrl !== b.panelUrl) {
+          next[b.id] = { status: 'idle', panelUrl: b.panelUrl };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }
+
   // Input de refinado por beat
   const [instructions, setInstructions] = useState<Record<string, string>>({});
   const [refining, setRefining] = useState<string | null>(null);
+  // Error de refinado por beat: persiste como nota bajo el panel (sin borrar la
+  // panelUrl previa) hasta el próximo intento; el toast solo es efímero.
+  const [refineErrors, setRefineErrors] = useState<Record<string, string>>({});
 
   // EXPERIMENTAL por beat: anclar la imagen del producto en el turno de chat al
   // regenerar (paneles encadenados). Transitorio (no se persiste): controla la prueba
@@ -99,15 +133,15 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
 
   async function handleGenerateAll() {
     setGeneratingAll(true);
+    let anySuccess = false;
     for (const beat of withoutPanel) {
       setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'generating' } }));
       const res = await generatePanelAction(beat.id);
       if (res.ok) {
-        // La acción ya hizo revalidatePath; refrescamos estado local con la URL
-        // del servidor vía router.refresh(). Mientras, marcamos idle sin URL
-        // para que el refresh la traiga.
+        // Marcamos idle sin URL; la reconciliación en render (al cambiar `beats`) la
+        // traerá tras el refresh.
         setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'idle', panelUrl: null } }));
-        router.refresh();
+        anySuccess = true;
       } else {
         const msg = friendlyError(res.error, res.message);
         setPanelStates((prev) => ({
@@ -118,6 +152,9 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
       }
     }
     setGeneratingAll(false);
+    // Un solo refresh al terminar el lote: cada refresh re-firma TODAS las URLs del
+    // storyboard, así que dentro del bucle eran N refrescos full secuenciales.
+    if (anySuccess) router.refresh();
   }
 
   async function handleRegenerate(beatId: string) {
@@ -143,6 +180,12 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
       return;
     }
     setRefining(beatId);
+    setRefineErrors((prev) => {
+      if (!(beatId in prev)) return prev;
+      const next = { ...prev };
+      delete next[beatId];
+      return next;
+    });
     const res = await refinePanelAction(beatId, instruction);
     setRefining(null);
     if (res.ok) {
@@ -150,7 +193,11 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
       router.refresh();
     } else {
-      toast.error(friendlyError(res.error, res.message));
+      const msg = friendlyError(res.error, res.message);
+      // Persistir el fallo como nota bajo el panel (no borramos la panelUrl previa):
+      // refinar (Nano Banana) puede tardar y el toast se desvanece sin dejar rastro.
+      setRefineErrors((prev) => ({ ...prev, [beatId]: msg }));
+      toast.error(msg);
     }
   }
 
@@ -173,31 +220,29 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
           </p>
         </div>
         {withoutPanel.length > 0 && (
-          <button
-            type="button"
-            disabled={generatingAll}
-            onClick={handleGenerateAll}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50"
-          >
+          <Button type="button" disabled={generatingAll} onClick={handleGenerateAll}>
             {generatingAll ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
             ) : (
               <Sparkles className="size-3.5" aria-hidden />
             )}
             Generar storyboard
-          </button>
+          </Button>
         )}
       </div>
 
       {locations.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
           <MapPin className="size-3.5 text-muted-foreground" aria-hidden />
-          <span className="text-[12px] text-muted-foreground">Locación de la escena:</span>
+          <label htmlFor="storyboard-location" className="text-[12px] text-muted-foreground">
+            Locación de la escena:
+          </label>
           <select
+            id="storyboard-location"
             value={currentLocationId ?? ''}
             disabled={savingLocation}
             onChange={(e) => void handleSetLocation(e.target.value === '' ? null : e.target.value)}
-            className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary disabled:opacity-50"
+            className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
           >
             <option value="">Sin locación</option>
             {locations.map((l) => (
@@ -206,7 +251,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
               </option>
             ))}
           </select>
-          <span className="text-[11px] text-muted-foreground/60">
+          <span className="text-[11px] text-muted-foreground">
             ancla el lugar en cada panel; regenera para aplicarla
           </span>
         </div>
@@ -220,7 +265,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
           </p>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {beats.map((beat) => {
             const state = panelStates[beat.id] ?? { status: 'idle', panelUrl: beat.panelUrl };
             const isGenerating = state.status === 'generating';
@@ -243,11 +288,13 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                     <img
                       src={panelUrl}
                       alt={`Panel ${beat.sceneIndex + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground/40">
-                      <ImageIcon className="size-8" aria-hidden />
+                    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <ImageIcon className="size-8 opacity-40" aria-hidden />
                       <span className="px-2 text-center text-[11px]">
                         {hasError ? (state as { status: 'error'; message: string }).message : 'Sin panel'}
                       </span>
@@ -266,39 +313,40 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                 </p>
 
                 {/* Regenerar */}
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={isGenerating || isRefining || generatingAll}
                   onClick={() => handleRegenerate(beat.id)}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                 >
                   <RefreshCw className="size-3" aria-hidden />
                   Regenerar
-                </button>
+                </Button>
 
-                {/* Experimental: anclar imagen del producto al regenerar (encadenados) */}
-                <label
-                  htmlFor={`prodref-${beat.id}`}
-                  className="flex items-center gap-1.5 px-0.5 text-[11px] text-muted-foreground"
-                >
-                  <input
+                {/* Mantener el producto idéntico al regenerar (re-ancla la imagen del
+                    producto en el turno de chat de los paneles encadenados). */}
+                <div className="flex items-center gap-2 px-0.5">
+                  <Switch
                     id={`prodref-${beat.id}`}
-                    type="checkbox"
+                    size="sm"
                     checked={productRef[beat.id] ?? false}
                     disabled={isGenerating || isRefining || generatingAll}
-                    onChange={(e) =>
-                      setProductRef((prev) => ({ ...prev, [beat.id]: e.target.checked }))
+                    onCheckedChange={(checked) =>
+                      setProductRef((prev) => ({ ...prev, [beat.id]: checked }))
                     }
-                    className="size-3.5 accent-primary disabled:opacity-40"
                   />
-                  Anclar imagen del producto (experimental)
-                </label>
+                  <label htmlFor={`prodref-${beat.id}`} className="text-[11px] text-muted-foreground">
+                    Mantener el producto idéntico al regenerar
+                  </label>
+                </div>
 
                 {/* Refinar */}
                 <div className="flex gap-1.5">
                   <input
                     type="text"
                     value={instruction}
+                    aria-label={`Instrucción de refinado para el panel ${beat.sceneIndex + 1}`}
                     onChange={(e) =>
                       setInstructions((prev) => ({ ...prev, [beat.id]: e.target.value }))
                     }
@@ -312,15 +360,21 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                     disabled={isGenerating || isRefining || generatingAll || !panelUrl}
                     className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40"
                   />
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    className="shrink-0"
                     disabled={isGenerating || isRefining || generatingAll || !panelUrl || !instruction.trim()}
                     onClick={() => void handleRefine(beat.id)}
-                    className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-[12px] font-medium text-primary-foreground disabled:opacity-40"
                   >
                     {isRefining ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : 'Refinar'}
-                  </button>
+                  </Button>
                 </div>
+                {refineErrors[beat.id] && (
+                  <p role="alert" className="px-0.5 text-[11px] text-destructive">
+                    No se pudo refinar: {refineErrors[beat.id]}
+                  </p>
+                )}
 
                 {/* Audio: diálogo + duración + medidor de holgura */}
                 {(() => {
@@ -330,7 +384,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                   const { level, suggestedDurationS } = fitVerdict(needed, draft.durationS);
                   const meter =
                     words === 0
-                      ? { text: 'Sin diálogo', cls: 'text-muted-foreground/60' }
+                      ? { text: 'Sin diálogo', cls: 'text-muted-foreground' }
                       : level === 'roomy'
                         ? { text: 'Holgado (natural)', cls: 'text-emerald-500' }
                         : level === 'ok'
@@ -343,12 +397,13 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card/40 p-2">
                       <textarea
                         value={draft.dialogue}
+                        aria-label={`Diálogo de la escena ${beat.sceneIndex + 1}`}
                         onChange={(e) =>
                           setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, dialogue: e.target.value } }))
                         }
                         placeholder="Diálogo (vacío = sin voz)"
                         rows={2}
-                        className="min-w-0 resize-none rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary"
+                        className="min-w-0 resize-none rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                       />
                       <div className="flex items-center gap-2">
                         <label htmlFor={`dur-${beat.id}`} className="text-[11px] text-muted-foreground">
@@ -364,19 +419,20 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
                             const v = Math.min(15, Math.max(4, Math.round(Number(e.target.value) || 4)));
                             setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, durationS: v } }));
                           }}
-                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary"
+                          className="w-16 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
                         />
                         <span className="text-[11px]">s</span>
                       </div>
                       <p className={`text-[11px] ${meter.cls}`}>{meter.text}</p>
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
                         disabled={savingAudio === beat.id || generatingAll}
                         onClick={() => void handleSaveAudio(beat.id)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                       >
                         {savingAudio === beat.id ? <Loader2 className="size-3 animate-spin" aria-hidden /> : 'Guardar audio'}
-                      </button>
+                      </Button>
                     </div>
                   );
                 })()}

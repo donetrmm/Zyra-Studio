@@ -248,6 +248,8 @@ function LocationEditor({
       </div>
       <div className="space-y-4 p-5">
         <input
+          id="location-name"
+          aria-label="Nombre de la locación"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nombre de la locación"

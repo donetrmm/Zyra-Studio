@@ -7,6 +7,22 @@ import { buildImagePackAction, updateItemScheduleAction } from '@/server-actions
 import { submitGenerationAction } from '@/server-actions/generations';
 import type { StudioItem } from './CampaignStudioView';
 import { insufficientCreditsToast } from './credits-toast';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+// Etiquetas legibles para fallos no-crédito al generar/refinar el pack.
+const GEN_ERROR_LABEL: Record<string, string> = {
+  safety: 'política de contenido',
+  provider_error: 'error del proveedor',
+  validation_error: 'datos inválidos',
+  forbidden: 'sin permiso',
+  internal_error: 'error interno',
+};
+
+function genErrorReason(res: { error: string; message?: string }): string {
+  return GEN_ERROR_LABEL[res.error] ?? res.message ?? 'error desconocido';
+}
 
 // ============ Pack de imágenes (specs/v2/05 tarea 5) ============
 // El server arma los prompts (FLUX + escenas ganadoras); el cliente genera
@@ -32,6 +48,8 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
     setGenerated([]);
     const created: Array<{ id: string; aspectRatio: string }> = [];
     let ok = 0;
+    let fail = 0;
+    let lastReason: string | null = null;
     for (let i = 0; i < specs.length; i++) {
       const spec = specs[i];
       const res = await submitGenerationAction({
@@ -51,12 +69,21 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
       } else if (res.error === 'insufficient_credits') {
         insufficientCreditsToast('Créditos insuficientes; pack detenido');
         break;
+      } else {
+        fail += 1;
+        lastReason = genErrorReason(res);
       }
       setProgress({ done: i + 1, total: specs.length });
     }
     setProgress(null);
     setGenerated(created);
-    if (ok > 0) toast.success(`Pack listo: ${ok} imágenes en la librería de la campaña`);
+    if (ok > 0) {
+      toast.success(`Pack listo: ${ok} ${ok === 1 ? 'imagen' : 'imágenes'} en la librería de la campaña`);
+    }
+    if (fail > 0) {
+      const reason = lastReason ? `: ${lastReason}` : '';
+      toast.error(`${fail} ${fail === 1 ? 'imagen no se generó' : 'imágenes no se generaron'}${reason}`);
+    }
   }
 
   // Refinamiento con Nano Banana (specs/v2/05 tarea 5): edición conversacional
@@ -65,6 +92,8 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
     if (!generated.length || !refineText.trim()) return;
     setRefining({ done: 0, total: generated.length });
     let ok = 0;
+    let fail = 0;
+    let lastReason: string | null = null;
     for (let i = 0; i < generated.length; i++) {
       const g = generated[i];
       const res = await submitGenerationAction({
@@ -82,13 +111,20 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
       else if (res.error === 'insufficient_credits') {
         insufficientCreditsToast('Créditos insuficientes; refinado detenido');
         break;
+      } else {
+        fail += 1;
+        lastReason = genErrorReason(res);
       }
       setRefining({ done: i + 1, total: generated.length });
     }
     setRefining(null);
     if (ok > 0) {
-      toast.success(`${ok} imágenes refinadas en la librería de la campaña`);
+      toast.success(`${ok} ${ok === 1 ? 'imagen refinada' : 'imágenes refinadas'} en la librería de la campaña`);
       setGenerated([]);
+    }
+    if (fail > 0) {
+      const reason = lastReason ? `: ${lastReason}` : '';
+      toast.error(`${fail} ${fail === 1 ? 'imagen no se refinó' : 'imágenes no se refinaron'}${reason}`);
     }
   }
 
@@ -101,33 +137,37 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
           </div>
           <div>
             <p className="text-[13.5px] font-medium text-foreground">Pack de imágenes</p>
-            <p className="max-w-md text-[11.5px] text-muted-foreground/60">
+            <p className="max-w-md text-[11.5px] text-muted-foreground">
               Posts 1:1 de las escenas ganadoras, banners 16:9 con espacio limpio para copy y stills de
               producto (FLUX; el copy va en el caption, no quemado en la imagen)
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {([4, 6, 8] as const).map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setCount(n)}
-              disabled={progress !== null}
-              className={`rounded-md border px-2.5 py-1 text-[12.5px] transition-colors ${
-                count === n
-                  ? 'border-primary/60 bg-primary/10 text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {n}
-            </button>
-          ))}
+          <div role="group" aria-label="Cantidad de imágenes del pack" className="flex items-center gap-2">
+            {([4, 6, 8] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={count === n}
+                aria-label={`${n} imágenes`}
+                onClick={() => setCount(n)}
+                disabled={progress !== null}
+                className={`rounded-md border px-2.5 py-1 text-[12.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                  count === n
+                    ? 'border-primary/60 bg-primary/10 text-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             disabled={progress !== null}
             onClick={handlePack}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12.5px] font-medium text-primary-foreground outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40"
           >
             {progress ? (
               <>
@@ -147,25 +187,25 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
       {generated.length > 0 && !progress && (
         <div className="mt-3 border-t border-border/50 pt-3">
           <p className="text-[12.5px] font-medium text-foreground">
-            Refinar con Nano Banana <span className="text-muted-foreground/60">({generated.length} imágenes)</span>
+            Refinar con Nano Banana <span className="text-muted-foreground">({generated.length} imágenes)</span>
           </p>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground/60">
+          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
             Un cambio por iteración: describe el ajuste y se aplica a cada imagen del pack conservando
             todo lo demás.
           </p>
-          <textarea
+          <Textarea
             value={refineText}
             onChange={(e) => setRefineText(e.target.value)}
             rows={2}
             maxLength={500}
             aria-label="Instrucción de refinamiento"
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="mt-2 resize-none text-[12.5px]"
           />
           <button
             type="button"
             disabled={refining !== null || !refineText.trim()}
             onClick={handleRefine}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:opacity-40"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40"
           >
             {refining ? (
               <>
@@ -183,9 +223,29 @@ export function ImagePackCard({ campaignId }: { campaignId: string }) {
 }
 
 // ============ Calendario (specs/v2/05 tarea 1) ============
-// Vista mensual; arrastrar un creativo a otro día reprograma su fecha de
-// publicación (la fecha es de publicación, no de generación).
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+// Vista mensual; arrastrar un creativo a otro día —o usar el selector de fecha
+// del chip— reprograma su fecha de publicación (de publicación, no de generación).
+// Abreviaturas de 2 letras para no repetir 'M' (martes/miércoles) ambiguas.
+const WEEKDAYS: Array<{ short: string; long: string }> = [
+  { short: 'Lu', long: 'lunes' },
+  { short: 'Ma', long: 'martes' },
+  { short: 'Mi', long: 'miércoles' },
+  { short: 'Ju', long: 'jueves' },
+  { short: 'Vi', long: 'viernes' },
+  { short: 'Sá', long: 'sábado' },
+  { short: 'Do', long: 'domingo' },
+];
+
+// Estado del creativo expuesto por texto + color (no solo color) en cada chip.
+function chipStatusMeta(status: string): { label: string; chip: string; dot: string } {
+  if (status === 'final_ready') {
+    return { label: 'versión final lista', chip: 'border-sky-300/40 text-sky-300', dot: 'bg-sky-300' };
+  }
+  if (status === 'draft_ready') {
+    return { label: 'borrador listo', chip: 'border-emerald-400/30 text-emerald-400/90', dot: 'bg-emerald-400' };
+  }
+  return { label: 'aún sin generar', chip: 'border-border text-muted-foreground', dot: 'bg-muted-foreground/60' };
+}
 
 export function CalendarView({
   items,
@@ -201,6 +261,7 @@ export function CalendarView({
   });
   const [dragId, setDragId] = useState<string | null>(null);
   const [overDay, setOverDay] = useState<string | null>(null);
+  const [moveOpenId, setMoveOpenId] = useState<string | null>(null);
 
   const byDate = useMemo(() => {
     const map = new Map<string, StudioItem[]>();
@@ -228,11 +289,16 @@ export function CalendarView({
     return out;
   }, [monthStart]);
 
-  async function handleDrop(dayIso: string) {
-    if (!dragId) return;
-    const itemId = dragId;
-    setDragId(null);
-    setOverDay(null);
+  // Semanas de 7 para que cada fila exponga role="row" (rejilla accesible) sin
+  // alterar el layout: los wrappers usan display:contents.
+  const weeks = useMemo(() => {
+    const out: Array<Array<{ iso: string; day: number } | null>> = [];
+    for (let i = 0; i < cells.length; i += 7) out.push(cells.slice(i, i + 7));
+    return out;
+  }, [cells]);
+
+  // Reprogramación compartida por arrastre y por el selector de fecha del chip.
+  async function applyReschedule(itemId: string, dayIso: string) {
     const prev = items.find((i) => i.id === itemId)?.scheduledDate ?? null;
     if (prev === dayIso) return;
     onReschedule(itemId, dayIso); // optimista; revertimos si falla
@@ -243,6 +309,14 @@ export function CalendarView({
     }
   }
 
+  async function handleDrop(dayIso: string) {
+    if (!dragId) return;
+    const itemId = dragId;
+    setDragId(null);
+    setOverDay(null);
+    await applyReschedule(itemId, dayIso);
+  }
+
   const monthLabel = monthStart.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
   return (
@@ -250,76 +324,125 @@ export function CalendarView({
       <div className="mb-3 flex items-center justify-between">
         <p className="text-[13.5px] font-medium capitalize text-foreground">{monthLabel}</p>
         <div className="flex gap-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             aria-label="Mes anterior"
             onClick={() => setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1))}
-            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground"
           >
-            <ChevronLeft className="size-3.5" aria-hidden />
-          </button>
-          <button
+            <ChevronLeft className="size-4" aria-hidden />
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="icon-sm"
             aria-label="Mes siguiente"
             onClick={() => setMonthStart(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1))}
-            className="rounded-md border border-border p-1.5 text-muted-foreground hover:text-foreground"
           >
-            <ChevronRight className="size-3.5" aria-hidden />
-          </button>
+            <ChevronRight className="size-4" aria-hidden />
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border/50">
-        {WEEKDAYS.map((d, i) => (
-          <div
-            key={`${d}-${i}`}
-            className="bg-muted/30 px-2 py-1.5 text-center text-[11px] uppercase text-muted-foreground"
-          >
-            {d}
+      <div
+        role="grid"
+        aria-label={`Calendario de publicaciones, ${monthLabel}`}
+        className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border/50"
+      >
+        <div role="row" className="contents">
+          {WEEKDAYS.map((d) => (
+            <div
+              key={d.short}
+              role="columnheader"
+              aria-label={d.long}
+              className="bg-muted/30 px-2 py-1.5 text-center text-[11px] uppercase text-muted-foreground"
+            >
+              {d.short}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div role="row" className="contents" key={`week-${wi}`}>
+            {week.map((cell, ci) =>
+              cell === null ? (
+                <div key={`empty-${wi}-${ci}`} role="gridcell" aria-hidden className="min-h-20 bg-card/30" />
+              ) : (
+                <div
+                  key={cell.iso}
+                  role="gridcell"
+                  aria-label={new Date(`${cell.iso}T12:00:00`).toLocaleDateString('es-MX', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setOverDay(cell.iso);
+                  }}
+                  onDragLeave={() => setOverDay((d) => (d === cell.iso ? null : d))}
+                  onDrop={() => handleDrop(cell.iso)}
+                  className={`min-h-20 bg-card/60 p-1.5 transition-colors ${overDay === cell.iso ? 'bg-primary/10' : ''}`}
+                >
+                  <p className="text-[11px] text-muted-foreground">{cell.day}</p>
+                  <div className="mt-1 space-y-1">
+                    {(byDate.get(cell.iso) ?? []).map((item) => {
+                      const meta = chipStatusMeta(item.status);
+                      return (
+                        <Popover
+                          key={item.id}
+                          open={moveOpenId === item.id}
+                          onOpenChange={(o) => setMoveOpenId(o ? item.id : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              draggable
+                              onDragStart={() => setDragId(item.id)}
+                              onDragEnd={() => setDragId(null)}
+                              title={`${item.formatName} (${meta.label}): ${item.scenePrompt}`}
+                              aria-label={`${item.formatName}, ${meta.label}. Reprogramar fecha de publicación`}
+                              className={`flex w-full cursor-grab items-center gap-1 rounded-md border px-1.5 py-0.5 text-left text-[11px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing ${meta.chip}`}
+                            >
+                              <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${meta.dot}`} />
+                              <span className="truncate">{item.formatName}</span>
+                              <span className="sr-only"> ({meta.label})</span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-56">
+                            <label
+                              htmlFor={`move-${item.id}`}
+                              className="text-[11.5px] font-medium text-foreground"
+                            >
+                              Mover a fecha de publicación
+                            </label>
+                            <input
+                              id={`move-${item.id}`}
+                              type="date"
+                              defaultValue={cell.iso}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                if (!v) return;
+                                setMoveOpenId(null);
+                                void applyReschedule(item.id, v);
+                              }}
+                              className="mt-1.5 w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-[12.5px] text-foreground outline-none [color-scheme:dark] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })}
+                  </div>
+                </div>
+              ),
+            )}
           </div>
         ))}
-        {cells.map((cell, idx) =>
-          cell === null ? (
-            <div key={`empty-${idx}`} className="min-h-20 bg-card/30" />
-          ) : (
-            <div
-              key={cell.iso}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setOverDay(cell.iso);
-              }}
-              onDragLeave={() => setOverDay((d) => (d === cell.iso ? null : d))}
-              onDrop={() => handleDrop(cell.iso)}
-              className={`min-h-20 bg-card/60 p-1.5 transition-colors ${overDay === cell.iso ? 'bg-primary/10' : ''}`}
-            >
-              <p className="text-[11px] text-muted-foreground">{cell.day}</p>
-              <div className="mt-1 space-y-1">
-                {(byDate.get(cell.iso) ?? []).map((item) => (
-                  <div
-                    key={item.id}
-                    draggable
-                    onDragStart={() => setDragId(item.id)}
-                    onDragEnd={() => setDragId(null)}
-                    title={`${item.formatName}: ${item.scenePrompt}`}
-                    className={`cursor-grab truncate rounded-md border px-1.5 py-0.5 text-[11px] active:cursor-grabbing ${
-                      item.status === 'final_ready'
-                        ? 'border-sky-300/40 text-sky-300'
-                        : item.status === 'draft_ready'
-                          ? 'border-emerald-400/30 text-emerald-400/90'
-                          : 'border-border text-muted-foreground'
-                    }`}
-                  >
-                    {item.formatName}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ),
-        )}
       </div>
       <p className="mt-2 text-[11.5px] text-muted-foreground">
-        Arrastra un creativo a otro día para reprogramar su fecha de publicación. Verde: borrador listo;
-        azul: versión final lista.
+        Arrastra un creativo a otro día —o ábrelo con Enter para elegir la fecha— para reprogramar su
+        publicación. Verde: borrador listo; azul: versión final lista; gris: aún sin generar.
       </p>
     </div>
   );

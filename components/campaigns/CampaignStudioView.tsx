@@ -263,11 +263,17 @@ export function CampaignStudioView({
           >
             <Settings className="size-3.5" aria-hidden />
           </button>
-          <div className="flex gap-1 rounded-lg border border-border bg-card p-0.5">
+          <div
+            role="tablist"
+            aria-label="Vistas del studio"
+            className="flex gap-1 rounded-lg border border-border bg-card p-0.5"
+          >
             {(['plan', 'produccion', 'plantillas', 'calendario'] as const).map((t) => (
               <button
                 key={t}
                 type="button"
+                role="tab"
+                aria-selected={tab === t}
                 onClick={() => setTab(t)}
                 className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
                   tab === t ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
@@ -620,20 +626,20 @@ function PlanTable({
             </span>
           )}
           {item.characterNames.length > 0 && (
-            <span className="ml-1.5 text-[11px] text-muted-foreground/60">
+            <span className="ml-1.5 text-[11px] text-muted-foreground">
               · {item.characterNames.join(' + ')}
             </span>
           )}
         </td>
         <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
           {item.scene && (
-            <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{item.scene}</p>
+            <p className="line-clamp-1 text-[11px] text-muted-foreground">{item.scene}</p>
           )}
           <p className="line-clamp-2 text-muted-foreground/80">
             {item.sceneSummary ?? item.scenePrompt}
           </p>
           {item.caption && (
-            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+            <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
               Caption: {item.caption}
             </p>
           )}
@@ -708,7 +714,10 @@ function PlanTable({
     (g): g is Extract<typeof g, { kind: 'sequence' }> => g.kind === 'sequence',
   );
   const sequenceScenes = sequenceGroups.reduce((n, g) => n + g.scenes.length, 0);
-  const singleCount = groups.filter((g) => g.kind === 'single').length;
+  const singleGroups = groups.filter(
+    (g): g is Extract<typeof g, { kind: 'single' }> => g.kind === 'single',
+  );
+  const singleCount = singleGroups.length;
 
   return (
     <div className="mt-5 space-y-3">
@@ -735,23 +744,23 @@ function PlanTable({
           </p>
         </div>
       )}
-      {groups.map((group) =>
-        group.kind === 'single' ? (
-          <div key={group.item.id} className="overflow-hidden rounded-xl border border-border">
-            <table className="w-full text-left text-[12.5px]">
-              <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Fecha</th>
-                  <th className="px-3 py-2 font-medium">Formato</th>
-                  <th className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
-                  <th className="px-3 py-2 font-medium">Estado</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>{renderPlanRow(group.item)}</tbody>
-            </table>
-          </div>
-        ) : (
+      {singleGroups.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-left text-[12.5px]">
+            <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
+              <tr>
+                <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
+                <th scope="col" className="px-3 py-2 font-medium">Formato</th>
+                <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
+                <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+                <th scope="col" className="px-3 py-2" />
+              </tr>
+            </thead>
+            <tbody>{singleGroups.map((group) => renderPlanRow(group.item))}</tbody>
+          </table>
+        </div>
+      )}
+      {sequenceGroups.map((group) => (
           <div key={group.sequenceId} className="rounded-xl border border-border bg-card/40 p-3">
             <div className="mb-2 flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -776,7 +785,7 @@ function PlanTable({
                     onChange={(e) =>
                       handleAssignLocation(group.sequenceId, e.target.value === '' ? null : e.target.value)
                     }
-                    className="rounded-md border border-border bg-background px-2 py-1.5 text-[11.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary disabled:opacity-50"
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-[11.5px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
                   >
                     <option value="">Sin locación</option>
                     {locationOptions.map((l) => (
@@ -800,18 +809,18 @@ function PlanTable({
               <table className="w-full text-left text-[12.5px]">
                 <thead className="border-b border-border bg-muted/20 text-[11px] uppercase tracking-wide text-muted-foreground/60">
                   <tr>
-                    <th className="px-3 py-2 font-medium">#</th>
-                    <th className="px-3 py-2 font-medium">Fecha</th>
-                    <th className="px-3 py-2 font-medium">Formato</th>
-                    <th className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
-                    <th className="px-3 py-2 font-medium">Estado</th>
-                    <th className="px-3 py-2" />
+                    <th scope="col" className="px-3 py-2 font-medium">#</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Formato</th>
+                    <th scope="col" className="hidden px-3 py-2 font-medium md:table-cell">Escena / acción</th>
+                    <th scope="col" className="px-3 py-2 font-medium">Estado</th>
+                    <th scope="col" className="px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>
                   {group.scenes.map((scene, i) => (
                     <tr key={scene.id} className="border-b border-border/50 last:border-0">
-                      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-zinc-500">{i + 1}</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-[11px] text-muted-foreground">{i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5">
                           <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
@@ -831,20 +840,20 @@ function PlanTable({
                           </span>
                         )}
                         {scene.characterNames.length > 0 && (
-                          <span className="ml-1.5 text-[11px] text-muted-foreground/60">
+                          <span className="ml-1.5 text-[11px] text-muted-foreground">
                             · {scene.characterNames.join(' + ')}
                           </span>
                         )}
                       </td>
                       <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
                         {scene.scene && (
-                          <p className="line-clamp-1 text-[11px] text-muted-foreground/50">{scene.scene}</p>
+                          <p className="line-clamp-1 text-[11px] text-muted-foreground">{scene.scene}</p>
                         )}
                         <p className="line-clamp-2 text-muted-foreground/80">
                           {scene.sceneSummary ?? scene.scenePrompt}
                         </p>
                         {scene.caption && (
-                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/50">
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
                             Caption: {scene.caption}
                           </p>
                         )}
@@ -914,8 +923,7 @@ function PlanTable({
               </table>
             </div>
           </div>
-        ),
-      )}
+      ))}
     </div>
   );
 }
@@ -1058,7 +1066,7 @@ function ProductionView({
                 </div>
                 <div title={group.items[0]?.formatDescription || undefined}>
                   <p className="text-[13.5px] font-medium text-foreground">{group.formatName}</p>
-                  <p className="text-[11.5px] text-muted-foreground/60">
+                  <p className="text-[11.5px] text-muted-foreground">
                     {group.items.length} creativos · {pending} pendientes
                     {generating > 0 && ` · ${generating} generando`}
                     {drafts.length > 0 && ` · ${drafts.length} borradores`}
@@ -1268,7 +1276,7 @@ function ProductionView({
                   type="button"
                   disabled={busy !== null}
                   onClick={() => handleRedoSamples(group.formatId)}
-                  className="mt-1 text-[11px] text-muted-foreground/60 underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
+                  className="mt-1 text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline disabled:opacity-40"
                 >
                   {busy === `${group.formatId}:redo`
                     ? 'Regresando borradores…'
@@ -1344,9 +1352,9 @@ function ProductionView({
       })}
       <ImagePackCard campaignId={campaignId} />
 
-      <p className="text-[11.5px] text-muted-foreground/50">
+      <p className="text-[11.5px] text-muted-foreground">
         Los lotes se encolan escalonados (20 s entre videos). Cuando un creativo termina, ábrelo con
-        &ldquo;Ver&rdquo; aquí mismo; el borrador se genera en 480p y la versión final aprobada en 720p con la misma composición.
+        &ldquo;Ver&rdquo; aquí mismo; el borrador se genera en 480p y la versión final en 720p o 1080p, según elijas, con la misma composición.
       </p>
 
       {distilling?.generationId && (
@@ -1421,6 +1429,8 @@ function TemplatesView({
           <button
             key={n}
             type="button"
+            aria-pressed={count === n}
+            aria-label={`Tamaño de la serie: ${n}`}
             onClick={() => setCount(n)}
             className={`rounded-md border px-2.5 py-1 transition-colors ${
               count === n
@@ -1447,7 +1457,7 @@ function TemplatesView({
           <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/50 p-4">
             <div className="min-w-0">
               <p className="truncate text-[13.5px] font-medium text-foreground">{t.name}</p>
-              <p className="text-[11.5px] text-muted-foreground/60">
+              <p className="text-[11.5px] text-muted-foreground">
                 {t.formatName} · usada {t.usesCount} {t.usesCount === 1 ? 'vez' : 'veces'}
               </p>
             </div>
@@ -1463,7 +1473,7 @@ function TemplatesView({
           </div>
         ))}
       </div>
-      <p className="text-[11.5px] text-muted-foreground/50">
+      <p className="text-[11.5px] text-muted-foreground">
         La serie copia la estructura, cámara y ritmo del video ganador (entra como referencia @Video1) y
         rota la escena{rotateCharacters ? ' y el personaje' : ''}. Los items nuevos aparecen en el plan
         como planificados y se generan desde Producción con las compuertas normales.
@@ -1588,7 +1598,11 @@ function VariantDialog({
           <DialogTitle>Variante dirigida</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-0.5">
+        <div
+          role="radiogroup"
+          aria-label="Tipo de variante"
+          className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-0.5"
+        >
           {(
             [
               { value: 'extend', label: 'Extender clip' },
@@ -1600,6 +1614,8 @@ function VariantDialog({
             <button
               key={m.value}
               type="button"
+              role="radio"
+              aria-checked={mode === m.value}
               onClick={() => setMode(m.value)}
               className={`rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${
                 mode === m.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'

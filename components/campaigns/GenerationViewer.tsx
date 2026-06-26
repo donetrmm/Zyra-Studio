@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 
@@ -90,20 +91,24 @@ export function GenerationViewer({
             <p className="line-clamp-3 text-[12.5px] leading-relaxed text-muted-foreground">
               {detail?.prompt?.trim() || title}
             </p>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={onClose}
-              className="shrink-0 rounded-md border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground"
+              className="shrink-0 text-muted-foreground"
             >
               Cerrar
-            </button>
+            </Button>
           </div>
           {detail?.outputUrl && (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={handleDownload}
               disabled={downloading}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 text-muted-foreground"
             >
               {downloading ? (
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -111,7 +116,7 @@ export function GenerationViewer({
                 <Download className="size-3.5" aria-hidden />
               )}
               Descargar
-            </button>
+            </Button>
           )}
         </div>
       </DialogContent>

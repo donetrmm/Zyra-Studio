@@ -5,7 +5,7 @@ import { SectionTabs } from '@/components/layout/SectionTabs';
 // las voces clonadas y las referencias sueltas también son activos de marca.
 export default function BrandLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="mx-auto w-full max-w-4xl">
       <SectionTabs
         tabs={[
           { label: 'Brand Kits', href: '/app/brand/kits' },

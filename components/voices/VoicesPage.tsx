@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { FlaskConical, Loader2, Mic, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
+import { FlaskConical, Loader2, Mic, Pause, Play, Plus, RotateCcw, Trash2, Volume2 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
 import { toast } from 'sonner';
 import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction } from '@/server-actions/voices';
 import { cn } from '@/lib/utils';
@@ -50,7 +51,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   }
 
   async function handleDelete(id: string, name: string) {
-    const ok = await confirm({ title: `Eliminar "${name}"?`, description: 'Esta accion no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
+    const ok = await confirm({ title: `Eliminar "${name}"?`, description: 'Esta acción no se puede deshacer.', confirmLabel: 'Eliminar', destructive: true });
     if (!ok) return;
     startDelete(async () => {
       const res = await deleteVoiceAction(id);
@@ -102,7 +103,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
         <button
           type="button"
           onClick={() => setShowClone(true)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
         >
           <Plus className="size-4" aria-hidden />
           Clonar voz
@@ -120,8 +121,9 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
           </div>
           <form action={handleClone} className="space-y-3 p-5">
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre</label>
+              <label htmlFor="voice-name" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre</label>
               <input
+                id="voice-name"
                 name="name"
                 required
                 placeholder="Ej: Narrador principal"
@@ -129,16 +131,18 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
               />
             </div>
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Descripcion (opcional)</label>
+              <label htmlFor="voice-description" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Descripción (opcional)</label>
               <input
+                id="voice-description"
                 name="description"
                 placeholder="Ej: Voz masculina grave, tono calmado"
                 className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
               />
             </div>
             <div>
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Samples de audio</label>
+              <label htmlFor="voice-files" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Samples de audio</label>
               <input
+                id="voice-files"
                 name="files"
                 type="file"
                 accept="audio/*"
@@ -146,21 +150,21 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 required
                 className="mt-1 w-full text-[12.5px] text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-primary file:cursor-pointer"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground/50">1-2 minutos de audio por archivo</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">1-2 minutos de audio por archivo</p>
             </div>
             <div className="flex gap-2 pt-1">
               <button
                 type="submit"
                 disabled={cloning}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {cloning && <Loader2 className="size-3.5 animate-spin" />}
+                {cloning && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                 {cloning ? 'Clonando...' : 'Clonar voz'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowClone(false)}
-                className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
+                className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
               >
                 Cancelar
               </button>
@@ -191,15 +195,15 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 type="button"
                 onClick={submitTry}
                 disabled={trying || !tryText.trim()}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {trying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+                {trying ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
                 {trying ? 'Generando...' : 'Generar'}
               </button>
               <button
                 type="button"
                 onClick={() => { setTryingId(null); setTryAudio(null); }}
-                className="text-[12.5px] text-muted-foreground hover:text-foreground"
+                className="-m-1 rounded-sm p-1 text-[12.5px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 Cerrar
               </button>
@@ -211,13 +215,11 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
 
       {/* Voice grid */}
       {voices.length === 0 && !showClone ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
-          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-            <Mic className="size-7" aria-hidden />
-          </div>
-          <p className="text-[14px] text-foreground/70">No tienes voces clonadas</p>
-          <p className="max-w-xs text-[12.5px]">Clona tu primera voz subiendo un sample de audio para usarla en generacion de texto a voz</p>
-        </div>
+        <PageEmptyState
+          icon={Mic}
+          title="No tienes voces clonadas"
+          sub="Clona tu primera voz subiendo un sample de audio para usarla en generación de texto a voz"
+        />
       ) : (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {voices.map((v) => (
@@ -236,6 +238,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                   )}
                 </div>
                 <span
+                  title={v.status === 'failed' ? 'El sample pudo tener ruido o música de fondo. Vuelve a clonar con audio limpio.' : undefined}
                   className={cn(
                     'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
                     v.status === 'ready'
@@ -254,17 +257,28 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                   <button
                     type="button"
                     onClick={() => handleTry(v.elevenlabs_voice_id!)}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
                   >
                     <Play className="size-3.5" aria-hidden />
                     Probar
+                  </button>
+                )}
+                {v.status === 'failed' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowClone(true)}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
+                  >
+                    <RotateCcw className="size-3.5" aria-hidden />
+                    Volver a clonar
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => handleDelete(v.id, v.name)}
                   disabled={deleting}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label={`Eliminar voz "${v.name}"`}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-destructive/40 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Trash2 className="size-3.5" aria-hidden />
                 </button>
