@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -124,6 +124,7 @@ export function CampaignStudioWizard({
   const [includePackaging, setIncludePackaging] = useState(true);
   const [music, setMusic] = useState<{ id: string; filename: string } | null>(null);
   const [musicBusy, setMusicBusy] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
   // El orden de selección importa: [0] es el personaje principal.
@@ -371,23 +372,6 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-1.5">
-          <Label htmlFor="campaign-url" className="text-xs font-medium text-foreground/80">
-            URL del producto <span className="font-normal text-muted-foreground/50">(opcional)</span>
-          </Label>
-          <Input
-            id="campaign-url"
-            type="url"
-            value={productUrl}
-            onChange={(e) => setProductUrl(e.target.value)}
-            placeholder="https://mitienda.com/producto"
-            maxLength={500}
-          />
-          <p className="text-2xs text-muted-foreground">
-            El texto de la página (nombre, descripción, tono) enriquece el análisis.
-          </p>
-        </section>
-
-        <section className="space-y-1.5">
           <Label htmlFor="campaign-ideas" className="text-xs font-medium text-foreground/80">
             Describe lo que imaginas
           </Label>
@@ -520,55 +504,6 @@ export function CampaignStudioWizard({
           />
         </section>
 
-        <section className="space-y-1.5">
-          <Label htmlFor="campaign-goal" className="text-xs font-medium text-foreground/80">
-            Objetivo del texto (caption)
-          </Label>
-          <Select value={goal} onValueChange={setGoal}>
-            <SelectTrigger id="campaign-goal" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {GOALS.map((g) => (
-                <SelectItem key={g.value} value={g.value}>
-                  {g.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-2xs leading-snug text-muted-foreground">
-            Solo ajusta el llamado a la acción del caption; lo puedes editar después.
-          </p>
-        </section>
-
-        <section>
-          <span className="text-xs font-medium text-foreground/80">Idioma hablado</span>
-          <div className="mt-1.5 flex gap-2">
-            {(
-              [
-                { value: 'es', label: 'Español' },
-                { value: 'en', label: 'English' },
-              ] as const
-            ).map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                onClick={() => setLanguage(l.value)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
-                  language === l.value
-                    ? 'border-primary/60 bg-primary/10 text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1.5 text-2xs text-muted-foreground">
-            Idioma de los diálogos y voz en off de los videos; el caption sale en español.
-          </p>
-        </section>
-
         <section>
           <span className="text-xs font-medium text-foreground/80">Formato de video</span>
           <div className="mt-1.5 flex gap-2">
@@ -598,32 +533,117 @@ export function CampaignStudioWizard({
           </p>
         </section>
 
-        <section className="space-y-2">
-          <Label htmlFor="music-upload" className="text-xs font-medium text-foreground/80">
-            Pista musical <span className="font-normal text-muted-foreground/50">(opcional)</span>
-          </Label>
-          <p className="text-2xs text-muted-foreground">
-            Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
-            audio sincronizado al beat. No se usa como banda sonora final.
-          </p>
-          {music ? (
-            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
-              <span className="truncate">{music.filename}</span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setMusic(null)}>
-                Quitar
-              </Button>
-            </div>
-          ) : (
-            <Input
-              id="music-upload"
-              type="file"
-              accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
-              disabled={musicBusy}
-              onChange={(e) => void handleMusicSelected(e.target.files?.[0])}
+        <div>
+          <button
+            type="button"
+            aria-expanded={advancedOpen}
+            aria-controls="advanced-options"
+            onClick={() => setAdvancedOpen((o) => !o)}
+            className="flex w-full items-center justify-between rounded-lg border border-border bg-card/50 px-4 py-3 text-xs font-medium text-foreground/80 transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            Opciones avanzadas (opcional)
+            <ChevronDown
+              className={`size-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              aria-hidden
             />
+          </button>
+          {advancedOpen && (
+            <div id="advanced-options" className="mt-4 space-y-6">
+              <section className="space-y-1.5">
+                <Label htmlFor="campaign-url" className="text-xs font-medium text-foreground/80">
+                  URL del producto <span className="font-normal text-muted-foreground/50">(opcional)</span>
+                </Label>
+                <Input
+                  id="campaign-url"
+                  type="url"
+                  value={productUrl}
+                  onChange={(e) => setProductUrl(e.target.value)}
+                  placeholder="https://mitienda.com/producto"
+                  maxLength={500}
+                />
+                <p className="text-2xs text-muted-foreground">
+                  El texto de la página (nombre, descripción, tono) enriquece el análisis.
+                </p>
+              </section>
+
+              <section className="space-y-1.5">
+                <Label htmlFor="campaign-goal" className="text-xs font-medium text-foreground/80">
+                  Objetivo del texto (caption)
+                </Label>
+                <Select value={goal} onValueChange={setGoal}>
+                  <SelectTrigger id="campaign-goal" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GOALS.map((g) => (
+                      <SelectItem key={g.value} value={g.value}>
+                        {g.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-2xs leading-snug text-muted-foreground">
+                  Solo ajusta el llamado a la acción del caption; lo puedes editar después.
+                </p>
+              </section>
+
+              <section>
+                <span className="text-xs font-medium text-foreground/80">Idioma hablado</span>
+                <div className="mt-1.5 flex gap-2">
+                  {(
+                    [
+                      { value: 'es', label: 'Español' },
+                      { value: 'en', label: 'English' },
+                    ] as const
+                  ).map((l) => (
+                    <button
+                      key={l.value}
+                      type="button"
+                      onClick={() => setLanguage(l.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
+                        language === l.value
+                          ? 'border-primary/60 bg-primary/10 text-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-2xs text-muted-foreground">
+                  Idioma de los diálogos y voz en off de los videos; el caption sale en español.
+                </p>
+              </section>
+
+              <section className="space-y-2">
+                <Label htmlFor="music-upload" className="text-xs font-medium text-foreground/80">
+                  Pista musical <span className="font-normal text-muted-foreground/50">(opcional)</span>
+                </Label>
+                <p className="text-2xs text-muted-foreground">
+                  Un clip de hasta 15s. Guía el ritmo y la energía del video; el modelo genera su
+                  audio sincronizado al beat. No se usa como banda sonora final.
+                </p>
+                {music ? (
+                  <div className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                    <span className="truncate">{music.filename}</span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setMusic(null)}>
+                      Quitar
+                    </Button>
+                  </div>
+                ) : (
+                  <Input
+                    id="music-upload"
+                    type="file"
+                    accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav"
+                    disabled={musicBusy}
+                    onChange={(e) => void handleMusicSelected(e.target.files?.[0])}
+                  />
+                )}
+                {musicBusy ? <p className="text-2xs text-muted-foreground">Subiendo pista…</p> : null}
+              </section>
+            </div>
           )}
-          {musicBusy ? <p className="text-2xs text-muted-foreground">Subiendo pista…</p> : null}
-        </section>
+        </div>
 
         <Button className="w-full" size="lg" disabled={!canSubmit} onClick={handleCreate}>
           {submitting ? (

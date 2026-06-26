@@ -286,6 +286,13 @@ export function CampaignStudioView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="default" size="sm">
+            <Link href={`/app/campaigns/${campaign.id}/storyboard`}>
+              <Clapperboard className="size-3.5" aria-hidden />
+              Storyboard
+            </Link>
+          </Button>
+          <span className="h-4 w-px bg-border/60" aria-hidden />
           <Button
             type="button"
             variant="outline"
@@ -295,12 +302,6 @@ export function CampaignStudioView({
           >
             {exporting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Download className="size-3.5" aria-hidden />}
             CSV
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/app/campaigns/${campaign.id}/storyboard`}>
-              <Clapperboard className="size-3.5" aria-hidden />
-              Storyboard
-            </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href={`/app/campaigns/${campaign.id}/report`}>
