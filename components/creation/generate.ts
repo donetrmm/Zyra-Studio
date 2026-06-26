@@ -176,6 +176,27 @@ export async function generateScaleMap(description: string): Promise<GeneratedIm
   return fixAsReference(res.data.generationId);
 }
 
+// Mapa de escala (P15) RESPETANDO la imagen maestra de la locación: Nano Banana
+// redibuja la foto del lugar como un esquema top-down conservando los elementos
+// y su disposición reales (patrón editUploaded, como generatePackaging — la
+// maestra entra como referencia, no como text2image). `guidance` opcional = la
+// descripción de la locación para reforzar el redibujo. Es el camino correcto
+// cuando hay maestra; generateScaleMap (FLUX desde texto) queda como fallback
+// sin maestra.
+export async function generateScaleMapFromMaster(
+  masterRef: { id: string; storagePath: string },
+  guidance?: string,
+): Promise<GeneratedImage | GenError> {
+  const detail = guidance?.trim() ? ` Context: ${guidance.trim()}.` : '';
+  const instruction =
+    `Redraw the exact location shown in the reference image as a TOP-DOWN schematic floor-plan, seen ` +
+    `directly from straight above. Keep the same elements (walls, furniture, objects, landmarks) and ` +
+    `their real relative positions and proportional sizes as in the reference; do not invent or remove ` +
+    `elements.${detail} ` +
+    `Flat simple labeled line diagram, plain background, no perspective, no photorealism, no shadows, no people.`;
+  return editUploaded(masterRef, instruction);
+}
+
 // Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.
 // Legítimo solo cuando no hay producto real — es un concepto, no una foto fiel.
 function buildProductPrompt(description: string): string {

@@ -11,10 +11,11 @@ import {
 } from '@/server-actions/locations';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
+import { getReferencePathsAction } from '@/server-actions/creation';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { generateScaleMap, isGenError } from '@/components/creation/generate';
+import { generateScaleMap, generateScaleMapFromMaster, isGenError } from '@/components/creation/generate';
 
 export type Location = {
   id: string;
@@ -190,13 +191,28 @@ function LocationEditor({
   );
   const [scaleMapNotes, setScaleMapNotes] = useState(location?.scale_map_notes ?? '');
   const [generatingMap, setGeneratingMap] = useState(false);
-  const canGenerateMap = description.trim().length >= 10 && !generatingMap;
+  // Con maestra basta la maestra; sin maestra hace falta descripción (FLUX desde texto).
+  const canGenerateMap = (masterImages.length > 0 || description.trim().length >= 10) && !generatingMap;
 
   async function handleGenerateScaleMap() {
     if (!canGenerateMap) return;
     setGeneratingMap(true);
     try {
-      const out = await generateScaleMap(description.trim());
+      // Si hay imagen maestra, el plano se DERIVA de ella (Nano Banana la redibuja
+      // como top-down respetando los elementos reales). Sin maestra, FLUX desde texto.
+      const masterId = masterImages[0]?.id;
+      let out;
+      if (masterId) {
+        const pathsRes = await getReferencePathsAction([masterId]);
+        const storagePath = pathsRes.ok ? pathsRes.data[masterId] : undefined;
+        if (!storagePath) {
+          toast.error('No se pudo resolver la imagen maestra');
+          return;
+        }
+        out = await generateScaleMapFromMaster({ id: masterId, storagePath }, description.trim() || undefined);
+      } else {
+        out = await generateScaleMap(description.trim());
+      }
       if (isGenError(out)) {
         toast.error(out.message || 'No se pudo generar el mapa de escala');
         return;
@@ -353,7 +369,8 @@ function LocationEditor({
             </h3>
             <p className="mt-0.5 text-[12px] text-muted-foreground/70">
               Esquema top-down que fija el tamaño y la posición de los objetos (evita que cambien de
-              tamaño o se muevan entre tomas). Súbelo o genéralo desde la descripción.
+              tamaño o se muevan entre tomas). Súbelo o genéralo: si hay imagen maestra, se redibuja a
+              partir de ella; si no, desde la descripción.
             </p>
           </div>
 
@@ -377,7 +394,7 @@ function LocationEditor({
             type="button"
             onClick={handleGenerateScaleMap}
             disabled={!canGenerateMap}
-            title={description.trim().length < 10 ? 'Escribe una descripción (mín. 10 caracteres)' : undefined}
+            title={masterImages.length === 0 && description.trim().length < 10 ? 'Sube una imagen maestra o escribe una descripción (mín. 10 caracteres)' : undefined}
             className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {generatingMap ? (

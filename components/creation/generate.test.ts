@@ -6,7 +6,7 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { generateProductAngle, generateCharacterState, isGenError, generateScaleMap } from './generate';
+import { generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster } from './generate';
 
 describe('generateProductAngle', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -88,5 +88,45 @@ describe('generateScaleMap', () => {
     const res = await generateScaleMap('x');
     expect(isGenError(res)).toBe(true);
     if (isGenError(res)) expect(res.message).toBe('boom');
+  });
+});
+
+describe('generateScaleMapFromMaster', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('redibuja la maestra como top-down vía Nano Banana (editUploaded), pasándola como referencia', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+
+    const res = await generateScaleMapFromMaster({ id: 'm', storagePath: 'ws/m.png' }, 'a city sidewalk');
+
+    expect(isGenError(res)).toBe(false);
+    if (!isGenError(res)) expect(res.refId).toBe('ref1');
+
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    // editUploaded: la maestra entra como referencia, no como parent conversacional.
+    expect((call as Extract<SubmitGenerationInput, { provider: 'nano-banana' }>).conversational).toBe(false);
+    expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
+    expect(call.prompt).toMatch(/top-down/i);
+    // Debe anclar a la imagen de referencia (respetar la maestra) e incluir la guía.
+    expect(call.prompt).toMatch(/reference image/i);
+    expect(call.prompt).toContain('a city sidewalk');
+  });
+
+  it('funciona sin guía (solo la maestra)', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await generateScaleMapFromMaster({ id: 'm', storagePath: 'ws/m.png' });
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
   });
 });
