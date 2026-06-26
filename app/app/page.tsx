@@ -54,7 +54,16 @@ export default async function DashboardPage() {
   const others = sorted.slice(1, 4);
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8">
+    <div className="relative mx-auto w-full max-w-4xl space-y-8">
+      {/* Brand glow — decorativo, detrás del hero */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-20 h-80 select-none"
+        style={{
+          background:
+            "radial-gradient(60% 50% at 50% 20%, rgba(0,159,255,0.055) 0%, transparent 80%)",
+        }}
+      />
       <WelcomeModal />
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">

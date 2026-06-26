@@ -219,7 +219,10 @@
           text-wrap: balance;
         }
         .l-hero-title .gradient-text {
-          color: var(--accent-2l);
+          background: linear-gradient(90deg, #00c6ff 0%, #009fff 100%);
+          background-clip: text;
+          -webkit-background-clip: text;
+          color: transparent;
         }
         .l-hero-sub {
           font-size: clamp(16px, 1.6vw, 19px);

@@ -17,7 +17,13 @@ export default async function OnboardingPage() {
   if (workspace) redirect("/app");
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
+    <div
+      className="flex flex-1 flex-col items-center justify-center px-4 py-16"
+      style={{
+        background:
+          "radial-gradient(60% 50% at 50% 30%, rgba(0,159,255,0.05) 0%, transparent 70%)",
+      }}
+    >
       <div className="w-full max-w-md">
         <OnboardingFlow />
       </div>

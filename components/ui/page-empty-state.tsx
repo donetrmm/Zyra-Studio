@@ -23,7 +23,7 @@ export function PageEmptyState({
   return (
     <div className={cn('grid h-full min-h-[360px] place-items-center p-6', className)}>
       <div className="max-w-[420px] text-center">
-        <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[18px] border border-border bg-muted/30 text-muted-foreground">
+        <div className="mx-auto mb-4 grid size-16 place-items-center rounded-[18px] border border-brand/20 bg-brand/5 text-brand">
           <Icon className="size-5" aria-hidden />
         </div>
         <h3 className="font-heading text-[16px] font-medium text-foreground">{title}</h3>
