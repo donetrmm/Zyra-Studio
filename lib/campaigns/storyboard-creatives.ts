@@ -20,12 +20,31 @@ export type CreativeRow = {
   sequenceId: string | null;
   sequenceLabel: string | null;
   formatName: string | null;
+  scenePrompt: string;
   sceneIndex: number;
   createdAt: string;
 };
 
 const SEQUENCE_FALLBACK = 'Secuencia';
 const SINGLE_FALLBACK = 'Creativo';
+const SNIPPET_MAX = 48;
+
+// Fragmento corto y limpio del scene_prompt para etiquetar un creativo de un clip
+// de forma reconocible (colapsa espacios, recorta a SNIPPET_MAX con elipsis).
+function sceneSnippet(prompt: string): string {
+  const clean = prompt.replace(/\s+/g, ' ').trim();
+  if (clean.length <= SNIPPET_MAX) return clean;
+  return `${clean.slice(0, SNIPPET_MAX).trimEnd()}…`;
+}
+
+// Label de un creativo de un solo clip: "formato · resumen de la escena". Cae al
+// formato solo (sin prompt), al resumen solo (sin formato), o al fallback generico.
+function singleLabel(formatName: string | null, scenePrompt: string): string {
+  const fmt = formatName?.trim();
+  const snippet = sceneSnippet(scenePrompt);
+  if (snippet) return fmt ? `${fmt} · ${snippet}` : snippet;
+  return fmt || SINGLE_FALLBACK;
+}
 
 // Agrupa por clave (sequence_id ?? id), ordena los beats de cada creativo por
 // scene_index, ordena los creativos por el created_at mas temprano de sus beats, y
@@ -70,7 +89,7 @@ export function buildCreatives(rows: CreativeRow[]): StoryboardCreative[] {
     const rawLabel =
       kind === 'sequence'
         ? head.sequenceLabel?.trim() || SEQUENCE_FALLBACK
-        : head.formatName?.trim() || SINGLE_FALLBACK;
+        : singleLabel(head.formatName, head.scenePrompt);
     return {
       key: g.key,
       label: rawLabel,

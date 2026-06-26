@@ -6,6 +6,7 @@ function row(p: Partial<CreativeRow> & { id: string }): CreativeRow {
     sequenceId: null,
     sequenceLabel: null,
     formatName: null,
+    scenePrompt: '',
     sceneIndex: 0,
     createdAt: '2026-01-01T00:00:00Z',
     ...p,
@@ -74,6 +75,32 @@ describe('buildCreatives', () => {
       row({ id: 'b', formatName: 'Reel', createdAt: '2026-01-02T00:00:00Z' }),
     ]);
     expect(out.map((c) => c.label)).toEqual(['Reel 1', 'Reel 2']);
+  });
+
+  it('un clip suelto se etiqueta "formato · resumen de la escena"', () => {
+    const out = buildCreatives([
+      row({ id: 'a', formatName: 'Reel', scenePrompt: 'Mujer abre el empaque en la cocina y sonríe' }),
+    ]);
+    expect(out[0].label).toBe('Reel · Mujer abre el empaque en la cocina y sonríe');
+  });
+
+  it('recorta el resumen largo con elipsis y, sin formato, usa solo el resumen', () => {
+    const longPrompt =
+      'Plano general de la cocina con luz natural mientras la protagonista prepara el desayuno lentamente';
+    const out = buildCreatives([row({ id: 'a', formatName: null, scenePrompt: longPrompt })]);
+    expect(out[0].label.endsWith('…')).toBe(true);
+    expect(out[0].label.length).toBeLessThanOrEqual(49);
+  });
+
+  it('dos clips del mismo formato se distinguen por su resumen', () => {
+    const out = buildCreatives([
+      row({ id: 'a', formatName: 'Reel', scenePrompt: 'Primer plano del producto', createdAt: '2026-01-01T00:00:00Z' }),
+      row({ id: 'b', formatName: 'Reel', scenePrompt: 'Testimonial en exteriores', createdAt: '2026-01-02T00:00:00Z' }),
+    ]);
+    expect(out.map((c) => c.label)).toEqual([
+      'Reel · Primer plano del producto',
+      'Reel · Testimonial en exteriores',
+    ]);
   });
 
   it('no toca labels unicos', () => {

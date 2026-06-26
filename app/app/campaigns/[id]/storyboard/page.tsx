@@ -93,6 +93,7 @@ export default async function StoryboardPage({
     sequenceId: (r.sequence_id as string | null) ?? null,
     sequenceLabel: (r.sequence_label as string | null) ?? null,
     formatName: r.format_id ? (formatNames.get(r.format_id as string) ?? null) : null,
+    scenePrompt: (r.scene_prompt as string) ?? '',
     sceneIndex: (r.scene_index as number) ?? 0,
     createdAt: (r.created_at as string | null) ?? '',
   }));
