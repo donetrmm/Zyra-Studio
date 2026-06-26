@@ -73,6 +73,10 @@ describe('generateScaleMap', () => {
 
     const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
     expect(call.provider).toBe('flux');
+    expect(call.model).toBe('flux-2-pro-preview');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'flux' }>).variant).toBe('default');
+    expect(call.aspectRatio).toBe('1:1');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'flux' }>).megapixels).toBe(2);
     expect((call as Extract<SubmitGenerationInput, { provider: 'flux' }>).photoreal).toBe(false);
     expect(call.references).toEqual([]);
     expect(call.prompt).toMatch(/top-down/i);
