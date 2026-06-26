@@ -1,10 +1,10 @@
-\# Zyra Studio — Identidad de Marca
+\# 1to1 Studio — Identidad de Marca
 
 
 
 \## Nombre
 
-\*\*Zyra Studio\*\*
+\*\*1to1 Studio\*\*
 
 
 
@@ -16,7 +16,7 @@
 
 
 
-Zyra Studio es una plataforma creativa impulsada por inteligencia artificial para generar videos, imágenes y voz de manera rápida, moderna y profesional.
+1to1 Studio es una plataforma creativa impulsada por inteligencia artificial para generar videos, imágenes y voz de manera rápida, moderna y profesional.
 
 
 
@@ -148,25 +148,26 @@ Minimalista + Futurista + Premium
 
 \## Primario
 
-\- Morado eléctrico — `#7B61FF`
+\- Azul de marca — `#009fff` (acento, iconos y texto sobre fondos oscuros)
 
 
 
 \## Secundario
 
-\- Azul neón — `#3B82F6`
+\- Azul AA — `#0072e6` (superficies con texto blanco, botones rellenos — contraste AA garantizado)
 
 
 
 \## Fondo
 
-\- Negro profundo — `#0B0F19`
+\- zinc-950 — `#09090b` (fondo base; dark mode por defecto)
 
 
 
 \## Texto
 
 \- Blanco suave — `#F5F7FA`
+
 
 
 \---
@@ -179,11 +180,11 @@ Minimalista + Futurista + Premium
 
 \## Principal
 
-\- Satoshi
+\- Inter (cuerpo y UI — `--font-sans`)
 
-\- Inter
+\- Geist (titulares — `--font-heading`)
 
-\- Poppins
+\- Geist Mono (código — `--font-mono`)
 
 
 
@@ -203,7 +204,7 @@ Geométrica, limpia y moderna.
 
 \## Estilo de Interfaz
 
-\- Dark mode
+\- Dark mode por defecto (zinc-950 base)
 
 \- Bordes redondeados
 
@@ -239,7 +240,7 @@ Geométrica, limpia y moderna.
 
 \## Username
 
-\- @zyrastudio
+\- @1to1studio
 
 \---
 
@@ -247,5 +248,4 @@ Geométrica, limpia y moderna.
 
 
 
-> Zyra Studio transforma ideas en videos, imágenes y voz utilizando inteligencia artificial de forma instantánea, creativa y profesional.
-
+> 1to1 Studio transforma ideas en videos, imágenes y voz utilizando inteligencia artificial de forma instantánea, creativa y profesional.

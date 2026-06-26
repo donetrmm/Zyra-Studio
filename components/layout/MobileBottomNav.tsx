@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  BookOpen,
   Clapperboard,
   Home,
   Library,
@@ -27,6 +28,7 @@ const MORE_NAV = [
   { label: "Marca", href: "/app/brand", icon: Palette },
   { label: "Formatos", href: "/app/formats", icon: Clapperboard },
   { label: "Créditos", href: "/app/billing", icon: Wallet },
+  { label: "Guía", href: "/app/guide", icon: BookOpen },
 ] as const;
 
 export function MobileBottomNav() {
