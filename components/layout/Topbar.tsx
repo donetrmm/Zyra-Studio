@@ -1,4 +1,4 @@
-﻿import { Separator } from "@/components/ui/separator";
+import { Separator } from "@/components/ui/separator";
 import { CreditPill } from "@/components/layout/CreditPill";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { UserMenu } from "@/components/layout/UserMenu";

@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
