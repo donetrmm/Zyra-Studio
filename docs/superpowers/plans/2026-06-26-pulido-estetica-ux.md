@@ -53,20 +53,23 @@
 
 **Decisión de alcance (deliberada, flageada):** NO migrar los ~578 tamaños arbitrarios a ciegas — el medio-píxel es ajuste fino intencional del look denso premium y un sweep total arriesga regresiones visuales. Se INTRODUCE la escala y se migra solo el shell + dashboard + Studio + wizard (las superficies que la auditoría citó). El resto queda para incremental.
 
+**Decisión resuelta con el usuario (2026-06-26): escala SEGURA — no redefinir los defaults de Tailwind.** 14px ya es `text-sm` y 12px ya es `text-xs` en Tailwind; redefinirlos encogería 88 usos `bare` en TODA la app (84 `text-sm`, 4 `text-base`). Por eso SOLO se añaden tokens nuevos sin colisión (`--text-2xs` 11px, `--text-2sm` 13px) y la migración usa los defaults existentes para 12px/14px. NO se tocan `--text-xs/--text-sm/--text-base`.
+
 **Cambios:**
-1. En `app/globals.css` `@theme inline`, añadir tokens (mapeados a los tamaños reales más usados):
+1. En `app/globals.css` `@theme inline`, añadir SOLO los tokens nuevos (no colisionan con defaults):
    ```css
-   --text-2xs: 0.6875rem;   /* 11px */
+   --text-2xs: 0.6875rem;   /* 11px, nuevo */
    --text-2xs--line-height: 1rem;
-   --text-xs: 0.75rem;      /* 12px */
-   --text-xs--line-height: 1.1rem;
-   --text-sm: 0.8125rem;    /* 13px */
-   --text-sm--line-height: 1.25rem;
-   --text-base: 0.875rem;   /* 14px */
-   --text-base--line-height: 1.4rem;
+   --text-2sm: 0.8125rem;   /* 13px, nuevo */
+   --text-2sm--line-height: 1.25rem;
    ```
-   (Esto hace que `text-2xs/text-xs/text-sm/text-base` rindan los tamaños del sistema. Verifica que no rompan utilidades existentes de Tailwind: si `text-xs/text-sm/text-base` ya existen con otros valores, estos overrides los redefinen al tamaño del proyecto — confírmalo en build.)
-2. En las superficies listadas, reemplazar los `text-[11px]/text-[11.5px]` → `text-2xs`, `text-[12px]/text-[12.5px]` → `text-xs`, `text-[13px]` → `text-sm`, `text-[14px]` → `text-base`. Redondear los medio-píxeles al token más cercano. NO tocar tamaños grandes de heading (déjalos como están).
+   NO añadir `--text-xs/--text-sm/--text-base` (eso redefiniría los defaults de Tailwind: text-xs=12px y text-sm=14px ya son correctos; text-base=16px no debe encogerse). Verifica en build que `text-2xs` y `text-2sm` rinden 11px/13px.
+2. En las superficies listadas, reemplazar:
+   - `text-[11px]/text-[11.5px]` → `text-2xs` (11px)
+   - `text-[12px]/text-[12.5px]` → `text-xs` (default Tailwind = 12px, sin cambio)
+   - `text-[13px]/text-[12.5px]→13?` → `text-2sm` (13px). Redondea medio-píxeles al token más cercano (11.5→2xs o 2sm según el caso real; usa el entero más cercano).
+   - `text-[14px]` → `text-sm` (default Tailwind = 14px, sin cambio)
+   NO tocar tamaños grandes de heading. NO redefinir defaults. El resultado debe ser pixel-idéntico salvo donde 11.5/12.5 se redondean a su entero.
 
 **Verificación:** `pnpm typecheck && pnpm lint && pnpm build`. Revisar visualmente que el shell/dashboard/Studio no cambian de densidad de forma brusca (los tokens igualan los valores actuales).
 
