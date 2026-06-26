@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
+import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -30,8 +31,8 @@ type Props = {
   campaignId: string;
   campaignName: string;
   beats: StoryboardBeat[];
+  creatives: StoryboardCreative[];
   locations: { id: string; name: string }[];
-  currentLocationId: string | null;
   language: 'es' | 'en';
   // Costo en creditos por panel (null si no se pudo cargar el pricing). fresh = generar
   // un panel nuevo (conversational:false); chained = regenerar/refinar un panel que ya
@@ -40,16 +41,36 @@ type Props = {
   panelCostChained: number | null;
 };
 
-export function StoryboardView({ campaignId, campaignName, beats, locations, currentLocationId, language, panelCostFresh, panelCostChained }: Props) {
+export function StoryboardView({ campaignId, campaignName, beats, creatives, locations, language, panelCostFresh, panelCostChained }: Props) {
   const router = useRouter();
   const [savingLocation, setSavingLocation] = useState(false);
 
+  // Creativo seleccionado (default: el primero). El storyboard muestra solo sus beats.
+  const [selectedCreativeKey, setSelectedCreativeKey] = useState<string | null>(
+    creatives[0]?.key ?? null,
+  );
+
+  // Mapa beatId -> beat (para reconstruir los beats del creativo en su orden).
+  const beatById = new Map(beats.map((b) => [b.id, b]));
+  const selectedCreative =
+    creatives.find((c) => c.key === selectedCreativeKey) ?? creatives[0] ?? null;
+  const visibleBeats: StoryboardBeat[] = selectedCreative
+    ? selectedCreative.beatIds.map((id) => beatById.get(id)).filter((b): b is StoryboardBeat => b != null)
+    : beats;
+
+  // Locación actual del creativo seleccionado: primer locationId no nulo de sus beats.
+  const currentLocationId = visibleBeats.find((b) => b.locationId)?.locationId ?? null;
+
   async function handleSetLocation(locationId: string | null) {
+    if (!selectedCreative) return;
     setSavingLocation(true);
-    const res = await setStoryboardLocationAction(campaignId, locationId);
+    const res = await setStoryboardLocationAction(campaignId, locationId, {
+      sequenceId: selectedCreative.sequenceId,
+      itemId: selectedCreative.representativeItemId,
+    });
     setSavingLocation(false);
     if (res.ok) {
-      toast.success(locationId ? 'Locación anclada al storyboard' : 'Locación quitada');
+      toast.success(locationId ? 'Locación anclada al creativo' : 'Locación quitada');
       router.refresh();
     } else {
       toast.error(friendlyError(res.error, res.message));
@@ -131,7 +152,8 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
     }
   }
 
-  const withoutPanel = beats.filter((b) => {
+  // Beats sin panel del creativo seleccionado (lo que genera "Generar storyboard").
+  const withoutPanel = visibleBeats.filter((b) => {
     const s = panelStates[b.id];
     return s?.status === 'idle' && s.panelUrl === null;
   });
@@ -220,7 +242,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
         <div>
           <h1 className="text-[18px] font-semibold text-foreground">Storyboard</h1>
           <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-            {beats.length} escenas
+            {visibleBeats.length} escenas
             {withoutPanel.length > 0 && ` · ${withoutPanel.length} sin panel`}
           </p>
         </div>
@@ -240,6 +262,29 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
           </Button>
         )}
       </div>
+
+      {creatives.length > 1 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
+          <label htmlFor="storyboard-creative" className="text-[12px] text-muted-foreground">
+            Creativo:
+          </label>
+          <select
+            id="storyboard-creative"
+            value={selectedCreative?.key ?? ''}
+            onChange={(e) => setSelectedCreativeKey(e.target.value)}
+            className="rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {creatives.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label} ({c.beatIds.length} {c.beatIds.length === 1 ? 'escena' : 'escenas'})
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] text-muted-foreground">
+            el storyboard muestra solo las escenas de este creativo
+          </span>
+        </div>
+      )}
 
       {locations.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
@@ -267,7 +312,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
         </div>
       )}
 
-      {beats.length === 0 ? (
+      {visibleBeats.length === 0 ? (
         <div className="mt-12 rounded-xl border border-border bg-card/50 p-8 text-center">
           <p className="text-[14px] text-foreground/70">Esta campaña no tiene escenas</p>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
@@ -276,7 +321,7 @@ export function StoryboardView({ campaignId, campaignName, beats, locations, cur
         </div>
       ) : (
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {beats.map((beat) => {
+          {visibleBeats.map((beat) => {
             const state = panelStates[beat.id] ?? { status: 'idle', panelUrl: beat.panelUrl };
             const isGenerating = state.status === 'generating';
             const isRefining = refining === beat.id;

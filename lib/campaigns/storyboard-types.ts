@@ -6,4 +6,6 @@ export type StoryboardBeat = {
   storyboardImageId: string | null;
   panelUrl: string | null;
   durationS: number;
+  // Locacion anclada a la escena (por creativo). null = sin locacion.
+  locationId: string | null;
 };

@@ -151,12 +151,17 @@ async function loadPreviousPanelTurn(
   workspaceId: string,
   campaignId: string,
   sceneIndex: number | null,
+  sequenceId: string | null,
 ): Promise<{ prompt: string; imageBuffer: Buffer; mimeType: string; thoughtSignature?: string } | null> {
-  if (sceneIndex == null) return null;
+  // El encadenado es DENTRO de un creativo: solo hay panel anterior si el beat pertenece
+  // a una secuencia (sequenceId) y no es la primera escena. Los items sueltos
+  // (sequenceId/sceneIndex null) no encadenan: su panel se genera fresco.
+  if (sceneIndex == null || sequenceId == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
     .select('scene_index, storyboard_generation_id')
     .eq('campaign_id', campaignId)
+    .eq('sequence_id', sequenceId)
     .lt('scene_index', sceneIndex)
     .not('storyboard_generation_id', 'is', null)
     .order('scene_index', { ascending: false })
@@ -265,7 +270,7 @@ export async function generatePanelAction(
   // genera EDITÁNDOLO (conserva escena, arreglo y producto colocado) y aplica la acción
   // del beat. El primer panel se genera fresco (compose). La identidad se re-ancla con
   // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
-  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index);
+  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
   // Foto-realismo humano SOLO en el panel fresco (no encadenado): la rama encadenada
   // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
@@ -464,13 +469,16 @@ export async function generatePanelAction(
 
 // ─── acción: asignar la locación del storyboard ──────────────────────────────
 
-// Asigna (o quita con null) la locación a TODOS los beats de la campaña. Sus
-// paneles se anclan a esa locación como referencia de escena. Valida ownership.
+// Asigna (o quita con null) la locación a los beats de UN creativo. `creative`
+// identifica el creativo: una secuencia (sequenceId) o un item suelto (itemId).
+// Sus paneles se anclan a esa locación como referencia de escena. Valida ownership.
 export async function setStoryboardLocationAction(
   campaignId: string,
   locationId: string | null,
+  creative: { sequenceId: string | null; itemId: string },
 ): Promise<Result<{ updated: true }>> {
   if (!campaignId) return { ok: false, error: 'validation_error', message: 'campaignId requerido' };
+  if (!creative?.itemId) return { ok: false, error: 'validation_error', message: 'creativo requerido' };
 
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
@@ -494,10 +502,16 @@ export async function setStoryboardLocationAction(
     }
   }
 
-  const { error } = await supabase
+  // Scope al creativo: por sequence_id (secuencia) o por id (item suelto). El filtro
+  // por campaign_id (campaña ya validada por ownership) acota a items de esta campaña.
+  let query = supabase
     .from('campaign_items')
     .update({ location_id: locationId })
     .eq('campaign_id', campaignId);
+  query = creative.sequenceId
+    ? query.eq('sequence_id', creative.sequenceId)
+    : query.eq('id', creative.itemId);
+  const { error } = await query;
   if (error) return { ok: false, error: 'internal_error', message: error.message };
 
   revalidatePath(`/app/campaigns/${campaignId}/storyboard`);

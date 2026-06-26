@@ -6,6 +6,7 @@ import { loadPricing } from '@/lib/credits/pricing';
 import { estimateCredits } from '@/lib/credits/estimator';
 import { StoryboardView } from '@/components/campaigns/StoryboardView';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
+import { buildCreatives, type CreativeRow } from '@/lib/campaigns/storyboard-creatives';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,15 +30,23 @@ export default async function StoryboardPage({
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id, duration_s')
+    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id, duration_s, sequence_id, sequence_label, format_id, created_at')
     .eq('campaign_id', id)
     .order('scene_index');
 
   const rows = itemRows ?? [];
 
-  // Locación actual del storyboard (compartida por los beats) + catálogo del workspace.
-  const currentLocationId =
-    (rows.find((r) => r.location_id)?.location_id as string | null | undefined) ?? null;
+  // Nombres de formato para etiquetar los creativos sueltos (sin secuencia).
+  const formatIds = [
+    ...new Set(rows.map((r) => r.format_id as string | null).filter((v): v is string => v !== null)),
+  ];
+  const formatNames = new Map<string, string>();
+  if (formatIds.length > 0) {
+    const { data: formats } = await supabase.from('formats').select('id, name').in('id', formatIds);
+    for (const f of formats ?? []) formatNames.set(f.id as string, f.name as string);
+  }
+
+  // Catálogo de locaciones del workspace (la locación actual se deriva por creativo en el view).
   const { data: locationRows } = await supabase
     .from('locations')
     .select('id, name')
@@ -75,7 +84,19 @@ export default async function StoryboardPage({
     storyboardImageId: (r.storyboard_image_id as string | null) ?? null,
     panelUrl: r.storyboard_image_id ? (refMap.get(r.storyboard_image_id as string) ?? null) : null,
     durationS: (r.duration_s as number | null) ?? 8,
+    locationId: (r.location_id as string | null) ?? null,
   }));
+
+  // Agrupar los beats en creativos (secuencia o item suelto) para el selector.
+  const creativeRows: CreativeRow[] = rows.map((r) => ({
+    id: r.id as string,
+    sequenceId: (r.sequence_id as string | null) ?? null,
+    sequenceLabel: (r.sequence_label as string | null) ?? null,
+    formatName: r.format_id ? (formatNames.get(r.format_id as string) ?? null) : null,
+    sceneIndex: (r.scene_index as number) ?? 0,
+    createdAt: (r.created_at as string | null) ?? '',
+  }));
+  const creatives = buildCreatives(creativeRows);
 
   const language = (campaign.language === 'en' ? 'en' : 'es') as 'es' | 'en';
 
@@ -105,8 +126,8 @@ export default async function StoryboardPage({
       campaignId={id}
       campaignName={campaign.name as string}
       beats={beats}
+      creatives={creatives}
       locations={locations}
-      currentLocationId={currentLocationId}
       language={language}
       panelCostFresh={panelCostFresh}
       panelCostChained={panelCostChained}
