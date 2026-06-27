@@ -47,6 +47,7 @@ import {
   type RegenMode,
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
+import { groupItemsByFormat, buildReprocessNotes } from '@/lib/campaigns/studio-view';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
@@ -196,17 +197,7 @@ export function CampaignStudioView({
     // inventados e ideas no convertibles. Si los hay, se muestran INLINE en el
     // diálogo (un toast moriría con el reload); si no hay nada que avisar, se
     // recarga directo para mostrar el plan nuevo (el plan local se sembró una vez).
-    const notes: string[] = [];
-    if (res.data.inventedNames?.length) {
-      notes.push(
-        `${res.data.inventedNames.join(', ')}: no está(n) en la campaña, se inventó su apariencia (sin imagen de referencia).`,
-      );
-    }
-    if (res.data.blockers?.length) {
-      notes.push(
-        `No pude convertir algunas ideas en tomas: ${res.data.blockers.join(' · ')}. Reescríbelas con una acción concreta.`,
-      );
-    }
+    const notes = buildReprocessNotes(res.data);
     if (notes.length === 0) {
       window.location.reload();
       return;
@@ -296,16 +287,7 @@ export function CampaignStudioView({
     };
   }, [campaign.id]);
 
-  const byFormat = useMemo(() => {
-    const map = new Map<string, { formatId: string; formatName: string; items: StudioItem[] }>();
-    for (const item of items) {
-      const key = item.formatId ?? 'sin-formato';
-      const entry = map.get(key) ?? { formatId: item.formatId ?? '', formatName: item.formatName, items: [] };
-      entry.items.push(item);
-      map.set(key, entry);
-    }
-    return [...map.values()];
-  }, [items]);
+  const byFormat = useMemo(() => groupItemsByFormat(items), [items]);
 
   return (
     <div className="mx-auto max-w-5xl">
