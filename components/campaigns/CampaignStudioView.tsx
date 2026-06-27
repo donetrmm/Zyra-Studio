@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -24,7 +24,6 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { cancelGenerationAction } from '@/server-actions/generations';
 import {
   approveBatchAction,
@@ -68,6 +67,7 @@ import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
 
 import { StatusBadge } from './studio/StatusBadge';
+import { useCampaignItemsRealtime } from './studio/use-campaign-items-realtime';
 import {
   GOAL_LABEL,
   FINAL_MODEL,
@@ -208,44 +208,20 @@ export function CampaignStudioView({
   }
 
   // Realtime: progreso de producción sin polling (patrón del repo con setAuth).
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase.channel(`campaign-items:${campaign.id}`).on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'campaign_items', filter: `campaign_id=eq.${campaign.id}` },
-      (payload) => {
-        const r = payload.new as { id: string; status: string; warnings?: string[]; generation_id?: string | null };
-        setItems((prev) =>
-          prev.map((it) =>
-            it.id === r.id
-              ? {
-                  ...it,
-                  status: r.status,
-                  warnings: (r.warnings as string[]) ?? it.warnings,
-                  // El payload trae la fila nueva completa: un generation_id
-                  // null es un reset real (redoSamples/regenerar) y debe
-                  // limpiarse, no conservar el id viejo (botón "Ver" muerto).
-                  generationId: r.generation_id !== undefined ? r.generation_id : it.generationId,
-                }
-              : it,
-          ),
-        );
-      },
+  useCampaignItemsRealtime(campaign.id, (r) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === r.id
+          ? {
+              ...it,
+              status: r.status,
+              warnings: r.warnings ?? it.warnings,
+              generationId: r.generation_id !== undefined ? r.generation_id : it.generationId,
+            }
+          : it,
+      ),
     );
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.access_token) supabase.realtime.setAuth(data.session.access_token);
-      channel.subscribe();
-    });
-    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
-        supabase.realtime.setAuth(session.access_token);
-      }
-    });
-    return () => {
-      authSub.subscription.unsubscribe();
-      supabase.removeChannel(channel);
-    };
-  }, [campaign.id]);
+  });
 
   const byFormat = useMemo(() => groupItemsByFormat(items), [items]);
 
