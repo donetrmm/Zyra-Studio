@@ -7,7 +7,7 @@ import {
   type StudioItem,
   type StudioLocationOption,
   type StudioTemplate,
-} from '@/components/campaigns/CampaignStudioView';
+} from '@/components/campaigns/studio';
 import { toStudioItem } from '@/lib/campaigns/studio-item';
 import { loadPricing } from '@/lib/credits/pricing';
 import { redirect } from 'next/navigation';

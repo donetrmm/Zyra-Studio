@@ -31,11 +31,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarView } from './CampaignCalendar';
+import { CalendarView } from '../CampaignCalendar';
 
-import { useCampaignItemsRealtime } from './studio/use-campaign-items-realtime';
-import { PlanTable } from './studio/PlanTable';
-import { ProductionView } from './studio/ProductionView';
+import { useCampaignItemsRealtime } from './use-campaign-items-realtime';
+import { PlanTable } from './PlanTable';
+import { ProductionView } from './ProductionView';
 import {
   STUDIO_TABS,
   type StudioTemplate,
@@ -43,14 +43,14 @@ import {
   type StudioLocationOption,
   type StudioCampaign,
   type StudioItem,
-} from './studio/types';
-import { TemplatesView } from './studio/TemplatesView';
-import { CampaignSettingsDialog } from './studio/dialogs/CampaignSettingsDialog';
-import { EditItemDialog } from './studio/dialogs/EditItemDialog';
-import { PromptPreviewDialog } from './studio/dialogs/PromptPreviewDialog';
+} from './types';
+import { TemplatesView } from './TemplatesView';
+import { CampaignSettingsDialog } from './dialogs/CampaignSettingsDialog';
+import { EditItemDialog } from './dialogs/EditItemDialog';
+import { PromptPreviewDialog } from './dialogs/PromptPreviewDialog';
 
-// Tipos y constantes viven en ./studio/types; se re-exportan para no romper imports existentes.
-export type { StudioItem, StudioTemplate, StudioCharacterOption, StudioLocationOption, StudioCampaign } from './studio/types';
+// Tipos y constantes viven en ./types; se re-exportan para no romper imports existentes.
+export type { StudioItem, StudioTemplate, StudioCharacterOption, StudioLocationOption, StudioCampaign } from './types';
 
 export function CampaignStudioView({
   campaign,

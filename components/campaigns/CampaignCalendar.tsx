@@ -7,7 +7,7 @@ import { buildImagePackAction, updateItemScheduleAction } from '@/server-actions
 import { submitGenerationAction } from '@/server-actions/generations';
 import { estimateCredits } from '@/lib/credits/estimator';
 import type { PricingRow } from '@/lib/credits/types';
-import type { StudioItem } from './CampaignStudioView';
+import type { StudioItem } from './studio/types';
 import { insufficientCreditsToast } from './credits-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
