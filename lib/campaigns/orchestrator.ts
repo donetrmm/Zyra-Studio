@@ -111,6 +111,10 @@ export type CampaignContext = {
   audioRefPath?: string;
   // AM: uso por imagen de producto (path -> "three-quarter view"). Opcional.
   productImageUsages?: Record<string, string>;
+  // Tamaño físico del producto (de product_brief). Opcional; ancla la escala en
+  // el storyboard. Ausente = sin ancla.
+  productHeightCm?: number;
+  productWidthCm?: number;
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -222,6 +226,8 @@ export async function loadCampaignContext(
     productName?: string;
     visualDetails?: string;
     palette?: string[];
+    heightCm?: number;
+    widthCm?: number;
   };
 
   let productImagePaths: string[] = [];
@@ -312,6 +318,8 @@ export async function loadCampaignContext(
     productImagePaths,
     packagingImagePaths,
     productImageUsages,
+    productHeightCm: brief.heightCm,
+    productWidthCm: brief.widthCm,
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
@@ -348,6 +356,8 @@ export function directorContextFor(
       palette: ctx.palette,
       imagePaths: ctx.productImagePaths,
       imageUsages: ctx.productImageUsages,
+      heightCm: ctx.productHeightCm,
+      widthCm: ctx.productWidthCm,
       packagingImagePaths: format?.required_refs.includes('packaging')
         ? ctx.packagingImagePaths
         : undefined,

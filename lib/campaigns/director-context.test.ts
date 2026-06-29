@@ -96,6 +96,23 @@ describe('directorContextFor — productImageUsages (AM)', () => {
   });
 });
 
+describe('directorContextFor — dimensiones del producto (Task 3)', () => {
+  it('propaga las dimensiones del producto a DirectorContext.product', () => {
+    const ctx: CampaignContext = {
+      productName: 'Canvas',
+      productImagePaths: [],
+      packagingImagePaths: [],
+      characters: new Map(),
+      language: 'es',
+      productHeightCm: 150,
+      productWidthCm: 100,
+    };
+    const res = directorContextFor(item, null, ctx);
+    expect(res.product?.heightCm).toBe(150);
+    expect(res.product?.widthCm).toBe(100);
+  });
+});
+
 describe('directorContextFor — character_state_hint (P05)', () => {
   it('sustituye el master por la variante de estado y setea stateLabel (P05)', () => {
     const ctx: CampaignContext = {
