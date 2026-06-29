@@ -17,9 +17,8 @@ import { FolderKanban } from 'lucide-react';
 import { useFavorites } from '@/lib/library/use-favorites';
 import { useBulkSelection } from '@/lib/library/use-bulk-selection';
 import type { LibraryGeneration, Tab, SortKey } from '@/lib/library/types';
-import { modelLabel } from '@/lib/library/format';
 import { bulkDownload } from '@/lib/library/output';
-import { groupSessions } from '@/lib/library/sessions';
+import { useLibraryItems } from '@/lib/library/use-library-items';
 import { ToolbarButton } from './ToolbarButton';
 import { SessionsTab } from './SessionsTab';
 import { GridTab } from './GridTab';
@@ -50,13 +49,12 @@ export function LibraryView({
   const { favIds, showFavOnly, setShowFavOnly, toggleFav: handleToggleFav } = useFavorites(initialFavoriteIds);
   const { selectedIds, toggleSelect, clear: clearSelection, showCompare, setShowCompare, showAssign, setShowAssign } = useBulkSelection();
 
-  // Copia local para borrado optimista (sin esperar al refetch del server).
-  const [gens, setGens] = useState(generations);
-  const [prevInitial, setPrevInitial] = useState(generations);
-  if (prevInitial !== generations) {
-    setPrevInitial(generations);
-    setGens(generations);
-  }
+  const { gens, setGens, filteredGens, sessions } = useLibraryItems(generations, { query, sort, showFavOnly, favIds });
+
+  const active = useMemo(
+    () => gens.find((g) => g.id === activeId) ?? null,
+    [gens, activeId],
+  );
 
   function removeGens(ids: string[]) {
     const set = new Set(ids);
@@ -106,34 +104,6 @@ export function LibraryView({
     toast.success('Eliminado');
     router.refresh();
   }
-
-  const filteredGens = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    let list = gens;
-    if (showFavOnly) {
-      list = list.filter((g) => favIds.has(g.id));
-    }
-    if (needle) {
-      list = list.filter(
-        (g) =>
-          g.prompt.toLowerCase().includes(needle) ||
-          modelLabel(g).toLowerCase().includes(needle),
-      );
-    }
-    if (sort === 'old') {
-      list = [...list].sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
-    }
-    return list;
-  }, [gens, query, sort, showFavOnly, favIds]);
-
-  const sessions = useMemo(() => groupSessions(filteredGens, sort), [filteredGens, sort]);
-  const active = useMemo(
-    () => gens.find((g) => g.id === activeId) ?? null,
-    [gens, activeId],
-  );
 
   return (
     <div className="flex h-[calc(100dvh-7rem)] min-h-0 flex-col bg-background lg:h-[calc(100dvh-4rem)]">
