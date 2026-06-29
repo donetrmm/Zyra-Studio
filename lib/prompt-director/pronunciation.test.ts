@@ -25,8 +25,16 @@ describe('applyRespellings', () => {
     expect(applyRespellings('she walks toward the sofa')).toBe('she walks toward the sofa');
   });
 
-  it('respela la marca Prolienzo preservando la mayúscula', () => {
-    expect(applyRespellings('Te traje un Prolienzo nuevo')).toContain('Prólienzo');
+  it('respela la marca Prolienzo a la tónica correcta (pro-LIEN-zo), preservando la mayúscula', () => {
+    const out = applyRespellings('Te traje un Prolienzo nuevo');
+    expect(out).toContain('Proliénzo');
+    expect(out).not.toContain('Prólienzo');
+  });
+
+  it('corrige también la forma ya mal acentuada que emite el planner ("Prólienzo")', () => {
+    const out = applyRespellings('Un cuadro de Prólienzo. Sus mejores momentos.');
+    expect(out).toContain('Proliénzo');
+    expect(out).not.toContain('Prólienzo');
   });
 
   it('respela Contactanos con la tónica esdrújula, preservando la mayúscula', () => {
@@ -37,7 +45,8 @@ describe('applyRespellings', () => {
   it('incluye las palabras confirmadas y la marca', () => {
     expect(PRONUNCIATION_RESPELLINGS.imprimiste).toBe('imprimíste');
     expect(PRONUNCIATION_RESPELLINGS.regalado).toBe('regaládo');
-    expect(PRONUNCIATION_RESPELLINGS.prolienzo).toBe('prólienzo');
+    expect(PRONUNCIATION_RESPELLINGS.prolienzo).toBe('proliénzo');
+    expect(PRONUNCIATION_RESPELLINGS['prólienzo']).toBe('proliénzo');
     expect(PRONUNCIATION_RESPELLINGS.contactanos).toBe('contáctanos');
   });
 });

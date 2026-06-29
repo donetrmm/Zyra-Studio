@@ -13,8 +13,13 @@
 export const PRONUNCIATION_RESPELLINGS: Record<string, string> = {
   imprimiste: 'imprimíste',
   regalado: 'regaládo',
-  // Marca "Prolienzo": fuerza en la 1ª sílaba (PRO-lien-zo) → esdrújula, tilde en la o.
-  prolienzo: 'prólienzo',
+  // Marca "Prolienzo": la tónica va en "lien" (pro-LIEN-zo, como la palabra "lienzo").
+  // Seedance mal-acentúa la forma sin tilde, y el planner a veces emite la marca con
+  // la tilde en la 1ª sílaba ("Prólienzo"), que suena PRÓ-lien-zo (mal). Forzamos la
+  // tónica correcta marcando la "é" de "lien" y normalizamos AMBAS formas de origen
+  // (con o sin tilde) a "proliénzo".
+  prolienzo: 'proliénzo',
+  'prólienzo': 'proliénzo',
   // CTA recurrente: esdrújula (con-TÁC-ta-nos); sin tilde el modelo la mal acentúa.
   contactanos: 'contáctanos',
 };
