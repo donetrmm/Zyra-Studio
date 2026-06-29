@@ -44,6 +44,11 @@ export type ProductInventory = {
   visualDetails?: string;   // "frosted glass bottle, gold pump, navy label"
   palette?: string[];
   variants?: string[];
+  // Tamaño físico declarado por el usuario (opcional). Solo productos con tamaño
+  // relevante (cuadro, mueble) lo llenan. Ancla la proporción contra el personaje
+  // en el storyboard. Ausente = sin ancla de escala (cero cambio).
+  heightCm?: number;
+  widthCm?: number;
   imagePaths: string[];        // multi-ángulo del Brand Kit
   // AM: descripcion de uso por imagen (path -> "three-quarter view"). El compiler
   // la cita junto a la referencia. Opcional; ausente = cita sin uso.

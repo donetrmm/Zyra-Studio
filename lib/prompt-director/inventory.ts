@@ -105,3 +105,38 @@ export function describeCharacter(
     : ' Keep this exact appearance consistent in every shot.';
   return { text: `${base}${clause}`, ageWordsRemoved: removed };
 }
+
+// Referencia de estatura de un adulto de pie. La escala del producto se expresa
+// como proporción contra esta altura porque los personajes son age-blind y no
+// tienen estatura en el modelo.
+export const ADULT_REF_CM = 170;
+
+// Ancla de ESCALA del producto para el storyboard (specs/.../escala-producto).
+// Traduce el tamaño físico declarado (heightCm/widthCm, opcionales) a una frase
+// de proporción contra un adulto de pie y pide mantenerla constante entre tomas.
+// Devuelve '' si no hay producto o no hay dimensiones (productos sin tamaño
+// relevante no se ven afectados). Empieza con espacio (lista para concatenar).
+// Es de escala/proporción, NO de identidad: no arrastra el riesgo de re-render
+// de las cláusulas de personaje. Asume el producto mostrado vertical.
+export function describeProductScale(product?: ProductInventory): string {
+  if (!product) return '';
+  const size = product.heightCm ?? product.widthCm;
+  if (!size || size <= 0) return '';
+  const ratio = size / ADULT_REF_CM;
+  const proportion =
+    ratio < 0.12 ? 'small enough to hold in one hand'
+    : ratio < 0.25 ? 'about knee-high on a standing adult'
+    : ratio < 0.45 ? 'about thigh-to-waist high on a standing adult'
+    : ratio < 0.60 ? 'about waist-to-chest high on a standing adult'
+    : ratio < 0.80 ? 'reaching the chest-to-shoulders of a standing adult'
+    : ratio < 0.95 ? 'nearly shoulder-to-head height of a standing adult'
+    : ratio < 1.10 ? 'about as tall as a standing adult'
+    : 'taller than a standing adult';
+  const dims =
+    product.heightCm && product.widthCm
+      ? `about ${product.heightCm} cm tall and ${product.widthCm} cm wide`
+      : product.heightCm
+        ? `about ${product.heightCm} cm tall`
+        : `about ${product.widthCm} cm wide`;
+  return ` The product is a physical piece, ${dims} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots.`;
+}
