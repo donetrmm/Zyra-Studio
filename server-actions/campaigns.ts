@@ -149,6 +149,54 @@ export async function updateCampaignStudioAction(
   return { ok: true, data: { updated: true } };
 }
 
+// Setear el tamaño físico del producto (storyboard). Read-modify-write del jsonb
+// product_brief (un update reemplazaría todo el objeto). null limpia; undefined no
+// toca. Guard `.not('product_brief','is',null)`: solo campañas studio.
+const SetProductDimensionsSchema = z.object({
+  id: z.string().uuid(),
+  heightCm: z.number().positive().max(2000).nullable().optional(),
+  widthCm: z.number().positive().max(2000).nullable().optional(),
+});
+
+export async function setProductDimensionsAction(
+  input: unknown,
+): Promise<Result<{ updated: true }>> {
+  const parsed = SetProductDimensionsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: row } = await supabase
+    .from('campaigns')
+    .select('product_brief')
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null)
+    .single();
+  if (!row) return { ok: false, error: 'not_found' };
+
+  const brief = (row.product_brief ?? {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...brief };
+  if (parsed.data.heightCm !== undefined) {
+    if (parsed.data.heightCm === null) delete next.heightCm;
+    else next.heightCm = parsed.data.heightCm;
+  }
+  if (parsed.data.widthCm !== undefined) {
+    if (parsed.data.widthCm === null) delete next.widthCm;
+    else next.widthCm = parsed.data.widthCm;
+  }
+
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ product_brief: next })
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath(`/app/campaigns/${parsed.data.id}`);
+  return { ok: true, data: { updated: true } };
+}
+
 // Mueve el estado de la campaña studio. Activa los estados que el pipeline
 // contempla pero que ninguna acción seteaba: 'delivered' (entregada) y
 // 'archived' (sale de la lista y del dashboard, ver fetchCampaignSummaries).
