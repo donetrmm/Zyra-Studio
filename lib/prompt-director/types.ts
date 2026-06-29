@@ -100,6 +100,9 @@ export type DirectorContext = {
   // Idioma del diálogo/voz hablada. El prompt va en inglés, pero el modelo
   // habla en el idioma del prompt salvo directiva explícita. Default 'es'.
   language?: 'es' | 'en';
+  // Guías creativas opt-in de la campaña (spec 2026-06-29). Gatean cláusulas
+  // deterministas de encuadre. Ausente = ninguna.
+  guidelines?: import('@/lib/campaigns/guidelines').CreativeGuidelines;
 };
 
 export type CompileRequest = {
@@ -112,6 +115,9 @@ export type CompileRequest = {
   resolution?: string;
   generateAudio?: boolean;
   seed?: number;
+  // El beat es la apertura del creativo (scene_index 0 o clip único). Habilita
+  // la guía hookProductHero. Default undefined/false.
+  isOpeningBeat?: boolean;
 };
 
 export type CompiledPrompt = {

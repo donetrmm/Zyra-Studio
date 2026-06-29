@@ -1269,3 +1269,39 @@ describe('P05 — cita condicional del personaje por estado (Seedance)', () => {
     if (res.ok) expect(res.compiled.prompt).toMatch(/not its clothing/);
   });
 });
+
+// ============ Guías creativas en el prompt compilado ============
+
+describe('guías creativas en el prompt compilado', () => {
+  it('showFullProduct y safeCrop on → sus cláusulas presentes', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter shows the product and speaks one line.', generateAudio: true },
+      { ...fullContext(), guidelines: { showFullProduct: true, safeCrop: '4:5' } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('frame it complete and unobstructed');
+    expect(res.compiled.prompt).toContain('central 4:5 area');
+  });
+
+  it('hookProductHero solo en el beat de apertura', () => {
+    const off = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter speaks.', generateAudio: true, isOpeningBeat: false },
+      { ...fullContext(), guidelines: { hookProductHero: true } },
+    );
+    const on = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter speaks.', generateAudio: true, isOpeningBeat: true },
+      { ...fullContext(), guidelines: { hookProductHero: true } },
+    );
+    expect(off.ok && !off.compiled.prompt.includes('opening hook')).toBe(true);
+    expect(on.ok && on.compiled.prompt.includes('opening hook')).toBe(true);
+  });
+
+  it('sin guías: ninguna cláusula', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter speaks.', generateAudio: true },
+      fullContext(),
+    );
+    expect(res.ok && !res.compiled.prompt.includes('Crop-safe framing')).toBe(true);
+  });
+});

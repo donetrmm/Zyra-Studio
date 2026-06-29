@@ -4,6 +4,7 @@
 // sucesivos el orquestador usa el modo conversational multi-turn del provider
 // (gotcha conocido: chat multi-turn mantiene composición real al editar).
 
+import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): CompiledPrompt {
@@ -35,6 +36,11 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
   if ((ctx.location?.imagePaths?.length ?? 0) > 0) {
     sections.push('Keep the setting exactly as in the location reference image: same place, architecture and background.');
   }
+
+  // Guías creativas opt-in de la campaña: encuadre producto-completo / hook-hero /
+  // recorte seguro. El panel es el fotograma de apertura; las tres guías aplican.
+  const guidelineClauses = creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: req.isOpeningBeat });
+  if (guidelineClauses) sections.push(guidelineClauses.trim());
 
   // Referencias: producto (3) + personaje (3 master) + locación (environment).
   const references: CompiledReference[] = [];

@@ -3,6 +3,7 @@
 // + paleta. Sin keyword soup (el antislop limpia al final en index.ts).
 
 import { describeCharacter, describeProduct } from '../inventory';
+import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 // FLUX trabaja con width/height explícitos (lib/providers/types.ts).
@@ -50,6 +51,11 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
     sections.push('Soft directional lighting that shows form, volume and material texture.');
   }
   if (ctx.format?.register) sections.push(`Mood: ${ctx.format.register}.`);
+
+  // Guías creativas opt-in de la campaña: encuadre producto-completo / hook-hero /
+  // recorte seguro. El panel es el fotograma de apertura; las tres guías aplican.
+  const guidelineClauses = creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: req.isOpeningBeat });
+  if (guidelineClauses) sections.push(guidelineClauses.trim());
 
   const dims = DIMENSIONS[req.aspectRatio ?? '1:1'] ?? DIMENSIONS['1:1'];
 

@@ -8,6 +8,7 @@ import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
+import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -460,6 +461,11 @@ export function compileSeedance(
     const direction = [d.framing, d.register, d.pacing].filter(Boolean).join(' ');
     if (direction) sections.push(direction);
   }
+
+  // Guías creativas opt-in de la campaña: encuadre producto-completo / hook-hero /
+  // recorte seguro. Gateadas por flag; el hook-hero solo en el beat de apertura.
+  const guidelineClauses = creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: req.isOpeningBeat });
+  if (guidelineClauses) sections.push(guidelineClauses.trim());
 
   // Cinematografía por defecto (#A): base de luz/óptica coherente cuando ni la
   // acción ni el formato la especifican. Se omite en formatos estilizados (look
