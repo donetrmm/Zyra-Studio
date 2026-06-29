@@ -28,6 +28,11 @@ export const ProductBriefSchema = z.object({
   visualDetails: z.string().max(800).default(''),
   demographic: z.string().max(160).default(''),
   market: z.string().max(80).default('global'),
+  // Tamaño físico del producto (opcional). Solo productos con tamaño relevante.
+  // Cap 2000 cm para atrapar typos. Lo provee el usuario; la IA del brief NO lo
+  // infiere (no se deduce de una foto sin referencia).
+  heightCm: z.number().positive().max(2000).optional(),
+  widthCm: z.number().positive().max(2000).optional(),
 });
 export type ProductBrief = z.infer<typeof ProductBriefSchema>;
 
