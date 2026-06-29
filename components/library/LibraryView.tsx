@@ -35,30 +35,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
+import type { LibraryGeneration, Tab, SortKey, Session } from '@/lib/library/types';
+
+export type { LibraryGeneration };
 
 const CAMPAIGN_NONE = '__none__';
-
-export type LibraryGeneration = {
-  id: string;
-  type: string;
-  provider: string;
-  model: string;
-  prompt: string;
-  status: string;
-  thumbnailUrl: string | null;
-  hasOutput: boolean;
-  credits: number;
-  createdAt: string;
-  parentGenerationId: string | null;
-  batchId: string | null;
-  batchKind: string | null;
-  campaignId: string | null;
-  aspectRatio: string | null;
-};
-
-
-type Tab = 'sessions' | 'grid' | 'collections';
-type SortKey = 'recent' | 'old';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> }[] = [
   { id: 'sessions', label: 'Sesiones', icon: Library },
@@ -148,13 +129,6 @@ function shortTime(iso: string): string {
   }
   return date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
-
-type Session = {
-  id: string;
-  items: LibraryGeneration[];
-  head: LibraryGeneration;
-  latest: LibraryGeneration;
-};
 
 function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
   // Para cadenas conversacionales A→B→C→D, el bucket es la RAÍZ del hilo (A),
