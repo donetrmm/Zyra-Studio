@@ -13,8 +13,9 @@ import { assignCampaignAction } from '@/server-actions/campaigns';
 import { deleteGenerationAction } from '@/server-actions/generations';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CollectionsTab, type Collection } from './CollectionsTab';
-import { toggleFavoriteAction } from '@/server-actions/favorites';
 import { FolderKanban } from 'lucide-react';
+import { useFavorites } from '@/lib/library/use-favorites';
+import { useBulkSelection } from '@/lib/library/use-bulk-selection';
 import type { LibraryGeneration, Tab, SortKey } from '@/lib/library/types';
 import { modelLabel } from '@/lib/library/format';
 import { bulkDownload } from '@/lib/library/output';
@@ -44,13 +45,10 @@ export function LibraryView({
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showCompare, setShowCompare] = useState(false);
-  const [showAssign, setShowAssign] = useState(false);
-  const [favIds, setFavIds] = useState<Set<string>>(() => new Set(initialFavoriteIds));
-  const [showFavOnly, setShowFavOnly] = useState(false);
   const router = useRouter();
   const confirm = useConfirm();
+  const { favIds, showFavOnly, setShowFavOnly, toggleFav: handleToggleFav } = useFavorites(initialFavoriteIds);
+  const { selectedIds, toggleSelect, clear: clearSelection, showCompare, setShowCompare, showAssign, setShowAssign } = useBulkSelection();
 
   // Copia local para borrado optimista (sin esperar al refetch del server).
   const [gens, setGens] = useState(generations);
@@ -63,7 +61,7 @@ export function LibraryView({
   function removeGens(ids: string[]) {
     const set = new Set(ids);
     setGens((prev) => prev.filter((g) => !set.has(g.id)));
-    setSelectedIds(new Set());
+    clearSelection();
     if (activeId && set.has(activeId)) setActiveId(null);
   }
 
@@ -107,46 +105,6 @@ export function LibraryView({
     removeGens([id]);
     toast.success('Eliminado');
     router.refresh();
-  }
-
-  function handleToggleFav(id: string) {
-    const wasFav = favIds.has(id);
-    setFavIds((prev) => {
-      const next = new Set(prev);
-      if (wasFav) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    toggleFavoriteAction(id)
-      .then((res) => {
-        if (!res.ok) {
-          toast.error(res.message || 'Error al actualizar favorito');
-          setFavIds((prev) => {
-            const next = new Set(prev);
-            if (wasFav) next.add(id);
-            else next.delete(id);
-            return next;
-          });
-        }
-      })
-      .catch(() => {
-        toast.error('Error al actualizar favorito');
-        setFavIds((prev) => {
-          const next = new Set(prev);
-          if (wasFav) next.add(id);
-          else next.delete(id);
-          return next;
-        });
-      });
-  }
-
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else if (next.size < 50) next.add(id);
-      return next;
-    });
   }
 
   const filteredGens = useMemo(() => {
@@ -243,7 +201,7 @@ export function LibraryView({
           <span className="mx-0.5 h-6 w-px bg-border" aria-hidden />
           <button
             type="button"
-            onClick={() => setSelectedIds(new Set())}
+            onClick={clearSelection}
             aria-label="Limpiar selección"
             title="Limpiar selección"
             className="grid size-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -277,7 +235,7 @@ export function LibraryView({
               );
             }
             setShowAssign(false);
-            setSelectedIds(new Set());
+            clearSelection();
             router.refresh();
           }}
           onClose={() => setShowAssign(false)}
