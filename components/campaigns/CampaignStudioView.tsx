@@ -67,6 +67,7 @@ import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
 import { ProductSizeEditor } from './ProductSizeEditor';
+import { CreativeGuidelinesEditor } from './CreativeGuidelinesEditor';
 
 // StudioItem vive en lib/campaigns/studio-item (compartido con el loader y las
 // server actions); se re-exporta para no romper imports existentes.
@@ -94,6 +95,7 @@ export type StudioCampaign = {
   ideaText: string | null;
   productHeightCm?: number;
   productWidthCm?: number;
+  guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null };
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -424,6 +426,9 @@ export function CampaignStudioView({
           initialHeightCm={campaign.productHeightCm}
           initialWidthCm={campaign.productWidthCm}
         />
+      </div>
+      <div className="mt-3">
+        <CreativeGuidelinesEditor campaignId={campaign.id} initial={campaign.guidelines} />
       </div>
 
       {tab === 'plan' ? (

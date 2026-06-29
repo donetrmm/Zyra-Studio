@@ -197,6 +197,53 @@ export async function setProductDimensionsAction(
   return { ok: true, data: { updated: true } };
 }
 
+// Setear guías creativas de la campaña. Read-modify-write del jsonb
+// creative_guidelines. undefined = no tocar; safeCrop: null = quitar recorte.
+// Guard `.not('product_brief','is',null)`: solo campañas studio.
+const SetCreativeGuidelinesSchema = z.object({
+  id: z.string().uuid(),
+  showFullProduct: z.boolean().optional(),
+  hookProductHero: z.boolean().optional(),
+  safeCrop: z.union([z.literal('4:5'), z.null()]).optional(),
+});
+
+export async function setCreativeGuidelinesAction(
+  input: unknown,
+): Promise<Result<{ updated: true }>> {
+  const parsed = SetCreativeGuidelinesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: row } = await supabase
+    .from('campaigns')
+    .select('creative_guidelines')
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null)
+    .single();
+  if (!row) return { ok: false, error: 'not_found' };
+
+  const current = (row.creative_guidelines ?? {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...current };
+  if (parsed.data.showFullProduct !== undefined) next.showFullProduct = parsed.data.showFullProduct;
+  if (parsed.data.hookProductHero !== undefined) next.hookProductHero = parsed.data.hookProductHero;
+  if (parsed.data.safeCrop !== undefined) {
+    if (parsed.data.safeCrop === null) delete next.safeCrop;
+    else next.safeCrop = parsed.data.safeCrop;
+  }
+
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ creative_guidelines: next })
+    .eq('id', parsed.data.id)
+    .eq('workspace_id', workspace.id)
+    .not('product_brief', 'is', null);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath(`/app/campaigns/${parsed.data.id}`);
+  return { ok: true, data: { updated: true } };
+}
+
 // Mueve el estado de la campaña studio. Activa los estados que el pipeline
 // contempla pero que ninguna acción seteaba: 'delivered' (entregada) y
 // 'archived' (sale de la lista y del dashboard, ver fetchCampaignSummaries).

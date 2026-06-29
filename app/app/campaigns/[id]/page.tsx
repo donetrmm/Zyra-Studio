@@ -1,6 +1,7 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { publicThumbnailUrl } from '@/lib/supabase/storage';
+import { CreativeGuidelinesSchema } from '@/lib/campaigns/guidelines';
 import { CampaignDetailPage } from '@/components/campaigns/CampaignDetailPage';
 import {
   CampaignStudioView,
@@ -31,7 +32,7 @@ export default async function CampaignDetailRoute({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text')
+    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text, creative_guidelines')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -121,6 +122,7 @@ export default async function CampaignDetailRoute({
           ideaText: (campaign.idea_text as string | null) ?? null,
           productHeightCm: brief.heightCm,
           productWidthCm: brief.widthCm,
+          guidelines: CreativeGuidelinesSchema.catch({}).parse(campaign.creative_guidelines ?? {}),
         }}
         initialItems={items}
         templates={templates}
