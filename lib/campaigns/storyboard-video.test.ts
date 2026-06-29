@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from './storyboard-video';
+import {
+  beatNamesCast,
+  buildCastR2VRefs,
+  STORYBOARD_EDIT_HANDLES,
+  STORYBOARD_SCENE_CONTINUITY,
+} from './storyboard-video';
 
 describe('buildCastR2VRefs', () => {
   it('orden cast → producto → panel, con citas de producto y panel', () => {
@@ -18,6 +23,11 @@ describe('buildCastR2VRefs', () => {
     expect(extraCitation).toContain('whenever the product is visible');
     expect(extraCitation).toContain('turned away');
     expect(extraCitation).not.toContain('throughout the shot');
+    // Continuidad de escena: el cross-cut se queda en la misma locación, nunca al
+    // fondo de la hoja maestra del personaje.
+    expect(extraCitation).toContain('for the entire clip');
+    expect(extraCitation).toContain('every cut stays inside this scene');
+    expect(extraCitation).toContain('never place the people on the background of their character reference');
   });
 
   it('sin producto, el panel queda justo después del cast', () => {
@@ -82,5 +92,20 @@ describe('STORYBOARD_EDIT_HANDLES', () => {
   it('pide puntos de corte limpios de entrada y salida', () => {
     expect(STORYBOARD_EDIT_HANDLES).toContain('in and out points');
     expect(STORYBOARD_EDIT_HANDLES.startsWith(' ')).toBe(true);
+  });
+});
+
+describe('STORYBOARD_SCENE_CONTINUITY', () => {
+  it('fija la locación en todo el clip y prohíbe el fondo de la hoja maestra en los cross-cuts', () => {
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('for the entire clip');
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('cross-cuts');
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('every cut stays inside this scene');
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain(
+      'never place the people on the background of their character reference',
+    );
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('identity only');
+    // No prohíbe el cross-cutting en sí (el usuario lo quiere); solo lo confina a la escena.
+    expect(STORYBOARD_SCENE_CONTINUITY).not.toMatch(/no cross-cut|single continuous shot|one uninterrupted/i);
+    expect(STORYBOARD_SCENE_CONTINUITY.startsWith(' ')).toBe(true);
   });
 });

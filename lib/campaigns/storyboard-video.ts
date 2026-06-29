@@ -9,6 +9,16 @@ import { AUDIO_BEAT_SYNC_CITATION } from '../prompt-director/compilers/seedance'
 export const STORYBOARD_EDIT_HANDLES =
   ' Editing handles: open exactly on the still opening frame held for a brief beat, then ease into the motion; end by settling onto a steady, clean, almost-still frame. Keep clean in and out points so the clip cuts cleanly against others, with no abrupt jump at the very first or very last frame.';
 
+// Continuidad de escena en el cross-cut. El formato puede pedir "cross-cutting"
+// (cortar entre ángulos DENTRO del clip), y eso está bien — pero cada generación es
+// UN clip continuo. Sin esta directiva, al cortar a una toma nueva el modelo arma una
+// composición nueva y se trae el FONDO de la hoja maestra del personaje (su fondo de
+// estudio/ficha), saliéndose de la escena. Esto fija la locación del fotograma inicial
+// para TODO el clip y prohíbe el fondo de la ficha, SIN prohibir el cross-cutting:
+// solo lo confina a la misma escena. Empieza con espacio (lista para concatenar).
+export const STORYBOARD_SCENE_CONTINUITY =
+  ' Keep this same location, set and lighting for the entire clip: if the pacing cross-cuts to another angle or a tighter shot, every cut stays inside this scene — never cut to a plain, studio or neutral backdrop, and never place the people on the background of their character reference. The character references supply identity only (face, hair and build), never their reference-sheet background or studio framing.';
+
 // Escapa metacaracteres de regex para construir un \b<token>\b seguro.
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -54,6 +64,9 @@ export function buildCastR2VRefs(
   }
   const panelNum = n + 1;
   extraCitation += ` @image${panelNum} is the exact opening frame and overall composition of this shot — reproduce it as the starting look (same framing, colors and layout).`;
+  // Confina el cross-cut a la misma escena (ver STORYBOARD_SCENE_CONTINUITY): evita que
+  // una toma secundaria saque al personaje al fondo de su hoja maestra.
+  extraCitation += STORYBOARD_SCENE_CONTINUITY;
   // P16 storyboard: música de referencia (beat-sync) solo en R2V. @audio1 usa su
   // propio contador, separado de @image1..N, igual que el compiler normal.
   const referenceAudioPaths = audioRef ? [audioRef] : [];
