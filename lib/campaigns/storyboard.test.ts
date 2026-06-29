@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   beatsNeedingPanel,
+  chainedCharacterFidelity,
   chainedProductFidelity,
   compilePanel,
   compilePanelEdit,
@@ -91,6 +92,30 @@ describe('chainedProductFidelity', () => {
 
   it('devuelve vacío si no hay producto', () => {
     expect(chainedProductFidelity({ characters: [] })).toBe('');
+  });
+});
+
+describe('chainedCharacterFidelity', () => {
+  it('ancla la identidad del cast por texto, en modo preservar (la cadena descarta la imagen)', () => {
+    const d = chainedCharacterFidelity({
+      characters: [
+        { name: 'María', description: 'mujer de pelo castaño rizado, chaqueta roja', masterImagePath: 'ws/maria.png' },
+        { name: 'Diego', description: 'hombre alto, barba corta', masterImagePath: 'ws/diego.png' },
+      ],
+    });
+    expect(d).toContain('María');
+    expect(d).toContain('Diego');
+    // Preserve-framed: conservar idéntico, nunca re-render (evita el drift histórico).
+    expect(d).toContain('identical to the previous shot');
+    expect(d).not.toMatch(/render the people as real|photographic realism/i);
+    // No apunta a imágenes de referencia (en la cadena no viajan).
+    expect(d).not.toContain('reference image');
+    expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('devuelve vacío si no hay personajes', () => {
+    expect(chainedCharacterFidelity({ characters: [] })).toBe('');
+    expect(chainedCharacterFidelity({ product: { name: 'X', imagePaths: [] } })).toBe('');
   });
 });
 

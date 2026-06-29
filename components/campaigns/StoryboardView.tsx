@@ -126,6 +126,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // regenerar (paneles encadenados). Transitorio (no se persiste): controla la prueba
   // del re-anclaje de producto sin tocar el env flag global.
   const [productRef, setProductRef] = useState<Record<string, boolean>>({});
+  const [characterRef, setCharacterRef] = useState<Record<string, boolean>>({});
 
   // Genera todos los paneles faltantes de forma secuencial
   const [generatingAll, setGeneratingAll] = useState(false);
@@ -186,7 +187,10 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
   async function handleRegenerate(beatId: string) {
     setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'generating' } }));
-    const res = await generatePanelAction(beatId, { productRefInChat: productRef[beatId] ?? false });
+    const res = await generatePanelAction(beatId, {
+      productRefInChat: productRef[beatId] ?? false,
+      characterRefInChat: characterRef[beatId] ?? false,
+    });
     if (res.ok) {
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
       router.refresh();
@@ -399,6 +403,23 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   />
                   <label htmlFor={`prodref-${beat.id}`} className="text-[11px] text-muted-foreground">
                     Mantener el producto idéntico al regenerar
+                  </label>
+                </div>
+
+                {/* Mantener al personaje idéntico al regenerar (re-ancla la hoja maestra
+                    del cast en el turno de chat de los paneles encadenados). */}
+                <div className="flex items-center gap-2 px-0.5">
+                  <Switch
+                    id={`charref-${beat.id}`}
+                    size="sm"
+                    checked={characterRef[beat.id] ?? false}
+                    disabled={isGenerating || isRefining || generatingAll}
+                    onCheckedChange={(checked) =>
+                      setCharacterRef((prev) => ({ ...prev, [beat.id]: checked }))
+                    }
+                  />
+                  <label htmlFor={`charref-${beat.id}`} className="text-[11px] text-muted-foreground">
+                    Mantener al personaje idéntico al regenerar
                   </label>
                 </div>
 

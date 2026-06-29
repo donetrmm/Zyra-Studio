@@ -2,7 +2,7 @@
 // prompt del panel (FLUX) y de su edición (Nano Banana). Sin DB ni red: la acción
 // server (server-actions/storyboard.ts) hace el IO y llama a esta lógica.
 import { compile, type CompileResult, type DirectorContext } from '@/lib/prompt-director';
-import { describeProduct } from '@/lib/prompt-director/inventory';
+import { describeCharacter, describeProduct } from '@/lib/prompt-director/inventory';
 
 export type PanelBeat = {
   id: string;
@@ -72,6 +72,26 @@ export function chainedProductFidelity(ctx: DirectorContext): string {
   if (!ctx.product) return '';
   const facts = describeProduct(ctx.product, { fidelity: false });
   return ` ${facts} Reproduce the product's printed image and design exactly as described, and keep it identical in every shot; do not invent, restyle or change what is printed on it.`;
+}
+
+// Fidelidad del PERSONAJE para paneles ENCADENADOS (edición conversacional).
+// Análogo a chainedProductFidelity: la cadena de Nano descarta las referencias
+// externas en chat (refSlots=0 en el provider), así que la identidad del cast solo
+// se ancla por TEXTO aquí. Usa la descripción age-blind de cada personaje
+// (describeCharacter con fidelity:false, sin apuntar a imágenes que no viajan) +
+// instrucción de PRESERVAR idéntico entre tomas.
+//
+// CRÍTICO (mismo gotcha que humanRealismDirective): debe ser SOLO de preservación
+// ("conserva idéntico, no redibujar"), NUNCA un re-render ("render as real / mejora
+// el realismo"). Una cláusula de re-render en la rama encadenada hacía derivar la
+// cara y cambiar la identidad. Por eso aquí no se pide renderizar nada, solo mantener.
+// Devuelve '' si no hay personajes; empieza con espacio (listo para concatenar).
+export function chainedCharacterFidelity(ctx: DirectorContext): string {
+  if (!ctx.characters?.length) return '';
+  const facts = ctx.characters
+    .map((c) => describeCharacter(c, { fidelity: false }).text)
+    .join(' ');
+  return ` ${facts} Keep each person's exact face, hair, build, skin and wardrobe identical to the previous shot; do not redraw, re-age, restyle or change who they are.`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

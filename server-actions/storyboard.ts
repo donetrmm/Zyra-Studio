@@ -28,7 +28,7 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, humanRealismDirective, chainedProductFidelity } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -201,7 +201,7 @@ async function loadPreviousPanelTurn(
 
 export async function generatePanelAction(
   itemId: string,
-  opts?: { productRefInChat?: boolean },
+  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean },
 ): Promise<Result<{ imageId: string | null; generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
 
@@ -293,8 +293,23 @@ export async function generatePanelAction(
   const productRefPointer = productRefInChat
     ? ' A reference image of the product is also attached — reproduce its printed image and design exactly. The previous panel remains the base shot to re-frame; do not replace the scene with the product image.'
     : '';
+  // Simétrico al producto: re-anclar la identidad del CAST en los paneles encadenados,
+  // que es donde se pierde (la cadena descarta las referencias normales). El flag gatea
+  // AMBAS anclas del personaje (texto de preservación + imagen de la hoja maestra en el
+  // turno de chat), así que con off el comportamiento es idéntico al actual. Lo controla
+  // el toggle per-panel de la UI (opts.characterRefInChat) o el env flag
+  // STORYBOARD_CHARACTER_REF_IN_CHAT=1. Off por defecto: meter la hoja maestra frontal en
+  // un beat de otro ángulo puede ayudar a la identidad o hacer que el modelo la pegue de
+  // frente — solo el smoke real decide, por eso queda detrás de flag.
+  const characterRefInChat =
+    Boolean(prevTurn) &&
+    (opts?.characterRefInChat ?? process.env.STORYBOARD_CHARACTER_REF_IN_CHAT === '1');
+  const characterFidelityText = characterRefInChat ? chainedCharacterFidelity(dirCtx) : '';
+  const characterRefPointer = characterRefInChat
+    ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
+    : '';
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${productRefPointer}${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
@@ -360,19 +375,24 @@ export async function generatePanelAction(
         }),
     );
 
-    // EXPERIMENTAL (smoke): la imagen del producto re-anclada en el turno de chat.
-    // En modo chat el provider descarta `references`, así que esta es la única vía
-    // de meter la imagen del producto sin romper la cadena. Off salvo flag.
-    const productChatRefs = productRefInChat
-      ? await Promise.all(
-          compiled.compiled.references
-            .filter((r) => r.kind === 'image' && r.role === 'product')
-            .map(async (r): Promise<ImageReference> => {
-              const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
-              return { buffer, mimeType };
-            }),
-        )
-      : undefined;
+    // EXPERIMENTAL (smoke): re-anclar imágenes elegidas en el turno de chat. En modo
+    // chat el provider descarta `references`, así que esta es la única vía de meter una
+    // imagen sin romper la cadena. Producto y personaje van por aquí, cada uno tras su
+    // flag. Off salvo flag.
+    const downloadChatRef = async (role: 'product' | 'character'): Promise<ImageReference[]> =>
+      Promise.all(
+        compiled.compiled.references
+          .filter((r) => r.kind === 'image' && r.role === role)
+          .map(async (r): Promise<ImageReference> => {
+            const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
+            return { buffer, mimeType };
+          }),
+      );
+    const chatRefs: ImageReference[] = [
+      ...(productRefInChat ? await downloadChatRef('product') : []),
+      ...(characterRefInChat ? await downloadChatRef('character') : []),
+    ];
+    const chatReferences = chatRefs.length > 0 ? chatRefs : undefined;
 
     // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
     // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
@@ -388,7 +408,7 @@ export async function generatePanelAction(
       conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
-      chatReferences: productChatRefs,
+      chatReferences,
     });
 
     const ext = inferExtension(result.mimeType);
