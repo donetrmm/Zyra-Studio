@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   Check,
@@ -34,7 +34,6 @@ import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PageEmptyState } from '@/components/ui/page-empty-state';
 import type { LibraryGeneration, Tab, SortKey, Session } from '@/lib/library/types';
 import {
   CAMPAIGN_NONE,
@@ -47,6 +46,13 @@ import {
 } from '@/lib/library/format';
 import { bulkDownload, downloadOne } from '@/lib/library/output';
 import { groupSessions } from '@/lib/library/sessions';
+import { BucketHeader } from './BucketHeader';
+import { ToolbarButton } from './ToolbarButton';
+import { TileBtn } from './TileBtn';
+import { DetailRow } from './DetailRow';
+import { DetailField } from './DetailField';
+import { LibEmptyState } from './LibEmptyState';
+import { MiniAudioPlayer } from './MiniAudioPlayer';
 
 export type { LibraryGeneration };
 
@@ -639,17 +645,6 @@ function GridTab({
 }
 
 
-function BucketHeader({ name, count }: { name: string; count: number }) {
-  return (
-    <div className="flex items-baseline gap-2.5 pb-3 pt-5">
-      <span className="text-[11px] font-medium uppercase tracking-[0.10em] text-muted-foreground">
-        {name}
-      </span>
-      <span className="font-mono text-[11px] text-muted-foreground/60">{count}</span>
-      <span className="h-px flex-1 bg-border" />
-    </div>
-  );
-}
 
 function SessionCard({
   session,
@@ -882,59 +877,7 @@ function LibTile({
   );
 }
 
-function ToolbarButton({
-  icon: Icon,
-  label,
-  onClick,
-  destructive,
-}: {
-  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
-  label: string;
-  onClick: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-[12.5px] font-medium transition-colors sm:px-3',
-        destructive
-          ? 'text-destructive hover:bg-destructive/10'
-          : 'text-foreground hover:bg-muted',
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-      <span className="hidden sm:inline">{label}</span>
-    </button>
-  );
-}
 
-function TileBtn({
-  children,
-  onClick,
-  title,
-  busy,
-}: {
-  children: React.ReactNode;
-  onClick: (e: React.MouseEvent) => void;
-  title: string;
-  busy?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      disabled={busy}
-      className="grid size-6 place-items-center rounded-md border border-border/40 bg-background/70 text-foreground backdrop-blur transition-colors hover:bg-background/90 disabled:cursor-not-allowed"
-    >
-      {busy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : children}
-    </button>
-  );
-}
 
 
 function DetailAside({
@@ -1444,178 +1387,6 @@ function SavePresetButton({ generation }: { generation: LibraryGeneration }) {
   );
 }
 
-function DetailRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-3.5">
-      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
 
-function DetailField({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between border-b border-border py-2 text-[12.5px]">
-      <span className="text-muted-foreground/80">{label}</span>
-      <span
-        className={cn(
-          'text-foreground',
-          mono && 'font-mono tabular-nums',
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
 
-function LibEmptyState({ tab }: { tab: Tab }) {
-  const cfg: Record<Tab, { icon: typeof Library; title: string; sub: string }> = {
-    sessions: {
-      icon: Library,
-      title: 'Aún no hay sesiones',
-      sub: 'Cuando generes imágenes aparecerán agrupadas aquí.',
-    },
-    grid: {
-      icon: ImageIcon,
-      title: 'Tu cuadrícula está vacía',
-      sub: 'Crea tu primera imagen para verla aquí.',
-    },
-    collections: {
-      icon: FolderKanban,
-      title: 'Sin colecciones',
-      sub: 'Agrupa generaciones sueltas por proyecto o cliente.',
-    },
-  };
-  return (
-    <PageEmptyState
-      icon={cfg[tab].icon}
-      title={cfg[tab].title}
-      sub={cfg[tab].sub}
-      cta={{ href: '/app/create/image', label: 'Crear imagen', icon: Sparkles }}
-    />
-  );
-}
 
-// Player de audio custom para DetailAside — sin controles nativos del browser.
-function MiniAudioPlayer({ src }: { src: string }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-
-  useEffect(() => {
-    const a = audioRef.current;
-    if (!a) return;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onEnded = () => { setPlaying(false); setProgress(0); };
-    const onTime = () => {
-      setCurrentTime(a.currentTime);
-      if (a.duration > 0) setProgress((a.currentTime / a.duration) * 100);
-    };
-    const onMeta = () => setDuration(a.duration);
-    a.addEventListener('play', onPlay);
-    a.addEventListener('pause', onPause);
-    a.addEventListener('ended', onEnded);
-    a.addEventListener('timeupdate', onTime);
-    a.addEventListener('loadedmetadata', onMeta);
-    return () => {
-      a.removeEventListener('play', onPlay);
-      a.removeEventListener('pause', onPause);
-      a.removeEventListener('ended', onEnded);
-      a.removeEventListener('timeupdate', onTime);
-      a.removeEventListener('loadedmetadata', onMeta);
-    };
-  }, []);
-
-  function toggle() {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) a.play().catch(() => {});
-    else a.pause();
-  }
-
-  function scrub(e: React.MouseEvent<HTMLDivElement>) {
-    const a = audioRef.current;
-    if (!a || !a.duration) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    a.currentTime = u * a.duration;
-  }
-
-  function fmt(s: number): string {
-    s = Math.max(0, Math.floor(s));
-    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  }
-
-  return (
-    <div className="w-full rounded-xl border border-border/60 bg-background/80 px-3 py-2.5">
-      <audio ref={audioRef} src={src} preload="metadata" crossOrigin="anonymous" />
-      <div className="flex items-center gap-3">
-        {/* Play / Pause */}
-        <button
-          type="button"
-          onClick={toggle}
-          className="grid size-8 shrink-0 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/20"
-        >
-          {playing ? (
-            <svg width="10" height="10" viewBox="0 0 10 10">
-              <rect x="1" width="3" height="10" rx="1" fill="currentColor" />
-              <rect x="6" width="3" height="10" rx="1" fill="currentColor" />
-            </svg>
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 10 10">
-              <path d="M2 0.5 9 5 2 9.5z" fill="currentColor" />
-            </svg>
-          )}
-        </button>
-
-        {/* Progress + time */}
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div
-            className="group relative h-[6px] cursor-pointer rounded-full bg-white/[0.07]"
-            onClick={scrub}
-          >
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-primary/60"
-              style={{ width: `${progress}%` }}
-            />
-            <div
-              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100"
-              style={{
-                left: `${progress}%`,
-                width: 10,
-                height: 10,
-                borderRadius: '999px',
-                background: 'var(--primary)',
-                boxShadow: '0 0 6px rgba(0,159,255,0.5)',
-              }}
-            />
-          </div>
-          <div className="flex justify-between font-mono text-[11px] text-muted-foreground/60">
-            <span>{fmt(currentTime)}</span>
-            <span>{fmt(duration)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
