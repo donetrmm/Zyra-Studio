@@ -41,11 +41,11 @@ import {
   aspectRatioToNumber,
   batchLabel,
   bucketOf,
-  extFromMime,
   modelLabel,
   reuseHref,
   shortTime,
 } from '@/lib/library/format';
+import { bulkDownload, downloadOne } from '@/lib/library/output';
 import { groupSessions } from '@/lib/library/sessions';
 
 export type { LibraryGeneration };
@@ -115,70 +115,7 @@ export function LibraryView({
   }
 
   async function handleBulkDownload() {
-    const items = gens.filter((g) => selectedIds.has(g.id) && g.hasOutput);
-    if (items.length === 0) {
-      toast.error('Nada que descargar en la selección');
-      return;
-    }
-    // Un solo archivo: descarga directa, sin zip.
-    if (items.length === 1) {
-      try {
-        const res = await fetch(`/api/generations/${items[0].id}`, { cache: 'no-store' });
-        const data = (await res.json()) as { outputUrl?: string };
-        if (!data.outputUrl) throw new Error('sin output');
-        await downloadGenerationFile(data.outputUrl, `1to1-${items[0].id.slice(0, 8)}`);
-      } catch {
-        toast.error('No se pudo descargar');
-      }
-      return;
-    }
-    // Varios: empaquetar en un único .zip. El navegador bloquea las descargas
-    // múltiples automáticas (se pierde el gesto del usuario tras el primer
-    // archivo), así que un solo zip es lo fiable. JSZip se carga on-demand.
-    const toastId = toast.loading(`Preparando ${items.length} archivos…`);
-    try {
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      let added = 0;
-      for (let i = 0; i < items.length; i++) {
-        const g = items[i];
-        try {
-          const res = await fetch(`/api/generations/${g.id}`, { cache: 'no-store' });
-          const data = (await res.json()) as { outputUrl?: string };
-          if (!data.outputUrl) continue;
-          const fileRes = await fetch(data.outputUrl);
-          if (!fileRes.ok) continue;
-          const blob = await fileRes.blob();
-          zip.file(
-            `${String(i + 1).padStart(2, '0')}-1to1-${g.id.slice(0, 8)}.${extFromMime(blob.type)}`,
-            blob,
-          );
-          added += 1;
-        } catch {
-          // saltar este archivo, seguir con el resto
-        }
-      }
-      if (added === 0) {
-        toast.error('No se pudo descargar la selección', { id: toastId });
-        return;
-      }
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '1to1-biblioteca.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      const skipped = items.length - added;
-      toast.success(
-        `${added} archivo${added === 1 ? '' : 's'} en un zip${skipped > 0 ? ` · ${skipped} omitido${skipped === 1 ? '' : 's'}` : ''}`,
-        { id: toastId },
-      );
-    } catch {
-      toast.error('No se pudo preparar la descarga', { id: toastId });
-    }
+    await bulkDownload(gens.filter((g) => selectedIds.has(g.id)));
   }
 
   async function handleDeleteOne(id: string) {
@@ -806,10 +743,7 @@ function LibTile({
     if (!gen.hasOutput || downloading) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/generations/${gen.id}`, { cache: 'no-store' });
-      const data = (await res.json()) as { outputUrl?: string };
-      if (!data.outputUrl) throw new Error('sin output');
-      await downloadGenerationFile(data.outputUrl, `1to1-${gen.id.slice(0, 8)}`);
+      await downloadOne(gen.id, `1to1-${gen.id.slice(0, 8)}`);
     } catch {
       toast.error('No se pudo descargar.');
     } finally {
