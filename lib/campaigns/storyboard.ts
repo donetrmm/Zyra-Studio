@@ -22,9 +22,10 @@ export function compilePanel(
   beat: PanelBeat,
   ctx: DirectorContext,
   fluxModelSlug: string,
+  opts?: { isOpeningBeat?: boolean },
 ): CompileResult {
   return compile(
-    { modelSlug: fluxModelSlug, scenePrompt: beat.scene_prompt, aspectRatio: beat.aspect_ratio ?? '9:16' },
+    { modelSlug: fluxModelSlug, scenePrompt: beat.scene_prompt, aspectRatio: beat.aspect_ratio ?? '9:16', isOpeningBeat: opts?.isOpeningBeat },
     ctx,
   );
 }

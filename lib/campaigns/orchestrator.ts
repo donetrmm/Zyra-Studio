@@ -17,6 +17,7 @@ import { selectBatchItems } from './batch-selection';
 import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/campaigns/storyboard-video';
+import { CreativeGuidelinesSchema, type CreativeGuidelines } from './guidelines';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -115,6 +116,8 @@ export type CampaignContext = {
   // el storyboard. Ausente = sin ancla.
   productHeightCm?: number;
   productWidthCm?: number;
+  // Guías creativas opt-in de la campaña (spec 2026-06-29).
+  guidelines?: CreativeGuidelines;
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -218,6 +221,9 @@ export async function loadCampaignContext(
     include_packaging?: boolean | null;
     // P16: media_reference id de la pista de referencia de ritmo.
     music_ref_id?: string | null;
+    // Guías creativas opt-in (columna creative_guidelines). Tolerante: si no llega o
+    // falla el parse, se trata como vacío (sin guías activas).
+    creative_guidelines?: Record<string, unknown> | null;
   },
   characterIds: string[],
 ): Promise<CampaignContext> {
@@ -311,6 +317,9 @@ export async function loadCampaignContext(
     audioRefPath = audioMap.get(campaign.music_ref_id);
   }
 
+  const guidelinesParsed = CreativeGuidelinesSchema.safeParse(campaign.creative_guidelines ?? {});
+  const guidelines = guidelinesParsed.success ? guidelinesParsed.data : {};
+
   return {
     productName: brief.productName ?? 'the product',
     visualDetails: brief.visualDetails,
@@ -323,6 +332,7 @@ export async function loadCampaignContext(
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
+    guidelines,
   };
 }
 
@@ -370,6 +380,7 @@ export function directorContextFor(
     templateVideoPath,
     language: ctx.language,
     audioRefPath: ctx.audioRefPath,
+    guidelines: ctx.guidelines,
   };
 }
 
@@ -708,6 +719,7 @@ export async function enqueueBatch(params: {
     language?: string | null;
     include_packaging?: boolean | null;
     music_ref_id?: string | null;
+    creative_guidelines?: Record<string, unknown> | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;
@@ -854,6 +866,7 @@ export async function enqueueBatch(params: {
         durationS: item.duration_s ?? undefined,
         aspectRatio: item.aspect_ratio ?? undefined,
         generateAudio: item.audio,
+        isOpeningBeat: (item.scene_index ?? 0) === 0,
       },
       dirCtx,
     );

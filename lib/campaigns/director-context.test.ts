@@ -134,3 +134,12 @@ describe('directorContextFor — character_state_hint (P05)', () => {
     expect(dc2.characters?.[0].stateLabel).toBeUndefined();
   });
 });
+
+describe('directorContextFor — creative guidelines', () => {
+  it('directorContextFor propaga las guias creativas de la campana', () => {
+    const ctx = { ...ctxWith(), guidelines: { showFullProduct: true, safeCrop: '4:5' as const } };
+    const dir = directorContextFor(item, null, ctx);
+    expect(dir.guidelines?.showFullProduct).toBe(true);
+    expect(dir.guidelines?.safeCrop).toBe('4:5');
+  });
+});

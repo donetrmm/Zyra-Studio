@@ -114,6 +114,7 @@ type CampaignRow = {
   product_brief: Record<string, unknown> | null;
   language: string | null;
   include_packaging: boolean | null;
+  creative_guidelines: Record<string, unknown> | null;
 };
 
 async function loadItemAndCampaign(
@@ -132,7 +133,7 @@ async function loadItemAndCampaign(
 
   const { data: rawCampaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines')
     .eq('id', item.campaign_id)
     .single();
   if (campErr || !rawCampaign) return null;
@@ -262,7 +263,7 @@ export async function generatePanelAction(
     storyboard_image_id: item.storyboard_image_id,
   };
 
-  const compiled = compilePanel(beat, dirCtx, FLUX_MODEL_SLUG);
+  const compiled = compilePanel(beat, dirCtx, FLUX_MODEL_SLUG, { isOpeningBeat: (item.scene_index ?? 0) === 0 });
   if (!compiled.ok) {
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
