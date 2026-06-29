@@ -66,6 +66,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CalendarView, ImagePackCard } from './CampaignCalendar';
 import { GenerationViewer } from './GenerationViewer';
 import { insufficientCreditsToast } from './credits-toast';
+import { ProductSizeEditor } from './ProductSizeEditor';
 
 // StudioItem vive en lib/campaigns/studio-item (compartido con el loader y las
 // server actions); se re-exporta para no romper imports existentes.
@@ -91,6 +92,8 @@ export type StudioCampaign = {
   creditsEstimated: number | null;
   // Idea con que se generó el plan (P: reprocesar idea). null = se generó por mix.
   ideaText: string | null;
+  productHeightCm?: number;
+  productWidthCm?: number;
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -413,6 +416,14 @@ export function CampaignStudioView({
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="mt-3">
+        <ProductSizeEditor
+          campaignId={campaign.id}
+          initialHeightCm={campaign.productHeightCm}
+          initialWidthCm={campaign.productWidthCm}
+        />
       </div>
 
       {tab === 'plan' ? (
