@@ -29,6 +29,7 @@ import {
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { compilePanel, compilePanelEdit, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
+import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -309,8 +310,8 @@ export async function generatePanelAction(
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
-    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${noText}`;
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
+    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -606,6 +607,8 @@ export async function refinePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
+  const refinePrompt = `${compiled.compiled.prompt}${describeProductScale(dirCtx.product)}`;
+
   // Precio Nano Banana Pro conversacional
   const pricing = await loadPricing();
   const breakdown = estimateCredits(pricing, {
@@ -625,7 +628,7 @@ export async function refinePanelAction(
       type: 'image',
       provider: 'nano-banana',
       model_id: NANO_MODEL_SLUG,
-      prompt: compiled.compiled.prompt,
+      prompt: refinePrompt,
       params: {
         aspect_ratio: item.aspect_ratio,
         conversational: true,
@@ -705,7 +708,7 @@ export async function refinePanelAction(
 
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
-      prompt: compiled.compiled.prompt,
+      prompt: refinePrompt,
       aspectRatio: item.aspect_ratio ?? '9:16',
       resolution: nanoVariantToResolution(NANO_VARIANT),
       references,
