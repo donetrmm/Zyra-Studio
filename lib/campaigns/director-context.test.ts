@@ -96,7 +96,7 @@ describe('directorContextFor — productImageUsages (AM)', () => {
   });
 });
 
-describe('directorContextFor — dimensiones del producto (Task 3)', () => {
+describe('directorContextFor — dimensiones del producto', () => {
   it('propaga las dimensiones del producto a DirectorContext.product', () => {
     const ctx: CampaignContext = {
       productName: 'Canvas',

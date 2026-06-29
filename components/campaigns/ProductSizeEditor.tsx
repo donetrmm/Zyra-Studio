@@ -29,12 +29,12 @@ export function ProductSizeEditor({
   const save = () => {
     const h = parse(height);
     const w = parse(width);
-    if (height.trim() && h === null) { toast.error('Alto invalido'); return; }
-    if (width.trim() && w === null) { toast.error('Ancho invalido'); return; }
+    if (height.trim() && h === null) { toast.error('Alto inválido'); return; }
+    if (width.trim() && w === null) { toast.error('Ancho inválido'); return; }
     startTransition(async () => {
       const res = await setProductDimensionsAction({ id: campaignId, heightCm: h, widthCm: w });
-      if (res.ok) toast.success('Tamano guardado');
-      else toast.error('No se pudo guardar el tamano');
+      if (res.ok) toast.success('Tamaño guardado');
+      else toast.error('No se pudo guardar el tamaño');
     });
   };
 
@@ -63,7 +63,7 @@ export function ProductSizeEditor({
         />
       </label>
       <Button type="button" variant="secondary" size="sm" onClick={save} disabled={pending}>
-        {pending ? 'Guardando...' : 'Guardar tamano'}
+        {pending ? 'Guardando…' : 'Guardar tamaño'}
       </Button>
     </div>
   );
