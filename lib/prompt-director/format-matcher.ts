@@ -120,8 +120,12 @@ export type MatchedScene = {
 };
 
 const MatchSchema = z.object({
-  // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt.
-  ideaText: z.string().min(1).max(2000),
+  // Eco de la idea, solo informativo: el plan usa formato/count/scenePrompt,
+  // nunca esto. ANTES un `.max(2000)` SIN catch tiraba el match ENTERO cuando el
+  // modelo eco-devolvía una idea larga (briefs estructurados >2000 chars) → 0
+  // matches → throw → el plan caía al mix genérico. Ahora se recorta a 2000 y
+  // nunca falla por longitud (mismo criterio que scenePrompt: conservar, no anular).
+  ideaText: z.string().min(1).transform((s) => s.slice(0, 2000)).catch('idea'),
   formatId: z.string().nullable(),
   customFormat: CustomFormatSchema.nullable(),
   // Cuántos creativos pide la idea ("3 versiones de..."). Sin cantidad

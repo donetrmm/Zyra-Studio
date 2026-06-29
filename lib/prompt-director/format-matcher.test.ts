@@ -611,4 +611,24 @@ describe('matchIdeas', () => {
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].characterStateHint).toBeNull();
   });
+
+  it('ideaText descomunal (>2000) NO descarta el match (brief estructurado)', async () => {
+    // Regresión: un brief estructurado largo que el modelo eco-devuelve en
+    // ideaText (>2000 chars) tiraba el match entero por `.max(2000)` sin catch
+    // → 0 matches → el plan caía al mix genérico. ideaText es solo informativo;
+    // debe recortarse, nunca descartar la idea.
+    const hugeIdea = 'Plantilla de Campaña: UGC estructurado, cuarto lowkey y jardín. '.repeat(60);
+    expect(hugeIdea.length).toBeGreaterThan(2000);
+    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+      matches: [{
+        ideaText: hugeIdea, formatId: 'f1', customFormat: null,
+        scenePrompt: 'Hands open the box slowly', count: 1,
+      }],
+    })));
+    process.env.GEMINI_API_KEY = 'test';
+    const res = await matchIdeas({ ideasText: hugeIdea, formats: FORMATS });
+    expect(res.matches).toHaveLength(1);
+    expect(res.matches[0].formatId).toBe('f1');
+    expect(res.matches[0].ideaText.length).toBeLessThanOrEqual(2000);
+  });
 });
