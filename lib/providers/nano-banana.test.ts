@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { buildBody, interpretResponse } from './nano-banana';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { buildBody, interpretResponse, generate, isChatSignatureRejection } from './nano-banana';
 import { ProviderError, type NanoBananaParams } from './types';
 
 const img = (data: string) => ({ buffer: Buffer.from(data), mimeType: 'image/png' });
@@ -117,5 +117,86 @@ describe('interpretResponse — Gemini puede devolver 200 sin parts', () => {
       expect(e).toBeInstanceOf(ProviderError);
       expect((e as ProviderError).message).toContain('STOP');
     }
+  });
+});
+
+describe('isChatSignatureRejection', () => {
+  it('trata 404 / NOT_FOUND como rechazo del thought_signature', () => {
+    expect(isChatSignatureRejection(404, undefined)).toBe(true);
+    expect(isChatSignatureRejection(200, 'NOT_FOUND')).toBe(true);
+  });
+
+  it('no trata otros errores como rechazo de firma', () => {
+    expect(isChatSignatureRejection(400, 'INVALID_ARGUMENT')).toBe(false);
+    expect(isChatSignatureRejection(500, undefined)).toBe(false);
+    expect(isChatSignatureRejection(403, 'PERMISSION_DENIED')).toBe(false);
+  });
+});
+
+describe('generate — fallback single-turn cuando Gemini rechaza el thought_signature', () => {
+  const OLD_KEY = process.env.GEMINI_API_KEY;
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = 'test-key';
+  });
+  afterEach(() => {
+    process.env.GEMINI_API_KEY = OLD_KEY;
+    vi.unstubAllGlobals();
+  });
+
+  const okJson = {
+    candidates: [
+      {
+        content: { parts: [{ inlineData: { mimeType: 'image/png', data: b64('pixels') } }] },
+        finishReason: 'STOP',
+      },
+    ],
+  };
+
+  it('al recibir 404 NOT_FOUND en modo chat, reintenta sin la firma (single-turn) y entrega la imagen', async () => {
+    const bodies: string[] = [];
+    const fetchMock = vi.fn((_url: string, init: { body: string }) => {
+      bodies.push(init.body);
+      if (bodies.length === 1) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: { code: 404, message: 'Requested entity was not found.', status: 'NOT_FOUND' },
+            }),
+            { status: 404 },
+          ),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify(okJson), { status: 200 }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generate({ ...chatBase });
+
+    expect(result.buffer.toString()).toBe('pixels');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 1er intento: chat (3 turnos con la firma). 2o intento: single-turn (1 turno) sin firma.
+    const first = JSON.parse(bodies[0]) as { contents: unknown[] };
+    const second = JSON.parse(bodies[1]) as { contents: unknown[] };
+    expect(first.contents).toHaveLength(3);
+    expect(second.contents).toHaveLength(1);
+    expect(bodies[0]).toContain('sig-123');
+    expect(bodies[1]).not.toContain('sig-123');
+  });
+
+  it('no reintenta si el 404 no es en modo chat (sin firma previa)', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({ error: { code: 404, message: 'nope', status: 'NOT_FOUND' } }),
+          { status: 404 },
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      generate({ model: 'gemini-3-pro-image-preview', prompt: 'fresh', references: [img('x')] }),
+    ).rejects.toBeInstanceOf(ProviderError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

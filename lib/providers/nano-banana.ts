@@ -199,8 +199,10 @@ function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
   // Gemini 3 puede devolver el thoughtSignature en el image part o en un
   // text/thought part adyacente (los docs dicen "MAY contain", final part).
   // Recorremos todo y nos quedamos con el primer sig en image part; si no
-  // hay, usamos cualquier sig presente como fallback. Si replay falla por
-  // "exact part" rule, el adapter cae al modo single-turn (ver buildBody).
+  // hay, usamos cualquier sig presente como fallback. Si el replay de ese sig
+  // falla en request (404 NOT_FOUND), generate() reintenta en single-turn
+  // (ver isChatSignatureRejection); si el sig falta de entrada, el fallback
+  // single-turn lo decide buildBody.
   let image: { buffer: Buffer; mimeType: string; sig?: string } | null = null;
   let fallbackSig: string | undefined;
   for (const part of parts) {
@@ -288,6 +290,15 @@ export function interpretResponse(json: unknown): GenerationResult {
   );
 }
 
+// ¿El fallo es Gemini rechazando el thought_signature replayado del turno previo?
+// Devuelve 404 NOT_FOUND ("Requested entity was not found") cuando el sig ya no es
+// válido: expiró, o la 'exact part' rule del replay no calza (el turno previo se
+// reconstruye como solo-texto, sin las imágenes que lo originaron). En ese caso el
+// adapter reintenta en single-turn (editando la imagen previa como referencia normal).
+export function isChatSignatureRejection(status: number, errorStatus?: string): boolean {
+  return status === 404 || errorStatus === 'NOT_FOUND';
+}
+
 async function callOnce(
   params: NanoBananaParams,
   apiKey: string,
@@ -303,7 +314,10 @@ async function callOnce(
   });
 }
 
-export async function generate(params: NanoBananaParams): Promise<GenerationResult> {
+export async function generate(
+  params: NanoBananaParams,
+  _opts?: { noChatFallback?: boolean },
+): Promise<GenerationResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
@@ -332,11 +346,13 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
 
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
+    let errorStatus: string | undefined;
     try {
       const errJson = await res.json();
       const parsedErr = ErrorSchema.safeParse(errJson);
       if (parsedErr.success) {
         detail = parsedErr.data.error.message;
+        errorStatus = parsedErr.data.error.status;
         if (
           parsedErr.data.error.status === 'INVALID_ARGUMENT' ||
           parsedErr.data.error.code === 400
@@ -347,6 +363,24 @@ export async function generate(params: NanoBananaParams): Promise<GenerationResu
     } catch (e) {
       if (e instanceof ProviderError) throw e;
     }
+
+    // Fallback de chat conversacional: si Gemini rechaza el thought_signature del
+    // turno previo (404 NOT_FOUND), reintentamos UNA vez en single-turn — al quitar
+    // el sig, buildBody edita la imagen previa como referencia normal (sin chat). Es
+    // el fallback que el adapter siempre pretendió tener para la 'exact part' rule,
+    // ahora también para el rechazo en request. Cubre refinePanelAction y la
+    // generación encadenada (ambas replayean el sig del panel anterior).
+    if (
+      !_opts?.noChatFallback &&
+      params.previousTurn?.thoughtSignature &&
+      isChatSignatureRejection(res.status, errorStatus)
+    ) {
+      return generate(
+        { ...params, previousTurn: { ...params.previousTurn, thoughtSignature: undefined } },
+        { noChatFallback: true },
+      );
+    }
+
     if (res.status >= 500) {
       throw new ProviderError(detail, 'server', true);
     }
