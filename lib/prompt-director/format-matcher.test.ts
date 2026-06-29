@@ -1,6 +1,6 @@
 // lib/prompt-director/format-matcher.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { matchIdeas, type MatcherFormat } from './format-matcher';
+import { buildMatcherSystemPrompt, matchIdeas, type MatcherFormat } from './format-matcher';
 
 const FORMATS: MatcherFormat[] = [
   { id: 'f1', slug: 'el-descubrimiento', name: 'El Descubrimiento', description: 'Unboxing / revelación' },
@@ -613,6 +613,7 @@ describe('matchIdeas', () => {
   });
 
   it('ideaText descomunal (>2000) NO descarta el match (brief estructurado)', async () => {
+
     // Regresión: un brief estructurado largo que el modelo eco-devuelve en
     // ideaText (>2000 chars) tiraba el match entero por `.max(2000)` sin catch
     // → 0 matches → el plan caía al mix genérico. ideaText es solo informativo;
@@ -630,5 +631,39 @@ describe('matchIdeas', () => {
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');
     expect(res.matches[0].ideaText.length).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe('buildMatcherSystemPrompt', () => {
+  it('incluye las lineas de guia cuando los flags estan activos', () => {
+    const withG = buildMatcherSystemPrompt({
+      guidelines: { showFullProduct: true, hookProductHero: true },
+    });
+    expect(withG).toMatch(/producto completo/i);
+    expect(withG).toMatch(/hook/i);
+  });
+
+  it('sin guias no incluye las lineas de guia', () => {
+    const without = buildMatcherSystemPrompt({});
+    expect(without).not.toMatch(/producto completo/i);
+    expect(without).not.toMatch(/protagonista.*héroe|héroe.*protagonista/i);
+  });
+
+  it('solo showFullProduct activo: incluye linea de producto pero no la del hook', () => {
+    const s = buildMatcherSystemPrompt({ guidelines: { showFullProduct: true } });
+    expect(s).toMatch(/producto completo/i);
+    expect(s).not.toMatch(/primer beat.*hook|hook.*encuadra/i);
+  });
+
+  it('solo hookProductHero activo: incluye linea del hook pero no la de full product', () => {
+    const s = buildMatcherSystemPrompt({ guidelines: { hookProductHero: true } });
+    expect(s).toMatch(/hook/i);
+    expect(s).not.toMatch(/evita close-ups/i);
+  });
+
+  it('es una funcion pura: mismos opts producen el mismo resultado', () => {
+    const a = buildMatcherSystemPrompt({ guidelines: { showFullProduct: true } });
+    const b = buildMatcherSystemPrompt({ guidelines: { showFullProduct: true } });
+    expect(a).toBe(b);
   });
 });

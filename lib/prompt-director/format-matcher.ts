@@ -8,6 +8,7 @@ import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
+import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 export { CustomFormatSchema, type CustomFormat };
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -404,6 +405,28 @@ sobreimpresos) y encuadra fuera de letreros, en lugar de solo prohibirlo.
 Nunca inventes atributos del producto. Devuelve SOLO el JSON:
 {"matches":[{"ideaText":"...","formatId":"...|null","customFormat":{...}|null,"count":1,"durationS":null,"scenePrompt":"...|null","sceneSummary":"...|null","scenes":[],"sequenceLabel":null,"blocker":null,"characterIds":[],"inventedCharacters":[]}]}`;
 
+// Helper puro (sin IO) que arma el SYSTEM prompt del matcher.
+// Permite añadir condicionalmente las clausulas de guias creativas.
+// `safeCrop` NO va aqui — es composicion pura del compilador.
+export function buildMatcherSystemPrompt(opts: {
+  language?: 'es' | 'en';
+  guidelines?: CreativeGuidelines;
+}): string {
+  const lang = opts.language ?? 'es';
+  let system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[lang]);
+
+  if (opts.guidelines?.showFullProduct) {
+    system +=
+      '\nPrioriza encuadres que muestren el producto COMPLETO; evita close-ups extremos que lo recorten, salvo una toma de detalle deliberada.';
+  }
+  if (opts.guidelines?.hookProductHero) {
+    system +=
+      '\nEl primer beat (hook) debe encuadrar el producto completo como protagonista (héroe), a tamaño grande.';
+  }
+
+  return system;
+}
+
 export async function matchIdeas(input: {
   ideasText: string;
   formats: MatcherFormat[];
@@ -413,6 +436,8 @@ export async function matchIdeas(input: {
   images?: MatcherImage[];
   // Idioma del sceneSummary (display). Default 'es'.
   language?: 'es' | 'en';
+  // Guias creativas de la campana: inyectadas en el system prompt del matcher.
+  guidelines?: CreativeGuidelines;
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
   // después del brief (otra llamada a Gemini): un 429 puntual no debe
   // degradar el plan dirigido a mix genérico.
@@ -435,6 +460,7 @@ async function requestMatch(input: {
   characters?: MatcherCharacter[];
   images?: MatcherImage[];
   language?: 'es' | 'en';
+  guidelines?: CreativeGuidelines;
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
@@ -445,7 +471,7 @@ async function requestMatch(input: {
     )
     .join('\n');
 
-  const system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[input.language ?? 'es']);
+  const system = buildMatcherSystemPrompt({ language: input.language, guidelines: input.guidelines });
 
   const cast = (input.characters ?? [])
     .map((c) => `- id=${c.id} ${c.name}${c.states?.length ? ` (estados: ${c.states.join(', ')})` : ''}`)

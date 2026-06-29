@@ -53,6 +53,7 @@ import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas, type MatcherImage } from '@/lib/prompt-director/format-matcher';
+import { CreativeGuidelinesSchema, type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { ProviderError } from '@/lib/providers/types';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 
@@ -473,7 +474,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, aspect_ratio, date_start, date_end, status')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, aspect_ratio, date_start, date_end, status, creative_guidelines')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -482,6 +483,9 @@ export async function generatePlanAction(input: unknown): Promise<
     productName?: string;
     category?: string;
   };
+  const guidelines: CreativeGuidelines | undefined = campaign.creative_guidelines
+    ? CreativeGuidelinesSchema.safeParse(campaign.creative_guidelines).data
+    : undefined;
   if (!brief.productName) {
     return { ok: false, error: 'validation_error', message: 'La campaña no tiene brief de producto' };
   }
@@ -616,6 +620,7 @@ export async function generatePlanAction(input: unknown): Promise<
         characters: characters.map((c) => ({ id: c.id, name: c.name, ...(statesByChar.get(c.id)?.length ? { states: statesByChar.get(c.id) } : {}) })),
         ...(matcherImages.length ? { images: matcherImages } : {}),
         language: campaignLanguage,
+        ...(guidelines ? { guidelines } : {}),
       });
       for (const m of matched.matches) {
         for (const p of m.inventedCharacters) {
