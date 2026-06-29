@@ -32,25 +32,23 @@ import { Bookmark, FolderKanban, Heart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { LibraryGeneration, Tab, SortKey, Session } from '@/lib/library/types';
+import type { LibraryGeneration, Tab, SortKey } from '@/lib/library/types';
 import {
   CAMPAIGN_NONE,
   aspectRatioToNumber,
   batchLabel,
-  bucketOf,
   modelLabel,
   reuseHref,
   shortTime,
 } from '@/lib/library/format';
 import { bulkDownload } from '@/lib/library/output';
 import { groupSessions } from '@/lib/library/sessions';
-import { BucketHeader } from './BucketHeader';
 import { ToolbarButton } from './ToolbarButton';
-import { LibTile } from './LibTile';
 import { DetailRow } from './DetailRow';
 import { DetailField } from './DetailField';
-import { LibEmptyState } from './LibEmptyState';
 import { MiniAudioPlayer } from './MiniAudioPlayer';
+import { SessionsTab } from './SessionsTab';
+import { GridTab } from './GridTab';
 
 export type { LibraryGeneration };
 
@@ -556,153 +554,6 @@ function LibHeader({
   );
 }
 
-function SessionsTab({
-  sessions,
-  onOpen,
-  favIds,
-  onToggleFav,
-}: {
-  sessions: Session[];
-  onOpen: (id: string) => void;
-  favIds: Set<string>;
-  onToggleFav: (id: string) => void;
-}) {
-  const buckets = useMemo(() => {
-    const map = new Map<string, Session[]>();
-    for (const s of sessions) {
-      const b = bucketOf(s.latest.createdAt);
-      if (!map.has(b)) map.set(b, []);
-      map.get(b)!.push(s);
-    }
-    return Array.from(map.entries());
-  }, [sessions]);
-
-  if (sessions.length === 0) {
-    return <LibEmptyState tab="sessions" />;
-  }
-
-  return (
-    <div className="space-y-2 pt-2">
-      {buckets.map(([bucket, list]) => (
-        <section key={bucket}>
-          <BucketHeader name={bucket} count={list.length} />
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            {list.map((s) => (
-              <SessionCard key={s.id} session={s} onOpen={onOpen} favIds={favIds} onToggleFav={onToggleFav} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-function GridTab({
-  items,
-  onOpen,
-  selectedIds,
-  onToggleSelect,
-  favIds,
-  onToggleFav,
-}: {
-  items: LibraryGeneration[];
-  onOpen: (id: string) => void;
-  selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
-  favIds: Set<string>;
-  onToggleFav: (id: string) => void;
-}) {
-  const buckets = useMemo(() => {
-    const map = new Map<string, LibraryGeneration[]>();
-    for (const g of items) {
-      const b = bucketOf(g.createdAt);
-      if (!map.has(b)) map.set(b, []);
-      map.get(b)!.push(g);
-    }
-    return Array.from(map.entries());
-  }, [items]);
-
-  if (items.length === 0) {
-    return <LibEmptyState tab="grid" />;
-  }
-
-  return (
-    <div className="space-y-2 pt-2">
-      {buckets.map(([bucket, list]) => (
-        <section key={bucket}>
-          <BucketHeader name={bucket} count={list.length} />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {list.map((g) => (
-              <LibTile key={g.id} gen={g} onClick={() => onOpen(g.id)} selected={selectedIds.has(g.id)} onToggleSelect={() => onToggleSelect(g.id)} variantTag={g.batchKind ? batchLabel(g.batchKind) : undefined} isFavorite={favIds.has(g.id)} onToggleFav={() => onToggleFav(g.id)} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-
-
-function SessionCard({
-  session,
-  onOpen,
-  favIds,
-  onToggleFav,
-}: {
-  session: Session;
-  onOpen: (id: string) => void;
-  favIds: Set<string>;
-  onToggleFav: (id: string) => void;
-}) {
-  const { head, latest, items } = session;
-  return (
-    <article className="zyra-fade-in overflow-hidden rounded-[14px] border border-border bg-card transition-colors hover:border-muted-foreground/20">
-      <header className="flex items-start gap-3 px-4 pb-3 pt-3.5">
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-[13.5px] leading-[1.5] text-foreground">
-            {head.prompt || <span className="text-muted-foreground">(sin prompt)</span>}
-          </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-[11px] text-muted-foreground/80">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="size-[5px] rounded-full bg-primary" />
-              {modelLabel(head)}
-            </span>
-            {head.aspectRatio && <span>{head.aspectRatio}</span>}
-            <span>−{items.reduce((sum, i) => sum + i.credits, 0)} cr.</span>
-            <span>{items.length} variación{items.length === 1 ? '' : 'es'}</span>
-            <span>{shortTime(latest.createdAt)}</span>
-          </div>
-        </div>
-      </header>
-
-      <div
-        className={cn(
-          'grid gap-2 px-4 pb-4',
-          items.length === 1
-            ? 'grid-cols-2 sm:grid-cols-3'
-            : items.length === 2
-              ? 'grid-cols-2 sm:grid-cols-3'
-              : items.length === 3
-                ? 'grid-cols-3'
-                : 'grid-cols-2 sm:grid-cols-4',
-        )}
-      >
-        {items.map((g, i) => (
-          <LibTile
-            key={g.id}
-            gen={g}
-            onClick={() => onOpen(g.id)}
-            variantTag={items.length > 1 ? `v${i + 1}` : undefined}
-            compact
-            isFavorite={favIds.has(g.id)}
-            onToggleFav={() => onToggleFav(g.id)}
-          />
-        ))}
-      </div>
-    </article>
-  );
-}
 
 
 
