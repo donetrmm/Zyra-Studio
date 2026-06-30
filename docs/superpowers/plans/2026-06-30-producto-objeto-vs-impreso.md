@@ -35,7 +35,7 @@
 - `components/campaigns/ProductSizeEditor.tsx` — tarjeta "Producto físico" (medium + grosor).
 - `components/campaigns/CampaignStudioView.tsx` + `app/app/campaigns/[id]/page.tsx` — pasar medium/thickness iniciales.
 
-**Nota de cobertura:** `describeProduct` se usa en el compilador de **video** y en el de **panel fresco** (FLUX) → la corrección llega a ambos automáticamente. El **panel encadenado** arma su prompt a mano con `chainedProductFidelity` (no `describeProduct`); queda FUERA de v1 (el flujo del usuario es regenerar FRESCO, como se le indicó). Documentado, no es regresión.
+**Nota de cobertura:** `describeProduct` se usa en el compilador de **video**, en el de **panel fresco** (FLUX), y también en el **panel encadenado** — `chainedProductFidelity` (storyboard.ts) llama internamente `describeProduct(ctx.product, { fidelity: false })`, y la composición objeto-vs-impreso + grosor se arma en `facts` ANTES del early-return `if (opts.fidelity === false) return facts`. Por tanto la corrección llega a las tres rutas. Sin `medium`, el comportamiento queda byte-idéntico (cero regresión).
 
 ---
 

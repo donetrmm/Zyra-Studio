@@ -51,6 +51,7 @@ export const BRIEF_SYSTEM = `Eres un estratega de marketing. Analiza la imagen d
   "demographic": "demográfico aparente del producto, breve",
   "market": "mercado aparente (global salvo señales claras de región)"
 }
+
 Si el producto es un OBJETO con una imagen impresa encima (un canvas/cuadro, una taza, una playera, un poster, etc.), identifica el OBJETO y descríbelo aparte del contenido impreso: "productName" debe ser el objeto (por ejemplo "Canvas print"), NO la escena impresa; en "visualDetails" describe primero el objeto (material, forma, acabado, borde) y luego lo que muestra impreso. No declares el arte impreso como si fuera el producto. Si solo ves el arte plano y no puedes determinar el objeto, descríbelo como imagen impresa sin inventar el tipo de objeto.
 Reglas: describe SOLO lo visible — no inventes claims, ingredientes ni atributos. Si no hay variantes visibles, variants=[]. JSON válido, sin markdown.`;
 
