@@ -28,9 +28,11 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_ZONE_STRONG_CLAUSE } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
-import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
+import { safeAreaBands, centralSafeCrop } from '@/lib/images/safe-area';
+import { expand } from '@/lib/providers/flux-expand';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -209,6 +211,29 @@ async function loadPreviousPanelTurn(
   }
 }
 
+// Expande una base 4:5 a 9:16 con FLUX.1 Expand (outpaint con mascara). Agrega
+// bandas reales arriba y abajo preservando el centro 4:5. Ante CUALQUIER fallo
+// (endpoint no disponible, 402, timeout, sin imagen) hace fallback devolviendo la
+// base tal cual: el panel nunca se rompe, el estricto solo "mejora" si el expand
+// esta disponible. El crop a 4:5 sigue siendo exacto porque el centro se preserva.
+async function extendPanelTo916(
+  base: { buffer: Buffer; mimeType: string },
+  scenePrompt: string,
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  try {
+    const meta = await sharp(base.buffer).metadata();
+    const width = meta.width ?? 0;
+    if (!width) return base;
+    const { bandPx } = safeAreaBands(width);
+    const prompt = `Extend this scene naturally above and below to a taller vertical frame, continuing the same background, lighting and colors; do not add or change any subject. Scene: ${scenePrompt.trim()}`;
+    const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
+    return { buffer: result.buffer, mimeType: result.mimeType };
+  } catch (err) {
+    console.error('extendPanelTo916 fallback a 9:16 nativo:', err instanceof Error ? err.message : err);
+    return base;
+  }
+}
+
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
 
 export async function generatePanelAction(
@@ -273,10 +298,12 @@ export async function generatePanelAction(
     Boolean(guidelines?.safeAreaExtend) &&
     guidelines?.safeCrop === '4:5' &&
     (item.aspect_ratio ?? '9:16') === '9:16';
-  // Modo guia: se genera NATIVO en 9:16 con todas las guidelines (incl. safeCrop como texto)
-  // y se adjunta la imagen-guia de zona segura como referencia. Sin extension.
-  const baseDirCtx = dirCtx;
-  const genAspect = item.aspect_ratio ?? '9:16';
+  // Modo estricto: la base se genera en 4:5 (el frame 4:5 ES la zona segura, el
+  // producto sale completo y a escala) y luego se expande a 9:16 con FLUX. La base
+  // NO emite la clausula de safeCrop (guidelinesForSafeBase) porque en un 4:5 seria
+  // redundante. Fuera de estricto: 9:16 nativo, comportamiento actual.
+  const baseDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(dirCtx.guidelines) } : dirCtx;
+  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
 
   const beat = {
     id: item.id,
@@ -295,6 +322,12 @@ export async function generatePanelAction(
   // del beat. El primer panel se genera fresco (compose). La identidad se re-ancla con
   // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
   const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
+  // Encadenado en estricto: el panel previo se guardo como 9:16; su base es el 4:5
+  // central. Se recorta para que el turno conversacional arranque desde la misma
+  // base 4:5 que se va a generar (sin esto el modelo encadenaria sobre un 9:16).
+  if (strictSafe && prevTurn) {
+    prevTurn.imageBuffer = await centralSafeCrop(prevTurn.imageBuffer);
+  }
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
   // Foto-realismo humano SOLO en el panel fresco (no encadenado): la rama encadenada
   // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
@@ -335,8 +368,7 @@ export async function generatePanelAction(
   const panelPromptBody = prevTurn
     ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
-  // Zona segura estricta: refuerza el prompt con la clausula fuerte de 4:5 (9:16 nativo).
-  const panelPrompt = strictSafe ? `${panelPromptBody}${SAFE_ZONE_STRONG_CLAUSE}` : panelPromptBody;
+  const panelPrompt = panelPromptBody;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -345,7 +377,7 @@ export async function generatePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: Boolean(prevTurn), passes: 1 },
+    params: { conversational: Boolean(prevTurn), passes: strictSafe ? 2 : 1 },
   });
   const cost = breakdown.total;
 
@@ -437,8 +469,11 @@ export async function generatePanelAction(
       chatReferences,
     });
 
-    // 9:16 nativo: la zona segura se busca por prompt (clausula fuerte), no por extension.
-    const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
+    // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
+    // estricto: el 9:16 nativo se usa tal cual.
+    const finalImage = strictSafe
+      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType }, item.scene_prompt)
+      : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(
@@ -635,8 +670,8 @@ export async function refinePanelAction(
     Boolean(guidelines?.safeAreaExtend) &&
     guidelines?.safeCrop === '4:5' &&
     (item.aspect_ratio ?? '9:16') === '9:16';
-  const refineDirCtx = dirCtx;
-  const genAspect = item.aspect_ratio ?? '9:16';
+  const refineDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(dirCtx.guidelines) } : dirCtx;
+  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
 
   const compiled = compilePanelEdit(instruction, item.aspect_ratio, dirCtx, NANO_MODEL_SLUG);
   if (!compiled.ok) {
@@ -651,7 +686,7 @@ export async function refinePanelAction(
   // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
-  }) + (strictSafe ? SAFE_ZONE_STRONG_CLAUSE : '');
+  });
 
   // Precio Nano Banana Pro conversacional
   const pricing = await loadPricing();
@@ -659,7 +694,7 @@ export async function refinePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: true, passes: 1 },
+    params: { conversational: true, passes: strictSafe ? 2 : 1 },
   });
   const cost = breakdown.total;
 
@@ -750,6 +785,12 @@ export async function refinePanelAction(
       }
     }
 
+    // Estricto: el panel previo se guardo como 9:16; se recorta a su 4:5 central para
+    // que el turno conversacional del refinado arranque desde la misma base 4:5.
+    if (strictSafe && previousTurn) {
+      previousTurn.imageBuffer = await centralSafeCrop(previousTurn.imageBuffer);
+    }
+
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: refinePrompt,
@@ -763,8 +804,11 @@ export async function refinePanelAction(
       noBackground: false,
     });
 
-    // 9:16 nativo: la zona segura se busca por prompt (clausula fuerte), no por extension.
-    const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
+    // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
+    // estricto: el 9:16 nativo se usa tal cual.
+    const finalImage = strictSafe
+      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType }, item.scene_prompt)
+      : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(
