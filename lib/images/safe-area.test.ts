@@ -25,4 +25,14 @@ describe('centralSafeCrop', () => {
     expect(meta.width).toBe(360);
     expect(meta.height).toBe(450);
   });
+
+  it('un 4:5 (360x450) se devuelve sin recortar (no-op, sin throw)', async () => {
+    const panel = await sharp({
+      create: { width: 360, height: 450, channels: 3, background: { r: 5, g: 5, b: 5 } },
+    }).jpeg().toBuffer();
+    const out = await centralSafeCrop(panel);
+    const meta = await sharp(out).metadata();
+    expect(meta.width).toBe(360);
+    expect(meta.height).toBe(450);
+  });
 });

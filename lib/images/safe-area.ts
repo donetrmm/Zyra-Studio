@@ -17,6 +17,8 @@ export async function centralSafeCrop(panel916: Buffer): Promise<Buffer> {
   const width = meta.width ?? 0;
   if (!width) throw new Error('centralSafeCrop: ancho desconocido');
   const baseHeight = Math.round((width * 5) / 4);
+  const height = meta.height ?? 0;
+  if (height <= baseHeight) return panel916;
   const { bandPx } = safeAreaBands(width);
   return sharp(panel916)
     .extract({ left: 0, top: bandPx, width, height: baseHeight })

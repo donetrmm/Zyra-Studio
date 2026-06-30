@@ -212,26 +212,24 @@ async function loadPreviousPanelTurn(
 }
 
 // Expande una base 4:5 a 9:16 con FLUX.1 Expand (outpaint con mascara). Agrega
-// bandas reales arriba y abajo preservando el centro 4:5. Ante CUALQUIER fallo
-// (endpoint no disponible, 402, timeout, sin imagen) hace fallback devolviendo la
-// base tal cual: el panel nunca se rompe, el estricto solo "mejora" si el expand
-// esta disponible. El crop a 4:5 sigue siendo exacto porque el centro se preserva.
+// bandas reales arriba y abajo preservando el centro 4:5. NO hace fallback: si el
+// expand cae (endpoint no disponible, 402, timeout, moderado) deja propagar el
+// ProviderError para que la accion falle limpio (refund + retry del usuario) en
+// vez de guardar un 4:5 mal etiquetado como 9:16 (que romperia el crop encadenado).
+// El modo estricto garantiza un 9:16 nitido O falla la generacion.
 async function extendPanelTo916(
   base: { buffer: Buffer; mimeType: string },
   scenePrompt: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
-  try {
-    const meta = await sharp(base.buffer).metadata();
-    const width = meta.width ?? 0;
-    if (!width) return base;
-    const { bandPx } = safeAreaBands(width);
-    const prompt = `Extend this scene naturally above and below to a taller vertical frame, continuing the same background, lighting and colors; do not add or change any subject. Scene: ${scenePrompt.trim()}`;
-    const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
-    return { buffer: result.buffer, mimeType: result.mimeType };
-  } catch (err) {
-    console.error('extendPanelTo916 fallback a 9:16 nativo:', err instanceof Error ? err.message : err);
-    return base;
+  const meta = await sharp(base.buffer).metadata();
+  const width = meta.width ?? 0;
+  if (!width) {
+    throw new ProviderError('zona segura: no se pudo leer el ancho de la base', 'invalid_input', false);
   }
+  const { bandPx } = safeAreaBands(width);
+  const prompt = `Extend this scene naturally above and below to a taller vertical frame, continuing the same background, lighting and colors; do not add or change any subject. Scene: ${scenePrompt.trim()}`;
+  const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
+  return { buffer: result.buffer, mimeType: result.mimeType };
 }
 
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
