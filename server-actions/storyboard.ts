@@ -28,9 +28,10 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_AREA_EXTEND_PROMPT } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
-import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
+import { composeOnto916, centralSafeCrop, pinCenter } from '@/lib/images/safe-area';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -63,6 +64,28 @@ async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
     .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 80, mozjpeg: true })
     .toBuffer();
+}
+
+// Extiende una base 4:5 a un 9:16 completo: compone la base centrada con bandas negras,
+// pide a Nano que rellene SOLO las bandas (single-turn edit), y fija el centro a la base
+// original (pinCenter) para garantizar cero drift en producto/caras. Devuelve el 9:16
+// final (png). Lo usan generatePanelAction y refinePanelAction en modo estricto.
+async function extendPanelTo916(base: Buffer, baseMime: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  void baseMime; // aceptado por simetria de firma con Task 6; el flujo normaliza a png
+  const canvas = await composeOnto916(base);
+  const ext = await generateNanoBanana({
+    model: NANO_MODEL_SLUG,
+    prompt: SAFE_AREA_EXTEND_PROMPT,
+    aspectRatio: '9:16',
+    resolution: nanoVariantToResolution(NANO_VARIANT),
+    references: [],
+    previousTurn: { prompt: '', imageBuffer: canvas, mimeType: 'image/png', thoughtSignature: undefined },
+    conversational: false,
+    useGrounding: false,
+    hasTextInImage: false,
+  });
+  const pinned = await pinCenter(ext.buffer, base);
+  return { buffer: pinned, mimeType: 'image/png' };
 }
 
 function inferExtension(mime: string): string {
@@ -257,6 +280,17 @@ export async function generatePanelAction(
 
   const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
 
+  // Modo estricto de zona segura: genera la base en 4:5 (garantia geometrica) y luego
+  // extiende a 9:16. Solo cuando el flag esta on, hay safeCrop 4:5 y el aspecto es 9:16.
+  const guidelines = dirCtx.guidelines;
+  const strictSafe =
+    Boolean(guidelines?.safeAreaExtend) &&
+    guidelines?.safeCrop === '4:5' &&
+    (item.aspect_ratio ?? '9:16') === '9:16';
+  // En la base 4:5 el frame ya ES la zona segura: se quita la clausula de safeCrop.
+  const baseDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(guidelines) } : dirCtx;
+  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
+
   const beat = {
     id: item.id,
     scene_prompt: item.scene_prompt,
@@ -264,7 +298,7 @@ export async function generatePanelAction(
     storyboard_image_id: item.storyboard_image_id,
   };
 
-  const compiled = compilePanel(beat, dirCtx, FLUX_MODEL_SLUG, { isOpeningBeat: (item.scene_index ?? 0) === 0 });
+  const compiled = compilePanel(beat, baseDirCtx, FLUX_MODEL_SLUG, { isOpeningBeat: (item.scene_index ?? 0) === 0 });
   if (!compiled.ok) {
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
@@ -312,7 +346,7 @@ export async function generatePanelAction(
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
   const panelPrompt = prevTurn
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(dirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
@@ -322,7 +356,7 @@ export async function generatePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: Boolean(prevTurn) },
+    params: { conversational: Boolean(prevTurn), passes: strictSafe ? 2 : 1 },
   });
   const cost = breakdown.total;
 
@@ -397,6 +431,12 @@ export async function generatePanelAction(
     ];
     const chatReferences = chatRefs.length > 0 ? chatRefs : undefined;
 
+    // En estricto, la cadena se mantiene en 4:5: el panel previo guardado es 9:16, se
+    // recorta su 4:5 central para alimentar el turno conversacional de la base.
+    const basePrevTurn = strictSafe && prevTurn
+      ? { ...prevTurn, imageBuffer: await centralSafeCrop(prevTurn.imageBuffer) }
+      : prevTurn;
+
     // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
     // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
     // beat). El primer panel se genera fresco. Producto/personaje/locación van como
@@ -404,30 +444,35 @@ export async function generatePanelAction(
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: panelPrompt,
-      aspectRatio: item.aspect_ratio ?? '9:16',
+      aspectRatio: genAspect,
       resolution: nanoVariantToResolution(NANO_VARIANT),
       references,
-      previousTurn: prevTurn,
+      previousTurn: basePrevTurn,
       conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
       chatReferences,
     });
 
-    const ext = inferExtension(result.mimeType);
+    // Estricto: extender la base 4:5 a un 9:16 completo (bandas por Nano, centro pinned).
+    const finalImage = strictSafe
+      ? await extendPanelTo916(result.buffer, result.mimeType)
+      : { buffer: result.buffer, mimeType: result.mimeType };
+
+    const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(
       workspace.id,
       generationId,
-      result.buffer,
-      result.mimeType,
+      finalImage.buffer,
+      finalImage.mimeType,
       ext,
     );
-    const thumbBuffer = await makeThumbnail(result.buffer);
+    const thumbBuffer = await makeThumbnail(finalImage.buffer);
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
-    // Guardar el thought_signature: permite que el PRIMER refinado encadene el turno
-    // conversacional desde este panel generado (preserva composición al editar).
+    // thought_signature del turno BASE (4:5): el proximo panel encadenado recorta el
+    // 9:16 guardado a 4:5 y reanuda la cadena desde aqui.
     const providerPayload: Record<string, unknown> = {};
     if (result.thoughtSignature) providerPayload.thought_signature = result.thoughtSignature;
 
@@ -438,7 +483,7 @@ export async function generatePanelAction(
       outputUrl: outputPath,
       thumbnailUrl: thumbPath,
       processingMs,
-      fileSizeBytes: result.buffer.byteLength,
+      fileSizeBytes: finalImage.buffer.byteLength,
       providerPayload: Object.keys(providerPayload).length > 0 ? providerPayload : null,
     });
 
