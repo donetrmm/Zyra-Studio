@@ -8,6 +8,7 @@ export const CreativeGuidelinesSchema = z.object({
   showFullProduct: z.boolean().optional(),
   hookProductHero: z.boolean().optional(),
   safeCrop: z.union([z.literal('4:5'), z.null()]).optional(),
+  safeAreaExtend: z.boolean().optional(),
 });
 export type CreativeGuidelines = z.infer<typeof CreativeGuidelinesSchema>;
 
@@ -55,4 +56,15 @@ export function creativeGuidelineClauses(
       ' Crop-safe framing: keep all key elements (the product and any faces) within the central 4:5 area of the vertical frame; place nothing essential in the extreme top or bottom, so the shot can be cropped to 4:5 without losing key content.';
   }
   return out;
+}
+
+// Guidelines para la BASE 4:5 del modo estricto: el frame ya ES la zona segura, asi
+// que se neutraliza safeCrop (no emitir "mantener dentro del 4:5 central" en un 4:5) y
+// safeAreaExtend; se conservan showFullProduct/hookProductHero (ahora el producto
+// completo cabe). Devuelve undefined si la entrada es undefined.
+export function guidelinesForSafeBase(
+  guidelines: CreativeGuidelines | undefined,
+): CreativeGuidelines | undefined {
+  if (!guidelines) return guidelines;
+  return { ...guidelines, safeCrop: null, safeAreaExtend: false };
 }
