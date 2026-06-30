@@ -131,10 +131,13 @@ describe('compilePanelEdit', () => {
 });
 
 describe('SAFE_AREA_EXTEND_PROMPT', () => {
-  it('pide rellenar solo las bandas y preservar el centro, sin sujetos nuevos', () => {
-    expect(SAFE_AREA_EXTEND_PROMPT).toContain('keep the central area exactly unchanged');
+  it('continua el sujeto en las bandas (no rebana) y preserva el centro, sin introducir producto/sujetos nuevos', () => {
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('central area exactly unchanged');
     expect(SAFE_AREA_EXTEND_PROMPT).toContain('top and bottom bands');
-    expect(SAFE_AREA_EXTEND_PROMPT).toContain('do not place the product');
+    // Continua lo que llega al borde (no rebana al sujeto).
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('so nothing looks sliced or cut off');
+    // Pero NO introduce el producto ni sujetos/texto nuevos en las bandas.
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('Do not introduce the product');
     // ASCII puro.
     expect(/^[\x00-\x7F]*$/.test(SAFE_AREA_EXTEND_PROMPT)).toBe(true);
   });

@@ -114,11 +114,13 @@ export function compileRefinePrompt(
 }
 
 // Instruccion para extender la base 4:5 a 9:16: Nano recibe la base centrada en un
-// lienzo 9:16 con bandas negras y rellena SOLO esas bandas continuando el fondo, sin
-// sujetos. El centro NO se re-pega: sale de la misma generacion, por eso se exige
-// mantenerlo identico y nitido (asi la continuacion empata sin costura). ASCII.
+// lienzo 9:16 con bandas negras y rellena esas bandas continuando la escena, incluido
+// el cuerpo del sujeto que llega al borde (para NO rebanarlo); solo prohibe INTRODUCIR
+// el producto, personas nuevas o texto en las bandas, asi el producto sigue completo
+// dentro del 4:5 (zona segura). El centro NO se re-pega: sale de la misma generacion,
+// por eso se exige mantenerlo identico y nitido (continuacion sin costura). ASCII.
 export const SAFE_AREA_EXTEND_PROMPT =
-  'Continue the existing scene, background, lighting and perspective naturally into the empty top and bottom bands; keep the central area exactly unchanged and pixel-sharp - do not redraw, move, resize, recolor or soften it; do not place the product, any person, any text or any new object in the top and bottom bands - they are pure background extension only.';
+  'Continue the existing scene naturally into the empty top and bottom bands, extending any person, clothing, hair, limbs or background that already reaches the edge so nothing looks sliced or cut off; match the background, lighting and perspective seamlessly. Keep the central area exactly unchanged and pixel-sharp - do not redraw, move, resize, recolor or soften it. Do not introduce the product, a new person, any text or any new object into the top and bottom bands; only continue what is already present at the edges.';
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.
