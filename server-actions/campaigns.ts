@@ -157,7 +157,7 @@ const SetProductDimensionsSchema = z.object({
   id: z.string().uuid(),
   heightCm: z.number().positive().max(2000).nullable().optional(),
   widthCm: z.number().positive().max(2000).nullable().optional(),
-  medium: z.string().max(120).optional(),
+  medium: z.string().max(120).nullable().optional(),
   thicknessMm: z.number().positive().max(500).nullable().optional(),
 });
 
@@ -189,9 +189,8 @@ export async function setProductDimensionsAction(
     else next.widthCm = parsed.data.widthCm;
   }
   if (parsed.data.medium !== undefined) {
-    const m = parsed.data.medium.trim();
-    if (!m) delete next.medium;
-    else next.medium = m;
+    if (parsed.data.medium === null || parsed.data.medium.trim() === '') delete next.medium;
+    else next.medium = parsed.data.medium.trim();
   }
   if (parsed.data.thicknessMm !== undefined) {
     if (parsed.data.thicknessMm === null) delete next.thicknessMm;
