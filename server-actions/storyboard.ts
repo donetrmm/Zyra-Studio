@@ -225,7 +225,6 @@ async function loadPreviousPanelTurn(
 // El modo estricto garantiza un 9:16 nitido O falla la generacion.
 async function extendPanelTo916(
   base: { buffer: Buffer; mimeType: string },
-  scenePrompt: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const meta = await sharp(base.buffer).metadata();
   const width = meta.width ?? 0;
@@ -233,7 +232,13 @@ async function extendPanelTo916(
     throw new ProviderError('zona segura: no se pudo leer el ancho de la base', 'invalid_input', false);
   }
   const { bandPx } = safeAreaBands(width);
-  const prompt = `Extend this scene naturally above and below to a taller vertical frame, continuing the same background, lighting and colors; do not add or change any subject. Scene: ${scenePrompt.trim()}`;
+  // Prompt NEUTRO a proposito: el expand continua el fondo que ya ve en la imagen, no
+  // necesita la descripcion del beat. Omitir el scene_prompt del usuario reduce la
+  // superficie de moderacion de BFL (que disparaba "FLUX expand moderado") y evita que
+  // el modelo invente un sujeto en las bandas (uno de los fallos viejos). Solo extiende
+  // el entorno vacio; el sujeto/producto del centro 4:5 ya esta y se preserva.
+  const prompt =
+    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings.';
   const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
   return { buffer: result.buffer, mimeType: result.mimeType };
 }
@@ -476,7 +481,7 @@ export async function generatePanelAction(
     // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
     // estricto: el 9:16 nativo se usa tal cual.
     const finalImage = strictSafe
-      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType }, item.scene_prompt)
+      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType })
       : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
@@ -824,7 +829,7 @@ export async function refinePanelAction(
     // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
     // estricto: el 9:16 nativo se usa tal cual.
     const finalImage = strictSafe
-      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType }, item.scene_prompt)
+      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType })
       : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
