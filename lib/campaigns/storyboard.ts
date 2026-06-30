@@ -121,6 +121,13 @@ export function compileRefinePrompt(
 export const SAFE_AREA_EXTEND_PROMPT =
   'Extend this image upward and downward to fill the full vertical 9:16 frame, continuing the scene naturally into the top and bottom so there are no black bars and nothing is cut off; keep the existing center unchanged.';
 
+// Clausula para el modo de zona segura por GUIA (sin extension): se adjunta una imagen-guia
+// (9:16 negro con un rectangulo verde en el 4:5 central). Indica que el producto y la mayor
+// parte del personaje van dentro del verde, y que el verde es SOLO guia de layout (no se
+// dibuja). Empieza con espacio (se concatena al prompt del panel). ASCII.
+export const SAFE_ZONE_GUIDE_CLAUSE =
+  ' An extra layout guide image is attached: a plain green rectangle on a black background marks the SAFE ZONE. Compose the shot so the entire product and most of the main person fall inside that green rectangle area, leaving the outer top and bottom margins for background only. The green rectangle is ONLY a layout guide - never draw it, its green tint, any rectangle, lines or text in the final image; render a normal photographic scene.';
+
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.
 export function compilePanelEdit(

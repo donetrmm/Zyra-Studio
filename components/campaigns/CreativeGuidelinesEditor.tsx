@@ -65,10 +65,10 @@ export function CreativeGuidelinesEditor({
           <label className="flex flex-col gap-1 text-xs text-zinc-300">
             <span className="flex items-center gap-2">
               <Switch checked={safeAreaExtend} onCheckedChange={setSafeAreaExtend} />
-              Zona segura estricta (9:16 + recorte 4:5 garantizado)
+              Zona segura (guía 9:16: producto y personaje dentro del 4:5)
             </span>
-            <span className="pl-10 text-[11px] leading-relaxed text-amber-400/90">
-              Genera cada panel dos veces (base 4:5 + extensión a 9:16): ~2x créditos por panel (un poco más en tomas encadenadas).
+            <span className="pl-10 text-[11px] leading-relaxed text-zinc-400">
+              Adjunta una guía de zona segura al generar para que el producto y la mayor parte del personaje queden dentro del 4:5 central. Sin costo extra.
             </span>
           </label>
         )}

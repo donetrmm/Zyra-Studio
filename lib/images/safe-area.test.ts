@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
-import { safeAreaBands, composeOnto916, centralSafeCrop } from './safe-area';
+import { safeAreaBands, composeOnto916, centralSafeCrop, safeZoneGuide } from './safe-area';
 
 async function solid(width: number, height: number, rgb: [number, number, number]): Promise<Buffer> {
   return sharp({
@@ -44,5 +44,16 @@ describe('centralSafeCrop', () => {
     expect(await dims(back)).toEqual({ w: 360, h: 450 });
     expect(await pixel(back, 180, 225)).toEqual([30, 160, 60]);
     expect(await pixel(back, 5, 5)).toEqual([30, 160, 60]);
+  });
+});
+
+describe('safeZoneGuide', () => {
+  it('genera un 9:16 negro con un rectangulo verde en el 4:5 central', async () => {
+    // 720 -> canvas 1280, base 900, banda 190; verde de y=190 a y=1090.
+    const out = await safeZoneGuide(720);
+    expect(await dims(out)).toEqual({ w: 720, h: 1280 });
+    expect(await pixel(out, 360, 640)).toEqual([22, 130, 70]); // centro = verde
+    expect(await pixel(out, 360, 50)).toEqual([10, 10, 10]); // banda superior negra
+    expect(await pixel(out, 360, 1230)).toEqual([10, 10, 10]); // banda inferior negra
   });
 });

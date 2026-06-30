@@ -42,3 +42,23 @@ export async function centralSafeCrop(panel916: Buffer): Promise<Buffer> {
   const h = Math.min(cropH, height - top);
   return sharp(panel916).extract({ left: 0, top, width, height: h }).png().toBuffer();
 }
+
+// Guia de composicion para la zona segura: un 9:16 negro con un rectangulo verde solido
+// en el 4:5 central. Se pasa como referencia para que el modelo coloque el producto y la
+// mayor parte del personaje dentro del verde. Es SOLO guia: el prompt pide no dibujarla.
+// Limpia (sin texto ni lineas) para minimizar que el modelo la reproduzca en el render.
+export async function safeZoneGuide(width = 720): Promise<Buffer> {
+  const { bandPx, canvasHeight } = safeAreaBands(width);
+  const baseHeight = canvasHeight - bandPx * 2;
+  const green = await sharp({
+    create: { width, height: baseHeight, channels: 3, background: { r: 22, g: 130, b: 70 } },
+  })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: { width, height: canvasHeight, channels: 3, background: { r: 10, g: 10, b: 10 } },
+  })
+    .composite([{ input: green, left: 0, top: bandPx }])
+    .png()
+    .toBuffer();
+}

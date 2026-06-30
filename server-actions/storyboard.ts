@@ -28,10 +28,10 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_AREA_EXTEND_PROMPT } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_ZONE_GUIDE_CLAUSE } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
-import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
-import { composeOnto916, centralSafeCrop } from '@/lib/images/safe-area';
+import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { safeZoneGuide } from '@/lib/images/safe-area';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -66,27 +66,12 @@ async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-// Extiende una base 4:5 a un 9:16 completo: compone la base centrada con bandas negras y
-// pide a Nano que rellene SOLO las bandas (single-turn edit). El centro y las bandas salen
-// de la MISMA generacion de Gemini, por eso la continuacion es nitida y coherente; NO se
-// re-pega la base. El pin rompia la costura: las bandas eran coherentes con el centro de
-// Gemini y al swapear la base por encima se veia raya dura y otro fondo arriba/abajo. El
-// centro se preserva por prompt (no pixel-exacto). Lo usan generatePanelAction y
-// refinePanelAction en modo estricto.
-async function extendPanelTo916(base: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
-  const canvas = await composeOnto916(base);
-  const ext = await generateNanoBanana({
-    model: NANO_MODEL_SLUG,
-    prompt: SAFE_AREA_EXTEND_PROMPT,
-    aspectRatio: '9:16',
-    resolution: nanoVariantToResolution(NANO_VARIANT),
-    references: [],
-    previousTurn: { prompt: '', imageBuffer: canvas, mimeType: 'image/png', thoughtSignature: undefined },
-    conversational: false,
-    useGrounding: false,
-    hasTextInImage: false,
-  });
-  return { buffer: ext.buffer, mimeType: ext.mimeType };
+// Modo de zona segura por GUIA (sin extension): una imagen-guia (9:16 con un rectangulo verde
+// en el 4:5 central) se pasa como referencia y el prompt (SAFE_ZONE_GUIDE_CLAUSE) pide colocar
+// el producto + la mayor parte del personaje dentro del verde, sin dibujar el verde. El panel
+// se genera nativo en 9:16. Helper para construir la referencia-guia una sola vez.
+async function safeZoneGuideRef(): Promise<ImageReference> {
+  return { buffer: await safeZoneGuide(), mimeType: 'image/png' };
 }
 
 function inferExtension(mime: string): string {
@@ -288,9 +273,10 @@ export async function generatePanelAction(
     Boolean(guidelines?.safeAreaExtend) &&
     guidelines?.safeCrop === '4:5' &&
     (item.aspect_ratio ?? '9:16') === '9:16';
-  // En la base 4:5 el frame ya ES la zona segura: se quita la clausula de safeCrop.
-  const baseDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(guidelines) } : dirCtx;
-  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
+  // Modo guia: se genera NATIVO en 9:16 con todas las guidelines (incl. safeCrop como texto)
+  // y se adjunta la imagen-guia de zona segura como referencia. Sin extension.
+  const baseDirCtx = dirCtx;
+  const genAspect = item.aspect_ratio ?? '9:16';
 
   const beat = {
     id: item.id,
@@ -346,9 +332,11 @@ export async function generatePanelAction(
   const characterRefPointer = characterRefInChat
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
-  const panelPrompt = prevTurn
+  const panelPromptBody = prevTurn
     ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
+  // Modo guia: adjunta la clausula de la guia de zona segura al final del prompt.
+  const panelPrompt = strictSafe ? `${panelPromptBody}${SAFE_ZONE_GUIDE_CLAUSE}` : panelPromptBody;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -357,7 +345,7 @@ export async function generatePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: Boolean(prevTurn), passes: strictSafe ? 2 : 1 },
+    params: { conversational: Boolean(prevTurn), passes: 1 },
   });
   const cost = breakdown.total;
 
@@ -432,11 +420,11 @@ export async function generatePanelAction(
     ];
     const chatReferences = chatRefs.length > 0 ? chatRefs : undefined;
 
-    // En estricto, la cadena se mantiene en 4:5: el panel previo guardado es 9:16, se
-    // recorta su 4:5 central para alimentar el turno conversacional de la base.
-    const basePrevTurn = strictSafe && prevTurn
-      ? { ...prevTurn, imageBuffer: await centralSafeCrop(prevTurn.imageBuffer) }
-      : prevTurn;
+    // Modo guia: la imagen-guia de zona segura viaja como una referencia mas (fresh) y
+    // tambien como chatReference (en chat el provider descarta `references`). Off salvo strict.
+    const guideRef = strictSafe ? await safeZoneGuideRef() : null;
+    const referencesAll = guideRef ? [...references, guideRef] : references;
+    const chatReferencesAll = guideRef ? [...(chatReferences ?? []), guideRef] : chatReferences;
 
     // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
     // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
@@ -447,18 +435,16 @@ export async function generatePanelAction(
       prompt: panelPrompt,
       aspectRatio: genAspect,
       resolution: nanoVariantToResolution(NANO_VARIANT),
-      references,
-      previousTurn: basePrevTurn,
+      references: referencesAll,
+      previousTurn: prevTurn,
       conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
-      chatReferences,
+      chatReferences: chatReferencesAll,
     });
 
-    // Estricto: extender la base 4:5 a un 9:16 completo (bandas por Nano, centro pinned).
-    const finalImage = strictSafe
-      ? await extendPanelTo916(result.buffer)
-      : { buffer: result.buffer, mimeType: result.mimeType };
+    // Sin extension: el panel se genera nativo en 9:16; la guia acota la composicion.
+    const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(
@@ -655,8 +641,8 @@ export async function refinePanelAction(
     Boolean(guidelines?.safeAreaExtend) &&
     guidelines?.safeCrop === '4:5' &&
     (item.aspect_ratio ?? '9:16') === '9:16';
-  const refineDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(guidelines) } : dirCtx;
-  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
+  const refineDirCtx = dirCtx;
+  const genAspect = item.aspect_ratio ?? '9:16';
 
   const compiled = compilePanelEdit(instruction, item.aspect_ratio, dirCtx, NANO_MODEL_SLUG);
   if (!compiled.ok) {
@@ -671,7 +657,7 @@ export async function refinePanelAction(
   // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
-  });
+  }) + (strictSafe ? SAFE_ZONE_GUIDE_CLAUSE : '');
 
   // Precio Nano Banana Pro conversacional
   const pricing = await loadPricing();
@@ -679,7 +665,7 @@ export async function refinePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: true, passes: strictSafe ? 2 : 1 },
+    params: { conversational: true, passes: 1 },
   });
   const cost = breakdown.total;
 
@@ -770,9 +756,9 @@ export async function refinePanelAction(
       }
     }
 
-    if (strictSafe && previousTurn) {
-      previousTurn = { ...previousTurn, imageBuffer: await centralSafeCrop(previousTurn.imageBuffer) };
-    }
+    // Modo guia: la imagen-guia de zona segura va como chatReference (refinar entra en chat
+    // real y el provider descarta `references`). Off salvo strict.
+    const guideRef = strictSafe ? await safeZoneGuideRef() : null;
 
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
@@ -785,11 +771,11 @@ export async function refinePanelAction(
       conversational: true,
       hasTextInImage: false,
       noBackground: false,
+      chatReferences: guideRef ? [guideRef] : undefined,
     });
 
-    const finalImage = strictSafe
-      ? await extendPanelTo916(result.buffer)
-      : { buffer: result.buffer, mimeType: result.mimeType };
+    // Sin extension: el refinado se genera nativo en 9:16; la guia acota la composicion.
+    const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(

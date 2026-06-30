@@ -9,6 +9,7 @@ import {
   humanRealismDirective,
   isStylized,
   SAFE_AREA_EXTEND_PROMPT,
+  SAFE_ZONE_GUIDE_CLAUSE,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -139,6 +140,15 @@ describe('SAFE_AREA_EXTEND_PROMPT', () => {
     expect(SAFE_AREA_EXTEND_PROMPT).toContain('keep the existing center unchanged');
     // ASCII puro.
     expect(/^[\x00-\x7F]*$/.test(SAFE_AREA_EXTEND_PROMPT)).toBe(true);
+  });
+});
+
+describe('SAFE_ZONE_GUIDE_CLAUSE', () => {
+  it('describe la guia verde como solo-layout, prohibe dibujarla; empieza con espacio; ASCII', () => {
+    expect(SAFE_ZONE_GUIDE_CLAUSE).toContain('SAFE ZONE');
+    expect(SAFE_ZONE_GUIDE_CLAUSE).toContain('never draw it');
+    expect(SAFE_ZONE_GUIDE_CLAUSE.startsWith(' ')).toBe(true);
+    expect(/^[\x00-\x7F]*$/.test(SAFE_ZONE_GUIDE_CLAUSE)).toBe(true);
   });
 });
 
