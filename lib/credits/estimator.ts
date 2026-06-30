@@ -77,7 +77,7 @@ export function estimateCredits(
     if (input.params?.conversational) multipliers.push({ label: 'Edición conversacional', factor: 1.5 });
     if (input.params?.useGrounding) multipliers.push({ label: 'Grounding', factor: 1.2 });
     const passes = input.params?.passes ?? 1;
-    if (passes > 1) multipliers.push({ label: `Zona segura (${passes} pasadas)`, factor: passes });
+    if (passes > 1) bonuses.push({ label: `Zona segura (${passes - 1} pasada extra)`, amount: (passes - 1) * base });
   }
 
   if (input.provider === 'flux') {

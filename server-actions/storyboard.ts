@@ -70,8 +70,7 @@ async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
 // pide a Nano que rellene SOLO las bandas (single-turn edit), y fija el centro a la base
 // original (pinCenter) para garantizar cero drift en producto/caras. Devuelve el 9:16
 // final (png). Lo usan generatePanelAction y refinePanelAction en modo estricto.
-async function extendPanelTo916(base: Buffer, baseMime: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  void baseMime; // aceptado por simetria de firma con Task 6; el flujo normaliza a png
+async function extendPanelTo916(base: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
   const canvas = await composeOnto916(base);
   const ext = await generateNanoBanana({
     model: NANO_MODEL_SLUG,
@@ -456,7 +455,7 @@ export async function generatePanelAction(
 
     // Estricto: extender la base 4:5 a un 9:16 completo (bandas por Nano, centro pinned).
     const finalImage = strictSafe
-      ? await extendPanelTo916(result.buffer, result.mimeType)
+      ? await extendPanelTo916(result.buffer)
       : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
@@ -787,7 +786,7 @@ export async function refinePanelAction(
     });
 
     const finalImage = strictSafe
-      ? await extendPanelTo916(result.buffer, result.mimeType)
+      ? await extendPanelTo916(result.buffer)
       : { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);

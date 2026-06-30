@@ -68,7 +68,7 @@ export function CreativeGuidelinesEditor({
               Zona segura estricta (9:16 + recorte 4:5 garantizado)
             </span>
             <span className="pl-10 text-[11px] leading-relaxed text-amber-400/90">
-              Genera cada panel dos veces (base 4:5 + extensión a 9:16): ~2x créditos por panel.
+              Genera cada panel dos veces (base 4:5 + extensión a 9:16): ~2x créditos por panel (un poco más en tomas encadenadas).
             </span>
           </label>
         )}

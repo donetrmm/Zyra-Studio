@@ -46,12 +46,16 @@ export async function centralSafeCrop(panel916: Buffer): Promise<Buffer> {
 // Pega la base 4:5 original sobre el centro del 9:16 extendido: el centro final es
 // pixel-identico a la base (cero drift); solo las bandas vienen del modelo. Robusto a
 // que el extendido tenga un ancho distinto (se reescala la base a ese ancho).
+// Nota: pinCenter asume un `extended916` de relacion 9:16 (bandPx se deriva del ancho).
 export async function pinCenter(extended916: Buffer, base4x5: Buffer): Promise<Buffer> {
   const meta = await sharp(extended916).metadata();
   const width = meta.width;
   if (!width) throw new Error('safe-area: extendido sin ancho');
   const { bandPx } = safeAreaBands(width);
   const baseHeight = Math.round(width * RATIO_4x5);
-  const resizedBase = await sharp(base4x5).resize(width, baseHeight, { fit: 'fill' }).png().toBuffer();
+  const baseMeta = await sharp(base4x5).metadata();
+  const resizedBase = (baseMeta.width !== width || baseMeta.height !== baseHeight)
+    ? await sharp(base4x5).resize(width, baseHeight, { fit: 'fill' }).png().toBuffer()
+    : base4x5;
   return sharp(extended916).composite([{ input: resizedBase, left: 0, top: bandPx }]).png().toBuffer();
 }

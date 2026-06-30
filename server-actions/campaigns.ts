@@ -244,7 +244,10 @@ export async function setCreativeGuidelinesAction(
     if (parsed.data.safeCrop === null) delete next.safeCrop;
     else next.safeCrop = parsed.data.safeCrop;
   }
-  if (parsed.data.safeAreaExtend !== undefined) next.safeAreaExtend = parsed.data.safeAreaExtend;
+  if (parsed.data.safeAreaExtend !== undefined) {
+    if (parsed.data.safeAreaExtend) next.safeAreaExtend = true;
+    else delete next.safeAreaExtend;
+  }
 
   const { error } = await supabase
     .from('campaigns')
