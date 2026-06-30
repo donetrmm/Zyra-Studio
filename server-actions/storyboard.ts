@@ -10,6 +10,7 @@ import {
   downloadOutputBuffer,
   downloadReferenceBuffer,
   uploadOutput,
+  uploadSafeBase,
   uploadThumbnail,
   promoteOutputToReference,
 } from '@/lib/supabase/storage';
@@ -193,13 +194,18 @@ async function loadPreviousPanelTurn(
         workspace_id: string;
         status: string;
         prompt: string | null;
-        provider_payload: { thought_signature?: string } | null;
+        provider_payload: { thought_signature?: string; safe_base_path?: string } | null;
         model_id: string;
       }
     | null;
   if (!g || g.workspace_id !== workspaceId || !g.output_url || g.status !== 'done') return null;
   try {
-    const { buffer, mimeType } = await downloadOutputBuffer(g.output_url);
+    // Estricto: el thought_signature guardado corresponde a la BASE 4:5 de Nano, no al
+    // 9:16 final de FLUX. Si existe safe_base_path, se encadena desde ESA imagen (calza
+    // con la firma del chat de Gemini); si no (no-estricto o generaciones viejas), se usa
+    // el output (que en no-estricto ya es la salida de Nano que calza con su firma).
+    const chainPath = g.provider_payload?.safe_base_path ?? g.output_url;
+    const { buffer, mimeType } = await downloadOutputBuffer(chainPath);
     return {
       prompt: g.prompt ?? '',
       imageBuffer: buffer,
@@ -485,10 +491,23 @@ export async function generatePanelAction(
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
-    // thought_signature del turno BASE (4:5): el proximo panel encadenado recorta el
-    // 9:16 guardado a 4:5 y reanuda la cadena desde aqui.
+    // thought_signature del turno BASE (4:5). En estricto, ese sig corresponde a la base
+    // 4:5 de Nano (result.buffer), NO al 9:16 final de FLUX que se guarda como output; por
+    // eso la base 4:5 se sube aparte (safe_base_path) y el proximo beat encadenado replaya
+    // ESA imagen (calza con el sig) en vez del 9:16, evitando que Gemini reinterprete el
+    // producto por mismatch imagen/firma.
     const providerPayload: Record<string, unknown> = {};
     if (result.thoughtSignature) providerPayload.thought_signature = result.thoughtSignature;
+    if (strictSafe) {
+      const baseExt = inferExtension(result.mimeType);
+      providerPayload.safe_base_path = await uploadSafeBase(
+        workspace.id,
+        generationId,
+        result.buffer,
+        result.mimeType,
+        baseExt,
+      );
+    }
 
     await completeGeneration({
       userId: user.id,
@@ -820,9 +839,21 @@ export async function refinePanelAction(
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
+    // Estricto: igual que en generar, el sig corresponde a la base 4:5 de Nano; se sube
+    // aparte para que el encadenado replaye la imagen que calza con la firma.
     const providerPayload: Record<string, unknown> = {};
     if (result.thoughtSignature) {
       providerPayload.thought_signature = result.thoughtSignature;
+    }
+    if (strictSafe) {
+      const baseExt = inferExtension(result.mimeType);
+      providerPayload.safe_base_path = await uploadSafeBase(
+        workspace.id,
+        generationId,
+        result.buffer,
+        result.mimeType,
+        baseExt,
+      );
     }
 
     await completeGeneration({
