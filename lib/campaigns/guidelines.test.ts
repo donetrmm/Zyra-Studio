@@ -33,4 +33,38 @@ describe('creativeGuidelineClauses', () => {
     const out = creativeGuidelineClauses({ showFullProduct: true, hookProductHero: true, safeCrop: '4:5' }, { isOpeningBeat: true });
     expect(/^[\x00-\x7F]*$/.test(out)).toBe(true);
   });
+
+  // Reconciliacion: safeCrop + completar-producto se pelean si se emiten por
+  // separado ("grande" llena el 9:16 mientras "central 4:5" lo encoge). Cuando ambos
+  // estan activos, UNA sola clausula ata "completo" al safe area y acota "grande".
+  it('safeCrop + showFullProduct: clausula reconciliada, no las dos que compiten', () => {
+    const out = creativeGuidelineClauses({ showFullProduct: true, safeCrop: '4:5' });
+    // Marcador de la clausula reconciliada: "completo" atado al 4:5.
+    expect(out).toContain('all four of its edges inside that 4:5 area');
+    expect(out).toContain('central 4:5 area');
+    // Ya NO emite las dos clausulas separadas que se peleaban.
+    expect(out).not.toContain('frame it complete and unobstructed');
+    expect(out).not.toContain('Crop-safe framing:');
+  });
+
+  it('safeCrop + hookProductHero (apertura): reconciliada + enfasis de hook, sin "large" suelto', () => {
+    const out = creativeGuidelineClauses({ hookProductHero: true, safeCrop: '4:5' }, { isOpeningBeat: true });
+    expect(out).toContain('opening hook');
+    expect(out).toContain('all four of its edges inside that 4:5 area');
+    // El "shown large and complete" original empujaba a llenar el 9:16 -> fuera.
+    expect(out).not.toContain('shown large and complete');
+  });
+
+  it('safeCrop + hookProductHero pero NO apertura: reconcilia por nada (hook off) -> solo safe area', () => {
+    const out = creativeGuidelineClauses({ hookProductHero: true, safeCrop: '4:5' }, { isOpeningBeat: false });
+    // hook no aplica y no hay showFullProduct -> no reconcilia: cae al safe-crop generico.
+    expect(out).toContain('Crop-safe framing:');
+    expect(out).not.toContain('opening hook');
+  });
+
+  it('showFullProduct SIN safeCrop: comportamiento original (sin reconciliar)', () => {
+    const out = creativeGuidelineClauses({ showFullProduct: true });
+    expect(out).toContain('frame it complete and unobstructed');
+    expect(out).not.toContain('all four of its edges inside that 4:5 area');
+  });
 });

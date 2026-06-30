@@ -1273,15 +1273,17 @@ describe('P05 — cita condicional del personaje por estado (Seedance)', () => {
 // ============ Guías creativas en el prompt compilado ============
 
 describe('guías creativas en el prompt compilado', () => {
-  it('showFullProduct y safeCrop on → sus cláusulas presentes', () => {
+  it('showFullProduct + safeCrop on → cláusula reconciliada (completo atado al 4:5)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter shows the product and speaks one line.', generateAudio: true },
       { ...fullContext(), guidelines: { showFullProduct: true, safeCrop: '4:5' } },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.compiled.prompt).toContain('frame it complete and unobstructed');
+    // Reconciliada: una sola clausula, no las dos que competian.
+    expect(res.compiled.prompt).toContain('all four of its edges inside that 4:5 area');
     expect(res.compiled.prompt).toContain('central 4:5 area');
+    expect(res.compiled.prompt).not.toContain('frame it complete and unobstructed');
   });
 
   it('hookProductHero solo en el beat de apertura', () => {
