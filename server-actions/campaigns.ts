@@ -216,6 +216,7 @@ const SetCreativeGuidelinesSchema = z.object({
   showFullProduct: z.boolean().optional(),
   hookProductHero: z.boolean().optional(),
   safeCrop: z.union([z.literal('4:5'), z.null()]).optional(),
+  safeAreaExtend: z.boolean().optional(),
 });
 
 export async function setCreativeGuidelinesAction(
@@ -243,6 +244,7 @@ export async function setCreativeGuidelinesAction(
     if (parsed.data.safeCrop === null) delete next.safeCrop;
     else next.safeCrop = parsed.data.safeCrop;
   }
+  if (parsed.data.safeAreaExtend !== undefined) next.safeAreaExtend = parsed.data.safeAreaExtend;
 
   const { error } = await supabase
     .from('campaigns')

@@ -8,19 +8,30 @@ import { toast } from 'sonner';
 
 export function CreativeGuidelinesEditor({
   campaignId,
+  aspectRatio,
   initial,
 }: {
   campaignId: string;
-  initial?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null };
+  aspectRatio?: string | null;
+  initial?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null; safeAreaExtend?: boolean };
 }) {
   const [showFullProduct, setShowFullProduct] = useState(initial?.showFullProduct ?? false);
   const [hookProductHero, setHookProductHero] = useState(initial?.hookProductHero ?? false);
   const [safeCrop, setSafeCrop] = useState<'4:5' | null>(initial?.safeCrop ?? null);
+  const [safeAreaExtend, setSafeAreaExtend] = useState(initial?.safeAreaExtend ?? false);
   const [pending, startTransition] = useTransition();
+
+  const canExtend = aspectRatio === '9:16' && safeCrop === '4:5';
 
   const save = () => {
     startTransition(async () => {
-      const res = await setCreativeGuidelinesAction({ id: campaignId, showFullProduct, hookProductHero, safeCrop });
+      const res = await setCreativeGuidelinesAction({
+        id: campaignId,
+        showFullProduct,
+        hookProductHero,
+        safeCrop,
+        safeAreaExtend: canExtend ? safeAreaExtend : false,
+      });
       if (res.ok) toast.success('Guías guardadas');
       else toast.error('No se pudieron guardar las guías');
     });
@@ -50,6 +61,17 @@ export function CreativeGuidelinesEditor({
           <Switch checked={safeCrop === '4:5'} onCheckedChange={(c) => setSafeCrop(c ? '4:5' : null)} />
           Encuadre recortable a 4:5
         </label>
+        {canExtend && (
+          <label className="flex flex-col gap-1 text-xs text-zinc-300">
+            <span className="flex items-center gap-2">
+              <Switch checked={safeAreaExtend} onCheckedChange={setSafeAreaExtend} />
+              Zona segura estricta (9:16 + recorte 4:5 garantizado)
+            </span>
+            <span className="pl-10 text-[11px] leading-relaxed text-amber-400/90">
+              Genera cada panel dos veces (base 4:5 + extensión a 9:16): ~2x créditos por panel.
+            </span>
+          </label>
+        )}
       </div>
       <div className="mt-3">
         <Button type="button" variant="secondary" size="sm" onClick={save} disabled={pending}>

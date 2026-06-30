@@ -97,7 +97,8 @@ export type StudioCampaign = {
   productWidthCm?: number;
   productMedium?: string;
   productThicknessMm?: number;
-  guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null };
+  guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null; safeAreaExtend?: boolean };
+  aspectRatio?: string | null;
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -432,7 +433,7 @@ export function CampaignStudioView({
         />
       </div>
       <div className="mt-3">
-        <CreativeGuidelinesEditor campaignId={campaign.id} initial={campaign.guidelines} />
+        <CreativeGuidelinesEditor campaignId={campaign.id} aspectRatio={campaign.aspectRatio} initial={campaign.guidelines} />
       </div>
 
       {tab === 'plan' ? (

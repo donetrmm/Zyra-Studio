@@ -32,7 +32,7 @@ export default async function CampaignDetailRoute({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text, creative_guidelines')
+    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text, creative_guidelines, aspect_ratio')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -125,6 +125,7 @@ export default async function CampaignDetailRoute({
           productMedium: brief.medium,
           productThicknessMm: brief.thicknessMm,
           guidelines: CreativeGuidelinesSchema.catch({}).parse(campaign.creative_guidelines ?? {}),
+          aspectRatio: campaign.aspect_ratio ?? null,
         }}
         initialItems={items}
         templates={templates}
