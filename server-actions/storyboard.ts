@@ -28,10 +28,9 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_ZONE_GUIDE_CLAUSE } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_ZONE_STRONG_CLAUSE } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
-import { safeZoneGuide } from '@/lib/images/safe-area';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -64,14 +63,6 @@ async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
     .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 80, mozjpeg: true })
     .toBuffer();
-}
-
-// Modo de zona segura por GUIA (sin extension): una imagen-guia (9:16 con un rectangulo verde
-// en el 4:5 central) se pasa como referencia y el prompt (SAFE_ZONE_GUIDE_CLAUSE) pide colocar
-// el producto + la mayor parte del personaje dentro del verde, sin dibujar el verde. El panel
-// se genera nativo en 9:16. Helper para construir la referencia-guia una sola vez.
-async function safeZoneGuideRef(): Promise<ImageReference> {
-  return { buffer: await safeZoneGuide(), mimeType: 'image/png' };
 }
 
 function inferExtension(mime: string): string {
@@ -335,8 +326,8 @@ export async function generatePanelAction(
   const panelPromptBody = prevTurn
     ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
-  // Modo guia: adjunta la clausula de la guia de zona segura al final del prompt.
-  const panelPrompt = strictSafe ? `${panelPromptBody}${SAFE_ZONE_GUIDE_CLAUSE}` : panelPromptBody;
+  // Zona segura estricta: refuerza el prompt con la clausula fuerte de 4:5 (9:16 nativo).
+  const panelPrompt = strictSafe ? `${panelPromptBody}${SAFE_ZONE_STRONG_CLAUSE}` : panelPromptBody;
 
   // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
   // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
@@ -420,12 +411,6 @@ export async function generatePanelAction(
     ];
     const chatReferences = chatRefs.length > 0 ? chatRefs : undefined;
 
-    // Modo guia: la imagen-guia de zona segura viaja como una referencia mas (fresh) y
-    // tambien como chatReference (en chat el provider descarta `references`). Off salvo strict.
-    const guideRef = strictSafe ? await safeZoneGuideRef() : null;
-    const referencesAll = guideRef ? [...references, guideRef] : references;
-    const chatReferencesAll = guideRef ? [...(chatReferences ?? []), guideRef] : chatReferences;
-
     // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
     // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
     // beat). El primer panel se genera fresco. Producto/personaje/locación van como
@@ -435,15 +420,15 @@ export async function generatePanelAction(
       prompt: panelPrompt,
       aspectRatio: genAspect,
       resolution: nanoVariantToResolution(NANO_VARIANT),
-      references: referencesAll,
+      references,
       previousTurn: prevTurn,
       conversational: Boolean(prevTurn),
       useGrounding: false,
       hasTextInImage: false,
-      chatReferences: chatReferencesAll,
+      chatReferences,
     });
 
-    // Sin extension: el panel se genera nativo en 9:16; la guia acota la composicion.
+    // 9:16 nativo: la zona segura se busca por prompt (clausula fuerte), no por extension.
     const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);
@@ -657,7 +642,7 @@ export async function refinePanelAction(
   // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
-  }) + (strictSafe ? SAFE_ZONE_GUIDE_CLAUSE : '');
+  }) + (strictSafe ? SAFE_ZONE_STRONG_CLAUSE : '');
 
   // Precio Nano Banana Pro conversacional
   const pricing = await loadPricing();
@@ -756,10 +741,6 @@ export async function refinePanelAction(
       }
     }
 
-    // Modo guia: la imagen-guia de zona segura va como chatReference (refinar entra en chat
-    // real y el provider descarta `references`). Off salvo strict.
-    const guideRef = strictSafe ? await safeZoneGuideRef() : null;
-
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: refinePrompt,
@@ -771,10 +752,9 @@ export async function refinePanelAction(
       conversational: true,
       hasTextInImage: false,
       noBackground: false,
-      chatReferences: guideRef ? [guideRef] : undefined,
     });
 
-    // Sin extension: el refinado se genera nativo en 9:16; la guia acota la composicion.
+    // 9:16 nativo: la zona segura se busca por prompt (clausula fuerte), no por extension.
     const finalImage = { buffer: result.buffer, mimeType: result.mimeType };
 
     const ext = inferExtension(finalImage.mimeType);

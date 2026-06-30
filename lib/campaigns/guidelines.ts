@@ -57,14 +57,3 @@ export function creativeGuidelineClauses(
   }
   return out;
 }
-
-// Guidelines para la BASE 4:5 del modo estricto: el frame ya ES la zona segura, asi
-// que se neutraliza safeCrop (no emitir "mantener dentro del 4:5 central" en un 4:5) y
-// safeAreaExtend; se conservan showFullProduct/hookProductHero (ahora el producto
-// completo cabe). Devuelve undefined si la entrada es undefined.
-export function guidelinesForSafeBase(
-  guidelines: CreativeGuidelines | undefined,
-): CreativeGuidelines | undefined {
-  if (!guidelines) return guidelines;
-  return { ...guidelines, safeCrop: null, safeAreaExtend: false };
-}

@@ -113,20 +113,12 @@ export function compileRefinePrompt(
   return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
-// Instruccion para extender la base 4:5 a 9:16: simple y directa. Las versiones
-// elaboradas (prohibir personas, etc.) hacian que Nano rebanara al sujeto o dejara la
-// banda en negro. Aqui solo se pide extender arriba y abajo para llenar el 9:16 sin
-// barras negras, con un anclaje minimo del centro (para que no recoloree). El centro NO
-// se re-pega: sale de la misma generacion. ASCII.
-export const SAFE_AREA_EXTEND_PROMPT =
-  'Extend this image upward and downward to fill the full vertical 9:16 frame, continuing the scene naturally into the top and bottom so there are no black bars and nothing is cut off; keep the existing center unchanged.';
-
-// Clausula para el modo de zona segura por GUIA (sin extension): se adjunta una imagen-guia
-// (9:16 negro con un rectangulo verde en el 4:5 central). Indica que el producto y la mayor
-// parte del personaje van dentro del verde, y que el verde es SOLO guia de layout (no se
-// dibuja). Empieza con espacio (se concatena al prompt del panel). ASCII.
-export const SAFE_ZONE_GUIDE_CLAUSE =
-  ' An extra layout guide image is attached: a plain green rectangle on a black background marks the SAFE ZONE. Compose the shot so the entire product and most of the main person fall inside that green rectangle area, leaving the outer top and bottom margins for background only. The green rectangle is ONLY a layout guide - never draw it, its green tint, any rectangle, lines or text in the final image; render a normal photographic scene.';
+// Clausula de zona segura ESTRICTA (toggle safeAreaExtend): refuerzo fuerte por TEXTO para
+// que, en un 9:16 nativo, el producto y la mayor parte del personaje queden dentro del 4:5
+// central con margenes vacios arriba/abajo. Sin extension ni imagen-guia (ambos fallaron):
+// solo prompt. Se concatena al prompt del panel (empieza con espacio). ASCII.
+export const SAFE_ZONE_STRONG_CLAUSE =
+  ' STRICT SAFE ZONE - this is a hard requirement, not a preference: even though the frame is a tall 9:16, treat the central 4:5 region (the middle, roughly the central two-thirds vertically) as the only place where important content may go. The ENTIRE product and the main person face and upper body must sit fully inside that central 4:5 region, with visible empty margins above and below them. Never let the product or the person face touch, cross or get cropped by the top or bottom edge of the frame. The top and bottom margins must contain background only. The shot has to look intentional and complete both as a full 9:16 and when cropped to the central 4:5.';
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.

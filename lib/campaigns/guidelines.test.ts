@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreativeGuidelinesSchema, creativeGuidelineClauses, guidelinesForSafeBase } from './guidelines';
+import { CreativeGuidelinesSchema, creativeGuidelineClauses } from './guidelines';
 
 describe('CreativeGuidelinesSchema', () => {
   it('acepta flags válidos y tolera ausencia (todo apagado)', () => {
@@ -73,30 +73,5 @@ describe('safeAreaExtend', () => {
   it('el schema acepta safeAreaExtend y tolera ausencia', () => {
     expect(CreativeGuidelinesSchema.parse({ safeAreaExtend: true }).safeAreaExtend).toBe(true);
     expect(CreativeGuidelinesSchema.parse({}).safeAreaExtend).toBeUndefined();
-  });
-});
-
-describe('guidelinesForSafeBase', () => {
-  it('neutraliza safeCrop y safeAreaExtend, conserva product/hook', () => {
-    const base = guidelinesForSafeBase({
-      showFullProduct: true,
-      hookProductHero: true,
-      safeCrop: '4:5',
-      safeAreaExtend: true,
-    });
-    expect(base).toEqual({ showFullProduct: true, hookProductHero: true, safeCrop: null, safeAreaExtend: false });
-  });
-
-  it('en la base 4:5 ya no emite la clausula de safe-crop, pero si product/hook', () => {
-    const base = guidelinesForSafeBase({ showFullProduct: true, hookProductHero: true, safeCrop: '4:5', safeAreaExtend: true });
-    const out = creativeGuidelineClauses(base, { isOpeningBeat: true });
-    expect(out).toContain('frame it complete and unobstructed');
-    expect(out).toContain('opening hook');
-    expect(out).not.toContain('central 4:5 area');
-    expect(out).not.toContain('all four of its edges inside that 4:5 area');
-  });
-
-  it('tolera undefined', () => {
-    expect(guidelinesForSafeBase(undefined)).toBeUndefined();
   });
 });

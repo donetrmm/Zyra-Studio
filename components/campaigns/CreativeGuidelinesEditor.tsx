@@ -65,10 +65,10 @@ export function CreativeGuidelinesEditor({
           <label className="flex flex-col gap-1 text-xs text-zinc-300">
             <span className="flex items-center gap-2">
               <Switch checked={safeAreaExtend} onCheckedChange={setSafeAreaExtend} />
-              Zona segura (guía 9:16: producto y personaje dentro del 4:5)
+              Zona segura 4:5 (refuerza el encuadre por prompt)
             </span>
             <span className="pl-10 text-[11px] leading-relaxed text-zinc-400">
-              Adjunta una guía de zona segura al generar para que el producto y la mayor parte del personaje queden dentro del 4:5 central. Sin costo extra.
+              Refuerza el prompt para que, en 9:16, el producto y la mayor parte del personaje queden dentro del 4:5 central, listos para recortar a 4:5. Sin costo extra.
             </span>
           </label>
         )}

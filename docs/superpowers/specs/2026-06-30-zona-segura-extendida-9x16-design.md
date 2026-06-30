@@ -1,7 +1,32 @@
 # Diseno: zona segura 9:16 con extension (panel 4:5 + outpaint)
 
 Fecha: 2026-06-30
-Estado: implementado, con revision posterior (ver abajo)
+Estado: REVERTIDO. El enfoque de extension/guia se abandono (ver revision final).
+
+## Revision final 2026-06-30: enfoque de extension/guia abandonado
+
+Tras varias iteraciones en pruebas reales, NINGUNA variante generativa de
+extension dio un resultado confiable: pin (costura), sin pin (deriva + rebana al
+sujeto), banda "solo fondo" (rebana), prompt simple (franja negra), e imagen-guia
+de zona segura como referencia (el modelo dibuja el verde en el render y solo
+genera dentro del 4:5). Causa de fondo: el proveedor no hace outpaint con mascara,
+asi que no se puede rellenar solo las bandas dejando el centro intacto y nitido.
+
+Restriccion del caso de uso: el 9:16 se usa directo Y se recorta a 4:5 para algunas
+plataformas, asi que ambos deben ser reales y nitidos (descarta bandas con
+desenfoque determinista).
+
+Decision: se elimina todo el andamiaje de extension/guia (extendPanelTo916,
+pinCenter, composeOnto916, centralSafeCrop, safeAreaBands, safeZoneGuide,
+guidelinesForSafeBase, SAFE_AREA_EXTEND_PROMPT, SAFE_ZONE_GUIDE_CLAUSE y el archivo
+lib/images/safe-area.ts). El toggle `safeAreaExtend` ahora significa "zona segura
+4:5 reforzada": el panel se genera NATIVO en 9:16 y se concatena al prompt la
+clausula fuerte `SAFE_ZONE_STRONG_CLAUSE` (producto + mayor parte del personaje
+dentro del 4:5 central, margenes vacios). Es mejor-esfuerzo por prompt, sin
+garantia geometrica, pero sin artefactos (verde/negro/costura/rebanado) y a 1x.
+
+Si se necesita garantia dura: integrar un modelo de outpaint con mascara real
+(FLUX Fill/Expand u otro), como proyecto aparte.
 
 ## Revision 2026-06-30: se elimino el pin del centro
 

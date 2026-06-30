@@ -8,8 +8,7 @@ import {
   compileRefinePrompt,
   humanRealismDirective,
   isStylized,
-  SAFE_AREA_EXTEND_PROMPT,
-  SAFE_ZONE_GUIDE_CLAUSE,
+  SAFE_ZONE_STRONG_CLAUSE,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -131,24 +130,12 @@ describe('compilePanelEdit', () => {
   });
 });
 
-describe('SAFE_AREA_EXTEND_PROMPT', () => {
-  it('pide extender arriba y abajo sin barras negras, manteniendo el centro', () => {
-    expect(SAFE_AREA_EXTEND_PROMPT).toContain('top and bottom');
-    // Anti franja negra.
-    expect(SAFE_AREA_EXTEND_PROMPT).toContain('no black bars');
-    // Anclaje minimo del centro (para que no recoloree).
-    expect(SAFE_AREA_EXTEND_PROMPT).toContain('keep the existing center unchanged');
-    // ASCII puro.
-    expect(/^[\x00-\x7F]*$/.test(SAFE_AREA_EXTEND_PROMPT)).toBe(true);
-  });
-});
-
-describe('SAFE_ZONE_GUIDE_CLAUSE', () => {
-  it('describe la guia verde como solo-layout, prohibe dibujarla; empieza con espacio; ASCII', () => {
-    expect(SAFE_ZONE_GUIDE_CLAUSE).toContain('SAFE ZONE');
-    expect(SAFE_ZONE_GUIDE_CLAUSE).toContain('never draw it');
-    expect(SAFE_ZONE_GUIDE_CLAUSE.startsWith(' ')).toBe(true);
-    expect(/^[\x00-\x7F]*$/.test(SAFE_ZONE_GUIDE_CLAUSE)).toBe(true);
+describe('SAFE_ZONE_STRONG_CLAUSE', () => {
+  it('refuerza el 4:5 central como requisito duro; empieza con espacio; ASCII', () => {
+    expect(SAFE_ZONE_STRONG_CLAUSE).toContain('central 4:5');
+    expect(SAFE_ZONE_STRONG_CLAUSE).toContain('hard requirement');
+    expect(SAFE_ZONE_STRONG_CLAUSE.startsWith(' ')).toBe(true);
+    expect(/^[\x00-\x7F]*$/.test(SAFE_ZONE_STRONG_CLAUSE)).toBe(true);
   });
 });
 
