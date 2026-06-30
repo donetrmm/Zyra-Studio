@@ -44,6 +44,7 @@ type Props = {
 export function StoryboardView({ campaignId, campaignName, beats, creatives, locations, language, panelCostFresh, panelCostChained }: Props) {
   const router = useRouter();
   const [savingLocation, setSavingLocation] = useState(false);
+  const [savingBeatLocation, setSavingBeatLocation] = useState<string | null>(null);
 
   // Creativo seleccionado (default: el primero). El storyboard muestra solo sus beats.
   const [selectedCreativeKey, setSelectedCreativeKey] = useState<string | null>(
@@ -71,6 +72,23 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     setSavingLocation(false);
     if (res.ok) {
       toast.success(locationId ? 'Locación anclada al creativo' : 'Locación quitada');
+      router.refresh();
+    } else {
+      toast.error(friendlyError(res.error, res.message));
+    }
+  }
+
+  // Locacion de UN clip (item): scope por item (sequenceId null). El general (handleSetLocation)
+  // escribe toda la secuencia; este sobrescribe solo este beat. La locacion se aplica al regenerar.
+  async function handleSetBeatLocation(itemId: string, locationId: string | null) {
+    setSavingBeatLocation(itemId);
+    const res = await setStoryboardLocationAction(campaignId, locationId, {
+      sequenceId: null,
+      itemId,
+    });
+    setSavingBeatLocation(null);
+    if (res.ok) {
+      toast.success(locationId ? 'Locación del clip actualizada' : 'Locación del clip quitada');
       router.refresh();
     } else {
       toast.error(friendlyError(res.error, res.message));
@@ -294,7 +312,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
           <MapPin className="size-3.5 text-muted-foreground" aria-hidden />
           <label htmlFor="storyboard-location" className="text-[12px] text-muted-foreground">
-            Locación de la escena:
+            Locación base (aplica a todos los clips):
           </label>
           <select
             id="storyboard-location"
@@ -311,7 +329,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
             ))}
           </select>
           <span className="text-[11px] text-muted-foreground">
-            ancla el lugar en cada panel; regenera para aplicarla
+            siembra todos los clips; ajusta cada uno abajo. Regenera para aplicarla.
           </span>
         </div>
       )}
@@ -373,6 +391,32 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                 <p className="line-clamp-2 text-[11px] leading-snug text-muted-foreground/70">
                   {beat.scenePrompt}
                 </p>
+
+                {/* Locación de este clip (override por item; el general siembra todos) */}
+                {locations.length > 0 && (
+                  <div className="flex items-center gap-1.5 px-0.5">
+                    <MapPin className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                    <label htmlFor={`loc-${beat.id}`} className="sr-only">
+                      Locación del clip {beat.sceneIndex + 1}
+                    </label>
+                    <select
+                      id={`loc-${beat.id}`}
+                      value={beat.locationId ?? ''}
+                      disabled={savingBeatLocation === beat.id || isGenerating || isRefining || generatingAll}
+                      onChange={(e) =>
+                        void handleSetBeatLocation(beat.id, e.target.value === '' ? null : e.target.value)
+                      }
+                      className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                    >
+                      <option value="">Sin locación</option>
+                      {locations.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Regenerar */}
                 <Button
