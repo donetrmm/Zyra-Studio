@@ -116,6 +116,10 @@ export type CampaignContext = {
   // el storyboard. Ausente = sin ancla.
   productHeightCm?: number;
   productWidthCm?: number;
+  // Medio/soporte del producto (canvas, taza, playera…) y grosor en mm.
+  // Propagan desde product_brief al DirectorContext (feature objeto-vs-impreso).
+  productMedium?: string;
+  productThicknessMm?: number;
   // Guías creativas opt-in de la campaña (spec 2026-06-29).
   guidelines?: CreativeGuidelines;
 };
@@ -234,6 +238,8 @@ export async function loadCampaignContext(
     palette?: string[];
     heightCm?: number;
     widthCm?: number;
+    medium?: string;
+    thicknessMm?: number;
   };
 
   let productImagePaths: string[] = [];
@@ -329,6 +335,8 @@ export async function loadCampaignContext(
     productImageUsages,
     productHeightCm: brief.heightCm,
     productWidthCm: brief.widthCm,
+    productMedium: brief.medium,
+    productThicknessMm: brief.thicknessMm,
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
@@ -368,6 +376,8 @@ export function directorContextFor(
       imageUsages: ctx.productImageUsages,
       heightCm: ctx.productHeightCm,
       widthCm: ctx.productWidthCm,
+      medium: ctx.productMedium,
+      thicknessMm: ctx.productThicknessMm,
       packagingImagePaths: format?.required_refs.includes('packaging')
         ? ctx.packagingImagePaths
         : undefined,

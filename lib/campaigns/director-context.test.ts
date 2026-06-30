@@ -143,3 +143,12 @@ describe('directorContextFor — creative guidelines', () => {
     expect(dir.guidelines?.safeCrop).toBe('4:5');
   });
 });
+
+describe('directorContextFor — medium y thicknessMm del producto', () => {
+  it('directorContextFor propaga medium y thicknessMm del producto', () => {
+    const ctx = { ...ctxWith(), productMedium: 'canvas print', productThicknessMm: 10 };
+    const dir = directorContextFor(item, null, ctx);
+    expect(dir.product?.medium).toBe('canvas print');
+    expect(dir.product?.thicknessMm).toBe(10);
+  });
+});
