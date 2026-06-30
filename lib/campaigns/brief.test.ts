@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ProductBriefSchema } from './brief';
+import { ProductBriefSchema, BRIEF_SYSTEM } from './brief';
+
+it('el SYSTEM instruye separar objeto de contenido impreso', () => {
+  expect(BRIEF_SYSTEM).toMatch(/impres|printed/i);
+  expect(BRIEF_SYSTEM).toMatch(/objeto|object/i);
+});
 
 const base = { productName: 'Canvas', category: 'home' as const };
 
