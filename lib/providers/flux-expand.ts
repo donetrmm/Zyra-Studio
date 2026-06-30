@@ -61,10 +61,17 @@ async function submit(params: ExpandParams, apiKey: string): Promise<string> {
     throw new ProviderError('FLUX expand endpoint no disponible', 'invalid_input', false);
   }
   if (!res.ok) {
-    throw new ProviderError(`FLUX expand submit ${res.status}`, 'server', res.status >= 500);
+    throw new ProviderError(
+      `FLUX expand submit ${res.status}`,
+      res.status >= 500 ? 'server' : 'unknown',
+      res.status >= 500,
+    );
   }
-  const parsed = SubmitResponseSchema.parse(await res.json());
-  return parsed.polling_url;
+  const parsed = SubmitResponseSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new ProviderError('FLUX expand respuesta invalida', 'unknown', false);
+  }
+  return parsed.data.polling_url;
 }
 
 async function pollUntilReady(pollingUrl: string, apiKey: string): Promise<string> {
@@ -73,17 +80,24 @@ async function pollUntilReady(pollingUrl: string, apiKey: string): Promise<strin
     await sleep(POLL_INTERVAL_MS);
     const res = await fetch(pollingUrl, { headers: { 'x-key': apiKey } });
     if (!res.ok) {
-      throw new ProviderError(`FLUX expand poll ${res.status}`, 'server', res.status >= 500);
+      throw new ProviderError(
+        `FLUX expand poll ${res.status}`,
+        res.status >= 500 ? 'server' : 'unknown',
+        res.status >= 500,
+      );
     }
-    const parsed = PollResponseSchema.parse(await res.json());
-    if (parsed.status === 'Ready' && parsed.result?.sample) return parsed.result.sample;
-    if (parsed.status === 'Error' || parsed.status === 'Failed') {
-      throw new ProviderError(`FLUX expand ${parsed.status}`, 'server', true);
+    const parsed = PollResponseSchema.safeParse(await res.json());
+    if (!parsed.success) {
+      throw new ProviderError('FLUX expand poll invalido', 'unknown', false);
     }
-    if (parsed.status === 'Request Moderated' || parsed.status === 'Content Moderated') {
+    if (parsed.data.status === 'Ready' && parsed.data.result?.sample) return parsed.data.result.sample;
+    if (parsed.data.status === 'Error' || parsed.data.status === 'Failed') {
+      throw new ProviderError(`FLUX expand ${parsed.data.status}`, 'server', true);
+    }
+    if (parsed.data.status === 'Request Moderated' || parsed.data.status === 'Content Moderated') {
       throw new ProviderError('FLUX expand moderado', 'safety', false);
     }
-    if (parsed.status === 'Task not found') {
+    if (parsed.data.status === 'Task not found') {
       throw new ProviderError('FLUX expand task not found', 'unknown', false);
     }
   }
