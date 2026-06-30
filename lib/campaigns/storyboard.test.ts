@@ -5,6 +5,7 @@ import {
   chainedProductFidelity,
   compilePanel,
   compilePanelEdit,
+  compileRefinePrompt,
   humanRealismDirective,
   isStylized,
 } from './storyboard';
@@ -125,5 +126,44 @@ describe('compilePanelEdit', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toContain('warmer');
+  });
+});
+
+describe('compileRefinePrompt', () => {
+  const ctx = {
+    product: {
+      name: 'Family Portrait Canvas Print',
+      visualDetails: 'a canvas print of two women and one man, deep greens and greys',
+      imagePaths: ['ws/canvas.png'],
+    },
+    characters: [
+      { name: 'María', description: 'mujer de pelo castaño rizado, chaqueta roja', masterImagePath: 'ws/maria.png' },
+    ],
+  };
+
+  it('lleva la instruccion y la guardia de preservar el resto', () => {
+    const p = compileRefinePrompt('make the lighting warmer', ctx);
+    expect(p).toContain('make the lighting warmer');
+    expect(p).toContain('Keep everything else exactly the same');
+  });
+
+  it('ancla producto y personaje por TEXTO (no por "reference image", que el chat descarta)', () => {
+    const p = compileRefinePrompt('move the canvas to the left', ctx);
+    // Producto por texto (chainedProductFidelity).
+    expect(p).toContain('Family Portrait Canvas Print');
+    expect(p).toContain('Reproduce the product');
+    // Personaje por texto (chainedCharacterFidelity), en modo preservar.
+    expect(p).toContain('María');
+    expect(p).toContain('identical to the previous shot');
+    // CRITICO: nunca apuntar a imagenes de referencia (en el chat del refinado no viajan).
+    expect(p).not.toContain('reference image');
+  });
+
+  it('sin producto ni personajes, solo instruccion + guardia (sin anclas vacias)', () => {
+    const p = compileRefinePrompt('crop tighter', { characters: [] });
+    expect(p).toContain('crop tighter');
+    expect(p).toContain('Keep everything else exactly the same');
+    expect(p).not.toContain('Reproduce the product');
+    expect(p).not.toContain('reference image');
   });
 });

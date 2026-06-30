@@ -28,7 +28,7 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
@@ -609,7 +609,15 @@ export async function refinePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  const refinePrompt = `${compiled.compiled.prompt}${describeProductScale(dirCtx.product)}`;
+  // El prompt de compilePanelEdit ancla producto/personaje/locacion como "as in the
+  // reference image", pero al refinar entramos en chat real y el provider descarta esas
+  // refs (refSlots=0): esas clausulas apuntan a imagenes que no viajan. compileRefinePrompt
+  // ancla producto y personaje por TEXTO (mismas anclas que la rama encadenada de
+  // regenerar); la escena y la locacion las preserva el turno previo. Se conserva `compiled`
+  // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
+  const refinePrompt = compileRefinePrompt(instruction, dirCtx, {
+    isOpeningBeat: (item.scene_index ?? 0) === 0,
+  });
 
   // Precio Nano Banana Pro conversacional
   const pricing = await loadPricing();

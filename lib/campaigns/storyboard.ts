@@ -2,7 +2,8 @@
 // prompt del panel (FLUX) y de su edición (Nano Banana). Sin DB ni red: la acción
 // server (server-actions/storyboard.ts) hace el IO y llama a esta lógica.
 import { compile, type CompileResult, type DirectorContext } from '@/lib/prompt-director';
-import { describeCharacter, describeProduct } from '@/lib/prompt-director/inventory';
+import { describeCharacter, describeProduct, describeProductScale } from '@/lib/prompt-director/inventory';
+import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 
 export type PanelBeat = {
   id: string;
@@ -93,6 +94,23 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
     .map((c) => describeCharacter(c, { fidelity: false }).text)
     .join(' ');
   return ` ${facts} Keep each person's exact face, hair, build, skin and wardrobe identical to the previous shot; do not redraw, re-age, restyle or change who they are.`;
+}
+
+// Prompt del REFINADO conversacional de un panel (Nano Banana chat multi-turn).
+// El refinado entra en chat real (hay thought_signature del panel previo), y ahí el
+// provider descarta las referencias externas (refSlots=0). Por eso NO se usa el prompt
+// de compilePanelEdit, cuyas cláusulas "as in the reference image" apuntan a imágenes
+// que en el chat no viajan: el producto y el personaje se anclan por TEXTO
+// (chainedProductFidelity/chainedCharacterFidelity, mismas anclas que la rama encadenada
+// de regenerar). La escena y la locación las preserva el turno previo + "keep everything
+// else the same". Devuelve el prompt completo (la instrucción es la edición a aplicar).
+export function compileRefinePrompt(
+  instruction: string,
+  ctx: DirectorContext,
+  opts?: { isOpeningBeat?: boolean },
+): string {
+  const lead = instruction.trim().replace(/\.?$/, '.');
+  return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
