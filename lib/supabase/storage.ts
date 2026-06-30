@@ -24,6 +24,27 @@ export async function uploadOutput(
   return path;
 }
 
+// Sube la BASE 4:5 de Nano de un panel estricto (antes del expand a 9:16) al bucket
+// outputs, en un path secundario de la misma generacion. Sirve para ENCADENAR: el
+// thought_signature guardado corresponde a esta base, no al 9:16 final de FLUX, asi
+// que el siguiente beat debe replayar ESTA imagen (no el output) para que la firma
+// del chat de Gemini calce. Se baja con downloadOutputBuffer (mismo bucket).
+export async function uploadSafeBase(
+  workspaceId: string,
+  generationId: string,
+  buffer: Buffer,
+  mimeType: string,
+  extension: string,
+): Promise<string> {
+  const admin = createAdminClient();
+  const path = `${workspaceId}/${generationId}/safe-base.${extension}`;
+  const { error } = await admin.storage
+    .from(OUTPUTS_BUCKET)
+    .upload(path, buffer, { contentType: mimeType, upsert: true });
+  if (error) throw new Error(`upload safe base failed: ${error.message}`);
+  return path;
+}
+
 // Sube una imagen al bucket de referencias (p. ej. el último fotograma heredado
 // en el encadenado de secuencias) y devuelve su path interno. `key` es la ruta
 // dentro del workspace (sin el prefijo de workspace).
