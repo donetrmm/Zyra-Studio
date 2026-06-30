@@ -113,14 +113,13 @@ export function compileRefinePrompt(
   return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
-// Instruccion para extender la base 4:5 a 9:16: Nano recibe la base centrada en un
-// lienzo 9:16 con bandas negras y rellena esas bandas continuando la escena, incluido
-// el cuerpo del sujeto que llega al borde (para NO rebanarlo); solo prohibe INTRODUCIR
-// el producto, personas nuevas o texto en las bandas, asi el producto sigue completo
-// dentro del 4:5 (zona segura). El centro NO se re-pega: sale de la misma generacion,
-// por eso se exige mantenerlo identico y nitido (continuacion sin costura). ASCII.
+// Instruccion para extender la base 4:5 a 9:16: simple y directa. Las versiones
+// elaboradas (prohibir personas, etc.) hacian que Nano rebanara al sujeto o dejara la
+// banda en negro. Aqui solo se pide extender arriba y abajo para llenar el 9:16 sin
+// barras negras, con un anclaje minimo del centro (para que no recoloree). El centro NO
+// se re-pega: sale de la misma generacion. ASCII.
 export const SAFE_AREA_EXTEND_PROMPT =
-  'Continue the existing scene naturally into the empty top and bottom bands, extending any person, clothing, hair, limbs or background that already reaches the edge so nothing looks sliced or cut off; match the background, lighting and perspective seamlessly. Keep the central area exactly unchanged and pixel-sharp - do not redraw, move, resize, recolor or soften it. Do not introduce the product, a new person, any text or any new object into the top and bottom bands; only continue what is already present at the edges.';
+  'Extend this image upward and downward to fill the full vertical 9:16 frame, continuing the scene naturally into the top and bottom so there are no black bars and nothing is cut off; keep the existing center unchanged.';
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.
