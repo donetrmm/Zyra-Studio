@@ -1,7 +1,23 @@
 # Diseno: zona segura 9:16 con extension (panel 4:5 + outpaint)
 
 Fecha: 2026-06-30
-Estado: aprobado (pendiente de plan de implementacion)
+Estado: implementado, con revision posterior (ver abajo)
+
+## Revision 2026-06-30: se elimino el pin del centro
+
+El diseno original fijaba el centro con `pinCenter` (re-pegar la base 4:5 exacta
+sobre el 9:16 extendido) para garantizar cero drift. En pruebas reales eso
+producia una **costura horizontal dura** y un fondo distinto arriba/abajo: Gemini
+genera centro + bandas como UNA imagen coherente, y al swapear la base por encima,
+las bandas (coherentes con el centro de Gemini) dejaban de empatar. Como el
+proveedor (Gemini 3 Pro Image) **no tiene inpaint con mascara**, no hay forma de
+fijar el centro pixel-exacto sin romper la continuidad.
+
+Decision revisada: **no se re-pega la base**. Se usa la salida extendida de Gemini
+tal cual (se mantiene el compuesto de bandas negras para indicar donde extender) y
+el prompt de extension exige mantener el centro identico y nitido. La continuidad
+queda nitida y coherente; el centro se preserva por prompt (sesgo fuerte), no por
+garantia geometrica pixel-exacta. `pinCenter` se elimino del codigo.
 
 ## Problema
 

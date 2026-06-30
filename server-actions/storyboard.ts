@@ -31,7 +31,7 @@ import {
 import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity, SAFE_AREA_EXTEND_PROMPT } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
-import { composeOnto916, centralSafeCrop, pinCenter } from '@/lib/images/safe-area';
+import { composeOnto916, centralSafeCrop } from '@/lib/images/safe-area';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -66,10 +66,13 @@ async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-// Extiende una base 4:5 a un 9:16 completo: compone la base centrada con bandas negras,
-// pide a Nano que rellene SOLO las bandas (single-turn edit), y fija el centro a la base
-// original (pinCenter) para garantizar cero drift en producto/caras. Devuelve el 9:16
-// final (png). Lo usan generatePanelAction y refinePanelAction en modo estricto.
+// Extiende una base 4:5 a un 9:16 completo: compone la base centrada con bandas negras y
+// pide a Nano que rellene SOLO las bandas (single-turn edit). El centro y las bandas salen
+// de la MISMA generacion de Gemini, por eso la continuacion es nitida y coherente; NO se
+// re-pega la base. El pin rompia la costura: las bandas eran coherentes con el centro de
+// Gemini y al swapear la base por encima se veia raya dura y otro fondo arriba/abajo. El
+// centro se preserva por prompt (no pixel-exacto). Lo usan generatePanelAction y
+// refinePanelAction en modo estricto.
 async function extendPanelTo916(base: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
   const canvas = await composeOnto916(base);
   const ext = await generateNanoBanana({
@@ -83,8 +86,7 @@ async function extendPanelTo916(base: Buffer): Promise<{ buffer: Buffer; mimeTyp
     useGrounding: false,
     hasTextInImage: false,
   });
-  const pinned = await pinCenter(ext.buffer, base);
-  return { buffer: pinned, mimeType: 'image/png' };
+  return { buffer: ext.buffer, mimeType: ext.mimeType };
 }
 
 function inferExtension(mime: string): string {

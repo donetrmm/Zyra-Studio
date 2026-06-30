@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
-import { safeAreaBands, composeOnto916, centralSafeCrop, pinCenter } from './safe-area';
+import { safeAreaBands, composeOnto916, centralSafeCrop } from './safe-area';
 
 async function solid(width: number, height: number, rgb: [number, number, number]): Promise<Buffer> {
   return sharp({
@@ -44,17 +44,5 @@ describe('centralSafeCrop', () => {
     expect(await dims(back)).toEqual({ w: 360, h: 450 });
     expect(await pixel(back, 180, 225)).toEqual([30, 160, 60]);
     expect(await pixel(back, 5, 5)).toEqual([30, 160, 60]);
-  });
-});
-
-describe('pinCenter', () => {
-  it('pega la base original sobre el centro; las bandas vienen del extendido', async () => {
-    const extended = await solid(360, 640, [20, 40, 200]); // azul (simula salida Nano)
-    const base = await solid(360, 450, [200, 30, 30]); // rojo
-    const out = await pinCenter(extended, base);
-    expect(await dims(out)).toEqual({ w: 360, h: 640 });
-    expect(await pixel(out, 180, 320)).toEqual([200, 30, 30]); // centro = base
-    expect(await pixel(out, 180, 10)).toEqual([20, 40, 200]); // banda = extendido
-    expect(await pixel(out, 180, 630)).toEqual([20, 40, 200]);
   });
 });
