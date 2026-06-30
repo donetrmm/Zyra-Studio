@@ -49,6 +49,12 @@ export type ProductInventory = {
   // en el storyboard. Ausente = sin ancla de escala (cero cambio).
   heightCm?: number;
   widthCm?: number;
+  // Producto como OBJETO con imagen impresa (canvas, taza, playera): el medium es
+  // el objeto/soporte y visualDetails pasa a ser el contenido impreso. Ausente =
+  // el producto se describe como hoy. Declarado por el usuario (no inferido).
+  medium?: string;
+  // Grosor del canto en mm (ej. canvas delgado ~10). Declarado por el usuario.
+  thicknessMm?: number;
   imagePaths: string[];        // multi-ángulo del Brand Kit
   // AM: descripcion de uso por imagen (path -> "three-quarter view"). El compiler
   // la cita junto a la referencia. Opcional; ausente = cita sin uso.

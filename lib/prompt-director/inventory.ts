@@ -72,10 +72,22 @@ export function describeProduct(
   product: ProductInventory,
   opts: { fidelity?: boolean } = {},
 ): string {
-  const parts = [`Product: ${product.name}`];
-  if (product.visualDetails) parts.push(product.visualDetails);
-  if (product.palette?.length) parts.push(`brand colors ${product.palette.join(', ')}`);
-  const facts = `${parts.join(', ')}.`;
+  let facts: string;
+  if (product.medium) {
+    const displays = product.visualDetails
+      ? ` that displays this printed image: ${product.visualDetails}`
+      : '';
+    const colors = product.palette?.length ? ` Printed colors: ${product.palette.join(', ')}.` : '';
+    const thin = product.thicknessMm
+      ? ` It is about ${product.thicknessMm} mm thin at the edge; do not render a thick block frame or a deep gallery-wrap, keep the edge slim.`
+      : '';
+    facts = `Product: a ${product.medium}${displays}.${colors} The product itself is the physical ${product.medium}; the depicted content is only printed on its surface, not separate physical objects.${thin}`;
+  } else {
+    const parts = [`Product: ${product.name}`];
+    if (product.visualDetails) parts.push(product.visualDetails);
+    if (product.palette?.length) parts.push(`brand colors ${product.palette.join(', ')}`);
+    facts = `${parts.join(', ')}.`;
+  }
   if (opts.fidelity === false) return facts;
   if (!product.imagePaths.length) {
     return `${facts} Render the product exactly with these declared attributes; do not invent packaging, colors, logo or any detail that is not listed.`;
