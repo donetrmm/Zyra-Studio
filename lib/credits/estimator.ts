@@ -13,6 +13,7 @@ export type EstimateInput = {
     useGrounding?: boolean;
     charCount?: number;
     durationSeconds?: number;
+    passes?: number;
   };
 };
 
@@ -75,6 +76,8 @@ export function estimateCredits(
   if (input.provider === 'nano-banana') {
     if (input.params?.conversational) multipliers.push({ label: 'Edición conversacional', factor: 1.5 });
     if (input.params?.useGrounding) multipliers.push({ label: 'Grounding', factor: 1.2 });
+    const passes = input.params?.passes ?? 1;
+    if (passes > 1) multipliers.push({ label: `Zona segura (${passes} pasadas)`, factor: passes });
   }
 
   if (input.provider === 'flux') {
