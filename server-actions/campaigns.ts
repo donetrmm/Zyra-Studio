@@ -157,6 +157,8 @@ const SetProductDimensionsSchema = z.object({
   id: z.string().uuid(),
   heightCm: z.number().positive().max(2000).nullable().optional(),
   widthCm: z.number().positive().max(2000).nullable().optional(),
+  medium: z.string().max(120).optional(),
+  thicknessMm: z.number().positive().max(500).nullable().optional(),
 });
 
 export async function setProductDimensionsAction(
@@ -185,6 +187,15 @@ export async function setProductDimensionsAction(
   if (parsed.data.widthCm !== undefined) {
     if (parsed.data.widthCm === null) delete next.widthCm;
     else next.widthCm = parsed.data.widthCm;
+  }
+  if (parsed.data.medium !== undefined) {
+    const m = parsed.data.medium.trim();
+    if (!m) delete next.medium;
+    else next.medium = m;
+  }
+  if (parsed.data.thicknessMm !== undefined) {
+    if (parsed.data.thicknessMm === null) delete next.thicknessMm;
+    else next.thicknessMm = parsed.data.thicknessMm;
   }
 
   const { error } = await supabase

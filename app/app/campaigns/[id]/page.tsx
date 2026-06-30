@@ -39,7 +39,7 @@ export default async function CampaignDetailRoute({
 
   if (!campaign) redirect('/app/campaigns');
 
-  const brief = (campaign.product_brief ?? null) as { productName?: string; category?: string; heightCm?: number; widthCm?: number } | null;
+  const brief = (campaign.product_brief ?? null) as { productName?: string; category?: string; heightCm?: number; widthCm?: number; medium?: string; thicknessMm?: number } | null;
 
   // Campaña Studio (V2): tiene brief de producto → vista de plan/producción.
   // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
@@ -122,6 +122,8 @@ export default async function CampaignDetailRoute({
           ideaText: (campaign.idea_text as string | null) ?? null,
           productHeightCm: brief.heightCm,
           productWidthCm: brief.widthCm,
+          productMedium: brief.medium,
+          productThicknessMm: brief.thicknessMm,
           guidelines: CreativeGuidelinesSchema.catch({}).parse(campaign.creative_guidelines ?? {}),
         }}
         initialItems={items}

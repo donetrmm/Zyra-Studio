@@ -95,6 +95,8 @@ export type StudioCampaign = {
   ideaText: string | null;
   productHeightCm?: number;
   productWidthCm?: number;
+  productMedium?: string;
+  productThicknessMm?: number;
   guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null };
 };
 
@@ -425,6 +427,8 @@ export function CampaignStudioView({
           campaignId={campaign.id}
           initialHeightCm={campaign.productHeightCm}
           initialWidthCm={campaign.productWidthCm}
+          initialMedium={campaign.productMedium}
+          initialThicknessMm={campaign.productThicknessMm}
         />
       </div>
       <div className="mt-3">
