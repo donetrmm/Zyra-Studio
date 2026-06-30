@@ -33,6 +33,11 @@ export const ProductBriefSchema = z.object({
   // infiere (no se deduce de una foto sin referencia).
   heightCm: z.number().positive().max(2000).optional(),
   widthCm: z.number().positive().max(2000).optional(),
+  // Tipo de objeto/soporte cuando el producto es un objeto con imagen impresa
+  // (canvas, taza, playera). Texto libre. Lo provee el usuario (no se infiere).
+  medium: z.string().max(120).optional(),
+  // Grosor del canto en mm (ej. canvas delgado ~10). Lo provee el usuario.
+  thicknessMm: z.number().positive().max(500).optional(),
 });
 export type ProductBrief = z.infer<typeof ProductBriefSchema>;
 
