@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreativeGuidelinesSchema, creativeGuidelineClauses } from './guidelines';
+import { CreativeGuidelinesSchema, creativeGuidelineClauses, guidelinesForSafeBase } from './guidelines';
 
 describe('CreativeGuidelinesSchema', () => {
   it('acepta flags válidos y tolera ausencia (todo apagado)', () => {
@@ -73,5 +73,19 @@ describe('safeAreaExtend', () => {
   it('el schema acepta safeAreaExtend y tolera ausencia', () => {
     expect(CreativeGuidelinesSchema.parse({ safeAreaExtend: true }).safeAreaExtend).toBe(true);
     expect(CreativeGuidelinesSchema.parse({}).safeAreaExtend).toBeUndefined();
+  });
+});
+
+describe('guidelinesForSafeBase', () => {
+  it('anula safeCrop y conserva el resto', () => {
+    const out = guidelinesForSafeBase({ showFullProduct: true, safeCrop: '4:5', safeAreaExtend: true });
+    expect(out).toEqual({ showFullProduct: true, safeCrop: null, safeAreaExtend: true });
+  });
+  it('undefined -> undefined', () => {
+    expect(guidelinesForSafeBase(undefined)).toBeUndefined();
+  });
+  it('la base 4:5 no emite la clausula de safe-crop', () => {
+    const base = guidelinesForSafeBase({ safeCrop: '4:5' });
+    expect(creativeGuidelineClauses(base)).toBe('');
   });
 });

@@ -117,11 +117,18 @@ en estricto, queda sin uso: se **elimina** `SAFE_ZONE_STRONG_CLAUSE` y su test.
 ## Manejo de errores / fallback
 
 Si el expand falla por cualquier causa (endpoint no disponible, 402, timeout,
-respuesta sin imagen), `extendPanelTo916` **no rompe el panel**: hace fallback al
-**9:16 nativo** (genera/usa la salida directa, el comportamiento actual) y registra
-el motivo. Asi el usuario siempre obtiene un panel; el estricto solo "mejora" cuando
-el expand esta disponible. El probe-first evita descubrir la indisponibilidad en
-produccion.
+respuesta sin imagen), el modo estricto **falla limpio**: la base 4:5 NO se guarda,
+`extendPanelTo916` propaga el `ProviderError` y el catch existente de la accion hace
+refund de creditos y marca la generacion como error (`provider_error`). El usuario
+reintenta (los fallos del expand son transitorios) o desactiva la zona segura
+estricta. Decision de producto (2026-06-30, revision final): se prefiere fallar y
+reintentar antes que guardar un 4:5 mal etiquetado como 9:16 (que la UI y el
+image-to-video tratarian como 9:16 con letterbox/stretch) o reintroducir bandas
+deterministas (contradice la regla de no-bandas). El probe-first evita descubrir la
+indisponibilidad sistematica en produccion; este path cubre los fallos transitorios.
+
+Guard defensivo: `centralSafeCrop` hace no-op si la imagen ya es <= 4:5, de modo que
+aunque un 4:5 llegara a la cadena por cualquier via, no revienta `sharp.extract`.
 
 ## Testing
 

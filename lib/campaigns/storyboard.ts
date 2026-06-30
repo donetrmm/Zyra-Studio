@@ -113,13 +113,6 @@ export function compileRefinePrompt(
   return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
-// Clausula de zona segura ESTRICTA (toggle safeAreaExtend): refuerzo fuerte por TEXTO para
-// que, en un 9:16 nativo, el producto y la mayor parte del personaje queden dentro del 4:5
-// central con margenes vacios arriba/abajo. Sin extension ni imagen-guia (ambos fallaron):
-// solo prompt. Se concatena al prompt del panel (empieza con espacio). ASCII.
-export const SAFE_ZONE_STRONG_CLAUSE =
-  ' STRICT SAFE ZONE - this is a hard requirement, not a preference: even though the frame is a tall 9:16, the ENTIRE product and the main person face and upper body must sit fully inside the central 4:5 region of the frame (the middle, roughly the central two-thirds vertically), with clearly empty background filling the top sixth and the bottom sixth. CRITICAL: do not shrink the product to make it fit - keep it at its true real-world scale relative to the person, so a large canvas still reads as large next to them, in correct perspective. Achieve the fit by FRAMING instead: pull the camera back or use a wider shot so the whole product and the person both land inside that central 4:5 at their correct relative sizes. The product must never be cropped, and its top and especially its bottom edge must stay inside the 4:5. The shot has to look intentional and complete both as a full 9:16 and when cropped to the central 4:5.';
-
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.
 export function compilePanelEdit(

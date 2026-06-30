@@ -57,3 +57,14 @@ export function creativeGuidelineClauses(
   }
   return out;
 }
+
+// Para la BASE 4:5 del modo estricto: el frame 4:5 YA es la zona segura, asi que
+// emitir la clausula de safeCrop ahi seria redundante (encogeria el producto dentro
+// de un 4:5 que de por si es el area segura). Anula safeCrop conservando el resto de
+// las guias (showFullProduct/hookProductHero siguen vigentes).
+export function guidelinesForSafeBase(
+  guidelines: CreativeGuidelines | undefined,
+): CreativeGuidelines | undefined {
+  if (!guidelines) return undefined;
+  return { ...guidelines, safeCrop: null };
+}
