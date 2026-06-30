@@ -155,6 +155,7 @@ async function loadPreviousPanelTurn(
   campaignId: string,
   sceneIndex: number | null,
   sequenceId: string | null,
+  currentLocationId: string | null,
 ): Promise<{ prompt: string; imageBuffer: Buffer; mimeType: string; thoughtSignature?: string } | null> {
   // El encadenado es DENTRO de un creativo: solo hay panel anterior si el beat pertenece
   // a una secuencia (sequenceId) y no es la primera escena. Los items sueltos
@@ -162,15 +163,23 @@ async function loadPreviousPanelTurn(
   if (sceneIndex == null || sequenceId == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
-    .select('scene_index, storyboard_generation_id')
+    .select('scene_index, storyboard_generation_id, location_id')
     .eq('campaign_id', campaignId)
     .eq('sequence_id', sequenceId)
     .lt('scene_index', sceneIndex)
     .not('storyboard_generation_id', 'is', null)
     .order('scene_index', { ascending: false })
     .limit(1);
-  const prevGenId = (rows?.[0]?.storyboard_generation_id as string | null | undefined) ?? null;
+  const prevRow = rows?.[0] as
+    | { storyboard_generation_id: string | null; location_id: string | null }
+    | undefined;
+  const prevGenId = prevRow?.storyboard_generation_id ?? null;
   if (!prevGenId) return null;
+  // Locacion por clip: si este beat tiene una locacion distinta a la del beat anterior,
+  // se ROMPE la cadena (sin turno previo) para que se genere FRESCO en SU locacion
+  // (la identidad la sostienen las referencias de producto/personaje). Encadenar
+  // arrastraria la locacion del beat anterior via la imagen previa.
+  if ((prevRow?.location_id ?? null) !== (currentLocationId ?? null)) return null;
   const { data: gen } = await supabase
     .from('generations')
     .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
@@ -285,7 +294,7 @@ export async function generatePanelAction(
   // genera EDITÁNDOLO (conserva escena, arreglo y producto colocado) y aplica la acción
   // del beat. El primer panel se genera fresco (compose). La identidad se re-ancla con
   // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
-  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id);
+  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
   // Foto-realismo humano SOLO en el panel fresco (no encadenado): la rama encadenada
   // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
