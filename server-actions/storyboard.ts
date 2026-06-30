@@ -649,6 +649,14 @@ export async function refinePanelAction(
 
   const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
 
+  const guidelines = dirCtx.guidelines;
+  const strictSafe =
+    Boolean(guidelines?.safeAreaExtend) &&
+    guidelines?.safeCrop === '4:5' &&
+    (item.aspect_ratio ?? '9:16') === '9:16';
+  const refineDirCtx = strictSafe ? { ...dirCtx, guidelines: guidelinesForSafeBase(guidelines) } : dirCtx;
+  const genAspect = strictSafe ? '4:5' : (item.aspect_ratio ?? '9:16');
+
   const compiled = compilePanelEdit(instruction, item.aspect_ratio, dirCtx, NANO_MODEL_SLUG);
   if (!compiled.ok) {
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
@@ -660,7 +668,7 @@ export async function refinePanelAction(
   // ancla producto y personaje por TEXTO (mismas anclas que la rama encadenada de
   // regenerar); la escena y la locacion las preserva el turno previo. Se conserva `compiled`
   // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
-  const refinePrompt = compileRefinePrompt(instruction, dirCtx, {
+  const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
   });
 
@@ -670,7 +678,7 @@ export async function refinePanelAction(
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: true },
+    params: { conversational: true, passes: strictSafe ? 2 : 1 },
   });
   const cost = breakdown.total;
 
@@ -761,10 +769,14 @@ export async function refinePanelAction(
       }
     }
 
+    if (strictSafe && previousTurn) {
+      previousTurn = { ...previousTurn, imageBuffer: await centralSafeCrop(previousTurn.imageBuffer) };
+    }
+
     const result = await generateNanoBanana({
       model: NANO_MODEL_SLUG,
       prompt: refinePrompt,
-      aspectRatio: item.aspect_ratio ?? '9:16',
+      aspectRatio: genAspect,
       resolution: nanoVariantToResolution(NANO_VARIANT),
       references,
       previousTurn,
@@ -774,15 +786,19 @@ export async function refinePanelAction(
       noBackground: false,
     });
 
-    const ext = inferExtension(result.mimeType);
+    const finalImage = strictSafe
+      ? await extendPanelTo916(result.buffer, result.mimeType)
+      : { buffer: result.buffer, mimeType: result.mimeType };
+
+    const ext = inferExtension(finalImage.mimeType);
     const outputPath = await uploadOutput(
       workspace.id,
       generationId,
-      result.buffer,
-      result.mimeType,
+      finalImage.buffer,
+      finalImage.mimeType,
       ext,
     );
-    const thumbBuffer = await makeThumbnail(result.buffer);
+    const thumbBuffer = await makeThumbnail(finalImage.buffer);
     const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
 
     const processingMs = Date.now() - startedAt;
@@ -798,7 +814,7 @@ export async function refinePanelAction(
       outputUrl: outputPath,
       thumbnailUrl: thumbPath,
       processingMs,
-      fileSizeBytes: result.buffer.byteLength,
+      fileSizeBytes: finalImage.buffer.byteLength,
       providerPayload: Object.keys(providerPayload).length > 0 ? providerPayload : null,
     });
 
