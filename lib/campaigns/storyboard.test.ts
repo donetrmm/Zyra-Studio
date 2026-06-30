@@ -8,6 +8,7 @@ import {
   compileRefinePrompt,
   humanRealismDirective,
   isStylized,
+  SAFE_AREA_EXTEND_PROMPT,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -126,6 +127,16 @@ describe('compilePanelEdit', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toContain('warmer');
+  });
+});
+
+describe('SAFE_AREA_EXTEND_PROMPT', () => {
+  it('pide rellenar solo las bandas y preservar el centro, sin sujetos nuevos', () => {
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('keep the central area exactly unchanged');
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('top and bottom bands');
+    expect(SAFE_AREA_EXTEND_PROMPT).toContain('do not place the product');
+    // ASCII puro.
+    expect(/^[\x00-\x7F]*$/.test(SAFE_AREA_EXTEND_PROMPT)).toBe(true);
   });
 });
 

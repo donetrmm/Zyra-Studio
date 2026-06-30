@@ -113,6 +113,13 @@ export function compileRefinePrompt(
   return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
+// Instruccion para extender la base 4:5 a 9:16: Nano recibe la base centrada en un
+// lienzo 9:16 con bandas negras y rellena SOLO esas bandas continuando el fondo, sin
+// sujetos. El centro se fija despues por composicion (pinCenter), pero igual se pide
+// preservarlo para que las bandas empaten. ASCII.
+export const SAFE_AREA_EXTEND_PROMPT =
+  'Fill only the empty top and bottom bands of this image by continuing the existing scene and background naturally into them; keep the central area exactly unchanged; do not place the product, any person, any text or any new object in the top or bottom bands - they are background extension only.';
+
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
 // La imagen base y el turno previo los inyecta la acción server (IO), no aquí.
 export function compilePanelEdit(
