@@ -20,7 +20,7 @@ function getClient(): Client {
 
 export type EnqueueJobInput = {
   generationId: string;
-  action: 'submit' | 'poll' | 'advance_chain';
+  action: 'submit' | 'poll' | 'advance_chain' | 'promote_storyboard';
   delaySeconds?: number;
   // Solo para 'advance_chain': PATH interno (bucket references) del último
   // fotograma del clip ya terminado. El finalize lo sube con la URL fresca y el

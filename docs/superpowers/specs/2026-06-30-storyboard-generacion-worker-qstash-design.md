@@ -168,6 +168,17 @@ posterior consciente del tipo (mirroring el `advance_chain` de video en
 `media_reference` y se actualiza el `campaign_item`. Best-effort (log en error, no rompe
 la generacion ya `done`).
 
+**Correccion (2026-07-01): el promote va en su PROPIO job QStash, no inline.** Correrlo
+inline tras `finalize` sumaba download+upload+insert a una invocacion que en estricto ya
+gastaba ~50s en el FLUX expand; se observo un `504 Task timed out after 60 seconds` que
+mataba la funcion despues de escribir `status=done` pero antes de enlazar el
+`campaign_item` -> panel huerfano (output en storage, sin `media_reference` ni enlace, el
+beat seguia apuntando al panel previo). Fix: el `finalize` encola un job
+`action:'promote_storyboard'` (delay 0) cuando la gen es de storyboard; ese job corre
+`promoteOutputToReference`+enlace con presupuesto fresco de 60s y luego re-emite el evento
+Realtime (UPDATE idempotente `status='done'`) para que el cliente refresque con el panel
+ya enlazado (el `done` del finalize se disparo antes de existir el enlace).
+
 ### 5. Cliente (`components/campaigns/StoryboardView.tsx`)
 
 - `handleRegenerate` / generar-todos: llaman al action, que ahora retorna

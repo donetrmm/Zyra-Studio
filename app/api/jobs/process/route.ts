@@ -7,7 +7,7 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { confirmCredits, failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
 import { advanceSequenceChain, storeChainFrame } from '@/lib/campaigns/orchestrator';
-import { promoteStoryboardPanel } from '@/lib/jobs/storyboard-finalize';
+import { promoteStoryboardPanel, storyboardCampaignItemId } from '@/lib/jobs/storyboard-finalize';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
   generationId: z.string().uuid(),
-  action: z.enum(['submit', 'poll', 'advance_chain']),
+  action: z.enum(['submit', 'poll', 'advance_chain', 'promote_storyboard']),
   // Solo para 'advance_chain': PATH interno (references) del fotograma del clip
   // previo a heredar. El finalize lo sube con la URL fresca.
   lastFramePath: z.string().optional(),
@@ -91,6 +91,32 @@ export async function POST(req: Request) {
       console.error('[worker] avance de cadena falló', { generationId, err });
     }
     return NextResponse.json({ ok: true, ack: 'chain_advanced' });
+  }
+
+  // 3.6. Promote del panel de storyboard: job dedicado. La gen aquí ya está
+  // 'done' (terminal), así que se intercepta ANTES del guard terminal. Antes esto
+  // corría inline tras finalize, pero en el path estricto (Nano + FLUX expand +
+  // finalize) el download+upload+insert del promote empujaba la invocación sobre
+  // maxDuration (60s): la función moría tras 'done' pero antes de enlazar el beat,
+  // dejando el panel huérfano (output en storage, sin media_reference ni enlace).
+  // Con presupuesto fresco de 60s el promote entra holgado.
+  if (action === 'promote_storyboard') {
+    try {
+      await promoteStoryboardPanel(generation);
+      // El evento 'done' de Realtime lo disparó el finalize ANTES de que existiera
+      // el enlace, así que el cliente ya refrescó con el panel viejo. Este UPDATE
+      // idempotente re-emite el evento para que refresque de nuevo, ahora con el
+      // beat enlazado. provider_payload no viaja en el broadcast (migración 050),
+      // así que el record queda chico.
+      await admin
+        .from('generations')
+        .update({ status: 'done' })
+        .eq('id', generation.id)
+        .eq('status', 'done');
+    } catch (err) {
+      console.error('[worker] promote storyboard panel fallo', { generationId, err });
+    }
+    return NextResponse.json({ ok: true, ack: 'promoted' });
   }
 
   // 4. Guard: status terminal → ack
@@ -216,12 +242,17 @@ export async function POST(req: Request) {
       processingMs,
       metadata: result.metadata,
     });
-    // Post-step del storyboard: promover el output a media_reference y linkearlo al
-    // campaign_item (esto lo hacia el server action inline). Best-effort.
-    try {
-      await promoteStoryboardPanel(generation);
-    } catch (err) {
-      console.error('[worker] promote storyboard panel fallo', { generationId, err });
+    // Post-step del storyboard en su PROPIO job QStash (presupuesto fresco de 60s):
+    // promover el output a media_reference y enlazarlo al campaign_item. Antes corría
+    // inline aquí, pero sumado al finalize (y en estricto al FLUX expand) empujaba la
+    // invocación sobre maxDuration -> panel huérfano. Best-effort: si falla el
+    // encolado el output ya está 'done' y el beat es regenerable.
+    if (storyboardCampaignItemId(generation)) {
+      try {
+        await enqueueJob({ generationId: generation.id, action: 'promote_storyboard', delaySeconds: 0 });
+      } catch (err) {
+        console.error('[worker] no se pudo encolar el promote del storyboard', { generationId, err });
+      }
     }
     // Encadenado de secuencias (specs/v2/09): si este clip es parte de una
     // cadena y el proveedor devolvió su último fotograma, encolar el avance como
