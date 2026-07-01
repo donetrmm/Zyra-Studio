@@ -28,6 +28,15 @@ type PanelState =
   | { status: 'generating' }
   | { status: 'error'; message: string };
 
+// Quita un beat del mapa de refinados-en-vuelo (devuelve la misma ref si no estaba,
+// para no re-renderizar de mas). Modulo-level: ref estable para los useCallback.
+function clearBeat(map: Record<string, boolean>, beatId: string): Record<string, boolean> {
+  if (!map[beatId]) return map;
+  const next = { ...map };
+  delete next[beatId];
+  return next;
+}
+
 type Props = {
   campaignId: string;
   campaignName: string;
@@ -96,6 +105,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     }
   }
 
+  // Beats con un refinado en vuelo: mantiene la imagen actual visible con un overlay
+  // "Refinando..." hasta que Realtime cierra la generacion (done/failed). Distinto de
+  // 'generating', que reemplaza la imagen por el spinner (regenerar parte de cero).
+  const [refiningBeats, setRefiningBeats] = useState<Record<string, boolean>>({});
+
   // Estado local por beat: refleja URL y estado de generación sin necesitar Realtime.
   const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() => {
     const init: Record<string, PanelState> = {};
@@ -138,9 +152,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   const onPanelUpdate = useCallback(
     (u: { campaignItemId: string; status: string; errorMessage: string | null }) => {
       if (u.status === 'done') {
+        setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
         setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'idle', panelUrl: null } }));
         router.refresh();
       } else if (u.status === 'failed') {
+        setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
         const msg = u.errorMessage ?? 'No se pudo generar el panel.';
         setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'error', message: msg } }));
       } else if (u.status === 'processing' || u.status === 'queued') {
@@ -237,6 +253,10 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       return;
     }
     setRefining(beatId);
+    // Overlay "Refinando..." sobre la imagen actual desde el click; persiste durante toda
+    // la generacion (Realtime lo cierra en done/failed). Se mantiene la panelUrl visible
+    // (no la ponemos en null como antes, que dejaba "Sin panel" ~80s sin feedback).
+    setRefiningBeats((prev) => ({ ...prev, [beatId]: true }));
     setRefineErrors((prev) => {
       if (!(beatId in prev)) return prev;
       const next = { ...prev };
@@ -247,9 +267,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     setRefining(null);
     if (res.ok) {
       setInstructions((prev) => ({ ...prev, [beatId]: '' }));
-      setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
-      router.refresh();
+      // El overlay queda activo; el evento terminal por Realtime (done/failed) lo limpia.
     } else {
+      setRefiningBeats((prev) => clearBeat(prev, beatId));
       const msg = friendlyError(res.error, res.message);
       // Persistir el fallo como nota bajo el panel (no borramos la panelUrl previa):
       // refinar (Nano Banana) puede tardar y el toast se desvanece sin dejar rastro.
@@ -355,9 +375,13 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
             const state = panelStates[beat.id] ?? { status: 'idle', panelUrl: beat.panelUrl };
             const isGenerating = state.status === 'generating';
             const isRefining = refining === beat.id;
-            const panelUrl = state.status === 'idle' ? state.panelUrl : null;
+            const refiningNow = !!refiningBeats[beat.id];
+            // Durante un refinado mantenemos visible la ultima imagen conocida (beat.panelUrl)
+            // aunque Realtime pase el estado a 'generating': el overlay indica el trabajo.
+            const panelUrl = state.status === 'idle' ? state.panelUrl : refiningNow ? beat.panelUrl : null;
             const hasError = state.status === 'error';
             const instruction = instructions[beat.id] ?? '';
+            const busy = isGenerating || isRefining || refiningNow || generatingAll;
             // Regenerar un panel que ya existe pasa por el turno previo (chained, 1.5x);
             // sin panel todavia es una generacion nueva (fresh).
             const regenCost = panelUrl ? panelCostChained : panelCostFresh;
@@ -366,20 +390,28 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
               <div key={beat.id} className="flex flex-col gap-2">
                 {/* Panel image */}
                 <div className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-muted/20">
-                  {isGenerating || isRefining ? (
+                  {(isGenerating || isRefining) && !refiningNow ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="size-6 animate-spin" aria-hidden />
                       <span className="text-[11px]">generando…</span>
                     </div>
                   ) : panelUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={panelUrl}
-                      alt={`Panel ${beat.sceneIndex + 1}`}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={panelUrl}
+                        alt={`Panel ${beat.sceneIndex + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                      {refiningNow && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
+                          <Loader2 className="size-6 animate-spin" aria-hidden />
+                          <span className="text-[11px]">Refinando…</span>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                       <ImageIcon className="size-8 opacity-40" aria-hidden />
@@ -410,7 +442,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     <select
                       id={`loc-${beat.id}`}
                       value={beat.locationId ?? ''}
-                      disabled={savingBeatLocation === beat.id || isGenerating || isRefining || generatingAll}
+                      disabled={savingBeatLocation === beat.id || busy}
                       onChange={(e) =>
                         void handleSetBeatLocation(beat.id, e.target.value === '' ? null : e.target.value)
                       }
@@ -431,7 +463,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isGenerating || isRefining || generatingAll}
+                  disabled={busy}
                   onClick={() => handleRegenerate(beat.id)}
                 >
                   <RefreshCw className="size-3" aria-hidden />
@@ -448,7 +480,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     id={`prodref-${beat.id}`}
                     size="sm"
                     checked={productRef[beat.id] ?? false}
-                    disabled={isGenerating || isRefining || generatingAll}
+                    disabled={busy}
                     onCheckedChange={(checked) =>
                       setProductRef((prev) => ({ ...prev, [beat.id]: checked }))
                     }
@@ -465,7 +497,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     id={`charref-${beat.id}`}
                     size="sm"
                     checked={characterRef[beat.id] ?? false}
-                    disabled={isGenerating || isRefining || generatingAll}
+                    disabled={busy}
                     onCheckedChange={(checked) =>
                       setCharacterRef((prev) => ({ ...prev, [beat.id]: checked }))
                     }
@@ -491,14 +523,14 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                       }
                     }}
                     placeholder="Instrucción…"
-                    disabled={isGenerating || isRefining || generatingAll || !panelUrl}
+                    disabled={busy || !panelUrl}
                     className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40"
                   />
                   <Button
                     type="button"
                     size="sm"
                     className="shrink-0"
-                    disabled={isGenerating || isRefining || generatingAll || !panelUrl || !instruction.trim()}
+                    disabled={busy || !panelUrl || !instruction.trim()}
                     onClick={() => void handleRefine(beat.id)}
                   >
                     {isRefining ? (

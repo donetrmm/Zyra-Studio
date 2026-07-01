@@ -102,15 +102,18 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
 // de compilePanelEdit, cuyas cláusulas "as in the reference image" apuntan a imágenes
 // que en el chat no viajan: el producto y el personaje se anclan por TEXTO
 // (chainedProductFidelity/chainedCharacterFidelity, mismas anclas que la rama encadenada
-// de regenerar). La escena y la locación las preserva el turno previo + "keep everything
-// else the same". Devuelve el prompt completo (la instrucción es la edición a aplicar).
+// de regenerar). La identidad de producto y personaje ya la fijan esas cláusulas, así que
+// aquí NO se pide "misma composición/encuadre" (eso contradecía y bloqueaba las ediciones
+// compositivas como "pon el cuadro en la pared"): se preserva la continuidad de escena
+// (locación, luz, color) pero se permite recomponer lo necesario para aplicar la edición.
+// Devuelve el prompt completo (la instrucción es la edición a aplicar).
 export function compileRefinePrompt(
   instruction: string,
   ctx: DirectorContext,
   opts?: { isOpeningBeat?: boolean },
 ): string {
   const lead = instruction.trim().replace(/\.?$/, '.');
-  return `${lead} Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
+  return `${lead} Make this change, and keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
