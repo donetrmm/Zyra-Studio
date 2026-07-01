@@ -1579,6 +1579,28 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
   const pricing = await loadPricing();
   const cost = seedanceCostPerItem(pricing, FINAL_MODEL, resolution, durationS);
 
+  // Claim atómico anti doble-submit: draft_ready -> approved ANTES de crear la
+  // generación. Dos requests concurrentes pasan el guard de arriba con la misma
+  // lectura; solo el que gana este UPDATE condicionado sigue — el otro ve count
+  // 0 y sale sin cobrar un segundo render final.
+  const { count: claimed } = await supabase
+    .from('campaign_items')
+    .update({ status: 'approved' }, { count: 'exact' })
+    .eq('id', item.id)
+    .eq('status', 'draft_ready');
+  if (!claimed) {
+    return { ok: false, error: 'forbidden', message: 'Ya hay un render final en curso para este item' };
+  }
+  // Devuelve el item a draft_ready apuntando al draft, solo si nadie más lo
+  // movió después de nosotros (condición por status='approved').
+  const revertClaim = async () => {
+    await supabase
+      .from('campaign_items')
+      .update({ status: 'draft_ready', generation_id: item.generation_id })
+      .eq('id', item.id)
+      .eq('status', 'approved');
+  };
+
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
     .insert({
@@ -1603,6 +1625,7 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
     .select('id')
     .single();
   if (insertErr || !inserted) {
+    await revertClaim();
     return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
   }
   const generationId = inserted.id as string;
@@ -1611,15 +1634,23 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
   try {
     reserved = await reserveCredits(user.id, cost, generationId);
     if (!reserved) {
+      // Reserva fallida: sin créditos cargados. Borrar la fila y liberar el claim.
       const admin = createAdminClient();
       await admin.from('generations').delete().eq('id', generationId);
+      await revertClaim();
       return { ok: false, error: 'insufficient_credits' };
     }
-    await enqueueJob({ generationId, action: 'submit' });
-    await supabase
+    // Enlazar el item al render final ANTES de encolar: si este UPDATE falla se
+    // aborta sin encolar (antes era post-enqueue y sin verificar: el render
+    // corría y cobraba pero el item nunca lo referenciaba).
+    const { error: linkErr } = await supabase
       .from('campaign_items')
-      .update({ status: 'approved', generation_id: generationId })
+      .update({ generation_id: generationId })
       .eq('id', item.id);
+    if (linkErr) {
+      throw new Error(`no se pudo enlazar el item al render final: ${linkErr.message}`);
+    }
+    await enqueueJob({ generationId, action: 'submit' });
     revalidatePath(`/app/campaigns/${item.campaign_id}`);
     return { ok: true, data: { generationId } };
   } catch (err) {
@@ -1631,6 +1662,14 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
         generationId,
         error: message,
         failError: (failErr as Error)?.message,
+      });
+    }
+    try {
+      await revertClaim();
+    } catch (revertErr) {
+      console.error('[request_final:revert_claim]', {
+        generationId,
+        error: (revertErr as Error)?.message,
       });
     }
     return { ok: false, error: 'internal_error', message };
