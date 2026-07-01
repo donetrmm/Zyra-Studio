@@ -32,8 +32,8 @@ import {
 import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
-import { safeAreaBands, centralSafeCrop } from '@/lib/images/safe-area';
-import { expand } from '@/lib/providers/flux-expand';
+import { centralSafeCrop } from '@/lib/images/safe-area';
+import { extendPanelTo916 } from '@/lib/campaigns/storyboard-expand';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -215,32 +215,6 @@ async function loadPreviousPanelTurn(
   } catch {
     return null;
   }
-}
-
-// Expande una base 4:5 a 9:16 con FLUX.1 Expand (outpaint con mascara). Agrega
-// bandas reales arriba y abajo preservando el centro 4:5. NO hace fallback: si el
-// expand cae (endpoint no disponible, 402, timeout, moderado) deja propagar el
-// ProviderError para que la accion falle limpio (refund + retry del usuario) en
-// vez de guardar un 4:5 mal etiquetado como 9:16 (que romperia el crop encadenado).
-// El modo estricto garantiza un 9:16 nitido O falla la generacion.
-async function extendPanelTo916(
-  base: { buffer: Buffer; mimeType: string },
-): Promise<{ buffer: Buffer; mimeType: string }> {
-  const meta = await sharp(base.buffer).metadata();
-  const width = meta.width ?? 0;
-  if (!width) {
-    throw new ProviderError('zona segura: no se pudo leer el ancho de la base', 'invalid_input', false);
-  }
-  const { bandPx } = safeAreaBands(width);
-  // Prompt NEUTRO a proposito: el expand continua el fondo que ya ve en la imagen, no
-  // necesita la descripcion del beat. Omitir el scene_prompt del usuario reduce la
-  // superficie de moderacion de BFL (que disparaba "FLUX expand moderado") y evita que
-  // el modelo invente un sujeto en las bandas (uno de los fallos viejos). Solo extiende
-  // el entorno vacio; el sujeto/producto del centro 4:5 ya esta y se preserva.
-  const prompt =
-    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings.';
-  const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
-  return { buffer: result.buffer, mimeType: result.mimeType };
 }
 
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────

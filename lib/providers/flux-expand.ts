@@ -7,8 +7,10 @@ import { ProviderError, type GenerationResult } from './types';
 
 const BFL_BASE = 'https://api.bfl.ai';
 const EXPAND_ENDPOINT = `${BFL_BASE}/v1/flux-pro-1.0-expand`;
-const POLL_INTERVAL_MS = 500;
-const POLL_TIMEOUT_MS = 30000;
+const POLL_INTERVAL_MS = 1000;
+// El expand corre solo dentro de UNA invocacion del worker (60s). 50s deja margen
+// para el submit/download y evita el kill por 60s; 30s disparaba timeouts falsos.
+const POLL_TIMEOUT_MS = 50000;
 
 export type ExpandParams = {
   image: Buffer;
