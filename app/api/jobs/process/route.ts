@@ -71,7 +71,14 @@ export async function POST(req: Request) {
     .eq('id', generationId)
     .single();
   if (loadErr || !gen) {
-    // Row borrada (cleanup, etc.) → ack y exit. No error para QStash.
+    // Distinguir "no hay fila" (PGRST116: borrada por cleanup → ack, no reintentar)
+    // de un fallo de carga (red, timeout, respuesta gigante): antes TODO se ack'eaba
+    // como not_found y un fallo transitorio dejaba la gen en 'processing' para
+    // siempre (QStash da el job por entregado). Con 500, QStash reintenta (3x).
+    if (loadErr && loadErr.code !== 'PGRST116') {
+      console.error('[worker] fallo cargando la gen', { generationId, error: loadErr.message });
+      return NextResponse.json({ ok: false, error: 'load_failed' }, { status: 500 });
+    }
     console.warn('[worker] gen no encontrada', { generationId });
     return NextResponse.json({ ok: true, ack: 'not_found' });
   }
