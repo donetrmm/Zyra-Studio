@@ -158,6 +158,15 @@ export function describeProductScale(product?: ProductInventory): string {
     : ratio < 0.95 ? "its top edge reaching an adult's shoulders, clearly shorter than the person"
     : ratio < 1.10 ? 'about as tall as a standing adult'
     : 'taller than a standing adult';
+  // Ancla de interaccion: sin ella el modelo encoge piezas grandes a objeto de
+  // mano cuando un personaje las sostiene (fallo observado: canvas de 150cm
+  // sostenido con una mano como si fuera un libro).
+  const carry =
+    ratio < 0.45 ? ''
+    : ratio < 0.60 ? ' If a person holds it, it takes both hands and covers them from waist to chest; it is never a small hand-held object.'
+    : ratio < 0.80 ? ' If a person carries it, it takes both arms and covers them from thighs to chest; never render it as a small hand-held object.'
+    : ratio < 1.10 ? ' If a person carries it, it takes both arms and covers them from knees to shoulders; never render it as a small hand-held board.'
+    : ' Carrying it visibly dwarfs a single person; it cannot be casually held.';
   const dims =
     product.heightCm && product.widthCm
       ? `about ${product.heightCm} cm tall and ${product.widthCm} cm wide`
@@ -179,5 +188,5 @@ export function describeProductScale(product?: ProductInventory): string {
     }
     shape += ' — keep this exact aspect ratio';
   }
-  return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.`;
+  return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.${carry}`;
 }

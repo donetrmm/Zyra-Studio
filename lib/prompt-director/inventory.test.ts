@@ -65,9 +65,16 @@ describe('describeProductScale', () => {
     expect(d).not.toContain('aspect ratio');
   });
 
-  it('objeto chico (10 cm) → cabe en una mano', () => {
+  it('objeto chico (10 cm) → cabe en una mano, sin cláusula de carga', () => {
     const d = describeProductScale({ name: 'Bottle', imagePaths: [], heightCm: 10 });
     expect(d).toContain('small enough to hold in one hand');
+    expect(d).not.toContain('carries it');
+  });
+
+  it('pieza grande (150 cm) → ancla de carga: ambos brazos, de rodillas a hombros', () => {
+    const d = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 });
+    expect(d).toContain('it takes both arms and covers them from knees to shoulders');
+    expect(d).toContain('never render it as a small hand-held board');
   });
 
   it('más alto que una persona (200 cm) → taller than a standing adult', () => {
