@@ -2,27 +2,19 @@
 
 import 'server-only';
 import { revalidatePath } from 'next/cache';
-import sharp from 'sharp';
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  downloadOutputBuffer,
-  downloadReferenceBuffer,
-  uploadOutput,
-  uploadSafeBase,
-  uploadThumbnail,
-  promoteOutputToReference,
-} from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { estimateCredits } from '@/lib/credits/estimator';
 import {
-  completeGeneration,
   failGeneration,
   reserveCredits,
 } from '@/lib/credits/operations';
-import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
-import { ProviderError, type ImageReference } from '@/lib/providers/types';
+import {
+  NANO_MODEL_SLUG,
+  NANO_VARIANT,
+} from '@/lib/providers/nano-banana';
 import {
   loadCampaignContext,
   directorContextFor,
@@ -30,10 +22,10 @@ import {
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
+import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
+import { enqueueJob } from '@/lib/jobs/queue';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
-import { safeAreaBands, centralSafeCrop } from '@/lib/images/safe-area';
-import { expand } from '@/lib/providers/flux-expand';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
 // Slugs reales del proyecto (mirror de lib/router/model-selector.ts).
@@ -42,10 +34,6 @@ import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 //   (reference-grounded), porque FLUX no mantenía fieles producto/personaje.
 // NANO: Gemini 3 Pro — genera y edita el panel preservando las referencias.
 const FLUX_MODEL_SLUG = 'flux-2-pro-preview';
-const NANO_MODEL_SLUG = 'gemini-3-pro-image-preview';
-
-// Resolución por defecto para los paneles Nano.
-const NANO_VARIANT = '2k';
 
 type ActionError =
   | 'validation_error'
@@ -60,32 +48,6 @@ type ActionError =
   | 'internal_error';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; message?: string };
-
-async function makeThumbnail(buffer: Buffer): Promise<Buffer> {
-  return sharp(buffer)
-    .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80, mozjpeg: true })
-    .toBuffer();
-}
-
-function inferExtension(mime: string): string {
-  if (mime.includes('png')) return 'png';
-  if (mime.includes('webp')) return 'webp';
-  return 'jpg';
-}
-
-function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | '4K' {
-  switch (variant) {
-    case '1k':
-      return '1K';
-    case '2k':
-      return '2K';
-    case '4k':
-      return '4K';
-    default:
-      return '2K';
-  }
-}
 
 // ─── carga el campaign_item + campaña validando ownership ────────────────────
 
@@ -148,21 +110,18 @@ async function loadItemAndCampaign(
   return { item, campaign };
 }
 
-// Turno previo (panel del beat ANTERIOR que ya tenga panel) para ENCADENAR
-// conversacionalmente: el panel nuevo se genera EDITANDO el anterior (conserva escena,
-// arreglo y producto colocado) y aplica la acción del beat. La identidad se re-ancla
-// con las referencias limpias. Best-effort: null si no hay anterior o no carga.
-async function loadPreviousPanelTurn(
+// Ref del panel previo para ENCADENAR (sin descargar la imagen: el worker la baja).
+// Devuelve el PATH que calza con el thought_signature: en estricto el safe_base_path
+// (base 4:5 de Nano), si no el output. Misma logica de cadena (secuencia, break por
+// locacion) que antes.
+async function loadPreviousPanelRef(
   supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string,
   campaignId: string,
   sceneIndex: number | null,
   sequenceId: string | null,
   currentLocationId: string | null,
-): Promise<{ prompt: string; imageBuffer: Buffer; mimeType: string; thoughtSignature?: string } | null> {
-  // El encadenado es DENTRO de un creativo: solo hay panel anterior si el beat pertenece
-  // a una secuencia (sequenceId) y no es la primera escena. Los items sueltos
-  // (sequenceId/sceneIndex null) no encadenan: su panel se genera fresco.
+): Promise<{ imagePath: string; prompt: string; thoughtSignature?: string } | null> {
   if (sceneIndex == null || sequenceId == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
@@ -173,15 +132,9 @@ async function loadPreviousPanelTurn(
     .not('storyboard_generation_id', 'is', null)
     .order('scene_index', { ascending: false })
     .limit(1);
-  const prevRow = rows?.[0] as
-    | { storyboard_generation_id: string | null; location_id: string | null }
-    | undefined;
+  const prevRow = rows?.[0] as { storyboard_generation_id: string | null; location_id: string | null } | undefined;
   const prevGenId = prevRow?.storyboard_generation_id ?? null;
   if (!prevGenId) return null;
-  // Locacion por clip: si este beat tiene una locacion distinta a la del beat anterior,
-  // se ROMPE la cadena (sin turno previo) para que se genere FRESCO en SU locacion
-  // (la identidad la sostienen las referencias de producto/personaje). Encadenar
-  // arrastraria la locacion del beat anterior via la imagen previa.
   if ((prevRow?.location_id ?? null) !== (currentLocationId ?? null)) return null;
   const { data: gen } = await supabase
     .from('generations')
@@ -199,48 +152,12 @@ async function loadPreviousPanelTurn(
       }
     | null;
   if (!g || g.workspace_id !== workspaceId || !g.output_url || g.status !== 'done') return null;
-  try {
-    // Estricto: el thought_signature guardado corresponde a la BASE 4:5 de Nano, no al
-    // 9:16 final de FLUX. Si existe safe_base_path, se encadena desde ESA imagen (calza
-    // con la firma del chat de Gemini); si no (no-estricto o generaciones viejas), se usa
-    // el output (que en no-estricto ya es la salida de Nano que calza con su firma).
-    const chainPath = g.provider_payload?.safe_base_path ?? g.output_url;
-    const { buffer, mimeType } = await downloadOutputBuffer(chainPath);
-    return {
-      prompt: g.prompt ?? '',
-      imageBuffer: buffer,
-      mimeType,
-      thoughtSignature: g.model_id === NANO_MODEL_SLUG ? g.provider_payload?.thought_signature : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Expande una base 4:5 a 9:16 con FLUX.1 Expand (outpaint con mascara). Agrega
-// bandas reales arriba y abajo preservando el centro 4:5. NO hace fallback: si el
-// expand cae (endpoint no disponible, 402, timeout, moderado) deja propagar el
-// ProviderError para que la accion falle limpio (refund + retry del usuario) en
-// vez de guardar un 4:5 mal etiquetado como 9:16 (que romperia el crop encadenado).
-// El modo estricto garantiza un 9:16 nitido O falla la generacion.
-async function extendPanelTo916(
-  base: { buffer: Buffer; mimeType: string },
-): Promise<{ buffer: Buffer; mimeType: string }> {
-  const meta = await sharp(base.buffer).metadata();
-  const width = meta.width ?? 0;
-  if (!width) {
-    throw new ProviderError('zona segura: no se pudo leer el ancho de la base', 'invalid_input', false);
-  }
-  const { bandPx } = safeAreaBands(width);
-  // Prompt NEUTRO a proposito: el expand continua el fondo que ya ve en la imagen, no
-  // necesita la descripcion del beat. Omitir el scene_prompt del usuario reduce la
-  // superficie de moderacion de BFL (que disparaba "FLUX expand moderado") y evita que
-  // el modelo invente un sujeto en las bandas (uno de los fallos viejos). Solo extiende
-  // el entorno vacio; el sujeto/producto del centro 4:5 ya esta y se preserva.
-  const prompt =
-    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings.';
-  const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
-  return { buffer: result.buffer, mimeType: result.mimeType };
+  const imagePath = g.provider_payload?.safe_base_path ?? g.output_url;
+  return {
+    imagePath,
+    prompt: g.prompt ?? '',
+    thoughtSignature: g.model_id === NANO_MODEL_SLUG ? g.provider_payload?.thought_signature : undefined,
+  };
 }
 
 // ─── acción: generar panel (FLUX) ────────────────────────────────────────────
@@ -248,7 +165,7 @@ async function extendPanelTo916(
 export async function generatePanelAction(
   itemId: string,
   opts?: { productRefInChat?: boolean; characterRefInChat?: boolean },
-): Promise<Result<{ imageId: string | null; generationId: string }>> {
+): Promise<Result<{ generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
 
   const { user, workspace } = await requireWorkspace();
@@ -326,67 +243,49 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  // Continuidad por ENCADENADO CONVERSACIONAL: si hay panel anterior, este panel se
-  // genera EDITÁNDOLO (conserva escena, arreglo y producto colocado) y aplica la acción
-  // del beat. El primer panel se genera fresco (compose). La identidad se re-ancla con
-  // las referencias limpias en ambos casos. Prohibir texto dentro del panel.
-  const prevTurn = await loadPreviousPanelTurn(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
-  // Encadenado en estricto: el panel previo se guardo como 9:16; su base es el 4:5
-  // central. Se recorta para que el turno conversacional arranque desde la misma
-  // base 4:5 que se va a generar (sin esto el modelo encadenaria sobre un 9:16).
-  if (strictSafe && prevTurn) {
-    prevTurn.imageBuffer = await centralSafeCrop(prevTurn.imageBuffer);
-  }
+  const prevRef = await loadPreviousPanelRef(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
-  // Foto-realismo humano SOLO en el panel fresco (no encadenado): la rama encadenada
-  // es una EDICIÓN conversacional del panel anterior (que ya es foto-real y debe
-  // PRESERVARSE); inyectar ahí un re-render hacía derivar la cara y cambiar el producto.
-  // La cláusula del panel fresco va atada a la fidelidad (no cambia identidad/producto).
-  //
-  // En la rama encadenada se inyecta la fidelidad del producto por TEXTO: la cadena
-  // descarta las referencias externas (refSlots=0 en el provider), así que el contenido
-  // impreso del producto solo se ancla aquí. Antes el close-up del producto lo inventaba
-  // cuando el panel ancla no lo mostraba claro (p.ej. canvas envuelto).
-  // EXPERIMENTAL: además del texto, re-anclar la IMAGEN del producto en el turno de
-  // chat de los paneles encadenados. Lo controla el toggle per-panel de la UI
-  // (opts.productRefInChat); si no viene (p.ej. "Generar todos"), cae al env flag
-  // STORYBOARD_PRODUCT_REF_IN_CHAT=1. Off por defecto (riesgo del gotcha: Gemini podría
-  // tratarla como "edita esto"). Con on, un puntero aclara que la imagen es el producto
-  // a reproducir, no la toma a editar (esa sigue siendo el panel anterior).
   const productRefInChat =
-    Boolean(prevTurn) &&
+    Boolean(prevRef) &&
     (opts?.productRefInChat ?? process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1');
   const productRefPointer = productRefInChat
     ? ' A reference image of the product is also attached — reproduce its printed image and design exactly. The previous panel remains the base shot to re-frame; do not replace the scene with the product image.'
     : '';
-  // Simétrico al producto: re-anclar la identidad del CAST en los paneles encadenados,
-  // que es donde se pierde (la cadena descarta las referencias normales). El flag gatea
-  // AMBAS anclas del personaje (texto de preservación + imagen de la hoja maestra en el
-  // turno de chat), así que con off el comportamiento es idéntico al actual. Lo controla
-  // el toggle per-panel de la UI (opts.characterRefInChat) o el env flag
-  // STORYBOARD_CHARACTER_REF_IN_CHAT=1. Off por defecto: meter la hoja maestra frontal en
-  // un beat de otro ángulo puede ayudar a la identidad o hacer que el modelo la pegue de
-  // frente — solo el smoke real decide, por eso queda detrás de flag.
   const characterRefInChat =
-    Boolean(prevTurn) &&
+    Boolean(prevRef) &&
     (opts?.characterRefInChat ?? process.env.STORYBOARD_CHARACTER_REF_IN_CHAT === '1');
   const characterFidelityText = characterRefInChat ? chainedCharacterFidelity(dirCtx) : '';
   const characterRefPointer = characterRefInChat
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
-  const panelPromptBody = prevTurn
+  const panelPromptBody = prevRef
     ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
   const panelPrompt = panelPromptBody;
 
-  // Precio Nano Banana Pro: el panel se GENERA con Nano (reference-grounded) porque
-  // FLUX no mantenía fieles producto/personaje aunque se le pasaran como referencia.
+  const imageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');
+  const referencePaths = imageRefs.map((r) => r.storagePath);
+  const chatRefPaths = [
+    ...(productRefInChat ? imageRefs.filter((r) => r.role === 'product').map((r) => r.storagePath) : []),
+    ...(characterRefInChat ? imageRefs.filter((r) => r.role === 'character').map((r) => r.storagePath) : []),
+  ];
+
+  const payload = buildStoryboardJobPayload({
+    campaignItemId: itemId,
+    campaignId: item.campaign_id,
+    genAspect,
+    strict: strictSafe,
+    referencePaths,
+    chatRefPaths,
+    prevTurn: prevRef ? { imagePath: prevRef.imagePath, thoughtSignature: prevRef.thoughtSignature, prompt: prevRef.prompt } : null,
+  });
+
   const pricing = await loadPricing();
   const breakdown = estimateCredits(pricing, {
     provider: 'nano-banana',
     model: NANO_MODEL_SLUG,
     variant: NANO_VARIANT,
-    params: { conversational: Boolean(prevTurn), passes: strictSafe ? 2 : 1 },
+    params: { conversational: Boolean(prevRef), passes: strictSafe ? 2 : 1 },
   });
   const cost = breakdown.total;
 
@@ -402,10 +301,10 @@ export async function generatePanelAction(
       prompt: panelPrompt,
       params: {
         aspect_ratio: item.aspect_ratio,
-        conversational: Boolean(prevTurn),
+        conversational: Boolean(prevRef),
         has_text_in_image: false,
         use_grounding: false,
-        storyboard: { campaignItemId: itemId },
+        storyboard: payload,
       },
       reference_ids: [],
       campaign_id: item.campaign_id,
@@ -421,156 +320,26 @@ export async function generatePanelAction(
   }
   const generationId = inserted.id as string;
 
-  let reserved = false;
-  const startedAt = Date.now();
-  try {
-    reserved = await reserveCredits(user.id, cost, generationId);
-    if (!reserved) {
-      const admin = createAdminClient();
-      await admin.from('generations').delete().eq('id', generationId);
-      return { ok: false, error: 'insufficient_credits' };
-    }
-
-    // Cargar referencias como buffers directamente desde el storage path compilado.
-    // Las referencias compiladas ya fueron validadas por ownership en loadCampaignContext → resolvePaths.
-    const references = await Promise.all(
-      compiled.compiled.references
-        .filter((r) => r.kind === 'image')
-        .map(async (r): Promise<ImageReference> => {
-          const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
-          return { buffer, mimeType };
-        }),
-    );
-
-    // EXPERIMENTAL (smoke): re-anclar imágenes elegidas en el turno de chat. En modo
-    // chat el provider descarta `references`, así que esta es la única vía de meter una
-    // imagen sin romper la cadena. Producto y personaje van por aquí, cada uno tras su
-    // flag. Off salvo flag.
-    const downloadChatRef = async (role: 'product' | 'character'): Promise<ImageReference[]> =>
-      Promise.all(
-        compiled.compiled.references
-          .filter((r) => r.kind === 'image' && r.role === role)
-          .map(async (r): Promise<ImageReference> => {
-            const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
-            return { buffer, mimeType };
-          }),
-      );
-    const chatRefs: ImageReference[] = [
-      ...(productRefInChat ? await downloadChatRef('product') : []),
-      ...(characterRefInChat ? await downloadChatRef('character') : []),
-    ];
-    const chatReferences = chatRefs.length > 0 ? chatRefs : undefined;
-
-    // Genera con Nano Banana. Encadenado: si hay panel anterior, va como previousTurn
-    // (modo conversacional → conserva escena/arreglo/producto y aplica la acción del
-    // beat). El primer panel se genera fresco. Producto/personaje/locación van como
-    // referencias limpias en ambos casos (re-anclan identidad, acotan el drift).
-    const result = await generateNanoBanana({
-      model: NANO_MODEL_SLUG,
-      prompt: panelPrompt,
-      aspectRatio: genAspect,
-      resolution: nanoVariantToResolution(NANO_VARIANT),
-      references,
-      previousTurn: prevTurn,
-      conversational: Boolean(prevTurn),
-      useGrounding: false,
-      hasTextInImage: false,
-      chatReferences,
-    });
-
-    // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
-    // estricto: el 9:16 nativo se usa tal cual.
-    const finalImage = strictSafe
-      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType })
-      : { buffer: result.buffer, mimeType: result.mimeType };
-
-    const ext = inferExtension(finalImage.mimeType);
-    const outputPath = await uploadOutput(
-      workspace.id,
-      generationId,
-      finalImage.buffer,
-      finalImage.mimeType,
-      ext,
-    );
-    const thumbBuffer = await makeThumbnail(finalImage.buffer);
-    const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
-
-    const processingMs = Date.now() - startedAt;
-    // thought_signature del turno BASE (4:5). En estricto, ese sig corresponde a la base
-    // 4:5 de Nano (result.buffer), NO al 9:16 final de FLUX que se guarda como output; por
-    // eso la base 4:5 se sube aparte (safe_base_path) y el proximo beat encadenado replaya
-    // ESA imagen (calza con el sig) en vez del 9:16, evitando que Gemini reinterprete el
-    // producto por mismatch imagen/firma.
-    const providerPayload: Record<string, unknown> = {};
-    if (result.thoughtSignature) providerPayload.thought_signature = result.thoughtSignature;
-    if (strictSafe) {
-      const baseExt = inferExtension(result.mimeType);
-      providerPayload.safe_base_path = await uploadSafeBase(
-        workspace.id,
-        generationId,
-        result.buffer,
-        result.mimeType,
-        baseExt,
-      );
-    }
-
-    await completeGeneration({
-      userId: user.id,
-      generationId,
-      cost,
-      outputUrl: outputPath,
-      thumbnailUrl: thumbPath,
-      processingMs,
-      fileSizeBytes: finalImage.buffer.byteLength,
-      providerPayload: Object.keys(providerPayload).length > 0 ? providerPayload : null,
-    });
-
-    // Promoción best-effort: output → media_reference → campaign_item
-    let imageId: string | null = null;
-    try {
-      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath, generationId);
-      await supabase
-        .from('campaign_items')
-        .update({
-          storyboard_image_id: imageId,
-          storyboard_generation_id: generationId,
-        })
-        .eq('id', itemId);
-    } catch (promoteErr) {
-      console.error('[storyboard:promote]', {
-        generationId,
-        itemId,
-        error: (promoteErr as Error)?.message,
-      });
-    }
-
-    revalidatePath(`/app/campaigns/${item.campaign_id}/storyboard`);
-    revalidatePath('/app/library');
-
-    return {
-      ok: true,
-      data: { imageId, generationId },
-    };
-  } catch (err) {
-    const errMsg =
-      err instanceof ProviderError ? err.message : (err as Error)?.message ?? 'unknown';
-    const refundAmount = reserved ? cost : 0;
-    try {
-      await failGeneration(user.id, generationId, refundAmount, errMsg);
-    } catch (failErr) {
-      console.error('[storyboard:fail_generation:generate]', {
-        userId: user.id,
-        generationId,
-        cost: refundAmount,
-        originalError: errMsg,
-        failError: (failErr as Error)?.message,
-      });
-    }
-    if (err instanceof ProviderError && err.code === 'safety') {
-      return { ok: false, error: 'safety', message: errMsg };
-    }
-    return { ok: false, error: 'provider_error', message: errMsg };
+  const reserved = await reserveCredits(user.id, cost, generationId);
+  if (!reserved) {
+    const admin = createAdminClient();
+    await admin.from('generations').delete().eq('id', generationId);
+    return { ok: false, error: 'insufficient_credits' };
   }
+
+  try {
+    await enqueueJob({ generationId, action: 'submit' });
+  } catch (err) {
+    // Rollback: si no se pudo encolar, no dejar creditos colgados ni la fila en processing.
+    try {
+      await failGeneration(user.id, generationId, cost, `enqueue fallo: ${(err as Error)?.message ?? 'unknown'}`);
+    } catch (failErr) {
+      console.error('[storyboard:enqueue_rollback:generate]', { generationId, failErr });
+    }
+    return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
+  }
+
+  return { ok: true, data: { generationId } };
 }
 
 // ─── acción: asignar la locación del storyboard ──────────────────────────────
@@ -629,7 +398,7 @@ export async function setStoryboardLocationAction(
 export async function refinePanelAction(
   itemId: string,
   instruction: string,
-): Promise<Result<{ imageId: string | null; generationId: string }>> {
+): Promise<Result<{ generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (!instruction?.trim()) {
     return { ok: false, error: 'validation_error', message: 'instruction requerida' };
@@ -710,7 +479,39 @@ export async function refinePanelAction(
     isOpeningBeat: (item.scene_index ?? 0) === 0,
   });
 
-  // Precio Nano Banana Pro conversacional
+  // Ref del panel padre para encadenar (sin descargar: el worker baja la imagen).
+  let prevTurnRef: { imagePath: string; thoughtSignature?: string; prompt: string } | null = null;
+  const supabase = await createClient();
+  const parentGenId = item.storyboard_generation_id;
+  if (parentGenId) {
+    const { data: parent } = await supabase
+      .from('generations')
+      .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
+      .eq('id', parentGenId)
+      .single();
+    const pg = parent as
+      | { output_url: string | null; workspace_id: string; status: string; prompt: string | null; provider_payload: { thought_signature?: string; safe_base_path?: string } | null; model_id: string }
+      | null;
+    if (pg && pg.workspace_id === workspace.id && pg.output_url && pg.status === 'done') {
+      prevTurnRef = {
+        imagePath: pg.provider_payload?.safe_base_path ?? pg.output_url,
+        prompt: pg.prompt ?? '',
+        thoughtSignature: pg.model_id === NANO_MODEL_SLUG ? pg.provider_payload?.thought_signature : undefined,
+      };
+    }
+  }
+
+  const referencePaths = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+  const payload = buildStoryboardJobPayload({
+    campaignItemId: itemId,
+    campaignId: item.campaign_id,
+    genAspect,
+    strict: strictSafe,
+    referencePaths,
+    chatRefPaths: [],
+    prevTurn: prevTurnRef,
+  });
+
   const pricing = await loadPricing();
   const breakdown = estimateCredits(pricing, {
     provider: 'nano-banana',
@@ -720,7 +521,6 @@ export async function refinePanelAction(
   });
   const cost = breakdown.total;
 
-  const supabase = await createClient();
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
     .insert({
@@ -735,7 +535,7 @@ export async function refinePanelAction(
         conversational: true,
         has_text_in_image: false,
         use_grounding: false,
-        storyboard: { campaignItemId: itemId },
+        storyboard: payload,
       },
       reference_ids: [],
       parent_generation_id: item.storyboard_generation_id ?? null,
@@ -752,172 +552,25 @@ export async function refinePanelAction(
   }
   const generationId = inserted.id as string;
 
-  let reserved = false;
-  const startedAt = Date.now();
-  try {
-    reserved = await reserveCredits(user.id, cost, generationId);
-    if (!reserved) {
-      const admin = createAdminClient();
-      await admin.from('generations').delete().eq('id', generationId);
-      return { ok: false, error: 'insufficient_credits' };
-    }
-
-    // Cargar referencias extra compiladas como buffers directamente desde el storage path compilado.
-    // Las referencias compiladas ya fueron validadas por ownership en loadCampaignContext → resolvePaths.
-    const references = await Promise.all(
-      compiled.compiled.references
-        .filter((r) => r.kind === 'image')
-        .map(async (r): Promise<ImageReference> => {
-          const { buffer, mimeType } = await downloadReferenceBuffer(r.storagePath);
-          return { buffer, mimeType };
-        }),
-    );
-
-    // Conversacional: turno previo del panel anterior (output + thought_signature).
-    // Idéntico al patrón de submitGenerationAction con parentGenerationId.
-    let previousTurn: {
-      prompt: string;
-      imageBuffer: Buffer;
-      mimeType: string;
-      thoughtSignature?: string;
-    } | null = null;
-
-    const parentGenId = item.storyboard_generation_id;
-    if (parentGenId) {
-      const { data: parent } = await supabase
-        .from('generations')
-        .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
-        .eq('id', parentGenId)
-        .single();
-      if (
-        parent &&
-        parent.workspace_id === workspace.id &&
-        parent.output_url &&
-        parent.status === 'done'
-      ) {
-        const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url as string);
-        const payload = (parent.provider_payload ?? {}) as { thought_signature?: string };
-        const modelMatches = parent.model_id === NANO_MODEL_SLUG;
-        previousTurn = {
-          prompt: (parent.prompt as string) ?? '',
-          imageBuffer: buffer,
-          mimeType,
-          thoughtSignature: modelMatches ? payload.thought_signature : undefined,
-        };
-      }
-    }
-
-    // Estricto: el panel previo se guardo como 9:16; se recorta a su 4:5 central para
-    // que el turno conversacional del refinado arranque desde la misma base 4:5.
-    if (strictSafe && previousTurn) {
-      previousTurn.imageBuffer = await centralSafeCrop(previousTurn.imageBuffer);
-    }
-
-    const result = await generateNanoBanana({
-      model: NANO_MODEL_SLUG,
-      prompt: refinePrompt,
-      aspectRatio: genAspect,
-      resolution: nanoVariantToResolution(NANO_VARIANT),
-      references,
-      previousTurn,
-      useGrounding: false,
-      conversational: true,
-      hasTextInImage: false,
-      noBackground: false,
-    });
-
-    // Estricto: la base 4:5 se expande a 9:16 con FLUX (outpaint real). Fuera de
-    // estricto: el 9:16 nativo se usa tal cual.
-    const finalImage = strictSafe
-      ? await extendPanelTo916({ buffer: result.buffer, mimeType: result.mimeType })
-      : { buffer: result.buffer, mimeType: result.mimeType };
-
-    const ext = inferExtension(finalImage.mimeType);
-    const outputPath = await uploadOutput(
-      workspace.id,
-      generationId,
-      finalImage.buffer,
-      finalImage.mimeType,
-      ext,
-    );
-    const thumbBuffer = await makeThumbnail(finalImage.buffer);
-    const thumbPath = await uploadThumbnail(workspace.id, generationId, thumbBuffer);
-
-    const processingMs = Date.now() - startedAt;
-    // Estricto: igual que en generar, el sig corresponde a la base 4:5 de Nano; se sube
-    // aparte para que el encadenado replaye la imagen que calza con la firma.
-    const providerPayload: Record<string, unknown> = {};
-    if (result.thoughtSignature) {
-      providerPayload.thought_signature = result.thoughtSignature;
-    }
-    if (strictSafe) {
-      const baseExt = inferExtension(result.mimeType);
-      providerPayload.safe_base_path = await uploadSafeBase(
-        workspace.id,
-        generationId,
-        result.buffer,
-        result.mimeType,
-        baseExt,
-      );
-    }
-
-    await completeGeneration({
-      userId: user.id,
-      generationId,
-      cost,
-      outputUrl: outputPath,
-      thumbnailUrl: thumbPath,
-      processingMs,
-      fileSizeBytes: finalImage.buffer.byteLength,
-      providerPayload: Object.keys(providerPayload).length > 0 ? providerPayload : null,
-    });
-
-    // Promoción best-effort
-    let imageId: string | null = null;
-    try {
-      imageId = await promoteOutputToReference(workspace.id, user.id, outputPath, generationId);
-      await supabase
-        .from('campaign_items')
-        .update({
-          storyboard_image_id: imageId,
-          storyboard_generation_id: generationId,
-        })
-        .eq('id', itemId);
-    } catch (promoteErr) {
-      console.error('[storyboard:promote]', {
-        generationId,
-        itemId,
-        error: (promoteErr as Error)?.message,
-      });
-    }
-
-    revalidatePath(`/app/campaigns/${item.campaign_id}/storyboard`);
-    revalidatePath('/app/library');
-
-    return {
-      ok: true,
-      data: { imageId, generationId },
-    };
-  } catch (err) {
-    const errMsg =
-      err instanceof ProviderError ? err.message : (err as Error)?.message ?? 'unknown';
-    const refundAmount = reserved ? cost : 0;
-    try {
-      await failGeneration(user.id, generationId, refundAmount, errMsg);
-    } catch (failErr) {
-      console.error('[storyboard:fail_generation:refine]', {
-        userId: user.id,
-        generationId,
-        cost: refundAmount,
-        originalError: errMsg,
-        failError: (failErr as Error)?.message,
-      });
-    }
-    if (err instanceof ProviderError && err.code === 'safety') {
-      return { ok: false, error: 'safety', message: errMsg };
-    }
-    return { ok: false, error: 'provider_error', message: errMsg };
+  const reserved = await reserveCredits(user.id, cost, generationId);
+  if (!reserved) {
+    const admin = createAdminClient();
+    await admin.from('generations').delete().eq('id', generationId);
+    return { ok: false, error: 'insufficient_credits' };
   }
+
+  try {
+    await enqueueJob({ generationId, action: 'submit' });
+  } catch (err) {
+    try {
+      await failGeneration(user.id, generationId, cost, `enqueue fallo: ${(err as Error)?.message ?? 'unknown'}`);
+    } catch (failErr) {
+      console.error('[storyboard:enqueue_rollback:refine]', { generationId, failErr });
+    }
+    return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
+  }
+
+  return { ok: true, data: { generationId } };
 }
 
 // Refinamiento de audio por beat: reescribe el diálogo dentro de scene_prompt y
