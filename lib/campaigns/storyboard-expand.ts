@@ -2,6 +2,12 @@ import sharp from 'sharp';
 import { ProviderError } from '@/lib/providers/types';
 import { expand } from '@/lib/providers/flux-expand';
 import { safeAreaBands } from '@/lib/images/safe-area';
+import { expandedBandsHaveText } from './storyboard-expand-check';
+
+// Dos intentos como maximo: BFL randomiza la semilla por request, asi que el
+// retry produce bandas distintas. Si el texto reincide, fallar limpio (refund +
+// warning accionable) es mejor que servir un panel con rotulos inventados.
+const MAX_EXPAND_ATTEMPTS = 2;
 
 // Expande una base 4:5 a 9:16 con FLUX.1 Expand (outpaint con mascara). Agrega
 // bandas reales arriba y abajo preservando el centro 4:5. NO hace fallback: si el
@@ -23,6 +29,15 @@ export async function extendPanelTo916(
   // de texto inventado, ignorando un "do not add text" generico.
   const prompt =
     'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings. Absolutely no text of any kind in the extended areas: no letters, words, captions, titles, subtitles, logos, watermarks or lettering; no graphic bands, borders, panels or title cards — photographic continuation of the scenery only.';
-  const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
-  return { buffer: result.buffer, mimeType: result.mimeType };
+  for (let attempt = 1; attempt <= MAX_EXPAND_ATTEMPTS; attempt++) {
+    const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
+    const hasText = await expandedBandsHaveText(result.buffer, bandPx);
+    if (!hasText) return { buffer: result.buffer, mimeType: result.mimeType };
+    console.error('[storyboard-expand] texto detectado en las bandas extendidas', { attempt });
+  }
+  throw new ProviderError(
+    'la extension a 9:16 agrego texto o rotulos en las bandas en dos intentos; regenera el panel',
+    'unknown',
+    false,
+  );
 }
