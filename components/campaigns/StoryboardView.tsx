@@ -143,6 +143,14 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       } else if (u.status === 'failed') {
         const msg = u.errorMessage ?? 'No se pudo generar el panel.';
         setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'error', message: msg } }));
+      } else if (u.status === 'processing' || u.status === 'queued') {
+        // Reconciliacion al montar: un panel que quedo generando (tras recarga) vuelve a
+        // mostrar el spinner; el evento terminal por Realtime lo cierra.
+        setPanelStates((prev) => {
+          const cur = prev[u.campaignItemId];
+          if (cur?.status === 'generating') return prev;
+          return { ...prev, [u.campaignItemId]: { status: 'generating' } };
+        });
       }
     },
     [router],
