@@ -788,7 +788,7 @@ function PlanTable({
   async function handleDelete(item: StudioItem) {
     const res = await deleteCampaignItemAction(item.id);
     if (!res.ok) {
-      toast.error('No se pudo eliminar');
+      toast.error(res.message ?? 'No se pudo eliminar');
       return;
     }
     onDeleted(item.id);
