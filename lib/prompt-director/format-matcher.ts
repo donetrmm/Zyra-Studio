@@ -311,6 +311,15 @@ Por cada idea distinta devuelve un match:
   su cara", "el producto de espaldas a cámara", "el celular de frente". No uses
   paréntesis débiles tipo "(desde su POV)" para insinuarlo; si es primera persona,
   dilo explícito ("vista en primera persona, solo se ven sus manos"). SPATIAL BLOCKING: when a scene has two or more subjects (or a clear spatial relationship between a subject and the set), state their blocking explicitly in the scenePrompt — each subject's relative position (left/right/foreground/background/between/behind), their orientation (facing camera-left/right or toward each other), and the key set anchor. This gives the model a stable floor plan so subjects do not drift or swap places between cuts. Keep it brief and woven into the prose, not a separate list.
+  PRODUCTO INTOCABLE: nombra el producto de forma neutra ("the product" o su
+  nombre) y dirige solo su posición, uso, prominencia en cuadro y encuadre.
+  NUNCA re-describas sus atributos físicos — material, marco o sin marco,
+  medidas, colores, proporciones ni el contenido impreso: esos viajan aparte
+  desde la ficha del producto y cualquier redescripción tuya puede
+  contradecirla (p.ej. "framed canvas" cuando el producto es un canvas sin
+  marco, o "black and white photo" cuando el impreso es a color). Tampoco
+  inventes variantes, tamaños ni contenido impreso que no veas en las
+  referencias.
   ACCIÓN Y EMOCIÓN: nunca dejes un verbo abstracto sin desglosar.
   Convierte "baila", "celebra", "se ve triste", "se emociona" en 2-4 micro-acciones
   observables repartidas EN SECUENCIA por el tramo (no "él baila" → "dos asentimientos
