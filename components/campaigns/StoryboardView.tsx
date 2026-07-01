@@ -18,6 +18,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   insufficient_credits: 'No tienes créditos suficientes',
   no_panel: 'Genera el panel primero',
   not_found: 'No encontrado',
+  in_flight: 'Este panel ya se está generando. Espera a que termine.',
+  max_turns: 'Límite de refinados alcanzado para este panel (10). Regenera el panel para empezar una sesión nueva.',
 };
 
 function friendlyError(error: string, message?: string): string {

@@ -35,6 +35,10 @@ import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 // NANO: Gemini 3 Pro — genera y edita el panel preservando las referencias.
 const FLUX_MODEL_SLUG = 'flux-2-pro-preview';
 
+// Tope de refinados por panel (paridad con el refinado conversacional de items).
+// NO exportar: este archivo es 'use server' y exportar no-funciones rompe en prod.
+const MAX_REFINE_TURNS = 10;
+
 type ActionError =
   | 'validation_error'
   | 'unauthenticated'
@@ -45,7 +49,9 @@ type ActionError =
   | 'provider_error'
   | 'compile_error'
   | 'safety'
-  | 'internal_error';
+  | 'internal_error'
+  | 'in_flight'
+  | 'max_turns';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; message?: string };
 
@@ -174,6 +180,21 @@ export async function generatePanelAction(
   if (!loaded) return { ok: false, error: 'not_found' };
   const { item, campaign } = loaded;
 
+  // Guard de concurrencia: si ya hay una generación de este panel en vuelo, no
+  // crear otra (doble click, segunda pestaña o reload a media generación =
+  // doble cobro). El candado del cliente (botones disabled) no cubre esos casos.
+  // Queda una ventana check→insert entre requests simultáneos; aceptable a esta
+  // escala (cerrarla del todo pediría un unique index parcial sobre JSONB).
+  const supabase = await createClient();
+  const { count: inFlight } = await supabase
+    .from('generations')
+    .select('id', { count: 'exact', head: true })
+    .contains('params', { storyboard: { campaignItemId: itemId } })
+    .in('status', ['queued', 'processing']);
+  if ((inFlight ?? 0) > 0) {
+    return { ok: false, error: 'in_flight' };
+  }
+
   // Personajes efectivos: array nuevo con fallback al principal legacy.
   const characterIds: string[] = item.character_ids?.length
     ? item.character_ids.slice(0, 3)
@@ -185,8 +206,7 @@ export async function generatePanelAction(
 
   // Locación de la escena: la imagen del lugar se ancla como referencia environment
   // en cada panel → consistencia de escena entre paneles del storyboard.
-  const locClient = await createClient();
-  const locMap = await resolveLocations(locClient, workspace.id, item.location_id ? [item.location_id] : []);
+  const locMap = await resolveLocations(supabase, workspace.id, item.location_id ? [item.location_id] : []);
   const resolvedLoc = item.location_id ? locMap.get(item.location_id) : undefined;
   const dirLocation = resolvedLoc
     ? { name: resolvedLoc.name, description: resolvedLoc.description ?? undefined, imagePaths: resolvedLoc.imagePaths }
@@ -243,7 +263,7 @@ export async function generatePanelAction(
     return { ok: false, error: 'compile_error', message: compiled.errors.join('; ') };
   }
 
-  const prevRef = await loadPreviousPanelRef(locClient, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
+  const prevRef = await loadPreviousPanelRef(supabase, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
   const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
   const productRefInChat =
     Boolean(prevRef) &&
@@ -289,7 +309,6 @@ export async function generatePanelAction(
   });
   const cost = breakdown.total;
 
-  const supabase = await createClient();
   const { data: inserted, error: insertErr } = await supabase
     .from('generations')
     .insert({
@@ -419,6 +438,47 @@ export async function refinePanelAction(
     return { ok: false, error: 'no_panel' };
   }
 
+  // Mismo guard de concurrencia que generatePanelAction: no refinar mientras
+  // otra generación del beat está en vuelo (incluye una regeneración en curso:
+  // el refinado encadenaría sobre un panel que está a punto de ser reemplazado).
+  const supabase = await createClient();
+  const { count: inFlight } = await supabase
+    .from('generations')
+    .select('id', { count: 'exact', head: true })
+    .contains('params', { storyboard: { campaignItemId: itemId } })
+    .in('status', ['queued', 'processing']);
+  if ((inFlight ?? 0) > 0) {
+    return { ok: false, error: 'in_flight' };
+  }
+
+  // Límite de turnos de refinado por sesión de panel (paridad con el refinado
+  // de items de campaña). Un refinado se distingue por parent_generation_id
+  // (solo el refine lo setea). La sesión arranca en la última generación FRESCA
+  // del beat (sin parent): regenerar el panel empieza una sesión nueva y
+  // resetea la cuenta — coherente con el mensaje que ve el usuario.
+  const { data: lastFresh } = await supabase
+    .from('generations')
+    .select('created_at')
+    .contains('params', { storyboard: { campaignItemId: itemId } })
+    .is('parent_generation_id', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let turnsQuery = supabase
+    .from('generations')
+    .select('id', { count: 'exact', head: true })
+    .contains('params', { storyboard: { campaignItemId: itemId } })
+    .not('parent_generation_id', 'is', null)
+    .in('status', ['queued', 'processing', 'done']);
+  const lastFreshAt = (lastFresh as { created_at?: string } | null)?.created_at;
+  if (lastFreshAt) {
+    turnsQuery = turnsQuery.gt('created_at', lastFreshAt);
+  }
+  const { count: turns } = await turnsQuery;
+  if ((turns ?? 0) >= MAX_REFINE_TURNS) {
+    return { ok: false, error: 'max_turns' };
+  }
+
   const characterIds: string[] = item.character_ids?.length
     ? item.character_ids.slice(0, 3)
     : item.character_id
@@ -429,8 +489,7 @@ export async function refinePanelAction(
 
   // Locación: misma referencia environment que en la generación, para que el
   // refinado no pierda el lugar.
-  const locClient = await createClient();
-  const locMap = await resolveLocations(locClient, workspace.id, item.location_id ? [item.location_id] : []);
+  const locMap = await resolveLocations(supabase, workspace.id, item.location_id ? [item.location_id] : []);
   const resolvedLoc = item.location_id ? locMap.get(item.location_id) : undefined;
   const dirLocation = resolvedLoc
     ? { name: resolvedLoc.name, description: resolvedLoc.description ?? undefined, imagePaths: resolvedLoc.imagePaths }
@@ -485,7 +544,6 @@ export async function refinePanelAction(
 
   // Ref del panel padre para encadenar (sin descargar: el worker baja la imagen).
   let prevTurnRef: { imagePath: string; thoughtSignature?: string; prompt: string } | null = null;
-  const supabase = await createClient();
   const parentGenId = item.storyboard_generation_id;
   if (parentGenId) {
     const { data: parent } = await supabase
