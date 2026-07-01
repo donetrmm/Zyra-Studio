@@ -1035,6 +1035,15 @@ export async function enqueueBatch(params: {
         const admin = createAdminClient();
         await admin.from('generations').delete().eq('id', generationId);
         result.skipped.push({ itemId: item.id, reason: 'insufficient_credits' });
+        // Señal persistente: sin esto los items restantes del lote quedan mudos
+        // (el toast muere y tras un reload nadie sabe por qué no se generaron).
+        // El warning se limpia solo al re-encolar (el update post-enqueue del
+        // lote escribe warnings de compilación encima).
+        const remainingIds = selected.slice(idx).map((it) => it.id);
+        await admin
+          .from('campaign_items')
+          .update({ warnings: ['Sin créditos: este item no entró al lote. Regenéralo cuando tengas saldo.'] })
+          .in('id', remainingIds);
         // Sin créditos no tiene caso seguir con el resto del lote.
         break;
       }
