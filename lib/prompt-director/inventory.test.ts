@@ -10,6 +10,16 @@ describe('describeProduct — objeto vs impreso', () => {
     expect(out).toContain('The product itself is the physical canvas print');
     expect(out).not.toContain('Product: X');
   });
+  it('con medium exige el arte impreso sin distorsión', () => {
+    const out = describeProduct({ ...base, medium: 'canvas print' });
+    expect(out).toContain('undistorted and unstretched');
+    expect(out).toContain("preserving the artwork's own proportions");
+  });
+  it('con imágenes de referencia, el arbitraje declara que la referencia gana a la toma', () => {
+    const out = describeProduct({ ...base, medium: 'canvas print', imagePaths: ['ws/p.png'] });
+    expect(out).toContain('If the shot description contradicts');
+    expect(out).toContain('always win');
+  });
   it('con thicknessMm añade la cláusula de grosor', () => {
     const out = describeProduct({ ...base, medium: 'canvas print', thicknessMm: 10 });
     expect(out).toContain('about 10 mm thin at the edge');
@@ -24,12 +34,35 @@ describe('describeProduct — objeto vs impreso', () => {
 });
 
 describe('describeProductScale', () => {
-  it('150 cm de alto → proporción shoulder-to-head de un adulto', () => {
+  it('150 cm de alto → llega a los hombros, claramente más bajo que la persona', () => {
     const d = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 });
     expect(d).toContain('150 cm tall');
-    expect(d).toContain('nearly shoulder-to-head height of a standing adult');
+    expect(d).toContain("its top edge reaching an adult's shoulders, clearly shorter than the person");
     expect(d).toContain('keep that size constant in every shot');
+    expect(d).toContain('do not exaggerate it into an oversized floor-to-ceiling piece');
     expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('alto y ancho → declara el aspect ratio explícito (150x100 = 1.5x vertical)', () => {
+    const d = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150, widthCm: 100 });
+    expect(d).toContain('a vertical rectangle 1.5 times taller than it is wide');
+    expect(d).toContain('keep this exact aspect ratio');
+  });
+
+  it('más ancho que alto → rectángulo horizontal', () => {
+    const d = describeProductScale({ name: 'Banner', imagePaths: [], heightCm: 50, widthCm: 150 });
+    expect(d).toContain('a horizontal rectangle 3 times wider than it is tall');
+  });
+
+  it('dimensiones casi iguales → cuadrado, sin ratio numérico', () => {
+    const d = describeProductScale({ name: 'Cuadro', imagePaths: [], heightCm: 100, widthCm: 98 });
+    expect(d).toContain(', a square');
+    expect(d).not.toContain('rectangle');
+  });
+
+  it('una sola dimensión → sin cláusula de aspect ratio', () => {
+    const d = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 });
+    expect(d).not.toContain('aspect ratio');
   });
 
   it('objeto chico (10 cm) → cabe en una mano', () => {

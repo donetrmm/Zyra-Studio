@@ -81,7 +81,10 @@ export function describeProduct(
     const thin = product.thicknessMm
       ? ` It is about ${product.thicknessMm} mm thin at the edge; do not render a thick block frame or a deep gallery-wrap, keep the edge slim.`
       : '';
-    facts = `Product: a ${product.medium}${displays}.${colors} The product itself is the physical ${product.medium}; the depicted content is only printed on its surface, not separate physical objects.${thin}`;
+    // La cláusula de no-distorsión existe porque el modelo tiende a estirar el
+    // arte impreso para llenar el lienzo que renderizó (personas alargadas,
+    // composición recompuesta) en vez de respetar las proporciones del arte.
+    facts = `Product: a ${product.medium}${displays}.${colors} The product itself is the physical ${product.medium}; the depicted content is only printed on its surface, not separate physical objects. Reproduce the printed artwork exactly as in the product reference images — undistorted and unstretched, preserving the artwork's own proportions and composition; never invent, recolor or replace the printed content.${thin}`;
   } else {
     const parts = [`Product: ${product.name}`];
     if (product.visualDetails) parts.push(product.visualDetails);
@@ -92,7 +95,10 @@ export function describeProduct(
   if (!product.imagePaths.length) {
     return `${facts} Render the product exactly with these declared attributes; do not invent packaging, colors, logo or any detail that is not listed.`;
   }
-  return `${facts} The product must appear exactly as shown in its reference images — same packaging, colors, logo placement and proportions. Never restyle the product.`;
+  // Arbitraje explícito: el planner a veces re-describe el producto en la toma
+  // ("framed canvas" cuando es sin marco) y el modelo obedece al texto más
+  // cercano. La referencia y la ficha SIEMPRE ganan sobre el texto de la toma.
+  return `${facts} The product must appear exactly as shown in its reference images — same packaging, colors, logo placement and proportions. Never restyle the product. If the shot description contradicts the product's construction, frame, size, colors or printed content, the product reference images and this description always win.`;
 }
 
 // Descripción de personaje age-blind, por apariencia y manera de actuar.
@@ -130,18 +136,26 @@ export const ADULT_REF_CM = 170;
 // relevante no se ven afectados). Empieza con espacio (lista para concatenar).
 // Es de escala/proporción, NO de identidad: no arrastra el riesgo de re-render
 // de las cláusulas de personaje. Asume el producto mostrado vertical.
+// Redondea una proporción a 1 decimal y recorta el ".0" ("1.5", "2").
+function trimRatio(n: number): string {
+  return String(Math.round(n * 10) / 10);
+}
+
 export function describeProductScale(product?: ProductInventory): string {
   if (!product) return '';
   const size = product.heightCm ?? product.widthCm;
   if (!size || size <= 0) return '';
   const ratio = size / ADULT_REF_CM;
+  // Las bandas altas dicen "clearly shorter than the person": el fallo observado
+  // (canvas 150cm renderizado como panel de 2m+ que supera a la persona) es
+  // agrandar, no encoger — el ancla necesita el límite superior explícito.
   const proportion =
     ratio < 0.12 ? 'small enough to hold in one hand'
     : ratio < 0.25 ? 'about knee-high on a standing adult'
     : ratio < 0.45 ? 'about thigh-to-waist high on a standing adult'
     : ratio < 0.60 ? 'about waist-to-chest high on a standing adult'
-    : ratio < 0.80 ? 'reaching the chest-to-shoulders of a standing adult'
-    : ratio < 0.95 ? 'nearly shoulder-to-head height of a standing adult'
+    : ratio < 0.80 ? "its top edge reaching an adult's chest, clearly shorter than the person"
+    : ratio < 0.95 ? "its top edge reaching an adult's shoulders, clearly shorter than the person"
     : ratio < 1.10 ? 'about as tall as a standing adult'
     : 'taller than a standing adult';
   const dims =
@@ -150,5 +164,20 @@ export function describeProductScale(product?: ProductInventory): string {
       : product.heightCm
         ? `about ${product.heightCm} cm tall`
         : `about ${product.widthCm} cm wide`;
-  return ` The product is a physical piece, ${dims} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots.`;
+  // Proporción explícita del rectángulo cuando hay ambas dimensiones: el modelo
+  // respeta mejor "1.5 times taller than wide" que las medidas absolutas en cm.
+  let shape = '';
+  if (product.heightCm && product.widthCm && product.heightCm > 0 && product.widthCm > 0) {
+    const h = product.heightCm;
+    const w = product.widthCm;
+    if (Math.abs(h - w) / Math.max(h, w) < 0.05) {
+      shape = ', a square';
+    } else if (h > w) {
+      shape = `, a vertical rectangle ${trimRatio(h / w)} times taller than it is wide`;
+    } else {
+      shape = `, a horizontal rectangle ${trimRatio(w / h)} times wider than it is tall`;
+    }
+    shape += ' — keep this exact aspect ratio';
+  }
+  return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.`;
 }
