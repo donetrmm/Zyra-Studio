@@ -1559,10 +1559,21 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
 
   const { data: draft } = await supabase
     .from('generations')
-    .select('id, prompt, params, provider_payload, model_id, workspace_id')
+    .select('id, status, prompt, params, provider_payload, model_id, workspace_id')
     .eq('id', item.generation_id as string)
     .single();
   if (!draft || draft.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+  // El puntero puede caer en una gen fallida o en vuelo: el trigger de sync
+  // (migración 039) conserva generation_id cuando un final falla, y ese "draft"
+  // no tiene output ni seed estable. Renderizar desde ahí rompe la promesa de
+  // composición estable (doc V2 §4.6) — exigir un draft terminado.
+  if (draft.status !== 'done') {
+    return {
+      ok: false,
+      error: 'forbidden',
+      message: 'El borrador enlazado no está disponible. Regenera el borrador antes de pedir el final.',
+    };
+  }
 
   const draftParams = (draft.params ?? {}) as Record<string, unknown>;
   // Un render final NO debe heredar el encadenado del draft: `chain` dispararía
