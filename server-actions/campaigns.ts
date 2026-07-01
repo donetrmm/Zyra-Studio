@@ -975,6 +975,10 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   const { data: updated, error } = await updateQuery.select('status').single();
   if (error || !updated) {
     if (error?.code === 'PGRST116') {
+      // Sin condición de status (edición de solo caption/fecha), 0 filas solo
+      // puede significar que el item fue borrado concurrentemente — not_found,
+      // no "en producción".
+      if (!touchesProduction) return { ok: false, error: 'not_found' };
       return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
     }
     return { ok: false, error: 'internal_error', message: error?.message };
