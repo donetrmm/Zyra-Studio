@@ -41,6 +41,9 @@ export function useStoryboardPanelRealtime(
       );
 
     supabase.auth.getSession().then(({ data }) => {
+      // El componente pudo desmontarse mientras getSession resolvia; si el cleanup
+      // ya removio el canal, no lo suscribas (evita un canal colgado / leak de socket).
+      if (!active) return;
       if (data.session?.access_token) supabase.realtime.setAuth(data.session.access_token);
       channel.subscribe();
     });

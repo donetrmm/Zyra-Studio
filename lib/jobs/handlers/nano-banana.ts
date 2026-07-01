@@ -87,6 +87,8 @@ export const nanoBananaHandler: JobHandler = {
         return { kind: 'continue', delaySeconds: 0, providerPayload };
       }
       // action === 'poll' (solo estricto): descargar la base 4:5 y expandir a 9:16.
+      // No hay MAX_POLLS aquí a propósito: 'poll' siempre retorna finalize/fail (nunca
+      // continue), así que no hay re-encolado infinito; timeout_at cubre el job atascado.
       const pp = (gen.provider_payload ?? {}) as { thought_signature?: string; safe_base_path?: string };
       if (!pp.safe_base_path) throw new ProviderError('poll sin safe_base_path', 'invalid_input', false);
       const { buffer } = await downloadOutputBuffer(pp.safe_base_path);
