@@ -5,8 +5,11 @@ import { createClient } from '@/lib/supabase/client';
 
 type PanelUpdate = { campaignItemId: string; status: string; errorMessage: string | null };
 
-// Suscribe a postgres_changes en generations de UNA campana (RLS filtra ownership) y
-// notifica cambios de estado de paneles de storyboard. El campaignItemId sale de
+// Suscribe a postgres_changes en generations (RLS filtra ownership) y notifica cambios
+// de estado de paneles de storyboard. NO se filtra por campaign_id en el servidor: la
+// tabla tiene REPLICA IDENTITY default (solo PK), asi que un filtro sobre columna no-PK
+// no entrega eventos de forma fiable. Se filtra en el cliente por row.campaign_id (el
+// payload new de un UPDATE trae la fila completa). El campaignItemId sale de
 // params.storyboard.campaignItemId (== beat.id). setAuth explicito antes de subscribe.
 export function useStoryboardPanelRealtime(
   campaignId: string,
@@ -18,6 +21,7 @@ export function useStoryboardPanelRealtime(
 
     const emit = (row: Record<string, unknown>) => {
       if (!active) return;
+      if (row.campaign_id !== campaignId) return;
       const params = (row.params ?? {}) as { storyboard?: { campaignItemId?: unknown } };
       const itemId = params.storyboard?.campaignItemId;
       if (typeof itemId !== 'string') return;
@@ -32,7 +36,7 @@ export function useStoryboardPanelRealtime(
       .channel(`storyboard:${campaignId}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'generations', filter: `campaign_id=eq.${campaignId}` },
+        { event: 'UPDATE', schema: 'public', table: 'generations' },
         (payload) => emit(payload.new as Record<string, unknown>),
       );
 
