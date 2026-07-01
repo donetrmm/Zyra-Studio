@@ -224,7 +224,15 @@ export async function POST(req: Request) {
             : result.code === 'rate_limit'
               ? 'El proveedor está saturado ahora mismo. Reintenta en un momento.'
               : `No se pudo generar: ${result.message}`;
-      await admin.from('campaign_items').update({ warnings: [reason] }).eq('generation_id', generation.id);
+      // Paneles de storyboard: el item se linkea por params.storyboard (no por
+      // generation_id, que solo usan los items de video) — sin este branch el
+      // UPDATE afecta 0 filas y el motivo del fallo se pierde tras un reload.
+      const sbItemId = storyboardCampaignItemId(generation);
+      if (sbItemId) {
+        await admin.from('campaign_items').update({ warnings: [reason] }).eq('id', sbItemId);
+      } else {
+        await admin.from('campaign_items').update({ warnings: [reason] }).eq('generation_id', generation.id);
+      }
     } catch (err) {
       console.error('[worker] no se pudo anotar el motivo del fallo en el item', { generationId, err });
     }

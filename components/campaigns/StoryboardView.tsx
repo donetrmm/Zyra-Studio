@@ -477,6 +477,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   {beat.scenePrompt}
                 </p>
 
+                {/* Motivo persistido del último fallo (el worker lo anota; regenerar lo limpia). */}
+                {beat.warnings.length > 0 && !isGenerating && !isRefining && (
+                  <p className="text-[11px] leading-snug text-amber-400/80">{beat.warnings[0]}</p>
+                )}
+
                 {/* Locación de este clip (override por item; el general siembra todos) */}
                 {locations.length > 0 && (
                   <div className="flex items-center gap-1.5 px-0.5">

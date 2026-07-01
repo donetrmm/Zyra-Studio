@@ -339,6 +339,10 @@ export async function generatePanelAction(
     return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
   }
 
+  // Limpia el aviso del intento fallido anterior: ya hay una generación nueva en
+  // vuelo. Best-effort (el cliente supabase no lanza; un error aquí no bloquea).
+  await supabase.from('campaign_items').update({ warnings: [] }).eq('id', itemId);
+
   return { ok: true, data: { generationId } };
 }
 
@@ -569,6 +573,10 @@ export async function refinePanelAction(
     }
     return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
   }
+
+  // Limpia el aviso del intento fallido anterior: ya hay una generación nueva en
+  // vuelo. Best-effort (el cliente supabase no lanza; un error aquí no bloquea).
+  await supabase.from('campaign_items').update({ warnings: [] }).eq('id', itemId);
 
   return { ok: true, data: { generationId } };
 }
