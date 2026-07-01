@@ -191,6 +191,8 @@ export async function generatePanelAction(
     .select('id', { count: 'exact', head: true })
     .contains('params', { storyboard: { campaignItemId: itemId } })
     .in('status', ['queued', 'processing']);
+  // Fail-open: si la query falla, count es null y el guard deja pasar — mejor
+  // un raro doble encolado que bloquear la generación por un error transitorio.
   if ((inFlight ?? 0) > 0) {
     return { ok: false, error: 'in_flight' };
   }
@@ -447,6 +449,8 @@ export async function refinePanelAction(
     .select('id', { count: 'exact', head: true })
     .contains('params', { storyboard: { campaignItemId: itemId } })
     .in('status', ['queued', 'processing']);
+  // Fail-open: si la query falla, count es null y el guard deja pasar — mejor
+  // un raro doble encolado que bloquear la generación por un error transitorio.
   if ((inFlight ?? 0) > 0) {
     return { ok: false, error: 'in_flight' };
   }
@@ -475,6 +479,8 @@ export async function refinePanelAction(
     turnsQuery = turnsQuery.gt('created_at', lastFreshAt);
   }
   const { count: turns } = await turnsQuery;
+  // Fail-open: si la query falla, count es null y el guard deja pasar — mejor
+  // permitir un turno de más que bloquear el refinado por un error transitorio.
   if ((turns ?? 0) >= MAX_REFINE_TURNS) {
     return { ok: false, error: 'max_turns' };
   }
