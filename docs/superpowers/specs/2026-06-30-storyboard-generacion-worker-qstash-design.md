@@ -184,6 +184,14 @@ la generacion ya `done`).
   campana y suscribirse, para sobrevivir a una recarga (hoy el inline se perdia).
 - **Generar todos**: encola N jobs; se siguen N generations por Realtime; cada una
   finaliza independiente.
+- **Broadcast acotado por columnas** (migracion 050): `generations.provider_payload`
+  guarda el `thought_signature` de gemini-3-pro-image (~6-9 MB), que excede el
+  `max_record_bytes` de Realtime (1 MB). Sin acotar, el UPDATE de `finalize` se difunde
+  con el `record` vacio (413) y el cliente nunca recibe el `done` -> el panel se queda
+  "generando" hasta un reload. La publicacion `supabase_realtime` publica solo las
+  columnas que los hooks leen (`id, status, error_message, output_url, thumbnail_url,
+  credits_charged, campaign_id, params`); `provider_payload` sigue en la tabla para el
+  encadenado conversacional server-side, pero fuera del broadcast.
 
 ## Manejo de errores / creditos
 
