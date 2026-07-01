@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
@@ -11,7 +11,8 @@ import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, se
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
-import { useStoryboardPanelRealtime } from './use-storyboard-panel-realtime';
+import { useStoryboardPanelRealtime, panelUpdateFromRow } from './use-storyboard-panel-realtime';
+import { createClient } from '@/lib/supabase/client';
 
 const ERROR_MESSAGES: Record<string, string> = {
   insufficient_credits: 'No tienes créditos suficientes',
@@ -176,6 +177,50 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // Input de refinado por beat
   const [instructions, setInstructions] = useState<Record<string, string>>({});
   const [refining, setRefining] = useState<string | null>(null);
+
+  // Espejo de estado para leer lo ultimo dentro del interval sin recrearlo.
+  const inFlightSourceRef = useRef<{ panelStates: Record<string, PanelState>; refiningBeats: Record<string, boolean> }>({
+    panelStates: {},
+    refiningBeats: {},
+  });
+
+  // Fallback de auto-cura: postgres_changes (Realtime) puede perder eventos si su
+  // replicacion CDC se cae bajo presion de pool. Mientras haya paneles en vuelo
+  // (generando/refinando) re-consultamos su estado real cada 8s y lo reconciliamos via
+  // onPanelUpdate. Idempotente: si Realtime ya entrego, no cambia nada; si lo perdio, la
+  // UI se auto-cura en segundos sin recargar. Solo consulta cuando hay algo en vuelo.
+  useEffect(() => {
+    const supabase = createClient();
+    const timer = setInterval(() => {
+      const { panelStates: ps, refiningBeats: rb } = inFlightSourceRef.current;
+      const inFlight = new Set<string>();
+      for (const [beatId, s] of Object.entries(ps)) if (s.status === 'generating') inFlight.add(beatId);
+      for (const [beatId, on] of Object.entries(rb)) if (on) inFlight.add(beatId);
+      if (inFlight.size === 0) return;
+      void supabase
+        .from('generations')
+        .select('status, error_message, params, campaign_id, created_at')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false })
+        .limit(60)
+        .then(({ data }) => {
+          if (!data) return;
+          const seen = new Set<string>();
+          for (const row of data) {
+            const u = panelUpdateFromRow(row as Record<string, unknown>, campaignId);
+            if (!u || seen.has(u.campaignItemId)) continue; // solo la generacion mas reciente por beat
+            seen.add(u.campaignItemId);
+            if (inFlight.has(u.campaignItemId)) onPanelUpdate(u);
+          }
+        });
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [campaignId, onPanelUpdate]);
+
+  // Mantiene el espejo al dia para que el interval del fallback vea el estado actual.
+  useEffect(() => {
+    inFlightSourceRef.current = { panelStates, refiningBeats };
+  });
   // Error de refinado por beat: persiste como nota bajo el panel (sin borrar la
   // panelUrl previa) hasta el próximo intento; el toast solo es efímero.
   const [refineErrors, setRefineErrors] = useState<Record<string, string>>({});
