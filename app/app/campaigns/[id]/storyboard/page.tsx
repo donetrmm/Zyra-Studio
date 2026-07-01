@@ -8,7 +8,12 @@ import { StoryboardView } from '@/components/campaigns/StoryboardView';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import { buildCreatives, type CreativeRow } from '@/lib/campaigns/storyboard-creatives';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { findUnpromotedPanels, type HealGenRow, type HealItemRow } from '@/lib/campaigns/storyboard-promote-heal';
+import {
+  findUnpromotedPanels,
+  healCutoffIso,
+  type HealGenRow,
+  type HealItemRow,
+} from '@/lib/campaigns/storyboard-promote-heal';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +55,7 @@ export default async function StoryboardPage({
     .eq('status', 'done')
     .eq('type', 'image')
     .not('params->storyboard', 'is', null)
-    .lt('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+    .lt('created_at', healCutoffIso())
     .order('created_at', { ascending: false })
     .limit(100);
   const healItems: HealItemRow[] = rows.map((r) => ({

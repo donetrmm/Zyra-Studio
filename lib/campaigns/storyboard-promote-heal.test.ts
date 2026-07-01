@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findUnpromotedPanels, type HealGenRow, type HealItemRow } from './storyboard-promote-heal';
+import { findUnpromotedPanels, healCutoffIso, type HealGenRow, type HealItemRow } from './storyboard-promote-heal';
 
 const gen = (id: string, beatId: string | null, createdAt: string): HealGenRow => ({
   id,
@@ -41,5 +41,11 @@ describe('findUnpromotedPanels', () => {
   it('ignora gens sin payload de storyboard o de beats desconocidos', () => {
     const gens = [gen('gen-x', null, '2026-07-01T10:00:00Z'), gen('gen-y', 'beat-999', '2026-07-01T10:00:00Z')];
     expect(findUnpromotedPanels(gens, items)).toEqual([]);
+  });
+});
+
+describe('healCutoffIso', () => {
+  it('resta HEAL_MIN_AGE_MS al timestamp dado', () => {
+    expect(healCutoffIso(Date.parse('2026-07-01T10:02:00Z'))).toBe('2026-07-01T10:00:00.000Z');
   });
 });

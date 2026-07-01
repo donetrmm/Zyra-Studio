@@ -6,6 +6,16 @@
 export type HealGenRow = { id: string; created_at: string; params: Record<string, unknown> };
 export type HealItemRow = { id: string; storyboard_generation_id: string | null };
 
+// Umbral de antigüedad para el auto-heal: gens más nuevas suelen tener su
+// promote todavía en vuelo y no deben re-encolarse.
+export const HEAL_MIN_AGE_MS = 2 * 60 * 1000;
+
+// Cutoff ISO para la query del heal (inyectable para tests; la página server
+// lo evalúa por request — fuera del cuerpo del componente por react purity).
+export function healCutoffIso(nowMs: number = Date.now()): string {
+  return new Date(nowMs - HEAL_MIN_AGE_MS).toISOString();
+}
+
 export function findUnpromotedPanels(gens: HealGenRow[], items: HealItemRow[]): string[] {
   const itemById = new Map(items.map((i) => [i.id, i]));
   const newestByBeat = new Map<string, HealGenRow>();
