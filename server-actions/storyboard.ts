@@ -21,7 +21,12 @@ import {
   failGeneration,
   reserveCredits,
 } from '@/lib/credits/operations';
-import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
+import {
+  generate as generateNanoBanana,
+  NANO_MODEL_SLUG,
+  NANO_VARIANT,
+  nanoVariantToResolution,
+} from '@/lib/providers/nano-banana';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
 import {
   loadCampaignContext,
@@ -42,10 +47,6 @@ import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 //   (reference-grounded), porque FLUX no mantenía fieles producto/personaje.
 // NANO: Gemini 3 Pro — genera y edita el panel preservando las referencias.
 const FLUX_MODEL_SLUG = 'flux-2-pro-preview';
-const NANO_MODEL_SLUG = 'gemini-3-pro-image-preview';
-
-// Resolución por defecto para los paneles Nano.
-const NANO_VARIANT = '2k';
 
 type ActionError =
   | 'validation_error'
@@ -72,19 +73,6 @@ function inferExtension(mime: string): string {
   if (mime.includes('png')) return 'png';
   if (mime.includes('webp')) return 'webp';
   return 'jpg';
-}
-
-function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | '4K' {
-  switch (variant) {
-    case '1k':
-      return '1K';
-    case '2k':
-      return '2K';
-    case '4k':
-      return '4K';
-    default:
-      return '2K';
-  }
 }
 
 // ─── carga el campaign_item + campaña validando ownership ────────────────────

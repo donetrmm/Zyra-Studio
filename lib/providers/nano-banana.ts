@@ -9,6 +9,26 @@ import {
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+// Slug del modelo Nano por defecto (Gemini 3 Pro). Fuente única de verdad:
+// tanto el server action del storyboard como el worker lo importan de aquí.
+export const NANO_MODEL_SLUG = 'gemini-3-pro-image-preview';
+
+// Resolución por defecto para los paneles Nano.
+export const NANO_VARIANT = '2k';
+
+export function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | '4K' {
+  switch (variant) {
+    case '1k':
+      return '1K';
+    case '2k':
+      return '2K';
+    case '4k':
+      return '4K';
+    default:
+      return '2K';
+  }
+}
+
 // Gemini REST puede devolver thoughtSignature (camelCase) o thought_signature.
 const PartSchema = z.union([
   z.object({

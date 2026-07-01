@@ -2,6 +2,7 @@ import 'server-only';
 import { registerHandler } from '@/lib/jobs/dispatch';
 import { elevenLabsHandler } from './elevenlabs';
 import { klingHandler } from './kling';
+import { nanoBananaHandler } from './nano-banana';
 import { seedanceHandler } from './seedance';
 import { veoHandler } from './veo';
 
@@ -10,5 +11,6 @@ import { veoHandler } from './veo';
 // antes de la primera llamada a dispatchJob.
 registerHandler('elevenlabs', elevenLabsHandler);
 registerHandler('kling', klingHandler);
+registerHandler('nano-banana', nanoBananaHandler);
 registerHandler('seedance', seedanceHandler);
 registerHandler('veo', veoHandler);
