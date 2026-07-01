@@ -18,8 +18,11 @@ export async function extendPanelTo916(
     throw new ProviderError('zona segura: no se pudo leer el ancho de la base', 'invalid_input', false);
   }
   const { bandPx } = safeAreaBands(width);
+  // El refuerzo anti-texto existe porque FLUX outpaint tiende a rellenar bandas
+  // grandes (sobre todo la inferior en fondos oscuros) con rotulos/title cards
+  // de texto inventado, ignorando un "do not add text" generico.
   const prompt =
-    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings.';
+    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings. Absolutely no text of any kind in the extended areas: no letters, words, captions, titles, subtitles, logos, watermarks or lettering; no graphic bands, borders, panels or title cards — photographic continuation of the scenery only.';
   const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
   return { buffer: result.buffer, mimeType: result.mimeType };
 }
