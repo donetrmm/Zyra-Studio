@@ -1039,11 +1039,27 @@ export async function enqueueBatch(params: {
         // (el toast muere y tras un reload nadie sabe por qué no se generaron).
         // El warning se limpia solo al re-encolar (el update post-enqueue del
         // lote escribe warnings de compilación encima).
-        const remainingIds = selected.slice(idx).map((it) => it.id);
-        await admin
-          .from('campaign_items')
-          .update({ warnings: ['Sin créditos: este item no entró al lote. Regenéralo cuando tengas saldo.'] })
-          .in('id', remainingIds);
+        // Solo los items que este lote habría encolado: las escenas de
+        // continuación de cadena (role.skip) no pasan por reserveCredits aquí —
+        // su señal la escribe advanceSequenceChain con su propio mensaje, y
+        // marcarlas invitaría a regenerarlas sueltas rompiendo la continuidad.
+        const remainingIds = selected
+          .slice(idx)
+          .filter((it) => !chainRole(it).skip)
+          .map((it) => it.id);
+        try {
+          await admin
+            .from('campaign_items')
+            .update({ warnings: ['Sin créditos: este item no entró al lote. Regenéralo cuando tengas saldo.'] })
+            .in('id', remainingIds);
+        } catch (warnErr) {
+          // Best-effort: un fallo anotando el aviso no debe impedir cortar el
+          // lote (el catch externo re-fallaría una generación ya borrada).
+          console.error('[campaign_batch:warn_skipped]', {
+            itemId: item.id,
+            error: (warnErr as Error)?.message,
+          });
+        }
         // Sin créditos no tiene caso seguir con el resto del lote.
         break;
       }
