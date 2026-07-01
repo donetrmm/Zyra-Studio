@@ -1583,11 +1583,14 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
   // generación. Dos requests concurrentes pasan el guard de arriba con la misma
   // lectura; solo el que gana este UPDATE condicionado sigue — el otro ve count
   // 0 y sale sin cobrar un segundo render final.
-  const { count: claimed } = await supabase
+  const { count: claimed, error: claimErr } = await supabase
     .from('campaign_items')
     .update({ status: 'approved' }, { count: 'exact' })
     .eq('id', item.id)
     .eq('status', 'draft_ready');
+  if (claimErr) {
+    return { ok: false, error: 'internal_error', message: claimErr.message };
+  }
   if (!claimed) {
     return { ok: false, error: 'forbidden', message: 'Ya hay un render final en curso para este item' };
   }
@@ -1655,6 +1658,23 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
     return { ok: true, data: { generationId } };
   } catch (err) {
     const message = (err as Error)?.message ?? 'unknown';
+    // Orden obligatorio: revertClaim ANTES que failGeneration. failGeneration
+    // deja la generación `failed`, lo que dispara sync_campaign_item_from_generation
+    // (migración 039): el trigger mueve el item approved -> draft_ready pero
+    // conserva generation_id apuntando al final fallido. Si revertClaim corriera
+    // después, su `.eq('status', 'approved')` ya no matchea (el trigger ganó la
+    // carrera) y el item queda apuntando al final fallido en vez del draft. Con
+    // revertClaim primero, el puntero vuelve al draft antes de que exista algún
+    // row en status='approved' referenciando el gen fallido: el trigger no
+    // encuentra nada que sincronizar y no-opea.
+    try {
+      await revertClaim();
+    } catch (revertErr) {
+      console.error('[request_final:revert_claim]', {
+        generationId,
+        error: (revertErr as Error)?.message,
+      });
+    }
     try {
       await failGeneration(user.id, generationId, reserved ? cost : 0, `final_enqueue: ${message}`);
     } catch (failErr) {
@@ -1662,14 +1682,6 @@ export async function requestFinalAction(input: unknown): Promise<Result<{ gener
         generationId,
         error: message,
         failError: (failErr as Error)?.message,
-      });
-    }
-    try {
-      await revertClaim();
-    } catch (revertErr) {
-      console.error('[request_final:revert_claim]', {
-        generationId,
-        error: (revertErr as Error)?.message,
       });
     }
     return { ok: false, error: 'internal_error', message };
