@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
@@ -11,6 +11,7 @@ import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, se
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
+import { useStoryboardPanelRealtime } from './use-storyboard-panel-realtime';
 
 const ERROR_MESSAGES: Record<string, string> = {
   insufficient_credits: 'No tienes créditos suficientes',
@@ -133,6 +134,21 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     });
   }
 
+  // Realtime: el worker genera el panel async; escuchamos el estado de la generacion.
+  const onPanelUpdate = useCallback(
+    (u: { campaignItemId: string; status: string; errorMessage: string | null }) => {
+      if (u.status === 'done') {
+        setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'idle', panelUrl: null } }));
+        router.refresh();
+      } else if (u.status === 'failed') {
+        const msg = u.errorMessage ?? 'No se pudo generar el panel.';
+        setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'error', message: msg } }));
+      }
+    },
+    [router],
+  );
+  useStoryboardPanelRealtime(campaignId, onPanelUpdate);
+
   // Input de refinado por beat
   const [instructions, setInstructions] = useState<Record<string, string>>({});
   const [refining, setRefining] = useState<string | null>(null);
@@ -179,28 +195,17 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
   async function handleGenerateAll() {
     setGeneratingAll(true);
-    let anySuccess = false;
     for (const beat of withoutPanel) {
       setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'generating' } }));
       const res = await generatePanelAction(beat.id);
-      if (res.ok) {
-        // Marcamos idle sin URL; la reconciliación en render (al cambiar `beats`) la
-        // traerá tras el refresh.
-        setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'idle', panelUrl: null } }));
-        anySuccess = true;
-      } else {
+      if (!res.ok) {
         const msg = friendlyError(res.error, res.message);
-        setPanelStates((prev) => ({
-          ...prev,
-          [beat.id]: { status: 'error', message: msg },
-        }));
+        setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'error', message: msg } }));
         toast.error(`Panel ${beat.sceneIndex + 1}: ${msg}`);
       }
+      // ok: el panel queda 'generating'; Realtime lo cierra (done -> idle, failed -> error).
     }
     setGeneratingAll(false);
-    // Un solo refresh al terminar el lote: cada refresh re-firma TODAS las URLs del
-    // storyboard, así que dentro del bucle eran N refrescos full secuenciales.
-    if (anySuccess) router.refresh();
   }
 
   async function handleRegenerate(beatId: string) {
@@ -209,17 +214,12 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
     });
-    if (res.ok) {
-      setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'idle', panelUrl: null } }));
-      router.refresh();
-    } else {
+    if (!res.ok) {
       const msg = friendlyError(res.error, res.message);
-      setPanelStates((prev) => ({
-        ...prev,
-        [beatId]: { status: 'error', message: msg },
-      }));
+      setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'error', message: msg } }));
       toast.error(msg);
     }
+    // ok: el panel queda 'generating'; Realtime lo pasa a idle (done) o error (failed).
   }
 
   async function handleRefine(beatId: string) {
