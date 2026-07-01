@@ -7,6 +7,7 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { confirmCredits, failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
 import { advanceSequenceChain, storeChainFrame } from '@/lib/campaigns/orchestrator';
+import { promoteStoryboardPanel } from '@/lib/jobs/storyboard-finalize';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
@@ -215,6 +216,13 @@ export async function POST(req: Request) {
       processingMs,
       metadata: result.metadata,
     });
+    // Post-step del storyboard: promover el output a media_reference y linkearlo al
+    // campaign_item (esto lo hacia el server action inline). Best-effort.
+    try {
+      await promoteStoryboardPanel(generation);
+    } catch (err) {
+      console.error('[worker] promote storyboard panel fallo', { generationId, err });
+    }
     // Encadenado de secuencias (specs/v2/09): si este clip es parte de una
     // cadena y el proveedor devolvió su último fotograma, encolar el avance como
     // su PROPIO job (presupuesto fresco). Best-effort: un fallo al encolar no
