@@ -974,7 +974,7 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   }
   const { data: updated, error } = await updateQuery.select('status').single();
   if (error || !updated) {
-    if ((error as { code?: string } | null)?.code === 'PGRST116') {
+    if (error?.code === 'PGRST116') {
       return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
     }
     return { ok: false, error: 'internal_error', message: error?.message };
@@ -1122,14 +1122,16 @@ export async function deleteCampaignItemAction(itemId: string): Promise<Result<{
   }
   // Guard anti-TOCTOU: mismo patrón que updateCampaignItemAction — si el item
   // entró a producción entre la lectura y el DELETE, no borrarlo (dejaría una
-  // generación en vuelo huérfana apuntando a un item inexistente).
+  // generación en vuelo huérfana apuntando a un item inexistente). count es
+  // number | null: null (sin header de count) también se trata como no
+  // confirmado, no como éxito.
   const { error, count } = await supabase
     .from('campaign_items')
     .delete({ count: 'exact' })
     .eq('id', itemId)
     .in('status', ['planned', 'skipped', 'failed']);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
-  if (count === 0) {
+  if (!count) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
