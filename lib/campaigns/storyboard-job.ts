@@ -4,6 +4,13 @@
 
 export type StoryboardPrevTurnRef = {
   imagePath: string; // path en el bucket outputs (safe_base 4:5 o el output 9:16 legacy)
+  // Gen de la que el worker lee provider_payload.thought_signature al momento del
+  // job. La firma (~8MB) NUNCA se embebe aqui: este payload vive en generations.params,
+  // que viaja en el broadcast de Realtime (max_record_bytes 1MB, migracion 050) y
+  // engorda el SELECT del worker hasta hacerlo fallar. Referencia, no copia.
+  sourceGenerationId?: string;
+  // Solo lectura de compat: jobs encolados antes del cambio traian la firma inline.
+  // NO escribir nunca; el worker la usa como fallback al drenar la cola vieja.
   thoughtSignature?: string;
   prompt: string;
 };

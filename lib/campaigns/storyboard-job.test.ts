@@ -12,14 +12,16 @@ describe('buildStoryboardJobPayload', () => {
       conversational: false, referencePaths: ['ws/prod.png', 'ws/loc.png'], chatRefPaths: [], prevTurn: null,
     });
   });
-  it('encadenado estricto: conversational true, genAspect 4:5, prevTurn con path/sig', () => {
+  it('encadenado estricto: conversational true, genAspect 4:5, prevTurn referencia la gen (sin firma inline)', () => {
     const p = buildStoryboardJobPayload({
       campaignItemId: 'item-2', campaignId: 'camp-1', genAspect: '4:5', strict: true,
       referencePaths: [], chatRefPaths: ['ws/prod.png'],
-      prevTurn: { imagePath: 'ws/gen/safe-base.jpg', thoughtSignature: 'sig', prompt: 'prev' },
+      prevTurn: { imagePath: 'ws/gen/safe-base.jpg', sourceGenerationId: 'gen-prev', prompt: 'prev' },
     });
     expect(p.conversational).toBe(true);
     expect(p.genAspect).toBe('4:5');
-    expect(p.prevTurn).toEqual({ imagePath: 'ws/gen/safe-base.jpg', thoughtSignature: 'sig', prompt: 'prev' });
+    // La firma (~8MB) nunca viaja en el payload: solo la referencia a la gen padre.
+    expect(p.prevTurn).toEqual({ imagePath: 'ws/gen/safe-base.jpg', sourceGenerationId: 'gen-prev', prompt: 'prev' });
+    expect(p.prevTurn?.thoughtSignature).toBeUndefined();
   });
 });

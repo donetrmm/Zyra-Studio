@@ -1,6 +1,7 @@
 import 'server-only';
 import type { GenerationRow, JobHandler, JobResult } from './types';
-import type { StoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
+import type { StoryboardJobPayload, StoryboardPrevTurnRef } from '@/lib/campaigns/storyboard-job';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateNanoBanana, NANO_VARIANT, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { ProviderError, type ImageReference, type NanoBananaParams, type NanoBananaTurn } from '@/lib/providers/types';
 import { extendPanelTo916 } from '@/lib/campaigns/storyboard-expand';
@@ -36,6 +37,27 @@ function toFail(err: unknown): JobResult {
   return { kind: 'fail', message: (err as Error)?.message ?? 'unknown', code: 'unknown' };
 }
 
+// La firma del turno previo (~8MB) no viaja en params (broadcast Realtime tiene
+// max_record_bytes 1MB y el SELECT del worker no debe cargar filas gigantes):
+// el payload referencia la gen padre y aqui se lee provider_payload.thought_signature
+// (columna fuera de la publicacion, migracion 050) con service role. Si falta la
+// firma, buildBody degrada a single-turn — mismo fallback de siempre. El campo
+// inline thoughtSignature solo se honra para drenar jobs encolados antes del cambio.
+export async function resolvePrevTurnSignature(prev: StoryboardPrevTurnRef): Promise<string | undefined> {
+  if (prev.thoughtSignature) return prev.thoughtSignature;
+  if (!prev.sourceGenerationId) return undefined;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from('generations')
+    .select('provider_payload')
+    .eq('id', prev.sourceGenerationId)
+    .single();
+  const pp = ((data as { provider_payload?: { thought_signature?: string } | null } | null)?.provider_payload ?? {}) as {
+    thought_signature?: string;
+  };
+  return pp.thought_signature ?? undefined;
+}
+
 async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
   const references: ImageReference[] = await Promise.all(
     p.referencePaths.map(async (path) => {
@@ -53,7 +75,8 @@ async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
   if (p.prevTurn) {
     const { buffer, mimeType } = await downloadOutputBuffer(p.prevTurn.imagePath);
     const img = p.strict ? await centralSafeCrop(buffer) : buffer;
-    previousTurn = { prompt: p.prevTurn.prompt, imageBuffer: img, mimeType, thoughtSignature: p.prevTurn.thoughtSignature };
+    const thoughtSignature = await resolvePrevTurnSignature(p.prevTurn);
+    previousTurn = { prompt: p.prevTurn.prompt, imageBuffer: img, mimeType, thoughtSignature };
   }
   return generateNanoBanana({
     model: gen.model_id as NanoBananaParams['model'],

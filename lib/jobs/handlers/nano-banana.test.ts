@@ -74,3 +74,16 @@ describe('nanoBananaHandler', () => {
     if (res.kind === 'fail') expect(res.code).toBe('safety');
   });
 });
+
+describe('resolvePrevTurnSignature', () => {
+  it('firma inline (job legacy encolado antes del cambio) se honra sin tocar la BD', async () => {
+    const { resolvePrevTurnSignature } = await import('./nano-banana');
+    const sig = await resolvePrevTurnSignature({ imagePath: 'p', prompt: 'x', thoughtSignature: 'legacy-sig' });
+    expect(sig).toBe('legacy-sig');
+  });
+  it('sin firma ni referencia -> undefined (buildBody degrada a single-turn)', async () => {
+    const { resolvePrevTurnSignature } = await import('./nano-banana');
+    const sig = await resolvePrevTurnSignature({ imagePath: 'p', prompt: 'x' });
+    expect(sig).toBeUndefined();
+  });
+});

@@ -127,7 +127,7 @@ async function loadPreviousPanelRef(
   sceneIndex: number | null,
   sequenceId: string | null,
   currentLocationId: string | null,
-): Promise<{ imagePath: string; prompt: string; thoughtSignature?: string } | null> {
+): Promise<{ imagePath: string; prompt: string; sourceGenerationId?: string } | null> {
   if (sceneIndex == null || sequenceId == null) return null;
   const { data: rows } = await supabase
     .from('campaign_items')
@@ -142,9 +142,11 @@ async function loadPreviousPanelRef(
   const prevGenId = prevRow?.storyboard_generation_id ?? null;
   if (!prevGenId) return null;
   if ((prevRow?.location_id ?? null) !== (currentLocationId ?? null)) return null;
+  // Solo safe_base_path por JSON path: provider_payload completo carga el
+  // thought_signature (~8MB) que aqui no se necesita.
   const { data: gen } = await supabase
     .from('generations')
-    .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
+    .select('output_url, workspace_id, status, prompt, model_id, safe_base_path:provider_payload->>safe_base_path')
     .eq('id', prevGenId)
     .single();
   const g = gen as
@@ -153,16 +155,19 @@ async function loadPreviousPanelRef(
         workspace_id: string;
         status: string;
         prompt: string | null;
-        provider_payload: { thought_signature?: string; safe_base_path?: string } | null;
         model_id: string;
+        safe_base_path: string | null;
       }
     | null;
   if (!g || g.workspace_id !== workspaceId || !g.output_url || g.status !== 'done') return null;
-  const imagePath = g.provider_payload?.safe_base_path ?? g.output_url;
+  const imagePath = g.safe_base_path ?? g.output_url;
   return {
     imagePath,
     prompt: g.prompt ?? '',
-    thoughtSignature: g.model_id === NANO_MODEL_SLUG ? g.provider_payload?.thought_signature : undefined,
+    // La firma NO se copia al payload (viaja en params -> broadcast Realtime >1MB
+    // + SELECT gigante en el worker): se referencia la gen y el worker la lee de
+    // provider_payload (columna no publicada) al correr el job.
+    sourceGenerationId: g.model_id === NANO_MODEL_SLUG ? prevGenId : undefined,
   };
 }
 
@@ -299,7 +304,9 @@ export async function generatePanelAction(
     strict: strictSafe,
     referencePaths,
     chatRefPaths,
-    prevTurn: prevRef ? { imagePath: prevRef.imagePath, thoughtSignature: prevRef.thoughtSignature, prompt: prevRef.prompt } : null,
+    prevTurn: prevRef
+      ? { imagePath: prevRef.imagePath, sourceGenerationId: prevRef.sourceGenerationId, prompt: prevRef.prompt }
+      : null,
   });
 
   const pricing = await loadPricing();
@@ -549,22 +556,25 @@ export async function refinePanelAction(
   });
 
   // Ref del panel padre para encadenar (sin descargar: el worker baja la imagen).
-  let prevTurnRef: { imagePath: string; thoughtSignature?: string; prompt: string } | null = null;
+  // La firma del turno previo NO se embebe en el payload (viaja en params ->
+  // broadcast Realtime >1MB + SELECT gigante en el worker): se referencia la gen
+  // padre y el worker lee provider_payload.thought_signature al correr el job.
+  let prevTurnRef: { imagePath: string; sourceGenerationId?: string; prompt: string } | null = null;
   const parentGenId = item.storyboard_generation_id;
   if (parentGenId) {
     const { data: parent } = await supabase
       .from('generations')
-      .select('output_url, workspace_id, status, prompt, provider_payload, model_id')
+      .select('output_url, workspace_id, status, prompt, model_id, safe_base_path:provider_payload->>safe_base_path')
       .eq('id', parentGenId)
       .single();
     const pg = parent as
-      | { output_url: string | null; workspace_id: string; status: string; prompt: string | null; provider_payload: { thought_signature?: string; safe_base_path?: string } | null; model_id: string }
+      | { output_url: string | null; workspace_id: string; status: string; prompt: string | null; model_id: string; safe_base_path: string | null }
       | null;
     if (pg && pg.workspace_id === workspace.id && pg.output_url && pg.status === 'done') {
       prevTurnRef = {
-        imagePath: pg.provider_payload?.safe_base_path ?? pg.output_url,
+        imagePath: pg.safe_base_path ?? pg.output_url,
         prompt: pg.prompt ?? '',
-        thoughtSignature: pg.model_id === NANO_MODEL_SLUG ? pg.provider_payload?.thought_signature : undefined,
+        sourceGenerationId: pg.model_id === NANO_MODEL_SLUG ? parentGenId : undefined,
       };
     }
   }
