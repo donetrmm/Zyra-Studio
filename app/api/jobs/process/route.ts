@@ -115,6 +115,11 @@ export async function POST(req: Request) {
         .eq('status', 'done');
     } catch (err) {
       console.error('[worker] promote storyboard panel fallo', { generationId, err });
+      // 500 -> QStash reintenta la entrega (retries: 3 en enqueueJob). El promote
+      // es idempotente y con guard de frescura, así que reintentar es seguro.
+      // Antes se hacía ack aquí: el panel quedaba cobrado pero sin enlazar, y la
+      // única salida era regenerarlo pagando de nuevo.
+      return NextResponse.json({ ok: false, error: 'promote_failed' }, { status: 500 });
     }
     return NextResponse.json({ ok: true, ack: 'promoted' });
   }

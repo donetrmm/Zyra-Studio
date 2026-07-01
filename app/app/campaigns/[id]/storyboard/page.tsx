@@ -7,6 +7,8 @@ import { estimateCredits } from '@/lib/credits/estimator';
 import { StoryboardView } from '@/components/campaigns/StoryboardView';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import { buildCreatives, type CreativeRow } from '@/lib/campaigns/storyboard-creatives';
+import { enqueueJob } from '@/lib/jobs/queue';
+import { findUnpromotedPanels, type HealGenRow, type HealItemRow } from '@/lib/campaigns/storyboard-promote-heal';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +32,39 @@ export default async function StoryboardPage({
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, scene_index, scene_prompt, storyboard_image_id, location_id, duration_s, sequence_id, sequence_label, format_id, created_at, warnings')
+    .select('id, scene_index, scene_prompt, storyboard_image_id, storyboard_generation_id, location_id, duration_s, sequence_id, sequence_label, format_id, created_at, warnings')
     .eq('campaign_id', id)
     .order('scene_index');
 
   const rows = itemRows ?? [];
+
+  // Auto-heal de promotes perdidos: si el job promote murió tras agotar los
+  // reintentos de QStash, la gen quedó 'done' (cobrada) sin enlazar al beat.
+  // Al cargar la página se detecta y se re-encola (el promote es idempotente y
+  // con guard de frescura). Solo gens con >2 min de antigüedad: las recientes
+  // suelen tener su promote todavía en vuelo. Best-effort: el render no depende.
+  const { data: doneGens } = await supabase
+    .from('generations')
+    .select('id, created_at, params')
+    .eq('campaign_id', id)
+    .eq('status', 'done')
+    .eq('type', 'image')
+    .not('params->storyboard', 'is', null)
+    .lt('created_at', new Date(Date.now() - 2 * 60 * 1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const healItems: HealItemRow[] = rows.map((r) => ({
+    id: r.id as string,
+    storyboard_generation_id: (r.storyboard_generation_id as string | null) ?? null,
+  }));
+  const pendingPromotes = findUnpromotedPanels((doneGens ?? []) as HealGenRow[], healItems).slice(0, 12);
+  for (const genId of pendingPromotes) {
+    try {
+      await enqueueJob({ generationId: genId, action: 'promote_storyboard' });
+    } catch (err) {
+      console.error('[storyboard:page] re-promote enqueue fallo', { genId, err });
+    }
+  }
 
   // Nombres de formato para etiquetar los creativos sueltos (sin secuencia).
   const formatIds = [
