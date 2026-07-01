@@ -963,13 +963,22 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   // edición de solo caption/fecha refleja una transición concurrente a
   // 'queued'/'sample' en vez de pisarla con un valor viejo. El cliente lo aplica
   // tal cual, evitando re-habilitar los botones de generar y un doble cobro.
-  const { data: updated, error } = await supabase
-    .from('campaign_items')
-    .update(patch)
-    .eq('id', parsed.data.itemId)
-    .select('status')
-    .single();
-  if (error || !updated) return { ok: false, error: 'internal_error', message: error?.message };
+  // Guard anti-TOCTOU: el check de status de arriba usa la fila leída; una
+  // transición concurrente (approve/generate) pudo ganarle entre la lectura y
+  // este UPDATE. Cuando el patch toca producción se condiciona por status: si
+  // el item ya entró a producción el UPDATE afecta 0 filas (PGRST116) y se
+  // devuelve forbidden en vez de re-habilitarlo (doble cobro).
+  let updateQuery = supabase.from('campaign_items').update(patch).eq('id', parsed.data.itemId);
+  if (touchesProduction) {
+    updateQuery = updateQuery.in('status', ['planned', 'skipped', 'failed']);
+  }
+  const { data: updated, error } = await updateQuery.select('status').single();
+  if (error || !updated) {
+    if ((error as { code?: string } | null)?.code === 'PGRST116') {
+      return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+    }
+    return { ok: false, error: 'internal_error', message: error?.message };
+  }
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
   return { ok: true, data: { updated: true, status: updated.status as string } };
 }
@@ -1111,8 +1120,18 @@ export async function deleteCampaignItemAction(itemId: string): Promise<Result<{
   if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
-  const { error } = await supabase.from('campaign_items').delete().eq('id', itemId);
+  // Guard anti-TOCTOU: mismo patrón que updateCampaignItemAction — si el item
+  // entró a producción entre la lectura y el DELETE, no borrarlo (dejaría una
+  // generación en vuelo huérfana apuntando a un item inexistente).
+  const { error, count } = await supabase
+    .from('campaign_items')
+    .delete({ count: 'exact' })
+    .eq('id', itemId)
+    .in('status', ['planned', 'skipped', 'failed']);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
+  if (count === 0) {
+    return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
   return { ok: true, data: { deleted: true } };
 }
