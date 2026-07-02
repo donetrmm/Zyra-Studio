@@ -346,7 +346,11 @@ function LocationEditor({
             onClick={handleGenerateMaster}
             disabled={!canGenerate}
             title={
-              description.trim().length < 10 ? 'Escribe una descripción (mín. 10 caracteres)' : undefined
+              description.trim().length < 10
+                ? 'Escribe una descripción (mín. 10 caracteres)'
+                : visualStyle === 'custom' && visualStyleCustom.trim().length < 3
+                  ? 'Describe el estilo personalizado (mínimo 3 caracteres)'
+                  : undefined
             }
             className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-primary/30 px-3 py-1.5 text-[12px] font-medium text-primary transition-colors hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40"
           >

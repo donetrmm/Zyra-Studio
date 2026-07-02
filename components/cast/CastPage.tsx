@@ -422,7 +422,9 @@ function CharacterEditor({
             title={
               description.trim().length < 10
                 ? 'Escribe primero la descripción del personaje'
-                : undefined
+                : visualStyle === 'custom' && visualStyleCustom.trim().length < 3
+                  ? 'Describe el estilo personalizado (mínimo 3 caracteres)'
+                  : undefined
             }
             className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
