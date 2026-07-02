@@ -48,9 +48,11 @@ export default async function StoryboardPage({
   // Al cargar la página se detecta y se re-encola (el promote es idempotente y
   // con guard de frescura). Solo gens con >2 min de antigüedad: las recientes
   // suelen tener su promote todavía en vuelo. Best-effort: el render no depende.
+  // Select ligero: solo el JSON path del beat, nunca `params` completo (filas con
+  // payload legacy gigante convierten esta query en una lectura de MBs por load).
   const { data: doneGens } = await supabase
     .from('generations')
-    .select('id, created_at, params')
+    .select('id, created_at, beat_id:params->storyboard->>campaignItemId')
     .eq('campaign_id', id)
     .eq('status', 'done')
     .eq('type', 'image')
@@ -62,7 +64,12 @@ export default async function StoryboardPage({
     id: r.id as string,
     storyboard_generation_id: (r.storyboard_generation_id as string | null) ?? null,
   }));
-  const pendingPromotes = findUnpromotedPanels((doneGens ?? []) as HealGenRow[], healItems).slice(0, 12);
+  const healGens: HealGenRow[] = (doneGens ?? []).map((g) => ({
+    id: g.id as string,
+    created_at: g.created_at as string,
+    params: { storyboard: { campaignItemId: (g as { beat_id?: string | null }).beat_id ?? undefined } },
+  }));
+  const pendingPromotes = findUnpromotedPanels(healGens, healItems).slice(0, 12);
   for (const genId of pendingPromotes) {
     try {
       await enqueueJob({ generationId: genId, action: 'promote_storyboard' });

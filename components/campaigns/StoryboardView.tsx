@@ -11,7 +11,7 @@ import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, se
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
-import { useStoryboardPanelRealtime, panelUpdateFromRow } from './use-storyboard-panel-realtime';
+import { useStoryboardPanelRealtime, panelUpdateFromRow, slimPanelRow, type SlimPanelRow } from './use-storyboard-panel-realtime';
 import { createClient } from '@/lib/supabase/client';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -201,15 +201,16 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       if (inFlight.size === 0) return;
       void supabase
         .from('generations')
-        .select('status, error_message, params, campaign_id, created_at')
+        .select('status, error_message, campaign_id, created_at, beat_id:params->storyboard->>campaignItemId')
         .eq('campaign_id', campaignId)
+        .not('params->storyboard', 'is', null)
         .order('created_at', { ascending: false })
         .limit(60)
         .then(({ data }) => {
           if (!data) return;
           const seen = new Set<string>();
           for (const row of data) {
-            const u = panelUpdateFromRow(row as Record<string, unknown>, campaignId);
+            const u = panelUpdateFromRow(slimPanelRow(row as unknown as SlimPanelRow), campaignId);
             if (!u || seen.has(u.campaignItemId)) continue; // solo la generacion mas reciente por beat
             seen.add(u.campaignItemId);
             if (inFlight.has(u.campaignItemId)) onPanelUpdate(u);

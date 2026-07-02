@@ -11,6 +11,25 @@ export type PanelUpdate = { campaignItemId: string; status: string; errorMessage
 // porque generations tiene REPLICA IDENTITY default (solo PK) y un filtro Realtime sobre
 // columna no-PK no entrega eventos fiablemente; el payload new de un UPDATE trae la fila
 // completa. El campaignItemId sale de params.storyboard.campaignItemId (== beat.id).
+// Fila ligera de la reconciliación/auto-heal: SOLO el JSON path del beat, nunca
+// `params` completo — una fila con payload legacy gigante (firma de 8MB) convertía
+// cada tick del heal en una lectura de 8MB que ahogaba la instancia. Pura: adapta
+// el shape slim al que espera panelUpdateFromRow.
+export type SlimPanelRow = {
+  campaign_id: unknown;
+  status: unknown;
+  error_message: unknown;
+  beat_id: unknown;
+};
+export function slimPanelRow(r: SlimPanelRow): Record<string, unknown> {
+  return {
+    campaign_id: r.campaign_id,
+    status: r.status,
+    error_message: r.error_message,
+    params: { storyboard: { campaignItemId: r.beat_id ?? undefined } },
+  };
+}
+
 export function panelUpdateFromRow(row: Record<string, unknown>, campaignId: string): PanelUpdate | null {
   if (row.campaign_id !== campaignId) return null;
   const params = (row.params ?? {}) as { storyboard?: { campaignItemId?: unknown } };
@@ -56,12 +75,13 @@ export function useStoryboardPanelRealtime(
     const reconcile = () => {
       void supabase
         .from('generations')
-        .select('status, error_message, params, campaign_id')
+        .select('status, error_message, campaign_id, beat_id:params->storyboard->>campaignItemId')
         .eq('campaign_id', campaignId)
         .in('status', ['queued', 'processing'])
+        .not('params->storyboard', 'is', null)
         .then(({ data }) => {
           if (!active || !data) return;
-          for (const row of data) emit(row as Record<string, unknown>);
+          for (const row of data) emit(slimPanelRow(row as unknown as SlimPanelRow));
         });
     };
 
