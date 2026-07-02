@@ -9,6 +9,7 @@ import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { getStyleProfile } from '../style-profiles';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -371,10 +372,19 @@ export function compileSeedance(
   // estilizados/surreales (el-icono, mundo-imposible) donde contradice la estética.
   const aspect = req.aspectRatio ?? '9:16';
   const orientation = aspect === '9:16' || aspect === '3:4' ? 'vertical' : aspect === '1:1' ? 'square' : 'horizontal';
-  const stylized = /\b(surreal|imposible|impossible|stylized|estilizad|abstract|abstracto|surrealist|hyperreal|dreamlike|onírico|animat)\w*/i.test(
+  const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
+  const stylizedRegister = /\b(surreal|imposible|impossible|stylized|estilizad|abstract|abstracto|surrealist|hyperreal|dreamlike|onírico|animat)\w*/i.test(
     ctx.format?.register ?? '',
   );
-  const look = stylized ? 'filmic color grading' : 'ultra realistic, filmic color grading';
+  // Perfil declarado no-realista → su look manda. Perfil realista (o ausente)
+  // con formato estilizado (el-icono, mundo-imposible) → se degrada a solo
+  // filmic (comportamiento actual).
+  const look =
+    profile.slug !== 'ultra_realista'
+      ? profile.video
+      : stylizedRegister
+        ? 'filmic color grading'
+        : profile.video;
   sections.push(
     `A ${duration ? `${duration}-second ` : ''}${orientation} (${aspect}) commercial video, ${look}.`,
   );
@@ -478,7 +488,7 @@ export function compileSeedance(
   const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
     `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
   );
-  if (!stylized && !hasLookReference && !lightAlreadyDirected) {
+  if (!stylizedRegister && !hasLookReference && !lightAlreadyDirected) {
     sections.push(cinematographyDefault(ctx.format?.register ?? ''));
   }
 

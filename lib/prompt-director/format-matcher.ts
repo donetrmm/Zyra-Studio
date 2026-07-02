@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
-import { PLANNER_PHYSICS_BLOCK } from './style-profiles';
+import { getStyleProfile, PLANNER_PHYSICS_BLOCK, type VisualStyle } from './style-profiles';
 export { CustomFormatSchema, type CustomFormat };
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -421,6 +421,8 @@ Nunca inventes atributos del producto. Devuelve SOLO el JSON:
 export function buildMatcherSystemPrompt(opts: {
   language?: 'es' | 'en';
   guidelines?: CreativeGuidelines;
+  visualStyle?: VisualStyle;
+  visualStyleCustom?: string;
 }): string {
   const lang = opts.language ?? 'es';
   let system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[lang]);
@@ -434,10 +436,12 @@ export function buildMatcherSystemPrompt(opts: {
       '\nEl primer beat (hook) debe encuadrar el producto completo como protagonista (héroe), a tamaño grande.';
   }
 
-  // Física/coherencia del mundo (plan 2026-07-02): el "cuadro volando" se
-  // corrige en el ORIGEN — el planner escribe scenePrompts con objetos anclados.
-  // Fase 1 lo gatea por perfil de campaña (fantasía lo relaja).
-  system += PLANNER_PHYSICS_BLOCK;
+  // Perfil de estilo de la campaña: bloque de autoría + física gateada por perfil.
+  // El "cuadro volando" se corrige en el ORIGEN — el planner escribe scenePrompts
+  // con objetos anclados. Fantasía relaja la física (groundedPhysics: false).
+  const profile = getStyleProfile(opts.visualStyle, opts.visualStyleCustom);
+  system += profile.planner;
+  if (profile.groundedPhysics) system += PLANNER_PHYSICS_BLOCK;
 
   return system;
 }
@@ -453,6 +457,10 @@ export async function matchIdeas(input: {
   language?: 'es' | 'en';
   // Guias creativas de la campana: inyectadas en el system prompt del matcher.
   guidelines?: CreativeGuidelines;
+  // Perfil de estilo visual de la campaña: gatea el bloque de autoría + física
+  // del planner (buildMatcherSystemPrompt).
+  visualStyle?: VisualStyle;
+  visualStyleCustom?: string;
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
   // después del brief (otra llamada a Gemini): un 429 puntual no debe
   // degradar el plan dirigido a mix genérico.
@@ -476,6 +484,8 @@ async function requestMatch(input: {
   images?: MatcherImage[];
   language?: 'es' | 'en';
   guidelines?: CreativeGuidelines;
+  visualStyle?: VisualStyle;
+  visualStyleCustom?: string;
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
@@ -486,7 +496,12 @@ async function requestMatch(input: {
     )
     .join('\n');
 
-  const system = buildMatcherSystemPrompt({ language: input.language, guidelines: input.guidelines });
+  const system = buildMatcherSystemPrompt({
+    language: input.language,
+    guidelines: input.guidelines,
+    visualStyle: input.visualStyle,
+    visualStyleCustom: input.visualStyleCustom,
+  });
 
   const cast = (input.characters ?? [])
     .map((c) => `- id=${c.id} ${c.name}${c.states?.length ? ` (estados: ${c.states.join(', ')})` : ''}`)

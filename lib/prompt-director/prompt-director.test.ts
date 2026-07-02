@@ -721,6 +721,31 @@ describe('compile seedance', () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.compiled.prompt).not.toMatch(/\b\d-\ds:/);
   });
+
+  it('perfil animado cambia el look base del video', () => {
+    const r = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'the mug spins on the table',
+        durationS: 5,
+      },
+      { style: { slug: 'animado' } },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('3D animation look');
+    expect(r.ok && r.compiled.prompt).not.toContain('ultra realistic');
+  });
+
+  it('sin perfil, el look realista actual se conserva', () => {
+    const r = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'the mug spins on the table',
+        durationS: 5,
+      },
+      {},
+    );
+    expect(r.ok && r.compiled.prompt).toContain('ultra realistic, filmic color grading');
+  });
 });
 
 // ============ Cinematografía por defecto (#A) ============

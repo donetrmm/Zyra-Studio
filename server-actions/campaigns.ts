@@ -53,6 +53,7 @@ import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas, type MatcherImage } from '@/lib/prompt-director/format-matcher';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { ProviderError } from '@/lib/providers/types';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
@@ -492,7 +493,7 @@ export async function generatePlanAction(input: unknown): Promise<
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, aspect_ratio, date_start, date_end, status, creative_guidelines')
+    .select('id, workspace_id, brand_kit_id, goal, product_brief, character_ids, include_packaging, language, aspect_ratio, date_start, date_end, status, creative_guidelines, visual_style, visual_style_custom')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -639,6 +640,10 @@ export async function generatePlanAction(input: unknown): Promise<
         ...(matcherImages.length ? { images: matcherImages } : {}),
         language: campaignLanguage,
         ...(guidelines ? { guidelines } : {}),
+        ...(campaign.visual_style
+          ? { visualStyle: campaign.visual_style as VisualStyle }
+          : {}),
+        ...(campaign.visual_style_custom ? { visualStyleCustom: campaign.visual_style_custom as string } : {}),
       });
       for (const m of matched.matches) {
         for (const p of m.inventedCharacters) {

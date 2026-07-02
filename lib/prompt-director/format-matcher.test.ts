@@ -672,4 +672,16 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('FÍSICA Y COHERENCIA DEL MUNDO');
     expect(s).toContain('nunca flota');
   });
+
+  it('fantasía: bloque de estilo presente y física del mundo ausente', () => {
+    const s = buildMatcherSystemPrompt({ visualStyle: 'fantasia' });
+    expect(s).toContain('FANTASÍA');
+    expect(s).not.toContain('FÍSICA Y COHERENCIA DEL MUNDO');
+  });
+
+  it('custom: el texto del usuario entra al system', () => {
+    const s = buildMatcherSystemPrompt({ visualStyle: 'custom', visualStyleCustom: 'acuarela suave' });
+    expect(s).toContain('acuarela suave');
+    expect(s).toContain('FÍSICA Y COHERENCIA DEL MUNDO');
+  });
 });
