@@ -15,6 +15,8 @@ import {
   isGenError,
 } from './generate';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
+import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 import type { CreationKind, ClarifyResult } from '@/lib/schemas/creation';
 
 // Imagen ya existente del kit (para el flujo "mejorar").
@@ -74,6 +76,9 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   const [kitColors, setKitColors] = useState<{ name: string; hex: string }[]>([]);
   const [kitTone, setKitTone] = useState('');
   const [kitLoading, setKitLoading] = useState(false);
+  // Perfil de estilo visual del personaje (mismo selector que CastPage/wizard).
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
+  const [visualStyleCustom, setVisualStyleCustom] = useState('');
 
   const title =
     kind === 'character' ? 'Crear personaje con IA'
@@ -102,7 +107,12 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   async function runCharacter(appearance: string) {
     setBusy(true);
     try {
-      const out = await generateCharacter(appearance);
+      const out = await generateCharacter(
+        appearance,
+        undefined,
+        visualStyle,
+        visualStyle === 'custom' ? visualStyleCustom.trim() : undefined,
+      );
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
       setVersions([out]); setCurrent(0); setStep('preview');
     } finally { setBusy(false); }
@@ -271,7 +281,25 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
                 placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
-              <button type="button" onClick={handleIntentNext} disabled={busy || text.trim().length < 3}
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estilo visual</span>
+                <div className="mt-1.5">
+                  <VisualStyleSelector
+                    compact
+                    value={visualStyle}
+                    customText={visualStyleCustom}
+                    onValueChange={setVisualStyle}
+                    onCustomTextChange={setVisualStyleCustom}
+                  />
+                </div>
+              </div>
+              <button type="button" onClick={handleIntentNext}
+                disabled={busy || text.trim().length < 3 || (visualStyle === 'custom' && visualStyleCustom.trim().length < 3)}
+                title={
+                  visualStyle === 'custom' && visualStyleCustom.trim().length < 3
+                    ? 'Describe el estilo personalizado (mínimo 3 caracteres)'
+                    : undefined
+                }
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 {busy && <Loader2 className="size-3.5 animate-spin" aria-hidden />} Continuar
               </button>

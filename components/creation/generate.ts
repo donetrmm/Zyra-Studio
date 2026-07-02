@@ -1,6 +1,7 @@
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export type GeneratedImage = { generationId: string; refId: string; previewUrl: string; storagePath: string };
 export type GenError = { error: string; message?: string };
@@ -13,19 +14,24 @@ async function fixAsReference(generationId: string): Promise<GeneratedImage | Ge
 }
 
 // Genera el personaje desde su apariencia (FLUX, síncrono para imágenes).
-// `reference` opcional = inspiración de estilo (image-ref).
+// `reference` opcional = inspiración de estilo (image-ref). `style`/`customText`
+// opcionales = perfil de estilo visual (default ultra_realista); con perfil
+// no-realista la directiva photoreal del provider se apaga para no pelear
+// contra el look pedido.
 export async function generateCharacter(
   appearance: string,
   reference?: { id: string; storagePath: string },
+  style?: VisualStyle,
+  customText?: string,
 ): Promise<GeneratedImage | GenError> {
   const res = await submitGenerationAction({
     provider: 'flux' as const,
     model: 'flux-2-pro-preview' as const,
     variant: 'default' as const,
-    prompt: buildCharacterMasterPrompt(appearance),
+    prompt: buildCharacterMasterPrompt(appearance, style, customText),
     aspectRatio: '3:4' as const,
     megapixels: 2 as const,
-    photoreal: true,
+    photoreal: (style ?? 'ultra_realista') === 'ultra_realista',
     references: reference ? [reference] : [],
   });
   if (!res.ok) return { error: res.error, message: res.message };
