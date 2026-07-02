@@ -30,7 +30,9 @@ export default async function AppLayout({
               cualquier hijo mas ancho que el viewport genera un scroll horizontal
               que saca el contenido del marco de navegacion. Nada del contenido
               necesita scroll horizontal a nivel de pagina. */}
-          <main id="main-content" className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          {/* overscroll-none: al agotar el scroll interno, la rueda no encadena
+              al documento (el shell es un marco fijo; ver globals.css). */}
+          <main id="main-content" className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-none px-4 py-6 lg:px-8 lg:py-8">{children}</main>
           <MobileBottomNav />
         </div>
         <Toaster richColors theme="dark" />

@@ -233,3 +233,15 @@
     background: transparent;
   }
 }
+
+/* El shell autenticado es un marco fijo (h-dvh) donde el UNICO scroll legitimo
+   vive en #main-content. Sin esta clausura, cualquier elemento a nivel de
+   documento (portales, elementos fantasma) agrega altura al body y el scroll
+   encadenado — al agotar el scroll interno, o con el cursor sobre la barra de
+   navegacion — desplaza el marco entero y el contenido se desborda fuera del
+   area de navegacion. Scope via :has(): solo aplica a paginas del shell
+   (login/signup/onboarding conservan el scroll de documento normal). */
+html:has(#main-content),
+body:has(#main-content) {
+  overflow: hidden;
+}
