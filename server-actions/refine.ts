@@ -13,6 +13,7 @@ import { SHOTS } from '@/lib/shots/catalog';
 import { AcceptRefineInputSchema, RefineTurnInputSchema } from '@/lib/schemas/refine';
 import type { FormatDirection } from '@/lib/prompt-director/types';
 import { plannerStyleBlocks } from '@/lib/prompt-director/style-profiles';
+import { stagingPlannerBlock, type PlannerProductFacts } from '@/lib/prompt-director/inventory';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
 
@@ -116,6 +117,9 @@ function buildSystemPrompt(args: {
   // campaña (misma política que el matcher, vía plannerStyleBlocks).
   visualStyle?: string | null;
   visualStyleCustom?: string | null;
+  // Datos físicos del producto (spec 2026-07-02): staging proporcional + peso,
+  // misma paridad que el matcher (buildMatcherSystemPrompt).
+  product?: PlannerProductFacts;
 }): string {
   const shots = SHOTS.map((s) => `- ${s.slug}: ${s.name} (${s.whenToUse})`).join('\n');
   const cast = args.characters.map((c) => `- id=${c.id} ${c.name}`).join('\n') || '(vacío)';
@@ -161,7 +165,7 @@ Reglas duras:
   sin marcadores de segundos (es lo que el usuario lee en el panel).
 - En etapa shot propone slugs SOLO de este catálogo:\n${shots}
 - En etapa refs, characterId solo de este Cast:\n${cast}
-- Nunca inventes atributos del producto ni claims.${plannerStyleBlocks(args.visualStyle, args.visualStyleCustom)}
+- Nunca inventes atributos del producto ni claims.${plannerStyleBlocks(args.visualStyle, args.visualStyleCustom)}${stagingPlannerBlock(args.product)}
 Devuelve SOLO JSON: {"reply":"...","stage":"what|shot|refs|review","chips":[...],"draftPatch":{...}}`;
 }
 
@@ -180,7 +184,14 @@ export async function refineItemTurnAction(input: unknown): Promise<
   const ctx = await loadContext(parsed.data.campaignId, parsed.data.draft);
   if (!ctx) return { ok: false, error: 'not_found' };
 
-  const brief = (ctx.campaign.product_brief ?? {}) as { productName?: string };
+  const brief = (ctx.campaign.product_brief ?? {}) as {
+    productName?: string;
+    category?: string;
+    medium?: string;
+    heightCm?: number;
+    widthCm?: number;
+    weightKg?: number;
+  };
   const userTurns = parsed.data.history.filter((t) => t.role === 'user').length + 1;
   const currentStage: Stage = userTurns >= MAX_TURNS ? 'review' : parsed.data.stage;
 
@@ -195,6 +206,14 @@ export async function refineItemTurnAction(input: unknown): Promise<
         language: ctx.campaign.language === 'en' ? 'en' : 'es',
         visualStyle: (ctx.campaign.visual_style as string | null) ?? null,
         visualStyleCustom: (ctx.campaign.visual_style_custom as string | null) ?? null,
+        product: {
+          name: brief.productName,
+          category: brief.category,
+          medium: brief.medium,
+          heightCm: brief.heightCm,
+          widthCm: brief.widthCm,
+          weightKg: brief.weightKg,
+        },
       }),
       history: [...parsed.data.history, { role: 'user', text: parsed.data.userMessage }],
     });

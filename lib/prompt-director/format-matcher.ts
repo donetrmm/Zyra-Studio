@@ -10,6 +10,7 @@ import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { plannerStyleBlocks, type VisualStyle } from './style-profiles';
+import { stagingPlannerBlock, type PlannerProductFacts } from './inventory';
 export { CustomFormatSchema, type CustomFormat };
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -423,6 +424,7 @@ export function buildMatcherSystemPrompt(opts: {
   guidelines?: CreativeGuidelines;
   visualStyle?: VisualStyle;
   visualStyleCustom?: string;
+  product?: PlannerProductFacts;
 }): string {
   const lang = opts.language ?? 'es';
   let system = SYSTEM.replaceAll('__SUMMARY_LANG__', SUMMARY_LANGUAGE[lang]);
@@ -442,6 +444,11 @@ export function buildMatcherSystemPrompt(opts: {
   // Misma política que el asistente de refinado (plannerStyleBlocks compartido).
   system += plannerStyleBlocks(opts.visualStyle, opts.visualStyleCustom);
 
+  // Producto físico (spec 2026-07-02): staging proporcional + peso. Los
+  // scenePrompt nacen con la pieza montada donde reposa naturalmente y con la
+  // interacción acorde a su peso — el compiler solo refuerza, no corrige.
+  system += stagingPlannerBlock(opts.product);
+
   return system;
 }
 
@@ -460,6 +467,9 @@ export async function matchIdeas(input: {
   // del planner (buildMatcherSystemPrompt).
   visualStyle?: VisualStyle;
   visualStyleCustom?: string;
+  // Datos físicos del producto: gatean el staging proporcional + peso del
+  // planner (buildMatcherSystemPrompt).
+  product?: PlannerProductFacts;
   // Pausa antes del único reintento (tests pasan 0). El matcher corre justo
   // después del brief (otra llamada a Gemini): un 429 puntual no debe
   // degradar el plan dirigido a mix genérico.
@@ -485,6 +495,7 @@ async function requestMatch(input: {
   guidelines?: CreativeGuidelines;
   visualStyle?: VisualStyle;
   visualStyleCustom?: string;
+  product?: PlannerProductFacts;
 }): Promise<MatcherResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
@@ -500,6 +511,7 @@ async function requestMatch(input: {
     guidelines: input.guidelines,
     visualStyle: input.visualStyle,
     visualStyleCustom: input.visualStyleCustom,
+    product: input.product,
   });
 
   const cast = (input.characters ?? [])

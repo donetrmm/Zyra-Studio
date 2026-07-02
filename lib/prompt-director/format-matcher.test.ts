@@ -684,4 +684,16 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('acuarela suave');
     expect(s).toContain('FÍSICA Y COHERENCIA DEL MUNDO');
   });
+
+  it('producto físico grande: bloque de staging proporcional', () => {
+    const s = buildMatcherSystemPrompt({ product: { name: 'Canvas', medium: 'canvas', heightCm: 150 } });
+    expect(s).toContain('STAGING PROPORCIONAL');
+    expect(s).toContain('NO lo pongas en las manos');
+  });
+
+  it('con peso: bloque de peso; sin datos físicos: ninguno', () => {
+    expect(buildMatcherSystemPrompt({ product: { name: 'x', weightKg: 25 } })).toContain('PESO DEL PRODUCTO');
+    expect(buildMatcherSystemPrompt({ product: { name: 'x' } })).not.toContain('STAGING PROPORCIONAL');
+    expect(buildMatcherSystemPrompt({})).not.toContain('PESO DEL PRODUCTO');
+  });
 });

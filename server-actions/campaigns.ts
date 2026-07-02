@@ -506,6 +506,10 @@ export async function generatePlanAction(input: unknown): Promise<
   const brief = (campaign.product_brief ?? {}) as {
     productName?: string;
     category?: string;
+    medium?: string;
+    heightCm?: number;
+    widthCm?: number;
+    weightKg?: number;
   };
   const guidelines: CreativeGuidelines | undefined = campaign.creative_guidelines
     ? CreativeGuidelinesSchema.safeParse(campaign.creative_guidelines).data
@@ -656,6 +660,14 @@ export async function generatePlanAction(input: unknown): Promise<
             }
           : {}),
         ...(campaign.visual_style_custom ? { visualStyleCustom: campaign.visual_style_custom as string } : {}),
+        product: {
+          name: brief.productName,
+          category: brief.category,
+          medium: brief.medium,
+          heightCm: brief.heightCm,
+          widthCm: brief.widthCm,
+          weightKg: brief.weightKg,
+        },
       });
       for (const m of matched.matches) {
         for (const p of m.inventedCharacters) {
