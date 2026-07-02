@@ -144,10 +144,18 @@ describe('compileRefinePrompt', () => {
   it('lleva la instruccion y preserva la continuidad de escena, sin candar la composicion', () => {
     const p = compileRefinePrompt('make the lighting warmer', ctx);
     expect(p).toContain('make the lighting warmer');
-    expect(p).toContain('keep the rest of the scene consistent');
+    expect(p).toContain('Keep the rest of the scene consistent');
     // El candado rigido de composicion/encuadre bloqueaba ediciones compositivas;
     // ya no debe estar (identidad la fijan las clausulas de producto/personaje).
     expect(p).not.toContain('same composition, framing');
+  });
+
+  it('la edicion del usuario tiene precedencia sobre las anclas (puede tocar el producto)', () => {
+    const p = compileRefinePrompt('make the canvas thinner', ctx);
+    // La instruccion abre el prompt y la clausula de precedencia va ANTES de las anclas.
+    expect(p.startsWith('make the canvas thinner.')).toBe(true);
+    expect(p).toContain('the requested edit ALWAYS takes precedence over the consistency clauses below');
+    expect(p.indexOf('takes precedence')).toBeLessThan(p.indexOf('Reproduce the product'));
   });
 
   it('ancla producto y personaje por TEXTO (no por "reference image", que el chat descarta)', () => {
@@ -165,7 +173,7 @@ describe('compileRefinePrompt', () => {
   it('sin producto ni personajes, solo instruccion + guardia (sin anclas vacias)', () => {
     const p = compileRefinePrompt('crop tighter', { characters: [] });
     expect(p).toContain('crop tighter');
-    expect(p).toContain('keep the rest of the scene consistent');
+    expect(p).toContain('Keep the rest of the scene consistent');
     expect(p).not.toContain('Reproduce the product');
     expect(p).not.toContain('reference image');
   });

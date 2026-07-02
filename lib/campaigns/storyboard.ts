@@ -106,6 +106,10 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
 // aquí NO se pide "misma composición/encuadre" (eso contradecía y bloqueaba las ediciones
 // compositivas como "pon el cuadro en la pared"): se preserva la continuidad de escena
 // (locación, luz, color) pero se permite recomponer lo necesario para aplicar la edición.
+// PRECEDENCIA: la instrucción del refinado viene de un HUMANO con intención — a
+// diferencia del texto del planner (que las anclas guardan contra contradicciones
+// accidentales), aquí la edición pedida MANDA, incluso sobre el producto ("haz menos
+// grueso el canvas"): las anclas aplican solo a lo que la edición no toca.
 // Devuelve el prompt completo (la instrucción es la edición a aplicar).
 export function compileRefinePrompt(
   instruction: string,
@@ -113,7 +117,7 @@ export function compileRefinePrompt(
   opts?: { isOpeningBeat?: boolean },
 ): string {
   const lead = instruction.trim().replace(/\.?$/, '.');
-  return `${lead} Make this change, and keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
+  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.
