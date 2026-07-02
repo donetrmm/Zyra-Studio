@@ -479,8 +479,11 @@ export function compileSeedance(
 
   // Cinematografía por defecto (#A): base de luz/óptica coherente cuando ni la
   // acción ni el formato la especifican. Se omite en formatos estilizados (look
-  // propio) y cuando hay referencia de look/entorno o video de plantilla (el
-  // modelo extrae la luz de ahí).
+  // propio), cuando hay referencia de look/entorno o video de plantilla (el
+  // modelo extrae la luz de ahí), y cuando la campaña declara un perfil
+  // no-realista (animado/fantasía/custom): el lenguaje fotográfico ("as if
+  // filmed by a real camera operator" / "clean filmic contrast") contradice el
+  // look declarado en el encabezado del video.
   const hasLookReference =
     (ctx.extraImagePaths?.length ?? 0) > 0 ||
     (ctx.location?.imagePaths?.length ?? 0) > 0 ||
@@ -488,7 +491,7 @@ export function compileSeedance(
   const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
     `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
   );
-  if (!stylizedRegister && !hasLookReference && !lightAlreadyDirected) {
+  if (profile.slug === 'ultra_realista' && !stylizedRegister && !hasLookReference && !lightAlreadyDirected) {
     sections.push(cinematographyDefault(ctx.format?.register ?? ''));
   }
 

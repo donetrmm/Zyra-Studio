@@ -262,4 +262,17 @@ describe('perfil de estilo en las directivas del panel', () => {
     expect(isStylized('', 'a normal scene')).toBe(false);
     expect(physicsClause({})).toMatch(/never floats/);
   });
+
+  it('perfil custom con texto que la regex NO captura (acuarela) apaga el realismo humano', () => {
+    const ctx = {
+      ...(withChar as object),
+      style: { slug: 'custom' as const, custom: 'acuarela suave, colores pastel' },
+    } as never;
+    expect(humanRealismDirective(ctx, 'she smiles at the camera')).toBe('');
+  });
+
+  it('perfil ultra_realista explícito sigue emitiendo el realismo humano', () => {
+    const ctx = { ...(withChar as object), style: { slug: 'ultra_realista' as const } } as never;
+    expect(humanRealismDirective(ctx, 'she smiles at the camera')).toContain('photographed human beings');
+  });
 });

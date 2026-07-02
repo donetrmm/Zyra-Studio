@@ -794,6 +794,20 @@ describe('cinematografía por defecto', () => {
     if (!res.ok) return;
     expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
   });
+
+  it('perfil declarado no-realista (animado) no recibe el default de cinematografía fotográfica', () => {
+    const res = run({ format: fmtNoLight('registro normal'), product, style: { slug: 'animado' } });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
+  });
+
+  it('sin perfil, registro normal → sí recibe el default de cinematografía (regresión)', () => {
+    const res = run({ format: fmtNoLight('registro normal'), product });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toMatch(/Cinematography:/);
+  });
 });
 
 // ============ Audio por registro (#2/#3) ============

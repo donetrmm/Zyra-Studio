@@ -65,8 +65,15 @@ export function isStylized(
 // a la edición encadenada) hacía que el modelo re-renderizara al sujeto: la cara
 // derivaba y el producto cambiaba por completo. Por eso NO se usa en la rama
 // encadenada (esa edita el panel anterior, que ya es foto-real, y debe preservar).
+//
+// Con perfil declarado no-realista (incluido custom con texto) la directiva se
+// omite — el perfil manda, incluso si el texto custom no matchea STYLIZED_RE
+// (ej. "acuarela suave, colores pastel": vocabulario pictórico deliberadamente
+// fuera de la regex, ver isStylized).
 export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string): string {
   if ((ctx.characters?.length ?? 0) === 0) return '';
+  const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
+  if (profile.slug !== 'ultra_realista') return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
   return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
 }
