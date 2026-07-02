@@ -1,19 +1,9 @@
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
+import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
 
 export type GeneratedImage = { generationId: string; refId: string; previewUrl: string; storagePath: string };
 export type GenError = { error: string; message?: string };
-
-// Scaffold de retrato neutro (mismo criterio que buildMasterPrompt de CastPage):
-// el Prompt Director espera frontal, luz pareja, persona ficticia.
-function buildMasterPrompt(appearance: string): string {
-  return (
-    `Frontal head-and-shoulders portrait of a fictional person: ${appearance}. ` +
-    'Neutral relaxed expression, looking straight at the camera, soft even studio lighting, ' +
-    'plain light gray seamless background, sharp focus on the face, natural skin texture, ' +
-    'no text, no watermark.'
-  );
-}
 
 // Convierte una generación 'done' en media_reference (preview + id para guardar).
 async function fixAsReference(generationId: string): Promise<GeneratedImage | GenError> {
@@ -32,7 +22,7 @@ export async function generateCharacter(
     provider: 'flux' as const,
     model: 'flux-2-pro-preview' as const,
     variant: 'default' as const,
-    prompt: buildMasterPrompt(appearance),
+    prompt: buildCharacterMasterPrompt(appearance),
     aspectRatio: '3:4' as const,
     megapixels: 2 as const,
     photoreal: true,
