@@ -151,12 +151,13 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     });
   }
 
-  // Generación esperada por beat tras un click de regenerar/refinar. 'pending'
-  // mientras el server action crea la fila (aún no hay id). Sin este mapa, el
-  // heal/Realtime emite el 'done' de la generación ANTERIOR del beat en esa
-  // ventana y apaga el loader del intento nuevo (Realtime no escucha INSERTs,
-  // así que nada lo vuelve a encender hasta un reload).
-  const awaitingGenRef = useRef<Record<string, string>>({});
+  // Generaciones esperadas por beat tras un click de regenerar/refinar (lista:
+  // un lote de variantes espera varias). ['pending'] mientras el server action
+  // crea las filas (aún no hay ids). Sin este mapa, el heal/Realtime emite el
+  // 'done' de una generación ANTERIOR del beat en esa ventana y apaga el loader
+  // del intento nuevo (Realtime no escucha INSERTs, así que nada lo vuelve a
+  // encender hasta un reload).
+  const awaitingGenRef = useRef<Record<string, string[]>>({});
 
   // Realtime: el worker genera el panel async; escuchamos el estado de la generacion.
   const onPanelUpdate = useCallback(
@@ -164,11 +165,22 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       const isTerminal = u.status === 'done' || u.status === 'failed';
       if (isTerminal) {
         const awaited = awaitingGenRef.current[u.campaignItemId];
-        if (awaited && u.generationId !== awaited) {
-          // Evento terminal de una generación vieja del beat: no pisar el intento en curso.
-          return;
+        if (awaited?.length) {
+          if (!u.generationId || !awaited.includes(u.generationId)) {
+            // Evento terminal de una generación vieja del beat (o aún sin ids del
+            // lote nuevo): no pisar el intento en curso.
+            return;
+          }
+          const rest = awaited.filter((id) => id !== u.generationId);
+          if (rest.length > 0) {
+            // Quedan variantes del lote en vuelo: refrescar para mostrar la que
+            // llegó, pero mantener el loader/overlay hasta que termine el lote.
+            awaitingGenRef.current[u.campaignItemId] = rest;
+            router.refresh();
+            return;
+          }
+          delete awaitingGenRef.current[u.campaignItemId];
         }
-        delete awaitingGenRef.current[u.campaignItemId];
       }
       if (u.status === 'done') {
         setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
@@ -304,7 +316,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     setGeneratingAll(true);
     for (const beat of withoutPanel) {
       setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'generating' } }));
-      awaitingGenRef.current[beat.id] = 'pending';
+      awaitingGenRef.current[beat.id] = ['pending'];
       const res = await generatePanelAction(beat.id);
       if (!res.ok) {
         delete awaitingGenRef.current[beat.id];
@@ -313,7 +325,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
         toast.error(`Panel ${beat.sceneIndex + 1}: ${msg}`);
         continue;
       }
-      awaitingGenRef.current[beat.id] = res.data.generationId;
+      awaitingGenRef.current[beat.id] = [res.data.generationId];
       // ok: el panel queda 'generating'; Realtime lo cierra (done -> idle, failed -> error).
     }
     setGeneratingAll(false);
@@ -322,7 +334,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   async function handleRegenerate(beatId: string) {
     setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'generating' } }));
     // 'pending' bloquea eventos terminales viejos hasta conocer el id real.
-    awaitingGenRef.current[beatId] = 'pending';
+    awaitingGenRef.current[beatId] = ['pending'];
     const res = await generatePanelAction(beatId, {
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
@@ -334,11 +346,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       toast.error(msg);
       return;
     }
-    awaitingGenRef.current[beatId] = res.data.generationId;
+    awaitingGenRef.current[beatId] = [res.data.generationId];
     // ok: el panel queda 'generating'; Realtime lo pasa a idle (done) o error (failed).
   }
 
-  async function handleRefine(beatId: string) {
+  async function handleRefine(beatId: string, variants = 1) {
     const instruction = (instructions[beatId] ?? '').trim();
     if (!instruction) {
       toast.error('Escribe una instrucción antes de refinar');
@@ -349,7 +361,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     // la generacion (Realtime lo cierra en done/failed). Se mantiene la panelUrl visible
     // (no la ponemos en null como antes, que dejaba "Sin panel" ~80s sin feedback).
     setRefiningBeats((prev) => ({ ...prev, [beatId]: true }));
-    awaitingGenRef.current[beatId] = 'pending';
+    awaitingGenRef.current[beatId] = ['pending'];
     setRefineErrors((prev) => {
       if (!(beatId in prev)) return prev;
       const next = { ...prev };
@@ -360,10 +372,14 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
       strongEdit: strongEdit[beatId] ?? false,
+      variants,
     });
     setRefining(null);
     if (res.ok) {
-      awaitingGenRef.current[beatId] = res.data.generationId;
+      awaitingGenRef.current[beatId] = res.data.generationIds;
+      if (variants > 1 && res.data.generationIds.length > 0) {
+        toast.success(`${res.data.generationIds.length} variantes en camino — compáralas en Versiones`);
+      }
       setInstructions((prev) => ({ ...prev, [beatId]: '' }));
       // El overlay queda activo; el evento terminal por Realtime (done/failed) lo limpia.
     } else {
@@ -662,6 +678,20 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     ) : (
                       'Refinar'
                     )}
+                  </Button>
+                  {/* Lote de variantes: 3 intentos paralelos de la misma edición
+                      (mismo padre, sin degradación encadenada); se comparan y se
+                      elige en Versiones. Contra la variancia del modelo. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={busy || !panelUrl || !instruction.trim()}
+                    title={`3 variantes de la misma edición${panelCostChained != null ? ` · −${panelCostChained * 3} cr` : ''}`}
+                    onClick={() => void handleRefine(beat.id, 3)}
+                  >
+                    ×3
                   </Button>
                 </div>
                 {refineErrors[beat.id] && (

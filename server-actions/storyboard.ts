@@ -432,8 +432,14 @@ export async function setStoryboardLocationAction(
 export async function refinePanelAction(
   itemId: string,
   instruction: string,
-  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean; strongEdit?: boolean },
-): Promise<Result<{ generationId: string }>> {
+  opts?: {
+    productRefInChat?: boolean;
+    characterRefInChat?: boolean;
+    strongEdit?: boolean;
+    // 1-3 intentos paralelos de la misma edición (mismo padre); cada uno cobra.
+    variants?: number;
+  },
+): Promise<Result<{ generationIds: string[] }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (!instruction?.trim()) {
     return { ok: false, error: 'validation_error', message: 'instruction requerida' };
@@ -634,60 +640,74 @@ export async function refinePanelAction(
   });
   const cost = breakdown.total;
 
-  const { data: inserted, error: insertErr } = await supabase
-    .from('generations')
-    .insert({
-      user_id: user.id,
-      workspace_id: workspace.id,
-      type: 'image',
-      provider: 'nano-banana',
-      model_id: NANO_MODEL_SLUG,
-      prompt: refinePrompt,
-      params: {
-        aspect_ratio: item.aspect_ratio,
-        conversational: true,
-        has_text_in_image: false,
-        use_grounding: false,
-        storyboard: payload,
-      },
-      reference_ids: [],
-      parent_generation_id: item.storyboard_generation_id ?? null,
-      campaign_id: item.campaign_id,
-      status: 'processing',
-      credits_estimated: cost,
-      timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    })
-    .select('id')
-    .single();
+  // VARIANTES: contra la variancia del modelo (a veces no aplica, a veces se pasa)
+  // un click puede tirar 2-3 intentos de la MISMA edición en paralelo, todos desde
+  // el MISMO padre (sin generation-loss acumulado). Cada una cae al historial de
+  // versiones y el usuario elige. El tope de turnos acota el lote.
+  const requestedVariants = Math.min(Math.max(opts?.variants ?? 1, 1), 3);
+  const variants = Math.max(1, Math.min(requestedVariants, MAX_REFINE_TURNS - (turns ?? 0)));
 
-  if (insertErr || !inserted) {
-    return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
-  }
-  const generationId = inserted.id as string;
+  const generationIds: string[] = [];
+  for (let i = 0; i < variants; i++) {
+    const { data: inserted, error: insertErr } = await supabase
+      .from('generations')
+      .insert({
+        user_id: user.id,
+        workspace_id: workspace.id,
+        type: 'image',
+        provider: 'nano-banana',
+        model_id: NANO_MODEL_SLUG,
+        prompt: refinePrompt,
+        params: {
+          aspect_ratio: item.aspect_ratio,
+          conversational: true,
+          has_text_in_image: false,
+          use_grounding: false,
+          storyboard: payload,
+        },
+        reference_ids: [],
+        parent_generation_id: item.storyboard_generation_id ?? null,
+        campaign_id: item.campaign_id,
+        status: 'processing',
+        credits_estimated: cost,
+        timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      })
+      .select('id')
+      .single();
 
-  const reserved = await reserveCredits(user.id, cost, generationId);
-  if (!reserved) {
-    const admin = createAdminClient();
-    await admin.from('generations').delete().eq('id', generationId);
-    return { ok: false, error: 'insufficient_credits' };
-  }
-
-  try {
-    await enqueueJob({ generationId, action: 'submit' });
-  } catch (err) {
-    try {
-      await failGeneration(user.id, generationId, cost, `enqueue fallo: ${(err as Error)?.message ?? 'unknown'}`);
-    } catch (failErr) {
-      console.error('[storyboard:enqueue_rollback:refine]', { generationId, failErr });
+    if (insertErr || !inserted) {
+      if (generationIds.length > 0) break; // lote parcial: las ya encoladas siguen
+      return { ok: false, error: 'internal_error', message: insertErr?.message ?? 'no row' };
     }
-    return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
+    const generationId = inserted.id as string;
+
+    const reserved = await reserveCredits(user.id, cost, generationId);
+    if (!reserved) {
+      const admin = createAdminClient();
+      await admin.from('generations').delete().eq('id', generationId);
+      if (generationIds.length > 0) break; // sin saldo para más variantes: lote parcial
+      return { ok: false, error: 'insufficient_credits' };
+    }
+
+    try {
+      await enqueueJob({ generationId, action: 'submit' });
+    } catch (err) {
+      try {
+        await failGeneration(user.id, generationId, cost, `enqueue fallo: ${(err as Error)?.message ?? 'unknown'}`);
+      } catch (failErr) {
+        console.error('[storyboard:enqueue_rollback:refine]', { generationId, failErr });
+      }
+      if (generationIds.length > 0) break;
+      return { ok: false, error: 'internal_error', message: 'no se pudo encolar la generacion' };
+    }
+    generationIds.push(generationId);
   }
 
   // Limpia el aviso del intento fallido anterior: ya hay una generación nueva en
   // vuelo. Best-effort (el cliente supabase no lanza; un error aquí no bloquea).
   await supabase.from('campaign_items').update({ warnings: [] }).eq('id', itemId);
 
-  return { ok: true, data: { generationId } };
+  return { ok: true, data: { generationIds } };
 }
 
 // ─── acción: restaurar una versión anterior del panel ────────────────────────
