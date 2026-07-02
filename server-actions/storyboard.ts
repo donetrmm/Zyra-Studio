@@ -581,6 +581,14 @@ export async function refinePanelAction(
   // La firma del turno previo NO se embebe en el payload (viaja en params ->
   // broadcast Realtime >1MB + SELECT gigante en el worker): se referencia la gen
   // padre y el worker lee provider_payload.thought_signature al correr el job.
+  //
+  // EDICION FUERTE: con cualquier toggle "mantener identico" activo, el refine
+  // OMITE la firma a proposito -> single-turn: el panel viaja como imagen adjunta
+  // ("Edit the previous image (attached) based on: ...") y la ficha como referencia
+  // normal. El chat con firma reconstruye el estado previo con tanta fuerza que
+  // ediciones de geometria (grosor del borde) no cedian ni con sandwich + refs;
+  // la edicion directa imagen+instruccion (flujo tipo ChatGPT) si obedece.
+  const strongEdit = refineProductRefInChat || refineCharacterRefInChat;
   let prevTurnRef: { imagePath: string; sourceGenerationId?: string; prompt: string } | null = null;
   const parentGenId = item.storyboard_generation_id;
   if (parentGenId) {
@@ -596,7 +604,8 @@ export async function refinePanelAction(
       prevTurnRef = {
         imagePath: pg.safe_base_path ?? pg.output_url,
         prompt: pg.prompt ?? '',
-        sourceGenerationId: pg.model_id === NANO_MODEL_SLUG ? parentGenId : undefined,
+        sourceGenerationId:
+          !strongEdit && pg.model_id === NANO_MODEL_SLUG ? parentGenId : undefined,
       };
     }
   }
