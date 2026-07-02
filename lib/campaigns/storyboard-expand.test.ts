@@ -4,7 +4,11 @@ import sharp from 'sharp';
 const expandMock = vi.fn();
 vi.mock('@/lib/providers/flux-expand', () => ({ expand: (...a: unknown[]) => expandMock(...a) }));
 const checkMock = vi.fn();
-vi.mock('./storyboard-expand-check', () => ({ expandedBandsHaveText: (...a: unknown[]) => checkMock(...a) }));
+const baseCheckMock = vi.fn();
+vi.mock('./storyboard-expand-check', () => ({
+  expandedBandsHaveText: (...a: unknown[]) => checkMock(...a),
+  baseBottomHasText: (...a: unknown[]) => baseCheckMock(...a),
+}));
 
 import { extendPanelTo916 } from './storyboard-expand';
 
@@ -12,6 +16,8 @@ beforeEach(() => {
   expandMock.mockReset();
   checkMock.mockReset();
   checkMock.mockResolvedValue(false);
+  baseCheckMock.mockReset();
+  baseCheckMock.mockResolvedValue(false);
 });
 
 describe('extendPanelTo916', () => {
@@ -61,13 +67,34 @@ describe('extendPanelTo916', () => {
     expect(expandMock).toHaveBeenCalledTimes(2);
   });
 
-  it('texto en bandas dos veces -> falla limpio con motivo accionable', async () => {
+  it('texto en bandas en TODOS los intentos -> falla limpio con motivo accionable', async () => {
     const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
     expandMock.mockResolvedValue({ buffer: Buffer.from('con-texto'), mimeType: 'image/jpeg' });
     checkMock.mockResolvedValue(true);
     await expect(extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' })).rejects.toThrow(
       'agrego texto o rotulos',
     );
-    expect(expandMock).toHaveBeenCalledTimes(2);
+    expect(expandMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('texto en bandas dos veces y limpio a la tercera -> devuelve el tercero', async () => {
+    const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
+    expandMock
+      .mockResolvedValueOnce({ buffer: Buffer.from('texto-1'), mimeType: 'image/jpeg' })
+      .mockResolvedValueOnce({ buffer: Buffer.from('texto-2'), mimeType: 'image/jpeg' })
+      .mockResolvedValueOnce({ buffer: Buffer.from('limpio'), mimeType: 'image/jpeg' });
+    checkMock.mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const out = await extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' });
+    expect(out.buffer).toEqual(Buffer.from('limpio'));
+    expect(expandMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('base con texto quemado al pie -> falla ANTES de gastar expand, con el motivo real', async () => {
+    const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
+    baseCheckMock.mockResolvedValue(true);
+    await expect(extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' })).rejects.toThrow(
+      'texto o subtitulos quemados',
+    );
+    expect(expandMock).not.toHaveBeenCalled();
   });
 });

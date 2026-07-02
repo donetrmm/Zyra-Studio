@@ -10,6 +10,7 @@ import {
   isStylized,
   physicsClause,
   sceneStyleDirective,
+  stripDialogueForPanel,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -31,6 +32,46 @@ describe('compilePanel', () => {
     expect(res.compiled.prompt).toContain('the couple smiles');
     expect(res.compiled.params.width).toBeGreaterThan(0);
     expect(res.compiled.references.some((r) => r.role === 'product')).toBe(true);
+  });
+
+  it('no deja pasar el diálogo del beat al prompt del panel (imagen fija)', () => {
+    const beat = {
+      id: 'a',
+      scene_prompt: 'She smiles at the camera. Dialogue: "Un cuadro de Prisma para tu familia."',
+      aspect_ratio: '9:16',
+      storyboard_image_id: null,
+    };
+    const res = compilePanel(beat, {}, 'flux-2');
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toContain('Un cuadro de Prisma');
+    expect(res.compiled.prompt).not.toContain('Dialogue');
+    expect(res.compiled.prompt).toContain('She smiles at the camera.');
+  });
+});
+
+describe('stripDialogueForPanel', () => {
+  it('quita el segmento Dialogue con comillas rectas y curvas', () => {
+    expect(stripDialogueForPanel('She smiles at the camera. Dialogue: "Y es súper fácil de pedir."')).toBe(
+      'She smiles at the camera.',
+    );
+    expect(stripDialogueForPanel('She points left. Dialogue: “Este es el mejor regalo.”')).toBe('She points left.');
+  });
+
+  it('quita TODOS los segmentos de un timeline y el marcador en español', () => {
+    const s = '0-3s: She waves. Dialogue: "Hola." 3-7s: She points at the canvas. Diálogo: "Mira esto."';
+    const out = stripDialogueForPanel(s);
+    expect(out).not.toContain('Dialogue');
+    expect(out).not.toContain('Diálogo');
+    expect(out).not.toContain('Hola');
+    expect(out).toContain('She waves.');
+    expect(out).toContain('She points at the canvas.');
+  });
+
+  it('sin diálogo, el prompt queda intacto', () => {
+    expect(stripDialogueForPanel('Close-up of the framed canvas on an easel.')).toBe(
+      'Close-up of the framed canvas on an easel.',
+    );
   });
 });
 

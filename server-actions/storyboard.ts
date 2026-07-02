@@ -21,7 +21,7 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { uploadReference } from '@/lib/supabase/storage';
@@ -288,9 +288,13 @@ export async function generatePanelAction(
   const characterRefPointer = characterRefInChat
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
+  // El diálogo del beat (`Dialogue: "..."`) es guion de VIDEO: en el panel Nano
+  // lo quema como subtítulo (bug 2026-07-02). Se elimina en AMBAS ramas; el
+  // video lo conserva (viene del scene_prompt original, no de aquí).
+  const panelScene = stripDialogueForPanel(item.scene_prompt);
   const panelPromptBody = prevRef
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${physicsClause(dirCtx)}${noText}`
-    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${sceneStyleDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${panelScene}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${physicsClause(dirCtx)}${noText}`
+    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, panelScene)}${sceneStyleDirective(dirCtx, panelScene)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
   const panelPrompt = panelPromptBody;
 
   const imageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');

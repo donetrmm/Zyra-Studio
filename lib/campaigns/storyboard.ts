@@ -18,8 +18,25 @@ export function beatsNeedingPanel(beats: PanelBeat[]): PanelBeat[] {
   return beats.filter((b) => b.storyboard_image_id == null);
 }
 
+// El scene_prompt del planner es guion de VIDEO: puede traer líneas de diálogo
+// (`Dialogue: "..."`) para el lip-sync. En un PANEL (imagen fija) ese texto no
+// tiene rol visual y Nano tiende a QUEMARLO como subtítulo/caption al pie de la
+// imagen pese al noText (bug confirmado 2026-07-02 con las bases 4:5 en storage:
+// el diálogo del beat aparecía rotulado, y el gate anti-texto del expand fallaba
+// determinista al reintentar con la MISMA base). Quita TODOS los segmentos
+// (timelines traen varios), en inglés y español, comillas rectas o curvas; la
+// acción visual queda intacta. Solo paneles: el video conserva el diálogo.
+export function stripDialogueForPanel(scenePrompt: string): string {
+  return (scenePrompt ?? '')
+    .replace(/\s*(?:dialogue|di[aá]logo)\s*:\s*["“][^"“”]*["”]\s*\.?/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 // Compila el prompt FLUX del panel de un beat usando el contexto de campaña
 // (producto/personaje/escena). El aspectRatio del beat manda la composición.
+// El diálogo del beat se elimina aquí (stripDialogueForPanel): es lip-sync de
+// video, no contenido visual del panel.
 export function compilePanel(
   beat: PanelBeat,
   ctx: DirectorContext,
@@ -27,7 +44,7 @@ export function compilePanel(
   opts?: { isOpeningBeat?: boolean },
 ): CompileResult {
   return compile(
-    { modelSlug: fluxModelSlug, scenePrompt: beat.scene_prompt, aspectRatio: beat.aspect_ratio ?? '9:16', isOpeningBeat: opts?.isOpeningBeat },
+    { modelSlug: fluxModelSlug, scenePrompt: stripDialogueForPanel(beat.scene_prompt), aspectRatio: beat.aspect_ratio ?? '9:16', isOpeningBeat: opts?.isOpeningBeat },
     ctx,
   );
 }
