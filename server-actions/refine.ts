@@ -12,6 +12,7 @@ import { MAX_TURNS, STAGE_LABEL, type RefineDraft, type Stage } from '@/lib/refi
 import { SHOTS } from '@/lib/shots/catalog';
 import { AcceptRefineInputSchema, RefineTurnInputSchema } from '@/lib/schemas/refine';
 import type { FormatDirection } from '@/lib/prompt-director/types';
+import { plannerStyleBlocks } from '@/lib/prompt-director/style-profiles';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
 
@@ -34,7 +35,7 @@ async function loadContext(campaignId: string, draft: RefineDraft) {
   const supabase = await createClient();
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, product_brief, language, brand_kit_id, aspect_ratio')
+    .select('id, workspace_id, product_brief, language, brand_kit_id, aspect_ratio, visual_style, visual_style_custom')
     .eq('id', campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -110,6 +111,11 @@ function buildSystemPrompt(args: {
   characters: Array<{ id: string; name: string }>;
   draft: RefineDraft;
   language: 'es' | 'en';
+  // Perfil de estilo visual de la campaña (051): los scenePrompt que este
+  // asistente autora deben nacer coherentes con el look y la física de la
+  // campaña (misma política que el matcher, vía plannerStyleBlocks).
+  visualStyle?: string | null;
+  visualStyleCustom?: string | null;
 }): string {
   const shots = SHOTS.map((s) => `- ${s.slug}: ${s.name} (${s.whenToUse})`).join('\n');
   const cast = args.characters.map((c) => `- id=${c.id} ${c.name}`).join('\n') || '(vacío)';
@@ -155,7 +161,7 @@ Reglas duras:
   sin marcadores de segundos (es lo que el usuario lee en el panel).
 - En etapa shot propone slugs SOLO de este catálogo:\n${shots}
 - En etapa refs, characterId solo de este Cast:\n${cast}
-- Nunca inventes atributos del producto ni claims.
+- Nunca inventes atributos del producto ni claims.${plannerStyleBlocks(args.visualStyle, args.visualStyleCustom)}
 Devuelve SOLO JSON: {"reply":"...","stage":"what|shot|refs|review","chips":[...],"draftPatch":{...}}`;
 }
 
@@ -187,6 +193,8 @@ export async function refineItemTurnAction(input: unknown): Promise<
         characters: ctx.characters as Array<{ id: string; name: string }>,
         draft: parsed.data.draft,
         language: ctx.campaign.language === 'en' ? 'en' : 'es',
+        visualStyle: (ctx.campaign.visual_style as string | null) ?? null,
+        visualStyleCustom: (ctx.campaign.visual_style_custom as string | null) ?? null,
       }),
       history: [...parsed.data.history, { role: 'user', text: parsed.data.userMessage }],
     });

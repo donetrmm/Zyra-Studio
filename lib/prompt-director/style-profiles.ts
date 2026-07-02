@@ -115,3 +115,13 @@ export function getStyleProfile(style?: string | null, customText?: string | nul
       return ULTRA_REALISTA;
   }
 }
+
+// Bloques del planner listos para apendear a un SYSTEM prompt de autoría de
+// escenas (matcher y asistente de refinado comparten esta política): el bloque
+// de estilo del perfil + la física del mundo gateada por groundedPhysics.
+// Empieza con '\n' (ambos bloques lo traen) o es '' (ultra_realista sin física
+// no existe: el default siempre emite al menos la física).
+export function plannerStyleBlocks(style?: string | null, customText?: string | null): string {
+  const profile = getStyleProfile(style, customText);
+  return `${profile.planner}${profile.groundedPhysics ? PLANNER_PHYSICS_BLOCK : ''}`;
+}

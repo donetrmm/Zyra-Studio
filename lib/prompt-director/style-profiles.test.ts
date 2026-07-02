@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getStyleProfile,
+  plannerStyleBlocks,
   WORLD_COHERENCE_CLAUSE,
   PLANNER_PHYSICS_BLOCK,
 } from './style-profiles';
@@ -75,5 +76,24 @@ describe('presets Fase 1', () => {
         expect(stripSlop(block).removed).toEqual([]);
       }
     }
+  });
+});
+
+describe('plannerStyleBlocks', () => {
+  it('sin estilo: solo la física (comportamiento default)', () => {
+    expect(plannerStyleBlocks()).toBe(PLANNER_PHYSICS_BLOCK);
+    expect(plannerStyleBlocks(null, null)).toBe(PLANNER_PHYSICS_BLOCK);
+  });
+
+  it('fantasía: bloque de estilo sin física', () => {
+    const s = plannerStyleBlocks('fantasia');
+    expect(s).toContain('FANTASÍA');
+    expect(s).not.toContain('FÍSICA Y COHERENCIA DEL MUNDO');
+  });
+
+  it('custom con texto: estilo del usuario + física', () => {
+    const s = plannerStyleBlocks('custom', 'acuarela suave, colores pastel');
+    expect(s).toContain('acuarela suave');
+    expect(s).toContain('FÍSICA Y COHERENCIA DEL MUNDO');
   });
 });

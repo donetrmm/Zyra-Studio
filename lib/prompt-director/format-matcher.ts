@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
-import { getStyleProfile, PLANNER_PHYSICS_BLOCK, type VisualStyle } from './style-profiles';
+import { plannerStyleBlocks, type VisualStyle } from './style-profiles';
 export { CustomFormatSchema, type CustomFormat };
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -439,9 +439,8 @@ export function buildMatcherSystemPrompt(opts: {
   // Perfil de estilo de la campaña: bloque de autoría + física gateada por perfil.
   // El "cuadro volando" se corrige en el ORIGEN — el planner escribe scenePrompts
   // con objetos anclados. Fantasía relaja la física (groundedPhysics: false).
-  const profile = getStyleProfile(opts.visualStyle, opts.visualStyleCustom);
-  system += profile.planner;
-  if (profile.groundedPhysics) system += PLANNER_PHYSICS_BLOCK;
+  // Misma política que el asistente de refinado (plannerStyleBlocks compartido).
+  system += plannerStyleBlocks(opts.visualStyle, opts.visualStyleCustom);
 
   return system;
 }
