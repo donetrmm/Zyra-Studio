@@ -7,7 +7,7 @@ import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'luci
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { generatePanelAction, refinePanelAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
+import { generatePanelAction, refinePanelAction, restorePanelVersionAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
@@ -252,6 +252,22 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // Edición fuerte del refinado: single-turn (sin historial de chat). Para cambios
   // que el refinado conversacional no respeta (construcción del producto, geometría).
   const [strongEdit, setStrongEdit] = useState<Record<string, boolean>>({});
+
+  // Historial de versiones: selección pendiente por beat + beat restaurando.
+  const [versionPick, setVersionPick] = useState<Record<string, string>>({});
+  const [restoring, setRestoring] = useState<string | null>(null);
+
+  async function handleRestoreVersion(beatId: string, generationId: string) {
+    setRestoring(beatId);
+    const res = await restorePanelVersionAction(beatId, generationId);
+    setRestoring(null);
+    if (res.ok) {
+      toast.success('Versión restaurada');
+      router.refresh();
+    } else {
+      toast.error(friendlyError(res.error, res.message));
+    }
+  }
 
   // Genera todos los paneles faltantes de forma secuencial
   const [generatingAll, setGeneratingAll] = useState(false);
@@ -652,6 +668,52 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   <p role="alert" className="px-0.5 text-[11px] text-destructive">
                     No se pudo refinar: {refineErrors[beat.id]}
                   </p>
+                )}
+
+                {/* Historial de versiones: cada generación terminada del beat es
+                    restaurable (link swap, sin regenerar ni cobrar). Existe porque
+                    iterar refinados degrada la imagen (generation-loss) y sin esto
+                    la versión buena quedaba enterrada. Hora fija a es-MX para que
+                    SSR e hidratación coincidan (demo single-market). */}
+                {beat.versions.length > 1 && (
+                  <div className="flex items-center gap-1.5 px-0.5">
+                    <label htmlFor={`ver-${beat.id}`} className="sr-only">
+                      Versiones del panel {beat.sceneIndex + 1}
+                    </label>
+                    <select
+                      id={`ver-${beat.id}`}
+                      value={versionPick[beat.id] ?? beat.storyboardGenerationId ?? beat.versions[0].id}
+                      disabled={busy || restoring === beat.id}
+                      onChange={(e) => setVersionPick((prev) => ({ ...prev, [beat.id]: e.target.value }))}
+                      className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                    >
+                      {beat.versions.map((v, i) => (
+                        <option key={v.id} value={v.id}>
+                          {`V${beat.versions.length - i} · ${new Date(v.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Mexico_City' })}${v.refine ? ' · refinado' : ''}${v.id === beat.storyboardGenerationId ? ' · actual' : ''}`}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={
+                        busy ||
+                        restoring === beat.id ||
+                        (versionPick[beat.id] ?? beat.storyboardGenerationId ?? '') === (beat.storyboardGenerationId ?? '')
+                      }
+                      onClick={() =>
+                        void handleRestoreVersion(beat.id, versionPick[beat.id] ?? beat.versions[0].id)
+                      }
+                    >
+                      {restoring === beat.id ? (
+                        <Loader2 className="size-3 animate-spin" aria-hidden />
+                      ) : (
+                        'Restaurar'
+                      )}
+                    </Button>
+                  </div>
                 )}
 
                 {/* Audio: diálogo + duración + medidor de holgura */}

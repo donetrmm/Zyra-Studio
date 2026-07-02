@@ -14,6 +14,7 @@ import {
   type HealGenRow,
   type HealItemRow,
 } from '@/lib/campaigns/storyboard-promote-heal';
+import { groupPanelVersions } from '@/lib/campaigns/storyboard-versions';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,15 +120,38 @@ export default async function StoryboardPage({
     }
   }
 
+  // Historial de versiones por beat: cada gen 'done' es restaurable (link swap
+  // sin regenerar). Select ligero por JSON path, nunca params completo.
+  const { data: versionRows } = await supabase
+    .from('generations')
+    .select('id, created_at, parent_generation_id, beat_id:params->storyboard->>campaignItemId')
+    .eq('campaign_id', id)
+    .eq('status', 'done')
+    .eq('type', 'image')
+    .not('params->storyboard', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(60);
+  const versionsByBeat = groupPanelVersions(
+    (versionRows ?? []).map((r) => ({
+      id: r.id as string,
+      created_at: r.created_at as string,
+      beat_id: ((r as { beat_id?: string | null }).beat_id as string | null) ?? null,
+      parent_generation_id: (r.parent_generation_id as string | null) ?? null,
+    })),
+    6,
+  );
+
   const beats: StoryboardBeat[] = rows.map((r) => ({
     id: r.id as string,
     sceneIndex: (r.scene_index as number) ?? 0,
     scenePrompt: (r.scene_prompt as string) ?? '',
     storyboardImageId: (r.storyboard_image_id as string | null) ?? null,
+    storyboardGenerationId: (r.storyboard_generation_id as string | null) ?? null,
     panelUrl: r.storyboard_image_id ? (refMap.get(r.storyboard_image_id as string) ?? null) : null,
     durationS: (r.duration_s as number | null) ?? 8,
     locationId: (r.location_id as string | null) ?? null,
     warnings: (r.warnings as string[] | null) ?? [],
+    versions: versionsByBeat[r.id as string] ?? [],
   }));
 
   // Agrupar los beats en creativos (secuencia o item suelto) para el selector.

@@ -689,6 +689,62 @@ export async function refinePanelAction(
   return { ok: true, data: { generationId } };
 }
 
+// ─── acción: restaurar una versión anterior del panel ────────────────────────
+
+// Cada generación 'done' de un beat es una versión restaurable: su promote dejó
+// una media_reference en storage. Restaurar = re-enlazar el beat a esa versión
+// (link swap, sin regenerar ni cobrar). Existe porque iterar el refinado degrada
+// (generation-loss) y sin esto la única salida era regenerar pagando.
+export async function restorePanelVersionAction(
+  itemId: string,
+  generationId: string,
+): Promise<Result<{ restored: true }>> {
+  if (!itemId || !generationId) {
+    return { ok: false, error: 'validation_error', message: 'itemId y generationId requeridos' };
+  }
+
+  const { workspace } = await requireWorkspace();
+  const loaded = await loadItemAndCampaign(workspace.id, itemId);
+  if (!loaded) return { ok: false, error: 'not_found' };
+  const { item, campaign } = loaded;
+
+  const supabase = await createClient();
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('id, workspace_id, status, params')
+    .eq('id', generationId)
+    .single();
+  const g = gen as
+    | { id: string; workspace_id: string; status: string; params: { storyboard?: { campaignItemId?: string } } | null }
+    | null;
+  if (!g || g.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+  // La versión debe ser de ESTE beat y estar terminada.
+  if (g.status !== 'done' || g.params?.storyboard?.campaignItemId !== itemId) {
+    return { ok: false, error: 'forbidden', message: 'Esa generación no es una versión de este panel' };
+  }
+
+  const { data: refs } = await supabase
+    .from('media_references')
+    .select('id')
+    .eq('source_generation_id', generationId)
+    .limit(1);
+  const refId = (refs?.[0] as { id: string } | undefined)?.id;
+  if (!refId) {
+    // Promote perdido para esa versión (raro): sin media_reference no hay imagen
+    // que enlazar. Mejor decirlo que fabricar el promote aquí (el heal lo repara).
+    return { ok: false, error: 'not_found', message: 'Esa versión no tiene imagen promovida; usa otra' };
+  }
+
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ storyboard_image_id: refId, storyboard_generation_id: generationId })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${campaign.id}/storyboard`);
+  return { ok: true, data: { restored: true } };
+}
+
 // Refinamiento de audio por beat: reescribe el diálogo dentro de scene_prompt y
 // ajusta la duración del clip para que la voz (lip-sync de Seedance) no se apresure.
 // No genera nada (texto + duración); el resultado se oye al regenerar el video.
