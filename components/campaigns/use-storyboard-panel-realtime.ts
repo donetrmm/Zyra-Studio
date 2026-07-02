@@ -3,7 +3,15 @@
 import { useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-export type PanelUpdate = { campaignItemId: string; status: string; errorMessage: string | null };
+// generationId permite descartar eventos TERMINALES de una generación vieja del
+// mismo beat: al regenerar, el heal/Realtime puede emitir el 'done' de la gen
+// anterior en la ventana antes de que exista la nueva, apagando el loader.
+export type PanelUpdate = {
+  campaignItemId: string;
+  status: string;
+  errorMessage: string | null;
+  generationId: string | null;
+};
 
 // Mapea una fila de generations a un PanelUpdate, o null si no aplica (otra campana o
 // no es una generacion de storyboard). Pura: sirve tanto para el evento Realtime como
@@ -16,6 +24,7 @@ export type PanelUpdate = { campaignItemId: string; status: string; errorMessage
 // cada tick del heal en una lectura de 8MB que ahogaba la instancia. Pura: adapta
 // el shape slim al que espera panelUpdateFromRow.
 export type SlimPanelRow = {
+  id: unknown;
   campaign_id: unknown;
   status: unknown;
   error_message: unknown;
@@ -23,6 +32,7 @@ export type SlimPanelRow = {
 };
 export function slimPanelRow(r: SlimPanelRow): Record<string, unknown> {
   return {
+    id: r.id,
     campaign_id: r.campaign_id,
     status: r.status,
     error_message: r.error_message,
@@ -39,6 +49,7 @@ export function panelUpdateFromRow(row: Record<string, unknown>, campaignId: str
     campaignItemId: itemId,
     status: String(row.status ?? ''),
     errorMessage: (row.error_message as string | null) ?? null,
+    generationId: typeof row.id === 'string' ? row.id : null,
   };
 }
 
@@ -75,7 +86,7 @@ export function useStoryboardPanelRealtime(
     const reconcile = () => {
       void supabase
         .from('generations')
-        .select('status, error_message, campaign_id, beat_id:params->storyboard->>campaignItemId')
+        .select('id, status, error_message, campaign_id, beat_id:params->storyboard->>campaignItemId')
         .eq('campaign_id', campaignId)
         .in('status', ['queued', 'processing'])
         .not('params->storyboard', 'is', null)

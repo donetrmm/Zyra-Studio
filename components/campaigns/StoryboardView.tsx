@@ -151,9 +151,25 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     });
   }
 
+  // Generación esperada por beat tras un click de regenerar/refinar. 'pending'
+  // mientras el server action crea la fila (aún no hay id). Sin este mapa, el
+  // heal/Realtime emite el 'done' de la generación ANTERIOR del beat en esa
+  // ventana y apaga el loader del intento nuevo (Realtime no escucha INSERTs,
+  // así que nada lo vuelve a encender hasta un reload).
+  const awaitingGenRef = useRef<Record<string, string>>({});
+
   // Realtime: el worker genera el panel async; escuchamos el estado de la generacion.
   const onPanelUpdate = useCallback(
-    (u: { campaignItemId: string; status: string; errorMessage: string | null }) => {
+    (u: { campaignItemId: string; status: string; errorMessage: string | null; generationId: string | null }) => {
+      const isTerminal = u.status === 'done' || u.status === 'failed';
+      if (isTerminal) {
+        const awaited = awaitingGenRef.current[u.campaignItemId];
+        if (awaited && u.generationId !== awaited) {
+          // Evento terminal de una generación vieja del beat: no pisar el intento en curso.
+          return;
+        }
+        delete awaitingGenRef.current[u.campaignItemId];
+      }
       if (u.status === 'done') {
         setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
         setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'idle', panelUrl: null } }));
@@ -201,7 +217,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       if (inFlight.size === 0) return;
       void supabase
         .from('generations')
-        .select('status, error_message, campaign_id, created_at, beat_id:params->storyboard->>campaignItemId')
+        .select('id, status, error_message, campaign_id, created_at, beat_id:params->storyboard->>campaignItemId')
         .eq('campaign_id', campaignId)
         .not('params->storyboard', 'is', null)
         .order('created_at', { ascending: false })
@@ -269,12 +285,16 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     setGeneratingAll(true);
     for (const beat of withoutPanel) {
       setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'generating' } }));
+      awaitingGenRef.current[beat.id] = 'pending';
       const res = await generatePanelAction(beat.id);
       if (!res.ok) {
+        delete awaitingGenRef.current[beat.id];
         const msg = friendlyError(res.error, res.message);
         setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'error', message: msg } }));
         toast.error(`Panel ${beat.sceneIndex + 1}: ${msg}`);
+        continue;
       }
+      awaitingGenRef.current[beat.id] = res.data.generationId;
       // ok: el panel queda 'generating'; Realtime lo cierra (done -> idle, failed -> error).
     }
     setGeneratingAll(false);
@@ -282,15 +302,20 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
   async function handleRegenerate(beatId: string) {
     setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'generating' } }));
+    // 'pending' bloquea eventos terminales viejos hasta conocer el id real.
+    awaitingGenRef.current[beatId] = 'pending';
     const res = await generatePanelAction(beatId, {
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
     });
     if (!res.ok) {
+      delete awaitingGenRef.current[beatId];
       const msg = friendlyError(res.error, res.message);
       setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'error', message: msg } }));
       toast.error(msg);
+      return;
     }
+    awaitingGenRef.current[beatId] = res.data.generationId;
     // ok: el panel queda 'generating'; Realtime lo pasa a idle (done) o error (failed).
   }
 
@@ -305,6 +330,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     // la generacion (Realtime lo cierra en done/failed). Se mantiene la panelUrl visible
     // (no la ponemos en null como antes, que dejaba "Sin panel" ~80s sin feedback).
     setRefiningBeats((prev) => ({ ...prev, [beatId]: true }));
+    awaitingGenRef.current[beatId] = 'pending';
     setRefineErrors((prev) => {
       if (!(beatId in prev)) return prev;
       const next = { ...prev };
@@ -314,9 +340,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const res = await refinePanelAction(beatId, instruction);
     setRefining(null);
     if (res.ok) {
+      awaitingGenRef.current[beatId] = res.data.generationId;
       setInstructions((prev) => ({ ...prev, [beatId]: '' }));
       // El overlay queda activo; el evento terminal por Realtime (done/failed) lo limpia.
     } else {
+      delete awaitingGenRef.current[beatId];
       setRefiningBeats((prev) => clearBeat(prev, beatId));
       const msg = friendlyError(res.error, res.message);
       // Persistir el fallo como nota bajo el panel (no borramos la panelUrl previa):
