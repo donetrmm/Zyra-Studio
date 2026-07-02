@@ -142,7 +142,7 @@ export const nanoBananaHandler: JobHandler = {
       };
       if (!pp.safe_base_path) throw new ProviderError('poll sin safe_base_path', 'invalid_input', false);
       const { buffer } = await downloadOutputBuffer(pp.safe_base_path);
-      const expanded = await extendPanelTo916({ buffer, mimeType: 'image/jpeg' });
+      const expanded = await extendPanelTo916({ buffer, mimeType: 'image/jpeg' }, p.expandHint);
       const metadata: Record<string, unknown> = { safe_base_path: pp.safe_base_path };
       if (pp.thought_signature_path) metadata.thought_signature_path = pp.thought_signature_path;
       // Compat: jobs en vuelo encolados antes del cambio traen la firma inline.

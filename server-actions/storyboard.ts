@@ -307,6 +307,8 @@ export async function generatePanelAction(
     prevTurn: prevRef
       ? { imagePath: prevRef.imagePath, sourceGenerationId: prevRef.sourceGenerationId, prompt: prevRef.prompt }
       : null,
+    // Ancla de escenografia para las bandas del expand 9:16 (sin locacion queda neutro).
+    expandHint: resolvedLoc ? [resolvedLoc.name, resolvedLoc.description].filter(Boolean).join(': ') : undefined,
   });
 
   const pricing = await loadPricing();
@@ -588,6 +590,8 @@ export async function refinePanelAction(
     referencePaths,
     chatRefPaths: [],
     prevTurn: prevTurnRef,
+    // Ancla de escenografia para las bandas del expand 9:16 (sin locacion queda neutro).
+    expandHint: resolvedLoc ? [resolvedLoc.name, resolvedLoc.description].filter(Boolean).join(': ') : undefined,
   });
 
   const pricing = await loadPricing();

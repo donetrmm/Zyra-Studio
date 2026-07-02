@@ -17,6 +17,7 @@ const MAX_EXPAND_ATTEMPTS = 2;
 // reduce la superficie de moderacion de BFL y se evita inventar un sujeto en las bandas.
 export async function extendPanelTo916(
   base: { buffer: Buffer; mimeType: string },
+  sceneHint?: string,
 ): Promise<{ buffer: Buffer; mimeType: string }> {
   const meta = await sharp(base.buffer).metadata();
   const width = meta.width ?? 0;
@@ -26,9 +27,14 @@ export async function extendPanelTo916(
   const { bandPx } = safeAreaBands(width);
   // El refuerzo anti-texto existe porque FLUX outpaint tiende a rellenar bandas
   // grandes (sobre todo la inferior en fondos oscuros) con rotulos/title cards
-  // de texto inventado, ignorando un "do not add text" generico.
+  // de texto inventado, ignorando un "do not add text" generico. El hint de
+  // escenografia (locacion configurada) evolucionó el prompt "neutro" original:
+  // sin ancla, FLUX inventaba escenografia ajena a la locacion en las bandas.
+  const scenery = sceneHint?.trim()
+    ? ` The scene being extended is: ${sceneHint.trim()}. The new areas must belong to that same place.`
+    : '';
   const prompt =
-    'Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image. Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings. Absolutely no text of any kind in the extended areas: no letters, words, captions, titles, subtitles, logos, watermarks or lettering; no graphic bands, borders, panels or title cards — photographic continuation of the scenery only.';
+    `Extend the existing image naturally above and below into a taller vertical frame: continue the same background, walls, floor, sky, lighting and colors already present in the image.${scenery} Do not add, remove, or change any people, products, text or objects; only extend the empty surroundings. Absolutely no text of any kind in the extended areas: no letters, words, captions, titles, subtitles, logos, watermarks or lettering; no graphic bands, borders, panels or title cards — photographic continuation of the scenery only.`;
   for (let attempt = 1; attempt <= MAX_EXPAND_ATTEMPTS; attempt++) {
     const result = await expand({ image: base.buffer, top: bandPx, bottom: bandPx, prompt });
     const hasText = await expandedBandsHaveText(result.buffer, bandPx);

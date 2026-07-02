@@ -24,4 +24,15 @@ describe('buildStoryboardJobPayload', () => {
     expect(p.prevTurn).toEqual({ imagePath: 'ws/gen/safe-base.jpg', sourceGenerationId: 'gen-prev', prompt: 'prev' });
     expect(p.prevTurn?.thoughtSignature).toBeUndefined();
   });
+  it('expandHint se recorta a 280 y se omite cuando esta vacio', () => {
+    const base = {
+      campaignItemId: 'item-3', campaignId: 'camp-1', genAspect: '4:5', strict: true,
+      referencePaths: [], chatRefPaths: [], prevTurn: null,
+    };
+    const largo = 'x'.repeat(400);
+    expect(buildStoryboardJobPayload({ ...base, expandHint: largo }).expandHint).toHaveLength(280);
+    expect(buildStoryboardJobPayload({ ...base, expandHint: '  Jardin: verde  ' }).expandHint).toBe('Jardin: verde');
+    expect(buildStoryboardJobPayload({ ...base, expandHint: '   ' }).expandHint).toBeUndefined();
+    expect(buildStoryboardJobPayload(base).expandHint).toBeUndefined();
+  });
 });

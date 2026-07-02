@@ -24,6 +24,11 @@ export type StoryboardJobPayload = {
   referencePaths: string[]; // refs limpias (producto/personaje/locacion) por storage path
   chatRefPaths: string[]; // refs re-ancladas en chat (ya resueltas por flag); vacio si ninguna
   prevTurn: StoryboardPrevTurnRef | null;
+  // Descripcion corta de la escena/locacion para anclar las bandas del expand
+  // 9:16: el prompt neutro ("continua el fondo") dejaba a FLUX inventar
+  // escenografia ajena a la locacion configurada. Opcional: sin locacion, el
+  // expand sigue neutro.
+  expandHint?: string;
 };
 
 export type BuildStoryboardJobPayloadArgs = {
@@ -34,9 +39,15 @@ export type BuildStoryboardJobPayloadArgs = {
   referencePaths: string[];
   chatRefPaths: string[];
   prevTurn: StoryboardPrevTurnRef | null;
+  expandHint?: string;
 };
 
+// Tope del hint del expand: es un ancla de escenografia, no el prompt completo
+// (el payload vive en params y debe quedarse chico).
+const EXPAND_HINT_MAX = 280;
+
 export function buildStoryboardJobPayload(args: BuildStoryboardJobPayloadArgs): StoryboardJobPayload {
+  const hint = args.expandHint?.trim();
   return {
     campaignItemId: args.campaignItemId,
     campaignId: args.campaignId,
@@ -46,5 +57,6 @@ export function buildStoryboardJobPayload(args: BuildStoryboardJobPayloadArgs): 
     referencePaths: args.referencePaths,
     chatRefPaths: args.chatRefPaths,
     prevTurn: args.prevTurn,
+    ...(hint ? { expandHint: hint.slice(0, EXPAND_HINT_MAX) } : {}),
   };
 }

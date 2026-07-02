@@ -32,6 +32,24 @@ describe('extendPanelTo916', () => {
     await expect(extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' })).rejects.toThrow('moderado');
   });
 
+  it('con sceneHint, el prompt ancla la escenografia de la locacion', async () => {
+    const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
+    expandMock.mockResolvedValue({ buffer: Buffer.from('out'), mimeType: 'image/jpeg' });
+    await extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' }, 'Jardin moderno: plantas verdes');
+    const arg = expandMock.mock.calls[0][0] as { prompt: string };
+    expect(arg.prompt).toContain('The scene being extended is: Jardin moderno: plantas verdes.');
+    expect(arg.prompt).toContain('must belong to that same place');
+    expect(arg.prompt).toContain('Absolutely no text of any kind');
+  });
+
+  it('sin sceneHint, el prompt queda neutro (sin clausula de escena)', async () => {
+    const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
+    expandMock.mockResolvedValue({ buffer: Buffer.from('out'), mimeType: 'image/jpeg' });
+    await extendPanelTo916({ buffer: base, mimeType: 'image/jpeg' });
+    const arg = expandMock.mock.calls[0][0] as { prompt: string };
+    expect(arg.prompt).not.toContain('The scene being extended is');
+  });
+
   it('texto en bandas al primer intento -> reintenta y devuelve el segundo', async () => {
     const base = await sharp({ create: { width: 360, height: 450, channels: 3, background: { r: 1, g: 2, b: 3 } } }).jpeg().toBuffer();
     expandMock
