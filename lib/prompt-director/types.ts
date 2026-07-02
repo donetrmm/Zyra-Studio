@@ -109,6 +109,9 @@ export type DirectorContext = {
   // Guías creativas opt-in de la campaña (spec 2026-06-29). Gatean cláusulas
   // deterministas de encuadre. Ausente = ninguna.
   guidelines?: import('@/lib/campaigns/guidelines').CreativeGuidelines;
+  // Perfil de estilo visual de la campaña (plan 2026-07-02). Ausente =
+  // ultra_realista (default). custom solo viaja cuando slug === 'custom'.
+  style?: { slug: import('./style-profiles').VisualStyle; custom?: string };
 };
 
 export type CompileRequest = {
