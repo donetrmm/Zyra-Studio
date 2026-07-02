@@ -3,13 +3,14 @@
 // orden exacto en que el handler las firma y envía. Guía completa en
 // docs/modelos/06-seedance-2.md.
 
-import { describeCharacter, describeProduct } from '../inventory';
+import { describeCharacter, describeProduct, describeProductWeight } from '../inventory';
 import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { getStyleProfile } from '../style-profiles';
+import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type {
   CompiledPrompt,
   CompiledReference,
@@ -392,6 +393,14 @@ export function compileSeedance(
   // R — Referencias primero, cada @ con propósito declarado.
   if (lines.length) sections.push(lines.join(' '));
 
+  // Integración personaje-locación (spec 2026-07-02) — espejo del panel.
+  if (
+    (ctx.characters?.length ?? 0) > 0 &&
+    ((ctx.location?.imagePaths?.length ?? 0) > 0 || ctx.location?.description?.trim())
+  ) {
+    sections.push(SCENE_INTEGRATION_CLAUSE);
+  }
+
   // Habla en cámara: temprano y destacado (como el bloque VERY IMPORTANT del
   // ejemplo) — la calidad del lip sync depende de que el modelo lo lea antes
   // de la acción.
@@ -415,6 +424,8 @@ export function compileSeedance(
   // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
   if (ctx.product) {
     sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
+    const weight = describeProductWeight(ctx.product);
+    if (weight) sections.push(weight.trim());
   }
   for (const character of ctx.characters ?? []) {
     // Sin descripción (describeFromMaster es best-effort y el usuario pudo no

@@ -1346,3 +1346,42 @@ describe('guías creativas en el prompt compilado', () => {
     expect(res.ok && !res.compiled.prompt.includes('Crop-safe framing')).toBe(true);
   });
 });
+
+// ============ Integración personaje-locación + peso (spec 2026-07-02) ============
+
+describe('integración personaje-locación y peso (spec 2026-07-02)', () => {
+  const ana = { name: 'Ana', description: 'curly hair, warm smile', masterImagePath: 'refs/ana.png' };
+
+  it('panel: con personaje + locación entra la cláusula de integración', () => {
+    const r = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'she smiles by the window', aspectRatio: '9:16' },
+      { characters: [ana], location: { description: 'cozy dim bedroom with a warm lamp', imagePaths: [] } },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('cast soft contact shadows');
+    expect(r.ok && r.compiled.prompt).toContain('cut out or pasted');
+  });
+
+  it('panel: sin locación NO entra la integración', () => {
+    const r = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'she smiles', aspectRatio: '9:16' },
+      { characters: [ana] },
+    );
+    expect(r.ok && r.compiled.prompt).not.toContain('cast soft contact shadows');
+  });
+
+  it('video: peso del producto ancla la interacción', () => {
+    const r = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'he moves the piece to the wall', durationS: 5 },
+      { product: { name: 'Canvas', imagePaths: [], weightKg: 25 } },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('visible effort');
+  });
+
+  it('video: con personaje + locación entra la integración', () => {
+    const r = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'she walks in', durationS: 5 },
+      { characters: [ana], location: { description: 'sunlit garden patio', imagePaths: [] } },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('cast soft contact shadows');
+  });
+});

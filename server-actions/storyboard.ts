@@ -25,7 +25,7 @@ import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirect
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { uploadReference } from '@/lib/supabase/storage';
-import { describeProductScale } from '@/lib/prompt-director/inventory';
+import { describeProductScale, describeProductWeight } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
 
@@ -289,8 +289,8 @@ export async function generatePanelAction(
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
   const panelPromptBody = prevRef
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${physicsClause(dirCtx)}${noText}`
-    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${sceneStyleDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${noText}`;
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${item.scene_prompt.trim()}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${physicsClause(dirCtx)}${noText}`
+    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, item.scene_prompt)}${sceneStyleDirective(dirCtx, item.scene_prompt)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
   const panelPrompt = panelPromptBody;
 
   const imageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');

@@ -4,6 +4,7 @@
 
 import { describeCharacter, describeProduct } from '../inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 // FLUX trabaja con width/height explícitos (lib/providers/types.ts).
@@ -45,6 +46,14 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
     sections.push(
       'The setting must match the provided location reference image: same place, architecture and background.',
     );
+  }
+  // Integración personaje-locación: solo cuando hay ambos (la cláusula habla
+  // de "the people" y "the scene"; sin locación o sin personas sobra).
+  if (
+    (ctx.characters?.length ?? 0) > 0 &&
+    ((ctx.location?.imagePaths?.length ?? 0) > 0 || ctx.location?.description?.trim())
+  ) {
+    sections.push(SCENE_INTEGRATION_CLAUSE);
   }
   // Iluminación por defecto orientada a producto si el prompt no la trae.
   if (!/light|lighting|luz|iluminaci/i.test(req.scenePrompt)) {
