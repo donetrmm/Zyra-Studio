@@ -432,7 +432,7 @@ export async function setStoryboardLocationAction(
 export async function refinePanelAction(
   itemId: string,
   instruction: string,
-  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean },
+  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean; strongEdit?: boolean },
 ): Promise<Result<{ generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (!instruction?.trim()) {
@@ -582,13 +582,14 @@ export async function refinePanelAction(
   // broadcast Realtime >1MB + SELECT gigante en el worker): se referencia la gen
   // padre y el worker lee provider_payload.thought_signature al correr el job.
   //
-  // EDICION FUERTE: con cualquier toggle "mantener identico" activo, el refine
-  // OMITE la firma a proposito -> single-turn: el panel viaja como imagen adjunta
-  // ("Edit the previous image (attached) based on: ...") y la ficha como referencia
-  // normal. El chat con firma reconstruye el estado previo con tanta fuerza que
-  // ediciones de geometria (grosor del borde) no cedian ni con sandwich + refs;
-  // la edicion directa imagen+instruccion (flujo tipo ChatGPT) si obedece.
-  const strongEdit = refineProductRefInChat || refineCharacterRefInChat;
+  // EDICION FUERTE (toggle propio en la UI): el refine OMITE la firma a proposito
+  // -> single-turn: el panel viaja como imagen adjunta ("Edit the previous image
+  // (attached) based on: ...") y las refs de ficha como referencias normales. El
+  // chat con firma reconstruye el estado previo con tanta fuerza que ediciones de
+  // geometria (grosor del borde) no cedian ni con sandwich + refs; la edicion
+  // directa imagen+instruccion (flujo tipo ChatGPT) si obedece. Es un modo aparte
+  // de los toggles "mantener identico" (esos solo anclan la ficha).
+  const strongEdit = opts?.strongEdit ?? false;
   let prevTurnRef: { imagePath: string; sourceGenerationId?: string; prompt: string } | null = null;
   const parentGenId = item.storyboard_generation_id;
   if (parentGenId) {

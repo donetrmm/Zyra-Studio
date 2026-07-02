@@ -249,6 +249,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // del re-anclaje de producto sin tocar el env flag global.
   const [productRef, setProductRef] = useState<Record<string, boolean>>({});
   const [characterRef, setCharacterRef] = useState<Record<string, boolean>>({});
+  // Edición fuerte del refinado: single-turn (sin historial de chat). Para cambios
+  // que el refinado conversacional no respeta (construcción del producto, geometría).
+  const [strongEdit, setStrongEdit] = useState<Record<string, boolean>>({});
 
   // Genera todos los paneles faltantes de forma secuencial
   const [generatingAll, setGeneratingAll] = useState(false);
@@ -340,6 +343,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const res = await refinePanelAction(beatId, instruction, {
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
+      strongEdit: strongEdit[beatId] ?? false,
     });
     setRefining(null);
     if (res.ok) {
@@ -588,6 +592,24 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   />
                   <label htmlFor={`charref-${beat.id}`} className="text-[11px] text-muted-foreground">
                     Mantener al personaje idéntico al regenerar o refinar
+                  </label>
+                </div>
+
+                {/* Edición fuerte: el refinado obedece el cambio en modo directo (sin
+                    historial de chat), aunque recomponga un poco la escena. Para
+                    ediciones que el refinado normal ignora (construcción, geometría). */}
+                <div className="flex items-center gap-2 px-0.5">
+                  <Switch
+                    id={`strong-${beat.id}`}
+                    size="sm"
+                    checked={strongEdit[beat.id] ?? false}
+                    disabled={busy}
+                    onCheckedChange={(checked) =>
+                      setStrongEdit((prev) => ({ ...prev, [beat.id]: checked }))
+                    }
+                  />
+                  <label htmlFor={`strong-${beat.id}`} className="text-[11px] text-muted-foreground">
+                    Edición fuerte al refinar: obedece el cambio aunque recomponga la escena
                   </label>
                 </div>
 
