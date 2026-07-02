@@ -166,6 +166,16 @@ describe('compileRefinePrompt', () => {
     expect(p.indexOf('Reproduce the product')).toBeLessThan(p.indexOf('FINAL INSTRUCTION'));
   });
 
+  it('modo fuerte: prompt minimo sin anclas, con exigencia de cambio visible', () => {
+    const p = compileRefinePrompt('make the canvas thinner', ctx, { strong: true });
+    expect(p.startsWith('make the canvas thinner.')).toBe(true);
+    expect(p).toContain('clearly and unmistakably');
+    // Sin anclas de fidelidad: la imagen adjunta fija identidad y escala.
+    expect(p).not.toContain('Reproduce the product');
+    expect(p).not.toContain('takes precedence');
+    expect(p.endsWith('FINAL INSTRUCTION — this is the edit to apply: make the canvas thinner.')).toBe(true);
+  });
+
   it('extraClauses (punteros de refs en chat) va antes del cierre, no despues', () => {
     const p = compileRefinePrompt('thinner edge', ctx, {
       extraClauses: ' A reference image of the product is attached — match its real construction.',

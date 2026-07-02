@@ -114,9 +114,17 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
 export function compileRefinePrompt(
   instruction: string,
   ctx: DirectorContext,
-  opts?: { isOpeningBeat?: boolean; extraClauses?: string },
+  opts?: { isOpeningBeat?: boolean; extraClauses?: string; strong?: boolean },
 ): string {
   const lead = instruction.trim().replace(/\.?$/, '.');
+  // MODO FUERTE (single-turn): prompt MINIMO dominado por la edición. La imagen
+  // adjunta ya fija identidad, escala y escena — las anclas de texto solo
+  // compiten contra la edición (con ellas, "haz el borde más delgado" salía con
+  // un delta imperceptible). Se exige además un cambio VISIBLE: el modo de
+  // edición de estos modelos tiende al ajuste mínimo.
+  if (opts?.strong) {
+    return `${lead} Change only what this edit asks, and render the change clearly and unmistakably — a subtle, barely visible adjustment is a failure. Keep everything else (people, faces, wardrobe, product, scene, lighting, framing) exactly as in the attached image.${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply: ${lead}`;
+  }
   // Sandwich: la edición abre Y cierra el prompt. El modelo pesa mucho el final;
   // con la edición solo al inicio, las anclas de fidelidad (que van después)
   // dominaban y ediciones legítimas del producto salían ignoradas. extraClauses

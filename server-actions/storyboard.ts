@@ -575,6 +575,7 @@ export async function refinePanelAction(
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
     extraClauses: refinePointers || undefined,
+    strong: opts?.strongEdit ?? false,
   });
 
   // Ref del panel padre para encadenar (sin descargar: el worker baja la imagen).
