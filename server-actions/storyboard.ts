@@ -88,6 +88,8 @@ type CampaignRow = {
   language: string | null;
   include_packaging: boolean | null;
   creative_guidelines: Record<string, unknown> | null;
+  visual_style: string | null;
+  visual_style_custom: string | null;
 };
 
 async function loadItemAndCampaign(
@@ -106,7 +108,7 @@ async function loadItemAndCampaign(
 
   const { data: rawCampaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines, visual_style, visual_style_custom')
     .eq('id', item.campaign_id)
     .single();
   if (campErr || !rawCampaign) return null;

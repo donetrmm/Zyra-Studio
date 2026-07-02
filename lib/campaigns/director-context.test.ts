@@ -152,3 +152,23 @@ describe('directorContextFor — medium y thicknessMm del producto', () => {
     expect(dir.product?.thicknessMm).toBe(10);
   });
 });
+
+describe('directorContextFor — perfil de estilo visual (051)', () => {
+  it('propaga el perfil de estilo de la campaña al DirectorContext', () => {
+    const dir = directorContextFor(item, null, {
+      ...ctxWith(),
+      visualStyle: 'animado',
+    });
+    expect(dir.style).toEqual({ slug: 'animado' });
+
+    const dirCustom = directorContextFor(item, null, {
+      ...ctxWith(),
+      visualStyle: 'custom',
+      visualStyleCustom: 'acuarela suave',
+    });
+    expect(dirCustom.style).toEqual({ slug: 'custom', custom: 'acuarela suave' });
+
+    // Campañas viejas sin columna: sin style (los helpers caen a ultra_realista).
+    expect(directorContextFor(item, null, ctxWith()).style).toBeUndefined();
+  });
+});

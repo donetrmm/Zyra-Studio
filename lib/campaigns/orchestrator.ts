@@ -18,6 +18,7 @@ import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastF
 import { uploadReference } from '@/lib/supabase/storage';
 import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/campaigns/storyboard-video';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from './guidelines';
+import { getStyleProfile, type VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -122,6 +123,9 @@ export type CampaignContext = {
   productThicknessMm?: number;
   // Guías creativas opt-in de la campaña (spec 2026-06-29).
   guidelines?: CreativeGuidelines;
+  // Perfil de estilo visual (051). Ausente = campañas previas a la columna.
+  visualStyle?: VisualStyle;
+  visualStyleCustom?: string;
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
@@ -228,6 +232,9 @@ export async function loadCampaignContext(
     // Guías creativas opt-in (columna creative_guidelines). Tolerante: si no llega o
     // falla el parse, se trata como vacío (sin guías activas).
     creative_guidelines?: Record<string, unknown> | null;
+    // Perfil de estilo visual (051). Callers viejos pueden no seleccionarla.
+    visual_style?: string | null;
+    visual_style_custom?: string | null;
   },
   characterIds: string[],
 ): Promise<CampaignContext> {
@@ -341,6 +348,13 @@ export async function loadCampaignContext(
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
     guidelines,
+    ...(campaign.visual_style
+      ? {
+          // Normaliza valores desconocidos de la BD al slug del perfil (defensivo).
+          visualStyle: getStyleProfile(campaign.visual_style, campaign.visual_style_custom).slug,
+          ...(campaign.visual_style_custom ? { visualStyleCustom: campaign.visual_style_custom } : {}),
+        }
+      : {}),
   };
 }
 
@@ -391,6 +405,9 @@ export function directorContextFor(
     language: ctx.language,
     audioRefPath: ctx.audioRefPath,
     guidelines: ctx.guidelines,
+    ...(ctx.visualStyle
+      ? { style: { slug: ctx.visualStyle, ...(ctx.visualStyleCustom ? { custom: ctx.visualStyleCustom } : {}) } }
+      : {}),
   };
 }
 
@@ -730,6 +747,9 @@ export async function enqueueBatch(params: {
     include_packaging?: boolean | null;
     music_ref_id?: string | null;
     creative_guidelines?: Record<string, unknown> | null;
+    // Perfil de estilo visual (051). Callers viejos pueden no seleccionarla.
+    visual_style?: string | null;
+    visual_style_custom?: string | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;
