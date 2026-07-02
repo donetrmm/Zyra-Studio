@@ -432,6 +432,7 @@ export async function setStoryboardLocationAction(
 export async function refinePanelAction(
   itemId: string,
   instruction: string,
+  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean },
 ): Promise<Result<{ generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (!instruction?.trim()) {
@@ -553,8 +554,27 @@ export async function refinePanelAction(
   // ancla producto y personaje por TEXTO (mismas anclas que la rama encadenada de
   // regenerar); la escena y la locacion las preserva el turno previo. Se conserva `compiled`
   // por sus referencias, que SI viajan en el fallback single-turn (sin thought_signature).
+  // Los toggles "mantener identico" (mismos que regenerar) re-anclan la ficha del
+  // producto/personaje EN el turno de chat: para ediciones de construccion ("haz el
+  // borde mas delgado") el texto solo no basta — la ficha multi-vista da los pixeles.
+  const refineImageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');
+  const refineProductRefInChat = opts?.productRefInChat ?? process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1';
+  const refineCharacterRefInChat = opts?.characterRefInChat ?? process.env.STORYBOARD_CHARACTER_REF_IN_CHAT === '1';
+  const refineChatRefPaths = [
+    ...(refineProductRefInChat ? refineImageRefs.filter((r) => r.role === 'product').map((r) => r.storagePath) : []),
+    ...(refineCharacterRefInChat ? refineImageRefs.filter((r) => r.role === 'character').map((r) => r.storagePath) : []),
+  ];
+  const refinePointers = [
+    refineProductRefInChat && refineImageRefs.some((r) => r.role === 'product')
+      ? ' A reference image of the product is attached — match its real construction and proportions exactly (edge thickness, frame, finish, printed content), while still applying the requested edit.'
+      : '',
+    refineCharacterRefInChat && refineImageRefs.some((r) => r.role === 'character')
+      ? ' A reference image of each character is attached — keep their exact face, hair, build and wardrobe.'
+      : '',
+  ].join('');
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {
     isOpeningBeat: (item.scene_index ?? 0) === 0,
+    extraClauses: refinePointers || undefined,
   });
 
   // Ref del panel padre para encadenar (sin descargar: el worker baja la imagen).
@@ -581,14 +601,14 @@ export async function refinePanelAction(
     }
   }
 
-  const referencePaths = compiled.compiled.references.filter((r) => r.kind === 'image').map((r) => r.storagePath);
+  const referencePaths = refineImageRefs.map((r) => r.storagePath);
   const payload = buildStoryboardJobPayload({
     campaignItemId: itemId,
     campaignId: item.campaign_id,
     genAspect,
     strict: strictSafe,
     referencePaths,
-    chatRefPaths: [],
+    chatRefPaths: refineChatRefPaths,
     prevTurn: prevTurnRef,
     // Ancla de escenografia para las bandas del expand 9:16 (sin locacion queda neutro).
     expandHint: resolvedLoc ? [resolvedLoc.name, resolvedLoc.description].filter(Boolean).join(': ') : undefined,

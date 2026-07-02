@@ -158,6 +158,23 @@ describe('compileRefinePrompt', () => {
     expect(p.indexOf('takes precedence')).toBeLessThan(p.indexOf('Reproduce the product'));
   });
 
+  it('sandwich: la edicion tambien CIERRA el prompt, despues de todas las anclas', () => {
+    const p = compileRefinePrompt('make the canvas thinner', ctx);
+    expect(
+      p.endsWith('FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: make the canvas thinner.'),
+    ).toBe(true);
+    expect(p.indexOf('Reproduce the product')).toBeLessThan(p.indexOf('FINAL INSTRUCTION'));
+  });
+
+  it('extraClauses (punteros de refs en chat) va antes del cierre, no despues', () => {
+    const p = compileRefinePrompt('thinner edge', ctx, {
+      extraClauses: ' A reference image of the product is attached — match its real construction.',
+    });
+    const pointer = p.indexOf('A reference image of the product is attached');
+    expect(pointer).toBeGreaterThan(-1);
+    expect(pointer).toBeLessThan(p.indexOf('FINAL INSTRUCTION'));
+  });
+
   it('ancla producto y personaje por TEXTO (no por "reference image", que el chat descarta)', () => {
     const p = compileRefinePrompt('move the canvas to the left', ctx);
     // Producto por texto (chainedProductFidelity).

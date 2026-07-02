@@ -114,10 +114,14 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
 export function compileRefinePrompt(
   instruction: string,
   ctx: DirectorContext,
-  opts?: { isOpeningBeat?: boolean },
+  opts?: { isOpeningBeat?: boolean; extraClauses?: string },
 ): string {
   const lead = instruction.trim().replace(/\.?$/, '.');
-  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}`;
+  // Sandwich: la edición abre Y cierra el prompt. El modelo pesa mucho el final;
+  // con la edición solo al inicio, las anclas de fidelidad (que van después)
+  // dominaban y ediciones legítimas del producto salían ignoradas. extraClauses
+  // (punteros a refs adjuntas en chat) va ANTES del cierre para no taparlo.
+  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

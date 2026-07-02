@@ -337,7 +337,10 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
       delete next[beatId];
       return next;
     });
-    const res = await refinePanelAction(beatId, instruction);
+    const res = await refinePanelAction(beatId, instruction, {
+      productRefInChat: productRef[beatId] ?? false,
+      characterRefInChat: characterRef[beatId] ?? false,
+    });
     setRefining(null);
     if (res.ok) {
       awaitingGenRef.current[beatId] = res.data.generationId;
@@ -567,7 +570,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     }
                   />
                   <label htmlFor={`prodref-${beat.id}`} className="text-[11px] text-muted-foreground">
-                    Mantener el producto idéntico al regenerar
+                    Mantener el producto idéntico al regenerar o refinar
                   </label>
                 </div>
 
@@ -584,7 +587,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     }
                   />
                   <label htmlFor={`charref-${beat.id}`} className="text-[11px] text-muted-foreground">
-                    Mantener al personaje idéntico al regenerar
+                    Mantener al personaje idéntico al regenerar o refinar
                   </label>
                 </div>
 
