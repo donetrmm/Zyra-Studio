@@ -26,7 +26,11 @@ export default async function AppLayout({
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar user={user} workspace={workspace} />
-          <main id="main-content" className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          {/* overflow-x-hidden: con overflow-y-auto, el eje X computa a 'auto' y
+              cualquier hijo mas ancho que el viewport genera un scroll horizontal
+              que saca el contenido del marco de navegacion. Nada del contenido
+              necesita scroll horizontal a nivel de pagina. */}
+          <main id="main-content" className="scroll-thin min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">{children}</main>
           <MobileBottomNav />
         </div>
         <Toaster richColors theme="dark" />

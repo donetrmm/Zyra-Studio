@@ -728,8 +728,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   </label>
                 </div>
 
-                {/* Refinar */}
-                <div className="flex gap-1.5">
+                {/* Refinar. flex-wrap: los dos botones no se encogen; en columnas
+                    angostas caen a una segunda linea en vez de desbordar la card. */}
+                <div className="flex flex-wrap gap-1.5">
                   <input
                     type="text"
                     value={instruction}
