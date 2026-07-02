@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
+import { PLANNER_PHYSICS_BLOCK } from './style-profiles';
 export { CustomFormatSchema, type CustomFormat };
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -432,6 +433,11 @@ export function buildMatcherSystemPrompt(opts: {
     system +=
       '\nEl primer beat (hook) debe encuadrar el producto completo como protagonista (héroe), a tamaño grande.';
   }
+
+  // Física/coherencia del mundo (plan 2026-07-02): el "cuadro volando" se
+  // corrige en el ORIGEN — el planner escribe scenePrompts con objetos anclados.
+  // Fase 1 lo gatea por perfil de campaña (fantasía lo relaja).
+  system += PLANNER_PHYSICS_BLOCK;
 
   return system;
 }

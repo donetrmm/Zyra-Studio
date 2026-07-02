@@ -666,4 +666,10 @@ describe('buildMatcherSystemPrompt', () => {
     const b = buildMatcherSystemPrompt({ guidelines: { showFullProduct: true } });
     expect(a).toBe(b);
   });
+
+  it('incluye el bloque de física del mundo (los scenePrompt nacen anclados)', () => {
+    const s = buildMatcherSystemPrompt({});
+    expect(s).toContain('FÍSICA Y COHERENCIA DEL MUNDO');
+    expect(s).toContain('nunca flota');
+  });
 });
