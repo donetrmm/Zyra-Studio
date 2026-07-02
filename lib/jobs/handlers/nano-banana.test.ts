@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const nanoMock = vi.fn();
 const extendMock = vi.fn();
 const uploadSafeBaseMock = vi.fn();
+const uploadSigMock = vi.fn();
 const dlRefMock = vi.fn();
 const dlOutMock = vi.fn();
 
@@ -15,6 +16,7 @@ vi.mock('@/lib/providers/nano-banana', () => ({
 vi.mock('@/lib/campaigns/storyboard-expand', () => ({ extendPanelTo916: (...a: unknown[]) => extendMock(...a) }));
 vi.mock('@/lib/supabase/storage', () => ({
   uploadSafeBase: (...a: unknown[]) => uploadSafeBaseMock(...a),
+  uploadThoughtSignature: (...a: unknown[]) => uploadSigMock(...a),
   downloadReferenceBuffer: (...a: unknown[]) => dlRefMock(...a),
   downloadOutputBuffer: (...a: unknown[]) => dlOutMock(...a),
 }));
@@ -33,26 +35,41 @@ function row(strict: boolean, prevTurn: unknown = null): GenerationRow {
   };
 }
 
-beforeEach(() => { nanoMock.mockReset(); extendMock.mockReset(); uploadSafeBaseMock.mockReset(); dlRefMock.mockReset(); dlOutMock.mockReset(); });
+beforeEach(() => {
+  nanoMock.mockReset(); extendMock.mockReset(); uploadSafeBaseMock.mockReset();
+  uploadSigMock.mockReset(); dlRefMock.mockReset(); dlOutMock.mockReset();
+  uploadSigMock.mockResolvedValue('ws/gen-1/thought-signature.txt');
+});
 
 describe('nanoBananaHandler', () => {
-  it('no estricto submit -> finalize con thought_signature en metadata', async () => {
+  it('no estricto submit -> finalize con el PATH de la firma en metadata (nunca inline)', async () => {
     nanoMock.mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', thoughtSignature: 'sig' });
     const res = await nanoBananaHandler.handle(row(false), 'submit');
     expect(res.kind).toBe('finalize');
     if (res.kind === 'finalize') {
       expect(res.outputBuffer).toEqual(Buffer.from('img'));
-      expect(res.metadata).toEqual({ thought_signature: 'sig' });
+      expect(res.metadata).toEqual({ thought_signature_path: 'ws/gen-1/thought-signature.txt' });
     }
+    expect(uploadSigMock).toHaveBeenCalledWith('ws', 'gen-1', 'sig');
   });
-  it('estricto submit -> continue con safe_base_path en providerPayload', async () => {
+  it('estricto submit -> continue con safe_base_path y el PATH de la firma', async () => {
     nanoMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg', thoughtSignature: 'sig' });
     uploadSafeBaseMock.mockResolvedValue('ws/gen-1/safe-base.jpg');
     const res = await nanoBananaHandler.handle(row(true), 'submit');
     expect(res.kind).toBe('continue');
     if (res.kind === 'continue') {
-      expect(res.providerPayload).toEqual({ thought_signature: 'sig', safe_base_path: 'ws/gen-1/safe-base.jpg' });
+      expect(res.providerPayload).toEqual({
+        thought_signature_path: 'ws/gen-1/thought-signature.txt',
+        safe_base_path: 'ws/gen-1/safe-base.jpg',
+      });
     }
+  });
+  it('sin firma del provider -> no sube nada ni mete claves vacias', async () => {
+    nanoMock.mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg' });
+    const res = await nanoBananaHandler.handle(row(false), 'submit');
+    expect(res.kind).toBe('finalize');
+    if (res.kind === 'finalize') expect(res.metadata).toEqual({});
+    expect(uploadSigMock).not.toHaveBeenCalled();
   });
   it('estricto poll -> descarga safe_base, expande, finalize', async () => {
     dlOutMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg' });

@@ -6,7 +6,7 @@ import { generate as generateNanoBanana, NANO_VARIANT, nanoVariantToResolution }
 import { ProviderError, type ImageReference, type NanoBananaParams, type NanoBananaTurn } from '@/lib/providers/types';
 import { extendPanelTo916 } from '@/lib/campaigns/storyboard-expand';
 import { centralSafeCrop } from '@/lib/images/safe-area';
-import { downloadOutputBuffer, downloadReferenceBuffer, uploadSafeBase } from '@/lib/supabase/storage';
+import { downloadOutputBuffer, downloadReferenceBuffer, uploadSafeBase, uploadThoughtSignature } from '@/lib/supabase/storage';
 
 // inferExtension no vive en un módulo importable (es una función privada
 // duplicada en varios archivos); se define local aquí para no acoplar el worker
@@ -52,10 +52,26 @@ export async function resolvePrevTurnSignature(prev: StoryboardPrevTurnRef): Pro
     .select('provider_payload')
     .eq('id', prev.sourceGenerationId)
     .single();
-  const pp = ((data as { provider_payload?: { thought_signature?: string } | null } | null)?.provider_payload ?? {}) as {
+  const pp = ((data as { provider_payload?: Record<string, unknown> | null } | null)?.provider_payload ?? {}) as {
     thought_signature?: string;
+    thought_signature_path?: string;
   };
-  return pp.thought_signature ?? undefined;
+  if (pp.thought_signature) return pp.thought_signature; // legacy: firma inline en la fila
+  if (pp.thought_signature_path) {
+    try {
+      const { buffer } = await downloadOutputBuffer(pp.thought_signature_path);
+      return buffer.toString('utf8');
+    } catch (err) {
+      // Sin firma se degrada a single-turn (fallback de buildBody) — mejor que
+      // tirar el refinado por un objeto de storage faltante.
+      console.error('[nano-banana] no se pudo leer thought_signature de storage', {
+        path: pp.thought_signature_path,
+        error: (err as Error)?.message,
+      });
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
@@ -98,25 +114,38 @@ export const nanoBananaHandler: JobHandler = {
       const p = payloadOf(gen);
       if (action === 'submit') {
         const res = await runNano(gen, p);
+        // La firma resultante va a Storage y solo su PATH toca la BD: inline
+        // inflaba provider_payload a 8MB+ (statement timeout en complete_generation
+        // y en el update del continue; Realtime descarta records >1MB).
         if (!p.strict) {
           const metadata: Record<string, unknown> = {};
-          if (res.thoughtSignature) metadata.thought_signature = res.thoughtSignature;
+          if (res.thoughtSignature) {
+            metadata.thought_signature_path = await uploadThoughtSignature(gen.workspace_id, gen.id, res.thoughtSignature);
+          }
           return { kind: 'finalize', outputBuffer: res.buffer, mimeType: res.mimeType, metadata };
         }
         const baseExt = inferExtension(res.mimeType);
         const safeBasePath = await uploadSafeBase(gen.workspace_id, gen.id, res.buffer, res.mimeType, baseExt);
         const providerPayload: Record<string, unknown> = { safe_base_path: safeBasePath };
-        if (res.thoughtSignature) providerPayload.thought_signature = res.thoughtSignature;
+        if (res.thoughtSignature) {
+          providerPayload.thought_signature_path = await uploadThoughtSignature(gen.workspace_id, gen.id, res.thoughtSignature);
+        }
         return { kind: 'continue', delaySeconds: 0, providerPayload };
       }
       // action === 'poll' (solo estricto): descargar la base 4:5 y expandir a 9:16.
       // No hay MAX_POLLS aquí a propósito: 'poll' siempre retorna finalize/fail (nunca
       // continue), así que no hay re-encolado infinito; timeout_at cubre el job atascado.
-      const pp = (gen.provider_payload ?? {}) as { thought_signature?: string; safe_base_path?: string };
+      const pp = (gen.provider_payload ?? {}) as {
+        thought_signature?: string;
+        thought_signature_path?: string;
+        safe_base_path?: string;
+      };
       if (!pp.safe_base_path) throw new ProviderError('poll sin safe_base_path', 'invalid_input', false);
       const { buffer } = await downloadOutputBuffer(pp.safe_base_path);
       const expanded = await extendPanelTo916({ buffer, mimeType: 'image/jpeg' });
       const metadata: Record<string, unknown> = { safe_base_path: pp.safe_base_path };
+      if (pp.thought_signature_path) metadata.thought_signature_path = pp.thought_signature_path;
+      // Compat: jobs en vuelo encolados antes del cambio traen la firma inline.
       if (pp.thought_signature) metadata.thought_signature = pp.thought_signature;
       return { kind: 'finalize', outputBuffer: expanded.buffer, mimeType: expanded.mimeType, metadata };
     } catch (err) {

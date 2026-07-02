@@ -45,6 +45,25 @@ export async function uploadSafeBase(
   return path;
 }
 
+// Persiste el thought_signature de Gemini (~6-9MB) como objeto de Storage y
+// devuelve su path interno. NUNCA guardarlo en columnas de la BD (params /
+// provider_payload): infla la fila a 8MB+, complete_generation muere por
+// statement timeout en instancias chicas y el broadcast de Realtime descarta
+// records >1MB. La firma se mueve siempre por referencia (path).
+export async function uploadThoughtSignature(
+  workspaceId: string,
+  generationId: string,
+  signature: string,
+): Promise<string> {
+  const admin = createAdminClient();
+  const path = `${workspaceId}/${generationId}/thought-signature.txt`;
+  const { error } = await admin.storage
+    .from(OUTPUTS_BUCKET)
+    .upload(path, Buffer.from(signature, 'utf8'), { contentType: 'text/plain', upsert: true });
+  if (error) throw new Error(`upload thought signature failed: ${error.message}`);
+  return path;
+}
+
 // Sube una imagen al bucket de referencias (p. ej. el último fotograma heredado
 // en el encadenado de secuencias) y devuelve su path interno. `key` es la ruta
 // dentro del workspace (sin el prefijo de workspace).
