@@ -8,6 +8,8 @@ import {
   compileRefinePrompt,
   humanRealismDirective,
   isStylized,
+  physicsClause,
+  sceneStyleDirective,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -203,5 +205,32 @@ describe('compileRefinePrompt', () => {
     expect(p).toContain('Keep the rest of the scene consistent');
     expect(p).not.toContain('Reproduce the product');
     expect(p).not.toContain('reference image');
+  });
+});
+
+describe('sceneStyleDirective', () => {
+  it('aplica también sin personajes: el entorno delata el render igual que las caras', () => {
+    const d = sceneStyleDirective(
+      { product: { name: 'Canvas', imagePaths: [] } },
+      'the framed canvas on a wooden dresser, warm lamp light',
+    );
+    expect(d).toMatch(/real photograph/);
+    expect(d).toMatch(/never floats/);
+    expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('se omite en creativos estilizados (registro o scenePrompt)', () => {
+    expect(sceneStyleDirective({}, 'a cartoon version of the room')).toBe('');
+    expect(
+      sceneStyleDirective({ format: { register: '3d render, stylized' } as never, product: undefined }, 'x'),
+    ).toBe('');
+  });
+});
+
+describe('physicsClause', () => {
+  it('emite solo el ancla física (apto para ramas de edición: sin re-render)', () => {
+    const c = physicsClause();
+    expect(c).toMatch(/hangs on a wall/);
+    expect(c).not.toMatch(/real photograph/);
   });
 });
