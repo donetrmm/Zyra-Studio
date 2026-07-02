@@ -17,6 +17,8 @@ import { ReferenceImagesUploader, type RefImage } from '@/components/shared/Refe
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { generateScaleMap, generateScaleMapFromMaster, isGenError } from '@/components/creation/generate';
 import { buildLocationPrompt } from '@/lib/prompt-director/asset-prompts';
+import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export type Location = {
   id: string;
@@ -171,6 +173,8 @@ function LocationEditor({
   );
   const [saving, startSave] = useTransition();
   const [generating, setGenerating] = useState(false);
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
+  const [visualStyleCustom, setVisualStyleCustom] = useState('');
   const [scaleMapImages, setScaleMapImages] = useState<RefImage[]>(
     location?.scale_map_image_id
       ? [{ id: location.scale_map_image_id, previewUrl: previews[location.scale_map_image_id] ?? null }]
@@ -213,7 +217,10 @@ function LocationEditor({
 
   // Master es opcional en locaciones — solo nombre requerido.
   const canSave = name.trim().length > 0;
-  const canGenerate = description.trim().length >= 10 && !generating;
+  const canGenerate =
+    description.trim().length >= 10 &&
+    !generating &&
+    (visualStyle !== 'custom' || visualStyleCustom.trim().length >= 3);
 
   async function handleGenerateMaster() {
     if (!canGenerate) return;
@@ -223,10 +230,14 @@ function LocationEditor({
         provider: 'flux' as const,
         model: 'flux-2-pro-preview' as const,
         variant: 'default' as const,
-        prompt: buildLocationPrompt(description.trim()),
+        prompt: buildLocationPrompt(
+          description.trim(),
+          visualStyle,
+          visualStyle === 'custom' ? visualStyleCustom.trim() : undefined,
+        ),
         aspectRatio: '16:9' as const,
         megapixels: 2 as const,
-        photoreal: true,
+        photoreal: visualStyle === 'ultra_realista',
         references: [],
       });
       if (!res.ok) {
@@ -321,6 +332,15 @@ function LocationEditor({
           <p className="text-[12px] leading-relaxed text-muted-foreground">
             ¿Sin foto del lugar? Genera la imagen de la locación con IA a partir de la descripción.
           </p>
+          <div className="mb-2">
+            <VisualStyleSelector
+              compact
+              value={visualStyle}
+              customText={visualStyleCustom}
+              onValueChange={setVisualStyle}
+              onCustomTextChange={setVisualStyleCustom}
+            />
+          </div>
           <button
             type="button"
             onClick={handleGenerateMaster}

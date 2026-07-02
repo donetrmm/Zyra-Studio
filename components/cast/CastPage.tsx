@@ -15,6 +15,8 @@ import { ReferenceImagesUploader, type RefImage } from '@/components/shared/Refe
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
+import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export type CastCharacter = {
   id: string;
@@ -179,6 +181,8 @@ function CharacterEditor({
   const [saving, startSave] = useTransition();
   const [generating, setGenerating] = useState(false);
   const [describing, setDescribing] = useState(false);
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
+  const [visualStyleCustom, setVisualStyleCustom] = useState('');
 
   // Estados (only for existing characters with a master image)
   const [states, setStates] = useState<CharacterState[]>([]);
@@ -265,7 +269,10 @@ function CharacterEditor({
   }
 
   const canSave = name.trim().length > 0 && masterImages.length === 1;
-  const canGenerate = description.trim().length >= 10 && !generating;
+  const canGenerate =
+    description.trim().length >= 10 &&
+    !generating &&
+    (visualStyle !== 'custom' || visualStyleCustom.trim().length >= 3);
   const canDescribe = masterImages.length === 1 && !describing;
 
   async function handleDescribe() {
@@ -292,10 +299,14 @@ function CharacterEditor({
         provider: 'flux' as const,
         model: 'flux-2-pro-preview' as const,
         variant: 'default' as const,
-        prompt: buildCharacterMasterPrompt(description.trim()),
+        prompt: buildCharacterMasterPrompt(
+          description.trim(),
+          visualStyle,
+          visualStyle === 'custom' ? visualStyleCustom.trim() : undefined,
+        ),
         aspectRatio: '3:4' as const,
         megapixels: 2 as const,
-        photoreal: true,
+        photoreal: visualStyle === 'ultra_realista',
         references: [],
       });
       if (!res.ok) {
@@ -395,6 +406,15 @@ function CharacterEditor({
             Sin foto que puedas usar? Genera la hoja maestra con IA a partir de la descripción —
             el personaje será 100% ficticio, lo que evita el bloqueo de rostros reales del modelo de video.
           </p>
+          <div className="mb-2">
+            <VisualStyleSelector
+              compact
+              value={visualStyle}
+              customText={visualStyleCustom}
+              onValueChange={setVisualStyle}
+              onCustomTextChange={setVisualStyleCustom}
+            />
+          </div>
           <button
             type="button"
             onClick={handleGenerateMaster}

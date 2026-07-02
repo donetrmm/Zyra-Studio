@@ -29,6 +29,8 @@ import {
   type RefImage,
 } from '@/components/shared/ReferenceImagesUploader';
 import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
+import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
+import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
@@ -103,6 +105,9 @@ export function CampaignStudioWizard({
   const [language, setLanguage] = useState<'es' | 'en'>('es');
   // Formato de video de la campaña (034): default de todos los creativos.
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  // Perfil de estilo visual de la campaña (051): define el look de todo el plan.
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
+  const [visualStyleCustom, setVisualStyleCustom] = useState('');
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
@@ -158,7 +163,12 @@ export function CampaignStudioWizard({
 
   const selectedKit = brandKits.find((k) => k.id === brandKitId);
   const productReady = mode === 'upload' ? productImages.length > 0 : Boolean(selectedKit);
-  const canSubmit = name.trim().length > 0 && productReady && !submitting && !musicBusy;
+  const canSubmit =
+    name.trim().length > 0 &&
+    productReady &&
+    !submitting &&
+    !musicBusy &&
+    (visualStyle !== 'custom' || visualStyleCustom.trim().length >= 3);
 
   const preflight = usePreflight();
 
@@ -188,6 +198,10 @@ export function CampaignStudioWizard({
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       includePackaging,
       aspectRatio,
+      visualStyle,
+      ...(visualStyle === 'custom' && visualStyleCustom.trim()
+        ? { visualStyleCustom: visualStyleCustom.trim() }
+        : {}),
       ...(music ? { musicRefId: music.id } : {}),
     });
     if (!created.ok) {
@@ -523,6 +537,22 @@ export function CampaignStudioWizard({
           </div>
           <p className="mt-1.5 text-2xs text-muted-foreground">
             Aplica a todos los creativos del plan; puedes cambiarlo por video al editar.
+          </p>
+        </section>
+
+        <section>
+          <span className="text-xs font-medium text-foreground/80">Estilo visual</span>
+          <div className="mt-1.5">
+            <VisualStyleSelector
+              value={visualStyle}
+              customText={visualStyleCustom}
+              onValueChange={setVisualStyle}
+              onCustomTextChange={setVisualStyleCustom}
+            />
+          </div>
+          <p className="mt-1.5 text-2xs text-muted-foreground">
+            Define el look de todos los creativos: escenas, paneles y video. Ultra realista
+            incluye fisica creible (objetos apoyados o colgados, nunca flotando).
           </p>
         </section>
 
