@@ -229,8 +229,37 @@ describe('sceneStyleDirective', () => {
 
 describe('physicsClause', () => {
   it('emite solo el ancla física (apto para ramas de edición: sin re-render)', () => {
-    const c = physicsClause();
+    const c = physicsClause({});
     expect(c).toMatch(/hangs on a wall/);
     expect(c).not.toMatch(/real photograph/);
+  });
+});
+
+describe('perfil de estilo en las directivas del panel', () => {
+  const withChar = {
+    characters: [{ name: 'Ana', description: 'x', masterImagePath: 'p' }],
+  } as never;
+
+  it('perfil animado apaga el realismo humano aunque el texto no lo diga', () => {
+    const ctx = { ...(withChar as object), style: { slug: 'animado' as const } } as never;
+    expect(humanRealismDirective(ctx, 'she smiles at the camera')).toBe('');
+  });
+
+  it('perfil animado: el panel lleva el bloque de animación + física', () => {
+    const d = sceneStyleDirective({ style: { slug: 'animado' } }, 'the mug on the table');
+    expect(d).toMatch(/3D animated film/);
+    expect(d).toMatch(/never floats/);
+  });
+
+  it('perfil fantasía: estilo sin cláusula de física', () => {
+    const d = sceneStyleDirective({ style: { slug: 'fantasia' } }, 'the mug floats in the air');
+    expect(d).toMatch(/fantasy world/);
+    expect(d).not.toMatch(/never floats/);
+    expect(physicsClause({ style: { slug: 'fantasia' } })).toBe('');
+  });
+
+  it('sin perfil (campañas viejas): comportamiento actual intacto', () => {
+    expect(isStylized('', 'a normal scene')).toBe(false);
+    expect(physicsClause({})).toMatch(/never floats/);
   });
 });

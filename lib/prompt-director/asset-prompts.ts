@@ -12,8 +12,8 @@ import { getStyleProfile, type VisualStyle } from './style-profiles';
 // algo, con espacio libre en primer plano para colocar sujetos y producto.
 // Sin personas ni texto. FLUX sirve aquí: se crea desde texto, sin una
 // referencia que preservar.
-export function buildLocationPrompt(description: string, style?: VisualStyle): string {
-  const profile = getStyleProfile(style);
+export function buildLocationPrompt(description: string, style?: VisualStyle, customText?: string): string {
+  const profile = getStyleProfile(style, customText);
   return (
     `Establishing shot of a location, ready for a scene to take place in it: ${description}. ` +
     'Eye-level camera, wide framing that leaves clear open foreground space where people and a ' +
@@ -25,8 +25,8 @@ export function buildLocationPrompt(description: string, style?: VisualStyle): s
 // Hoja maestra (doc V2 §4.4): retrato frontal neutro de una persona ficticia —
 // los criterios de calidad de referencia que el Prompt Director espera (luz
 // pareja, fondo liso, identidad estable). El perfil aporta el bloque de captura.
-export function buildCharacterMasterPrompt(description: string, style?: VisualStyle): string {
-  const profile = getStyleProfile(style);
+export function buildCharacterMasterPrompt(description: string, style?: VisualStyle, customText?: string): string {
+  const profile = getStyleProfile(style, customText);
   return (
     `Frontal head-and-shoulders portrait of a fictional person: ${description}. ` +
     'Neutral relaxed expression, looking straight at the camera, soft even studio lighting, ' +

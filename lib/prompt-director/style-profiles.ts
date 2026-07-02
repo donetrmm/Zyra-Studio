@@ -57,9 +57,61 @@ const ULTRA_REALISTA: StyleProfile = {
   groundedPhysics: true,
 };
 
-// Fase 0: solo existe el perfil realista; cualquier valor desconocido cae al
-// default. Fase 1 añade fantasia/animado/custom (con segundo parámetro customText).
-export function getStyleProfile(style?: string | null): StyleProfile {
-  void style;
-  return ULTRA_REALISTA;
+const FANTASIA: StyleProfile = {
+  slug: 'fantasia',
+  assetLocation:
+    'The image is a scene from a rich fantasy world: painterly light, evocative atmosphere, imaginative architecture and materials that follow the internal logic of that world.',
+  assetCharacter:
+    'The image is a character portrait from a rich fantasy world: painterly light, evocative atmosphere, imaginative wardrobe consistent with that world.',
+  panel:
+    ' Render the scene as part of a rich fantasy world: painterly light, evocative atmosphere, imaginative but internally consistent — keep the same fantasy look across shots.',
+  video: 'a rich fantasy look with painterly light, filmic color grading',
+  planner:
+    '\nESTILO DE LA CAMPAÑA: FANTASÍA. Las escenas pueden doblar la física y la lógica del mundo real cuando sirva a la idea; cuando lo hagan, descríbelo explícito en el scenePrompt.',
+  groundedPhysics: false,
+};
+
+const ANIMADO: StyleProfile = {
+  slug: 'animado',
+  assetLocation:
+    'The image is a frame from a polished 3D animated film: clean stylized shapes, soft global illumination, expressive color, appealing simplified detail.',
+  assetCharacter:
+    'The image is a character design frame from a polished 3D animated film: appealing stylized proportions, expressive face, clean shapes, soft even lighting.',
+  panel:
+    ' Render the scene as a frame from a polished 3D animated film: clean stylized shapes, soft global illumination, expressive color — keep the same animation style across shots.',
+  video: 'a polished 3D animation look, expressive color',
+  planner:
+    '\nESTILO DE LA CAMPAÑA: ANIMADO (película de animación 3D). Escribe las escenas pensadas para ese look; la física sigue siendo creíble salvo un gag deliberado.',
+  groundedPhysics: true,
+};
+
+// El estilo custom nace del texto del usuario: cada bloque lo cita tal cual.
+// La física queda anclada (si el usuario quiere física libre, que elija fantasía
+// o lo pida explícito en sus ideas — el planner lo respeta).
+function customProfile(text: string): StyleProfile {
+  const t = text.trim().replace(/\.+$/, '');
+  return {
+    slug: 'custom',
+    assetLocation: `Visual style of the image: ${t}.`,
+    assetCharacter: `Visual style of the image: ${t}.`,
+    panel: ` Visual style of the whole scene, consistent across shots: ${t}.`,
+    video: t,
+    planner: `\nESTILO DE LA CAMPAÑA (definido por el usuario): ${t}. Escribe cada scenePrompt coherente con ese estilo.`,
+    groundedPhysics: true,
+  };
+}
+
+// Fase 1: fantasia/animado son presets fijos; custom nace del texto del
+// usuario (customText). Sin texto (o solo espacios), custom cae al default.
+export function getStyleProfile(style?: string | null, customText?: string | null): StyleProfile {
+  switch (style) {
+    case 'fantasia':
+      return FANTASIA;
+    case 'animado':
+      return ANIMADO;
+    case 'custom':
+      return customText?.trim() ? customProfile(customText) : ULTRA_REALISTA;
+    default:
+      return ULTRA_REALISTA;
+  }
 }

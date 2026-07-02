@@ -4,7 +4,7 @@
 import { compile, type CompileResult, type DirectorContext } from '@/lib/prompt-director';
 import { describeCharacter, describeProduct, describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
-import { getStyleProfile, WORLD_COHERENCE_CLAUSE } from '@/lib/prompt-director/style-profiles';
+import { getStyleProfile, WORLD_COHERENCE_CLAUSE, type VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export type PanelBeat = {
   id: string;
@@ -40,10 +40,17 @@ export function compilePanel(
 const STYLIZED_RE =
   /\b(cartoon\w*|toon|anime|manga|comic|c[oó]mic|cel[- ]?shad\w*|claymation|stop[- ]?motion|pixel\s*art|low[- ]?poly|voxel|cgi|3d|render(ed|ing)?|surreal\w*|surrealist\w*|dreamlike|on[ií]rico|abstract\w*|abstracto|stylized|stylised|estiliz\w*|animated|animation|animaci[oó]n|animado)\b/i;
 
-// ¿El creativo pide un look estilizado (no foto-real)? Mira el registro del formato
-// y el scene_prompt — el "a menos que se indique lo contrario" del realismo humano.
-export function isStylized(register: string, scenePrompt: string): boolean {
-  return STYLIZED_RE.test(`${register} ${scenePrompt}`);
+// ¿El creativo pide un look estilizado (no foto-real)? Perfil declarado manda
+// (animado/fantasia SIEMPRE estilizados; custom añade su texto a la regex);
+// sin perfil, la regex sobre registro + scene_prompt (compatibilidad).
+export function isStylized(
+  register: string,
+  scenePrompt: string,
+  style?: { slug: VisualStyle; custom?: string },
+): boolean {
+  if (style?.slug === 'animado' || style?.slug === 'fantasia') return true;
+  const customText = style?.slug === 'custom' ? (style.custom ?? '') : '';
+  return STYLIZED_RE.test(`${register} ${scenePrompt} ${customText}`);
 }
 
 // Directiva INTERNA de foto-realismo humano para el panel FRESCO del storyboard CON
@@ -60,7 +67,7 @@ export function isStylized(register: string, scenePrompt: string): boolean {
 // encadenada (esa edita el panel anterior, que ya es foto-real, y debe preservar).
 export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string): string {
   if ((ctx.characters?.length ?? 0) === 0) return '';
-  if (isStylized(ctx.format?.register ?? '', scenePrompt)) return '';
+  if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
   return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
 }
 
@@ -72,18 +79,24 @@ export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string)
 // producto/escena. Se omite en creativos estilizados (isStylized). SOLO panel
 // fresco — en ramas de edición el re-render está vetado (ver humanRealismDirective).
 export function sceneStyleDirective(ctx: DirectorContext, scenePrompt: string): string {
-  if (isStylized(ctx.format?.register ?? '', scenePrompt)) return '';
-  const profile = getStyleProfile(ctx.style?.slug);
+  const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
+  // Con perfil realista (o ausente), un beat individual estilizado por texto
+  // apaga la directiva (regex de compatibilidad); con perfil declarado
+  // no-realista, el perfil manda y emite su propio bloque.
+  if (profile.slug === 'ultra_realista' && isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) {
+    return '';
+  }
   return `${profile.panel}${profile.groundedPhysics ? WORLD_COHERENCE_CLAUSE : ''}`;
 }
 
 // Física SOLA, para las ramas de EDICIÓN (panel encadenado y refinado sandwich):
 // ahí las cláusulas de re-render causan drift (bug documentado arriba), pero
 // anclar objetos es compatible con preservar — restringe DÓNDE queda lo que la
-// edición mueve, no CÓMO se re-renderiza lo que no toca. Fase 1 la gatea por
-// perfil de campaña (fantasía la apaga).
-export function physicsClause(): string {
-  return getStyleProfile().groundedPhysics ? WORLD_COHERENCE_CLAUSE : '';
+// edición mueve, no CÓMO se re-renderiza lo que no toca. Gatea por perfil de
+// campaña (fantasía la apaga).
+export function physicsClause(ctx: DirectorContext): string {
+  const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
+  return profile.groundedPhysics ? WORLD_COHERENCE_CLAUSE : '';
 }
 
 // Fidelidad del producto para paneles ENCADENADOS (edición conversacional). La
@@ -152,7 +165,7 @@ export function compileRefinePrompt(
   // con la edición solo al inicio, las anclas de fidelidad (que van después)
   // dominaban y ediciones legítimas del producto salían ignoradas. extraClauses
   // (punteros a refs adjuntas en chat) va ANTES del cierre para no taparlo.
-  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${physicsClause()}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
+  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product)}${physicsClause(ctx)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

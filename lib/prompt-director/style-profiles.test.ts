@@ -40,3 +40,40 @@ describe('getStyleProfile', () => {
     expect(PLANNER_PHYSICS_BLOCK).toContain('nunca flota');
   });
 });
+
+describe('presets Fase 1', () => {
+  it('fantasia: física libre y look de fantasía', () => {
+    const p = getStyleProfile('fantasia');
+    expect(p.slug).toBe('fantasia');
+    expect(p.groundedPhysics).toBe(false);
+    expect(p.panel).toMatch(/fantasy/);
+    expect(p.planner).toContain('FANTASÍA');
+  });
+
+  it('animado: look de animación 3D con física creíble', () => {
+    const p = getStyleProfile('animado');
+    expect(p.slug).toBe('animado');
+    expect(p.groundedPhysics).toBe(true);
+    expect(p.panel).toMatch(/3D animated film/);
+    expect(p.video).toMatch(/3D animation/);
+  });
+
+  it('custom: los bloques nacen del texto del usuario; sin texto cae a realista', () => {
+    const p = getStyleProfile('custom', 'acuarela suave, colores pastel');
+    expect(p.slug).toBe('custom');
+    expect(p.panel).toContain('acuarela suave, colores pastel');
+    expect(p.planner).toContain('acuarela suave');
+    expect(p.groundedPhysics).toBe(true);
+    expect(getStyleProfile('custom').slug).toBe('ultra_realista');
+    expect(getStyleProfile('custom', '   ').slug).toBe('ultra_realista');
+  });
+
+  it('ningún preset nuevo usa términos antislop', () => {
+    for (const slug of ['fantasia', 'animado'] as const) {
+      const p = getStyleProfile(slug);
+      for (const block of [p.assetLocation, p.assetCharacter, p.panel, p.video]) {
+        expect(stripSlop(block).removed).toEqual([]);
+      }
+    }
+  });
+});

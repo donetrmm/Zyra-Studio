@@ -33,3 +33,16 @@ describe('buildCharacterMasterPrompt', () => {
     expect(p).toMatch(/seamless background/);
   });
 });
+
+describe('asset prompts con perfil', () => {
+  it('animado genera locación con look de animación, sin bloque fotográfico', () => {
+    const p = buildLocationPrompt('una cocina soleada', 'animado');
+    expect(p).toMatch(/3D animated film/);
+    expect(p).not.toMatch(/real photograph/);
+  });
+
+  it('custom inyecta el texto del usuario', () => {
+    const p = buildCharacterMasterPrompt('un chef', 'custom', 'estilo cómic europeo, línea clara');
+    expect(p).toContain('estilo cómic europeo');
+  });
+});
