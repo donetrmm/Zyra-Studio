@@ -13,17 +13,20 @@ export function ProductSizeEditor({
   initialWidthCm,
   initialMedium,
   initialThicknessMm,
+  initialWeightKg,
 }: {
   campaignId: string;
   initialHeightCm?: number;
   initialWidthCm?: number;
   initialMedium?: string;
   initialThicknessMm?: number;
+  initialWeightKg?: number;
 }) {
   const [medium, setMedium] = useState(initialMedium ?? '');
   const [thickness, setThickness] = useState(initialThicknessMm?.toString() ?? '');
   const [height, setHeight] = useState(initialHeightCm?.toString() ?? '');
   const [width, setWidth] = useState(initialWidthCm?.toString() ?? '');
+  const [weight, setWeight] = useState(initialWeightKg?.toString() ?? '');
   const [pending, startTransition] = useTransition();
 
   const parse = (v: string): number | null => {
@@ -37,9 +40,11 @@ export function ProductSizeEditor({
     const h = parse(height);
     const w = parse(width);
     const t = parse(thickness);
+    const kg = parse(weight);
     if (height.trim() && h === null) { toast.error('Alto inválido'); return; }
     if (width.trim() && w === null) { toast.error('Ancho inválido'); return; }
     if (thickness.trim() && t === null) { toast.error('Grosor inválido'); return; }
+    if (weight.trim() && kg === null) { toast.error('Peso inválido'); return; }
     startTransition(async () => {
       const res = await setProductDimensionsAction({
         id: campaignId,
@@ -47,6 +52,7 @@ export function ProductSizeEditor({
         widthCm: w,
         medium: medium.trim() || null,
         thicknessMm: t,
+        weightKg: kg,
       });
       if (res.ok) toast.success('Producto físico guardado');
       else toast.error('No se pudo guardar');
@@ -61,9 +67,10 @@ export function ProductSizeEditor({
         <span className="text-xs text-zinc-500">opcional</span>
       </div>
       <p className="mt-1 max-w-prose text-xs leading-relaxed text-zinc-400">
-        Tipo de soporte, grosor y tamaño real del producto (por ejemplo, un canvas de 150 cm de
-        alto × 10 mm de grosor). Se usan para mantener proporción y contexto al generar y
-        regenerar los paneles del storyboard. Deja vacío lo que no aplique.
+        Tipo de soporte, grosor, tamaño y peso reales del producto (por ejemplo, un canvas de 150 cm
+        de alto × 10 mm de grosor). Se usan para mantener proporción y contexto al generar y
+        regenerar los paneles del storyboard. Deja vacío lo que no aplique. El peso ancla cómo los
+        personajes lo cargan o mueven.
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
@@ -108,6 +115,17 @@ export function ProductSizeEditor({
             onChange={(e) => setWidth(e.target.value)}
             className="w-24"
             placeholder="ej. 100"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-400">
+          Peso (kg)
+          <Input
+            type="number"
+            inputMode="numeric"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            className="w-24"
+            placeholder="ej. 4"
           />
         </label>
         <Button type="button" variant="secondary" size="sm" onClick={save} disabled={pending}>

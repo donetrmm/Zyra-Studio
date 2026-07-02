@@ -121,6 +121,9 @@ export type CampaignContext = {
   // Propagan desde product_brief al DirectorContext (feature objeto-vs-impreso).
   productMedium?: string;
   productThicknessMm?: number;
+  // Peso físico del producto en kg (de product_brief). Opcional; ancla la
+  // interacción (esfuerzo al cargar/mover). Ausente = sin ancla.
+  productWeightKg?: number;
   // Guías creativas opt-in de la campaña (spec 2026-06-29).
   guidelines?: CreativeGuidelines;
   // Perfil de estilo visual (051). Ausente = campañas previas a la columna.
@@ -247,6 +250,7 @@ export async function loadCampaignContext(
     widthCm?: number;
     medium?: string;
     thicknessMm?: number;
+    weightKg?: number;
   };
 
   let productImagePaths: string[] = [];
@@ -344,6 +348,7 @@ export async function loadCampaignContext(
     productWidthCm: brief.widthCm,
     productMedium: brief.medium,
     productThicknessMm: brief.thicknessMm,
+    productWeightKg: brief.weightKg,
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
@@ -392,6 +397,7 @@ export function directorContextFor(
       widthCm: ctx.productWidthCm,
       medium: ctx.productMedium,
       thicknessMm: ctx.productThicknessMm,
+      weightKg: ctx.productWeightKg,
       packagingImagePaths: format?.required_refs.includes('packaging')
         ? ctx.packagingImagePaths
         : undefined,

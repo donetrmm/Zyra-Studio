@@ -97,6 +97,7 @@ export type StudioCampaign = {
   productWidthCm?: number;
   productMedium?: string;
   productThicknessMm?: number;
+  productWeightKg?: number;
   guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null; safeAreaExtend?: boolean };
   aspectRatio?: string | null;
 };
@@ -430,6 +431,7 @@ export function CampaignStudioView({
           initialWidthCm={campaign.productWidthCm}
           initialMedium={campaign.productMedium}
           initialThicknessMm={campaign.productThicknessMm}
+          initialWeightKg={campaign.productWeightKg}
         />
       </div>
       <div className="mt-3">

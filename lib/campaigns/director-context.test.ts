@@ -153,6 +153,14 @@ describe('directorContextFor — medium y thicknessMm del producto', () => {
   });
 });
 
+describe('directorContextFor — peso del producto', () => {
+  it('propaga el peso del producto al DirectorContext', () => {
+    const dir = directorContextFor(item, null, { ...ctxWith(), productWeightKg: 25 });
+    expect(dir.product?.weightKg).toBe(25);
+    expect(directorContextFor(item, null, ctxWith()).product?.weightKg).toBeUndefined();
+  });
+});
+
 describe('directorContextFor — perfil de estilo visual (051)', () => {
   it('propaga el perfil de estilo de la campaña al DirectorContext', () => {
     const dir = directorContextFor(item, null, {
