@@ -16,21 +16,40 @@ export type CompleteGenerationInput = {
   providerPayload?: Record<string, unknown> | null;
 };
 
+// Reintentos SOLO ante statement timeout: el RPC es idempotente (migración 037,
+// guard por credits_charged + status terminal), así que repetirlo es seguro. Sin
+// esto, un apuro transitorio de la instancia tira un output ya pagado al
+// proveedor (fail + refund) por un timeout de milisegundos de mala suerte.
+const COMPLETE_RETRY_DELAYS_MS = [1000, 2500];
+
 // Atómica: status='done' + decremento de pending + credits_charged en una sola
 // transacción. Idempotente — si la generación ya fue confirmada, no-op.
 export async function completeGeneration(input: CompleteGenerationInput): Promise<void> {
   const admin = createAdminClient();
-  const { error } = await admin.rpc('complete_generation', {
-    p_user_id: input.userId,
-    p_generation_id: input.generationId,
-    p_cost: input.cost,
-    p_output_url: input.outputUrl,
-    p_thumbnail_url: input.thumbnailUrl,
-    p_processing_ms: input.processingMs,
-    p_file_size_bytes: input.fileSizeBytes,
-    p_provider_payload: input.providerPayload ?? null,
-  });
-  if (error) throw new Error(`complete_generation: ${error.message}`);
+  let lastError = 'unknown';
+  for (let attempt = 0; attempt <= COMPLETE_RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, COMPLETE_RETRY_DELAYS_MS[attempt - 1]));
+    }
+    const { error } = await admin.rpc('complete_generation', {
+      p_user_id: input.userId,
+      p_generation_id: input.generationId,
+      p_cost: input.cost,
+      p_output_url: input.outputUrl,
+      p_thumbnail_url: input.thumbnailUrl,
+      p_processing_ms: input.processingMs,
+      p_file_size_bytes: input.fileSizeBytes,
+      p_provider_payload: input.providerPayload ?? null,
+    });
+    if (!error) return;
+    lastError = error.message;
+    if (!error.message.includes('statement timeout')) break;
+    console.error('[credits] complete_generation timeout; reintentando', {
+      generationId: input.generationId,
+      attempt: attempt + 1,
+    });
+  }
+  throw new Error(`complete_generation: ${lastError}`);
 }
 
 // Atómica: status='failed' + refund SOLO si no fue confirmada todavía
