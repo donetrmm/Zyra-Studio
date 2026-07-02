@@ -162,6 +162,8 @@ create table campaigns (
   -- aspect_ratio (migración 034): formato de video de la campaña (9:16/16:9/1:1),
   -- elegido en el wizard. Default de todos los items del plan; editable por item.
   aspect_ratio text not null default '9:16',
+  visual_style text not null default 'ultra_realista', -- ultra_realista | fantasia | animado | custom (051)
+  visual_style_custom text, -- descripción libre cuando visual_style = custom (051)
   created_at timestamptz default now()
 );
 
