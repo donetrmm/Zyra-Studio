@@ -89,7 +89,11 @@ async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
   );
   let previousTurn: NanoBananaTurn | null = null;
   if (p.prevTurn) {
-    const { buffer, mimeType } = await downloadOutputBuffer(p.prevTurn.imagePath);
+    // Panel generado -> bucket outputs; panel subido a mano -> bucket references.
+    const { buffer, mimeType } =
+      p.prevTurn.bucket === 'references'
+        ? await downloadReferenceBuffer(p.prevTurn.imagePath)
+        : await downloadOutputBuffer(p.prevTurn.imagePath);
     const img = p.strict ? await centralSafeCrop(buffer) : buffer;
     const thoughtSignature = await resolvePrevTurnSignature(p.prevTurn);
     previousTurn = { prompt: p.prevTurn.prompt, imageBuffer: img, mimeType, thoughtSignature };

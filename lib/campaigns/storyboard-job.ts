@@ -4,6 +4,9 @@
 
 export type StoryboardPrevTurnRef = {
   imagePath: string; // path en el bucket outputs (safe_base 4:5 o el output 9:16 legacy)
+  // Bucket del imagePath. Default 'outputs' (paneles generados); 'references'
+  // cuando el panel actual es una subida manual (media_reference sin gen).
+  bucket?: 'outputs' | 'references';
   // Gen de la que el worker lee provider_payload.thought_signature al momento del
   // job. La firma (~8MB) NUNCA se embebe aqui: este payload vive en generations.params,
   // que viaja en el broadcast de Realtime (max_record_bytes 1MB, migracion 050) y

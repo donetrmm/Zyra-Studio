@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowLeft, Download, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { generatePanelAction, refinePanelAction, restorePanelVersionAction, setStoryboardLocationAction, setBeatAudioAction } from '@/server-actions/storyboard';
+import { generatePanelAction, refinePanelAction, restorePanelVersionAction, setStoryboardLocationAction, setBeatAudioAction, uploadPanelAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
@@ -268,6 +268,46 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // Historial de versiones: selección pendiente por beat + beat restaurando.
   const [versionPick, setVersionPick] = useState<Record<string, string>>({});
   const [restoring, setRestoring] = useState<string | null>(null);
+
+  // Panel manual: subida en curso por beat.
+  const [uploadingPanel, setUploadingPanel] = useState<string | null>(null);
+
+  // Descarga el panel actual (la URL firmada es cross-origin: el atributo
+  // download del <a> se ignora, así que se baja como blob).
+  async function handleDownloadPanel(beatId: string, panelUrl: string, sceneIndex: number) {
+    try {
+      const res = await fetch(panelUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `panel-escena-${sceneIndex + 1}.jpg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('No se pudo descargar el panel');
+    }
+  }
+
+  async function handleUploadPanel(beatId: string, file: File | null) {
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Imagen demasiado grande (máx 15MB)');
+      return;
+    }
+    setUploadingPanel(beatId);
+    const fd = new FormData();
+    fd.set('file', file);
+    const res = await uploadPanelAction(beatId, fd);
+    setUploadingPanel(null);
+    if (res.ok) {
+      toast.success('Panel reemplazado con tu imagen');
+      router.refresh();
+    } else {
+      toast.error(friendlyError(res.error, res.message));
+    }
+  }
 
   async function handleRestoreVersion(beatId: string, generationId: string) {
     setRestoring(beatId);
@@ -592,6 +632,49 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     <span className="text-muted-foreground">· −{regenCost} cr</span>
                   )}
                 </Button>
+
+                {/* Descargar el panel / reemplazarlo con una imagen propia (flujo:
+                    bajar, editar fuera, subir de vuelta). La subida crea una
+                    media_reference manual; video y refinado la usan igual. */}
+                <div className="flex gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={busy || !panelUrl}
+                    onClick={() => void handleDownloadPanel(beat.id, panelUrl as string, beat.sceneIndex)}
+                  >
+                    <Download className="size-3" aria-hidden />
+                    Descargar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={busy || uploadingPanel === beat.id}
+                    onClick={() => document.getElementById(`upload-${beat.id}`)?.click()}
+                  >
+                    {uploadingPanel === beat.id ? (
+                      <Loader2 className="size-3 animate-spin" aria-hidden />
+                    ) : (
+                      <Upload className="size-3" aria-hidden />
+                    )}
+                    {panelUrl ? 'Reemplazar' : 'Subir imagen'}
+                  </Button>
+                  <input
+                    id={`upload-${beat.id}`}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      e.target.value = '';
+                      void handleUploadPanel(beat.id, f);
+                    }}
+                  />
+                </div>
 
                 {/* Mantener el producto idéntico al regenerar (re-ancla la imagen del
                     producto en el turno de chat de los paneles encadenados). */}

@@ -24,6 +24,7 @@ import {
 import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, chainedProductFidelity, chainedCharacterFidelity } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
+import { uploadReference } from '@/lib/supabase/storage';
 import { describeProductScale } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
@@ -597,7 +598,7 @@ export async function refinePanelAction(
   // directa imagen+instruccion (flujo tipo ChatGPT) si obedece. Es un modo aparte
   // de los toggles "mantener identico" (esos solo anclan la ficha).
   const strongEdit = opts?.strongEdit ?? false;
-  let prevTurnRef: { imagePath: string; sourceGenerationId?: string; prompt: string } | null = null;
+  let prevTurnRef: { imagePath: string; bucket?: 'outputs' | 'references'; sourceGenerationId?: string; prompt: string } | null = null;
   const parentGenId = item.storyboard_generation_id;
   if (parentGenId) {
     const { data: parent } = await supabase
@@ -615,6 +616,18 @@ export async function refinePanelAction(
         sourceGenerationId:
           !strongEdit && pg.model_id === NANO_MODEL_SLUG ? parentGenId : undefined,
       };
+    }
+  } else if (item.storyboard_image_id) {
+    // Panel subido a mano (sin gen de origen): se edita en single-turn desde su
+    // media_reference (bucket references). Sin firma — edición directa siempre.
+    const { data: ref } = await supabase
+      .from('media_references')
+      .select('storage_url, workspace_id')
+      .eq('id', item.storyboard_image_id)
+      .single();
+    const mr = ref as { storage_url: string | null; workspace_id: string } | null;
+    if (mr && mr.workspace_id === workspace.id && mr.storage_url) {
+      prevTurnRef = { imagePath: mr.storage_url, bucket: 'references', prompt: '' };
     }
   }
 
@@ -708,6 +721,86 @@ export async function refinePanelAction(
   await supabase.from('campaign_items').update({ warnings: [] }).eq('id', itemId);
 
   return { ok: true, data: { generationIds } };
+}
+
+// ─── acción: subir un panel manual ───────────────────────────────────────────
+
+// Reemplaza (o crea) el panel del beat con una imagen del usuario — cierre del
+// flujo "descargo el panel, lo edito fuera (ChatGPT/Photoshop), lo subo de
+// vuelta". El panel manual es una media_reference sin generación de origen:
+// el video (I2V/R2V) y el refinado (single-turn, bucket references) lo usan
+// igual que un panel generado.
+export async function uploadPanelAction(
+  itemId: string,
+  formData: FormData,
+): Promise<Result<{ uploaded: true }>> {
+  if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'validation_error', message: 'archivo requerido' };
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    return { ok: false, error: 'validation_error', message: 'imagen demasiado grande (máx 15MB)' };
+  }
+  if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+    return { ok: false, error: 'validation_error', message: 'formato no soportado (JPG, PNG o WebP)' };
+  }
+
+  const { user, workspace } = await requireWorkspace();
+  const loaded = await loadItemAndCampaign(workspace.id, itemId);
+  if (!loaded) return { ok: false, error: 'not_found' };
+  const { campaign } = loaded;
+
+  // Normalizar a JPEG con lado largo <= 2048: mismo perfil que los paneles
+  // generados (lo esperan el pipeline de video y el refinado).
+  let buffer: Buffer;
+  try {
+    const sharp = (await import('sharp')).default;
+    buffer = await sharp(Buffer.from(await file.arrayBuffer()))
+      .rotate()
+      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+  } catch {
+    return { ok: false, error: 'validation_error', message: 'no se pudo leer la imagen' };
+  }
+
+  const key = `storyboard-manual/${crypto.randomUUID()}.jpg`;
+  let path: string;
+  try {
+    path = await uploadReference(workspace.id, key, buffer, 'image/jpeg');
+  } catch (err) {
+    return { ok: false, error: 'internal_error', message: (err as Error)?.message ?? 'upload fallo' };
+  }
+
+  // Admin client: mismo patrón que promoteOutputToReference (insert auditado en
+  // media_references); el ownership ya se validó arriba con el cliente RLS.
+  const admin = createAdminClient();
+  const { data: ref, error: refErr } = await admin
+    .from('media_references')
+    .insert({
+      workspace_id: workspace.id,
+      user_id: user.id,
+      type: 'image',
+      storage_url: path,
+      source: 'upload',
+      source_generation_id: null,
+    })
+    .select('id')
+    .single();
+  if (refErr || !ref) {
+    return { ok: false, error: 'internal_error', message: refErr?.message ?? 'no row' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ storyboard_image_id: ref.id as string, storyboard_generation_id: null, warnings: [] })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${campaign.id}/storyboard`);
+  return { ok: true, data: { uploaded: true } };
 }
 
 // ─── acción: restaurar una versión anterior del panel ────────────────────────
