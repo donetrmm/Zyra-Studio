@@ -71,6 +71,17 @@ export async function updateLocationAction(id: string, input: unknown): Promise<
     return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
   }
 
+  // El perfil de luz (052) se deriva de la imagen maestra: si la maestra cambia
+  // (o se quita) el perfil cacheado queda obsoleto — se limpia aquí y el
+  // siguiente panel de la locación lo re-deriva (lazy, en generatePanelAction).
+  const { data: prev } = await supabase
+    .from('locations')
+    .select('master_image_id')
+    .eq('id', id)
+    .eq('workspace_id', workspace.id)
+    .single();
+  const masterChanged = (prev?.master_image_id ?? null) !== (parsed.data.masterImageId ?? null);
+
   const { error, count } = await supabase
     .from('locations')
     .update(
@@ -81,6 +92,7 @@ export async function updateLocationAction(id: string, input: unknown): Promise<
         reference_image_ids: parsed.data.referenceImageIds,
         scale_map_image_id: parsed.data.scaleMapImageId ?? null,
         scale_map_notes: parsed.data.scaleMapNotes ?? null,
+        ...(masterChanged ? { light_profile: null } : {}),
       },
       { count: 'exact' },
     )

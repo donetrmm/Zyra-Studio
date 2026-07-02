@@ -418,6 +418,11 @@ export function compileSeedance(
   if (ctx.location?.description?.trim()) {
     sections.push(`Location: ${ctx.location.description.trim()}.`);
   }
+  // Perfil de luz de la locación (052) — espejo del panel: la luz REAL de la
+  // escena en texto para integrar a las personas con esa luz.
+  if (ctx.location?.lightProfile?.trim()) {
+    sections.push(`Scene light and space: ${ctx.location.lightProfile.trim().replace(/\.+$/, '')}.`);
+  }
 
   // Fidelidad de producto y personajes (reglas duras del inventario). La
   // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay

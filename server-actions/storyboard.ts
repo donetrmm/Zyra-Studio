@@ -24,7 +24,8 @@ import {
 import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { uploadReference } from '@/lib/supabase/storage';
+import { uploadReference, downloadReferenceBuffer } from '@/lib/supabase/storage';
+import { deriveLightProfileFromImage } from '@/lib/locations/light-profile';
 import { describeProductScale, describeProductWeight } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
 import { replaceDialogue } from '@/lib/campaigns/speech-fit';
@@ -218,8 +219,34 @@ export async function generatePanelAction(
   // en cada panel → consistencia de escena entre paneles del storyboard.
   const locMap = await resolveLocations(supabase, workspace.id, item.location_id ? [item.location_id] : []);
   const resolvedLoc = item.location_id ? locMap.get(item.location_id) : undefined;
+  // Perfil de luz (052), derivación LAZY: si la locación tiene maestra y aún no
+  // tiene perfil, se deriva UNA vez aquí (visión flash sobre la maestra), se
+  // persiste y se usa de inmediato — las locaciones existentes lo ganan sin
+  // pasos manuales. Best-effort: si falla, el panel sale sin perfil (la
+  // cláusula genérica de integración sigue aplicando).
+  let locLightProfile = resolvedLoc?.lightProfile;
+  if (resolvedLoc && item.location_id && !locLightProfile && resolvedLoc.imagePaths.length > 0) {
+    try {
+      const { buffer, mimeType } = await downloadReferenceBuffer(resolvedLoc.imagePaths[0]);
+      locLightProfile = await deriveLightProfileFromImage({ imageBuffer: buffer, mimeType });
+      await supabase
+        .from('locations')
+        .update({ light_profile: locLightProfile })
+        .eq('id', item.location_id)
+        .eq('workspace_id', workspace.id);
+    } catch (err) {
+      console.error('[storyboard] no se pudo derivar el perfil de luz de la locacion', {
+        error: (err as Error)?.message,
+      });
+    }
+  }
   const dirLocation = resolvedLoc
-    ? { name: resolvedLoc.name, description: resolvedLoc.description ?? undefined, imagePaths: resolvedLoc.imagePaths }
+    ? {
+        name: resolvedLoc.name,
+        description: resolvedLoc.description ?? undefined,
+        imagePaths: resolvedLoc.imagePaths,
+        ...(locLightProfile ? { lightProfile: locLightProfile } : {}),
+      }
     : undefined;
 
   // Armar ItemRow mínimo para directorContextFor

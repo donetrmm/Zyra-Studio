@@ -172,7 +172,7 @@ async function resolveUsages(
   return map;
 }
 
-// Resuelve location_id -> { name, description, imagePaths, scaleMap? }. v1 usa SOLO la imagen
+// Resuelve location_id -> { name, description, imagePaths, scaleMap?, lightProfile? }. v1 usa SOLO la imagen
 // master de la locación (1 por clip); los ángulos se difieren. Valida ownership.
 export async function resolveLocations(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -181,18 +181,18 @@ export async function resolveLocations(
 ): Promise<
   Map<
     string,
-    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string } }
+    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string }; lightProfile?: string }
   >
 > {
   const ids = [...new Set(locationIds.filter(Boolean))];
   const out = new Map<
     string,
-    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string } }
+    { name: string; description: string | null; imagePaths: string[]; scaleMap?: { path: string; notes?: string }; lightProfile?: string }
   >();
   if (ids.length === 0) return out;
   const { data: rows } = await supabase
     .from('locations')
-    .select('id, workspace_id, name, description, master_image_id, scale_map_image_id, scale_map_notes')
+    .select('id, workspace_id, name, description, master_image_id, scale_map_image_id, scale_map_notes, light_profile')
     .in('id', ids);
   const masterByLoc = new Map<string, string>();
   const scaleByLoc = new Map<string, string>();
@@ -216,6 +216,7 @@ export async function resolveLocations(
       ...(scalePath
         ? { scaleMap: { path: scalePath, ...((r.scale_map_notes as string | null) ? { notes: r.scale_map_notes as string } : {}) } }
         : {}),
+      ...((r.light_profile as string | null)?.trim() ? { lightProfile: (r.light_profile as string).trim() } : {}),
     });
   }
   return out;

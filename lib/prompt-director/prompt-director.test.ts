@@ -1385,3 +1385,38 @@ describe('integración personaje-locación y peso (spec 2026-07-02)', () => {
     expect(r.ok && r.compiled.prompt).toContain('cast soft contact shadows');
   });
 });
+
+describe('perfil de luz de la locación (052)', () => {
+  const ana = { name: 'Ana', description: 'curly hair, warm smile', masterImagePath: 'refs/ana.png' };
+  const loc = {
+    description: 'dim modern room',
+    imagePaths: [],
+    lightProfile: 'Warm LED strips on the walls cast soft amber light from both sides; the polished dark floor reflects them faintly.',
+  };
+
+  it('panel: el perfil entra como Scene light and space y apaga la luz default', () => {
+    const r = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'she smiles at the camera', aspectRatio: '9:16' },
+      { characters: [ana], location: loc },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('Scene light and space: Warm LED strips');
+    expect(r.ok && r.compiled.prompt).not.toContain('Soft directional lighting that shows form');
+  });
+
+  it('panel: sin perfil, la luz default sigue aplicando (comportamiento actual)', () => {
+    const r = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'she smiles at the camera', aspectRatio: '9:16' },
+      { characters: [ana], location: { description: 'dim modern room', imagePaths: [] } },
+    );
+    expect(r.ok && r.compiled.prompt).not.toContain('Scene light and space');
+    expect(r.ok && r.compiled.prompt).toContain('Soft directional lighting that shows form');
+  });
+
+  it('video: el perfil entra como Scene light and space', () => {
+    const r = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'she walks in', durationS: 5 },
+      { characters: [ana], location: loc },
+    );
+    expect(r.ok && r.compiled.prompt).toContain('Scene light and space: Warm LED strips');
+  });
+});

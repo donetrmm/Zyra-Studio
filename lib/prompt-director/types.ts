@@ -101,6 +101,10 @@ export type DirectorContext = {
     // P15: esquema top-down que fija escala/posicion; se cita como rol scale_map
     // y se re-ancla por clip (igual que imagePaths). `notes` = proporciones en texto.
     scaleMap?: { path: string; notes?: string };
+    // Perfil de luz/espacio derivado por visión de la imagen maestra (052): la
+    // luz REAL de la locación descrita en texto, para integrar personajes sin
+    // efecto photoshop. Ausente = sin maestra o perfil aún no derivado.
+    lightProfile?: string;
   };
   // Escena elegida (de scene_library o libre). fragment va al prompt.
   scene?: { name?: string; fragment: string };

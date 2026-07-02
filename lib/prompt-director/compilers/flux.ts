@@ -47,6 +47,11 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
       'The setting must match the provided location reference image: same place, architecture and background.',
     );
   }
+  // Perfil de luz de la locación (052): la luz REAL de la escena descrita en
+  // texto — el modelo integra a las personas con ESA luz, no con una genérica.
+  if (ctx.location?.lightProfile?.trim()) {
+    sections.push(`Scene light and space: ${ctx.location.lightProfile.trim().replace(/\.+$/, '')}.`);
+  }
   // Integración personaje-locación: solo cuando hay ambos (la cláusula habla
   // de "the people" y "the scene"; sin locación o sin personas sobra).
   if (
@@ -55,8 +60,9 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   ) {
     sections.push(SCENE_INTEGRATION_CLAUSE);
   }
-  // Iluminación por defecto orientada a producto si el prompt no la trae.
-  if (!/light|lighting|luz|iluminaci/i.test(req.scenePrompt)) {
+  // Iluminación por defecto orientada a producto si el prompt no la trae y la
+  // locación no aporta su propio perfil de luz (competirían).
+  if (!ctx.location?.lightProfile && !/light|lighting|luz|iluminaci/i.test(req.scenePrompt)) {
     sections.push('Soft directional lighting that shows form, volume and material texture.');
   }
   if (ctx.format?.register) sections.push(`Mood: ${ctx.format.register}.`);
