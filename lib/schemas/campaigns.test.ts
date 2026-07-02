@@ -23,6 +23,23 @@ describe('CreateCampaignStudioSchema — musicRefId', () => {
   });
 });
 
+describe('CreateCampaignStudioSchema — visualStyle', () => {
+  it('default ultra_realista', () => {
+    const r = CreateCampaignStudioSchema.safeParse(base);
+    expect(r.success && r.data.visualStyle).toBe('ultra_realista');
+  });
+  it('acepta los 4 valores y rechaza otros', () => {
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'animado' }).success).toBe(true);
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'vaporwave' }).success).toBe(false);
+  });
+  it('custom exige descripción', () => {
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'custom' }).success).toBe(false);
+    expect(
+      CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'custom', visualStyleCustom: 'acuarela suave' }).success,
+    ).toBe(true);
+  });
+});
+
 describe('UpdateCampaignItemSchema — characterStateHint (P05)', () => {
   const id = '00000000-0000-4000-8000-000000000000';
   it('acepta un label de estado', () => {

@@ -448,6 +448,9 @@ export async function createCampaignStudioAction(
       character_ids: characterIds,
       include_packaging: parsed.data.includePackaging,
       aspect_ratio: parsed.data.aspectRatio,
+      visual_style: parsed.data.visualStyle,
+      visual_style_custom:
+        parsed.data.visualStyle === 'custom' ? (parsed.data.visualStyleCustom ?? null) : null,
       music_ref_id: parsed.data.musicRefId ?? null,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),

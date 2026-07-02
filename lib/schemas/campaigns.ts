@@ -82,12 +82,16 @@ export const CreateCampaignStudioSchema = z
     // Pool de personajes de la campaña (máx 3). El primero es el principal.
     characterIds: z.array(z.string().uuid()).max(3).default([]),
     // Si la campaña usa las imágenes de empaque del Brand Kit (migración 032).
-    // Con false, el plan omite formatos que exigen empaque y la generación no
+    // Con false, el plan omite formatos que exijan empaque y la generación no
     // envía packaging_image_ids.
     includePackaging: z.boolean().default(true),
     // Formato de video de la campaña (034): default de todos los creativos
     // del plan; cada item puede cambiarlo en la edición.
     aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
+    // Perfil de estilo visual de la campaña (051): define el look de todas las
+    // etapas (planner, panel, refinado, video). custom exige descripción.
+    visualStyle: z.enum(['ultra_realista', 'fantasia', 'animado', 'custom']).default('ultra_realista'),
+    visualStyleCustom: z.string().trim().min(3).max(400).optional(),
     // P16: pista de audio de referencia de ritmo (media_reference type='audio', <=15s).
     musicRefId: z.string().uuid().optional(),
     dateStart: z.coerce.date().optional(),
@@ -95,6 +99,9 @@ export const CreateCampaignStudioSchema = z
   })
   .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
     message: 'Sube al menos una imagen de producto o elige un Brand Kit',
+  })
+  .refine((d) => d.visualStyle !== 'custom' || Boolean(d.visualStyleCustom?.trim()), {
+    message: 'Describe el estilo personalizado',
   });
 
 export const GeneratePlanSchema = z.object({
