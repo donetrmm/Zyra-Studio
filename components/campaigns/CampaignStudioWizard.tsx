@@ -552,7 +552,7 @@ export function CampaignStudioWizard({
           </div>
           <p className="mt-1.5 text-2xs text-muted-foreground">
             Define el look de todos los creativos: escenas, paneles y video. Ultra realista
-            incluye fisica creible (objetos apoyados o colgados, nunca flotando).
+            incluye física creíble (objetos apoyados o colgados, nunca flotando).
           </p>
         </section>
 

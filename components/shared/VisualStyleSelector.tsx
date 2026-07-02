@@ -4,9 +4,9 @@ import { Input } from '@/components/ui/input';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export const VISUAL_STYLE_OPTIONS: Array<{ value: VisualStyle; label: string; hint: string }> = [
-  { value: 'ultra_realista', label: 'Ultra realista', hint: 'Fotografia real, fisica creible' },
-  { value: 'fantasia', label: 'Fantasia', hint: 'Mundos imaginarios, fisica libre' },
-  { value: 'animado', label: 'Animado', hint: 'Look de animacion 3D' },
+  { value: 'ultra_realista', label: 'Ultra realista', hint: 'Fotografía real, física creíble' },
+  { value: 'fantasia', label: 'Fantasía', hint: 'Mundos imaginarios, física libre' },
+  { value: 'animado', label: 'Animado', hint: 'Look de animación 3D' },
   { value: 'custom', label: 'Personalizado', hint: 'Describe tu propio estilo' },
 ];
 

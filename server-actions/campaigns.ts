@@ -53,7 +53,7 @@ import { signedOutputUrl } from '@/lib/supabase/storage';
 import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas, type MatcherImage } from '@/lib/prompt-director/format-matcher';
-import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { getStyleProfile } from '@/lib/prompt-director/style-profiles';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { ProviderError } from '@/lib/providers/types';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
@@ -641,7 +641,14 @@ export async function generatePlanAction(input: unknown): Promise<
         language: campaignLanguage,
         ...(guidelines ? { guidelines } : {}),
         ...(campaign.visual_style
-          ? { visualStyle: campaign.visual_style as VisualStyle }
+          ? {
+              // Normaliza valores desconocidos de la BD al slug del perfil (defensivo,
+              // igual que loadCampaignContext en orchestrator.ts).
+              visualStyle: getStyleProfile(
+                campaign.visual_style as string | null,
+                campaign.visual_style_custom as string | null,
+              ).slug,
+            }
           : {}),
         ...(campaign.visual_style_custom ? { visualStyleCustom: campaign.visual_style_custom as string } : {}),
       });
