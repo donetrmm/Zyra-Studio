@@ -14,6 +14,7 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { CreationWizard } from '@/components/creation/CreationWizard';
+import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
 
 export type CastCharacter = {
   id: string;
@@ -147,18 +148,6 @@ export function CastPage({
         </div>
       )}
     </div>
-  );
-}
-
-// Prompt de hoja maestra (doc V2 §4.4 + spec D tarea 2): retrato frontal
-// neutro de una persona ficticia, luz pareja — los criterios de calidad de
-// referencia que el Prompt Director espera. Concreto, sin slop.
-function buildMasterPrompt(description: string): string {
-  return (
-    `Frontal head-and-shoulders portrait of a fictional person: ${description}. ` +
-    'Neutral relaxed expression, looking straight at the camera, soft even studio lighting, ' +
-    'plain light gray seamless background, sharp focus on the face, natural skin texture, ' +
-    'no text, no watermark.'
   );
 }
 
@@ -303,7 +292,7 @@ function CharacterEditor({
         provider: 'flux' as const,
         model: 'flux-2-pro-preview' as const,
         variant: 'default' as const,
-        prompt: buildMasterPrompt(description.trim()),
+        prompt: buildCharacterMasterPrompt(description.trim()),
         aspectRatio: '3:4' as const,
         megapixels: 2 as const,
         photoreal: true,
