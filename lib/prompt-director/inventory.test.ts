@@ -114,6 +114,12 @@ describe('describeProductWeight', () => {
     expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 40 })).toContain('two people');
     expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 25 })!.startsWith(' ')).toBe(true);
   });
+
+  it('límites exactos de banda: 2kg, 10kg, 30kg', () => {
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 2 })).toContain('two-handed grip');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 10 })).toContain('visible effort');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 30 })).toContain('two people');
+  });
 });
 
 describe('describeProductScale — staging de piezas grandes', () => {
@@ -128,6 +134,26 @@ describe('describeProductScale — staging de piezas grandes', () => {
     const s = describeProductScale({ name: 'Taza', imagePaths: [], heightCm: 12 });
     expect(s).not.toContain('naturally rests');
     expect(s).not.toContain('pulling the camera back');
+  });
+
+  it('la cláusula de staging trae el carve-out de close-up/detail shot y de mover explícito', () => {
+    const s = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 });
+    expect(s).toContain('deliberate close-up or detail shot');
+    expect(s).toContain('carrying, moving or handing it over');
+  });
+
+  it('opts.staging === false omite la cláusula entera (escala y peso quedan intactos)', () => {
+    const s = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 }, { staging: false });
+    expect(s).not.toContain('naturally rests');
+    expect(s).not.toContain('pulling the camera back');
+    expect(s).toContain('150 cm tall');
+  });
+
+  it('pieza ancha-y-baja (100x20): la dimensión dominante manda', () => {
+    const s = describeProductScale({ name: 'Canvas panorámico', imagePaths: [], heightCm: 20, widthCm: 100 });
+    expect(s).not.toContain('small enough to hold in one hand');
+    expect(s).toContain('its longest side');
+    expect(s).toContain('naturally rests');
   });
 });
 
@@ -158,5 +184,14 @@ describe('stagingPlannerBlock', () => {
     const s = stagingPlannerBlock({ name: 'Canvas', heightCm: 150, weightKg: 12 });
     expect(s).toContain('STAGING PROPORCIONAL');
     expect(s).toContain('PESO DEL PRODUCTO');
+  });
+
+  it('también gatea por dimensión dominante (100x20)', () => {
+    expect(stagingPlannerBlock({ name: 'x', heightCm: 20, widthCm: 100 })).toContain('STAGING PROPORCIONAL');
+  });
+
+  it('el bloque de peso incluye el escape de física', () => {
+    const s = stagingPlannerBlock({ name: 'x', weightKg: 12 });
+    expect(s).toContain('salvo que la idea pida explícitamente romper la física');
   });
 });

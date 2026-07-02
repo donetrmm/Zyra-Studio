@@ -206,6 +206,23 @@ describe('compileRefinePrompt', () => {
     expect(p).not.toContain('Reproduce the product');
     expect(p).not.toContain('reference image');
   });
+
+  it('el refinado sandwich no recibe la directiva de encuadre (solo escala y peso)', () => {
+    const p = compileRefinePrompt('haz el marco más delgado', {
+      product: { name: 'Canvas', imagePaths: [], heightCm: 150, weightKg: 25 },
+    });
+    expect(p).not.toContain('pulling the camera back');
+    expect(p).toContain('150 cm');
+    expect(p).toContain('visible effort');
+  });
+
+  it('la cláusula de integración NUNCA entra a las rutas de edición', () => {
+    const p = compileRefinePrompt('mueve el cuadro a la pared', {
+      characters: [{ name: 'Ana', description: 'x', masterImagePath: 'p' }],
+      location: { description: 'sala cálida', imagePaths: [] },
+    } as never);
+    expect(p).not.toContain('cast soft contact shadows');
+  });
 });
 
 describe('sceneStyleDirective', () => {

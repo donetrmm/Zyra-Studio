@@ -121,7 +121,7 @@ export function ProductSizeEditor({
           Peso (kg)
           <Input
             type="number"
-            inputMode="numeric"
+            inputMode="decimal"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             className="w-24"

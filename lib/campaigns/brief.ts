@@ -38,6 +38,8 @@ export const ProductBriefSchema = z.object({
   medium: z.string().max(120).optional(),
   // Grosor del canto en mm (ej. canvas delgado ~10). Lo provee el usuario.
   thicknessMm: z.number().positive().max(500).optional(),
+  // Peso físico en kg (ej. mueble ~25). Lo provee el usuario (peso en kg).
+  weightKg: z.number().positive().max(1000).optional(),
 });
 export type ProductBrief = z.infer<typeof ProductBriefSchema>;
 

@@ -141,23 +141,42 @@ function trimRatio(n: number): string {
   return String(Math.round(n * 10) / 10);
 }
 
-export function describeProductScale(product?: ProductInventory): string {
+export function describeProductScale(
+  product?: ProductInventory,
+  opts?: { staging?: boolean },
+): string {
   if (!product) return '';
-  const size = product.heightCm ?? product.widthCm;
-  if (!size || size <= 0) return '';
-  const ratio = size / ADULT_REF_CM;
+  const heightRef = product.heightCm ?? product.widthCm;
+  if (!heightRef || heightRef <= 0) return '';
+  // La dimensión DOMINANTE decide "pieza grande": un panel 100x20cm es grande
+  // por su ancho aunque su alto (20cm) sea chico — usar solo heightCm subestimaba
+  // piezas anchas-y-bajas (fallo observado: "cabe en una mano" para un panel de
+  // 1 metro de largo).
+  const maxDim = Math.max(product.heightCm ?? 0, product.widthCm ?? 0);
+  const ratio = maxDim / ADULT_REF_CM;
+  const widthDominant = (product.widthCm ?? 0) > (product.heightCm ?? 0);
   // Las bandas altas dicen "clearly shorter than the person": el fallo observado
   // (canvas 150cm renderizado como panel de 2m+ que supera a la persona) es
   // agrandar, no encoger — el ancla necesita el límite superior explícito.
-  const proportion =
-    ratio < 0.12 ? 'small enough to hold in one hand'
-    : ratio < 0.25 ? 'about knee-high on a standing adult'
-    : ratio < 0.45 ? 'about thigh-to-waist high on a standing adult'
-    : ratio < 0.60 ? 'about waist-to-chest high on a standing adult'
-    : ratio < 0.80 ? "its top edge reaching an adult's chest, clearly shorter than the person"
-    : ratio < 0.95 ? "its top edge reaching an adult's shoulders, clearly shorter than the person"
-    : ratio < 1.10 ? 'about as tall as a standing adult'
-    : 'taller than a standing adult';
+  // Con dimensión dominante = ancho, la escalera describe el LADO MÁS LARGO
+  // como longitud (no como altura del objeto, que sería engañoso).
+  const proportion = widthDominant
+    ? ratio < 0.12 ? 'small enough to hold in one hand'
+      : ratio < 0.25 ? "its longest side about knee-height of a standing adult"
+      : ratio < 0.45 ? "its longest side about thigh-to-waist height of a standing adult"
+      : ratio < 0.60 ? "its longest side about waist-to-chest height of a standing adult"
+      : ratio < 0.80 ? "its longest side about chest-height of a standing adult"
+      : ratio < 0.95 ? "its longest side about shoulder-height of a standing adult"
+      : ratio < 1.10 ? 'its longest side about as long as a standing adult is tall'
+      : 'its longest side longer than a standing adult is tall'
+    : ratio < 0.12 ? 'small enough to hold in one hand'
+      : ratio < 0.25 ? 'about knee-high on a standing adult'
+      : ratio < 0.45 ? 'about thigh-to-waist high on a standing adult'
+      : ratio < 0.60 ? 'about waist-to-chest high on a standing adult'
+      : ratio < 0.80 ? "its top edge reaching an adult's chest, clearly shorter than the person"
+      : ratio < 0.95 ? "its top edge reaching an adult's shoulders, clearly shorter than the person"
+      : ratio < 1.10 ? 'about as tall as a standing adult'
+      : 'taller than a standing adult';
   // Ancla de interaccion: sin ella el modelo encoge piezas grandes a objeto de
   // mano cuando un personaje las sostiene (fallo observado: canvas de 150cm
   // sostenido con una mano como si fuera un libro).
@@ -172,10 +191,14 @@ export function describeProductScale(product?: ProductInventory): string {
   // lista cerrada: el modelo decide por lo que ES el producto) y con la cámara
   // suficientemente atrás para que quepa completa a escala real. Reconcilia el
   // safe crop: "grande" se logra alejando cámara, nunca rompiendo proporción.
-  // La excepción (cargar/entregar explícito) la cubre `carry`.
+  // La excepción (cargar/mover/entregar explícito, o un close-up/detail shot
+  // deliberado) la cubre el carve-out inicial + `carry`.
+  // `opts.staging === false` la omite entera: el refinado sandwich (edición
+  // conversacional) preserva composición y una directiva activa de re-encuadre
+  // ahí causa drift — ver compileRefinePrompt en lib/campaigns/storyboard.ts.
   const staging =
-    ratio >= 0.45
-      ? ' Unless the scene explicitly shows a person carrying it or handing it over, show the piece supported or placed the way this kind of object naturally rests in a real space, with any people beside it; frame the shot wide enough — pulling the camera back if needed — so the whole piece fits in frame at true scale next to the people. Never shrink the piece to make it fit the frame.'
+    opts?.staging !== false && ratio >= 0.45
+      ? ' Unless the beat is a deliberate close-up or detail shot, or the scene explicitly shows a person carrying, moving or handing it over, show the piece supported or placed the way this kind of object naturally rests in a real space, with any people beside it; frame the shot wide enough — pulling the camera back if needed — so the whole piece fits in frame at true scale next to the people. Never shrink the piece to make it fit the frame.'
       : '';
   const dims =
     product.heightCm && product.widthCm
@@ -236,9 +259,11 @@ export type PlannerProductFacts = {
 export function stagingPlannerBlock(product?: PlannerProductFacts): string {
   if (!product) return '';
   const parts: string[] = [];
-  const size = product.heightCm ?? product.widthCm;
-  const ratio = size && size > 0 ? size / ADULT_REF_CM : 0;
-  if (size && ratio >= 0.45) {
+  // Dimensión DOMINANTE (max de alto/ancho): mismo criterio que describeProductScale
+  // (Fix 2026-07-02) — un panel ancho-y-bajo es grande por su ancho.
+  const size = Math.max(product.heightCm ?? 0, product.widthCm ?? 0);
+  const ratio = size > 0 ? size / ADULT_REF_CM : 0;
+  if (size > 0 && ratio >= 0.45) {
     const dims =
       product.heightCm && product.widthCm
         ? `${product.heightCm}x${product.widthCm} cm`
@@ -257,7 +282,7 @@ export function stagingPlannerBlock(product?: PlannerProductFacts): string {
           ? 'con esfuerzo visible: dos manos, postura firme, movimiento lento y cuidadoso'
           : 'sin cargarlo de forma casual: se arrastra, se inclina con cuidado o lo mueven dos personas';
     parts.push(
-      `\nPESO DEL PRODUCTO: pesa ~${kg} kg. Cuando un personaje lo mueva, cargue o entregue, descríbelo ${esfuerzo}; nunca lo maneja como si no pesara.`,
+      `\nPESO DEL PRODUCTO: pesa ~${kg} kg. Cuando un personaje lo mueva, cargue o entregue, descríbelo ${esfuerzo}; nunca lo maneja como si no pesara, salvo que la idea pida explícitamente romper la física.`,
     );
   }
   return parts.join('');
