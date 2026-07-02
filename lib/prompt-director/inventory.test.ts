@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeProduct, describeProductScale, ADULT_REF_CM } from './inventory';
+import { describeProduct, describeProductScale, describeProductWeight, stagingPlannerBlock, ADULT_REF_CM } from './inventory';
 
 describe('describeProduct — objeto vs impreso', () => {
   const base = { name: 'X', palette: ['red'], imagePaths: [] as string[], visualDetails: 'a family party photo' };
@@ -98,5 +98,65 @@ describe('describeProductScale', () => {
 
   it('ADULT_REF_CM es 170', () => {
     expect(ADULT_REF_CM).toBe(170);
+  });
+});
+
+describe('describeProductWeight', () => {
+  it('sin producto, sin peso o ligero (<2kg): vacío', () => {
+    expect(describeProductWeight()).toBe('');
+    expect(describeProductWeight({ name: 'x', imagePaths: [] })).toBe('');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 1 })).toBe('');
+  });
+
+  it('bandas: medio (2-10), pesado (10-30), muy pesado (>=30)', () => {
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 5 })).toContain('two-handed grip');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 25 })).toContain('visible effort');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 40 })).toContain('two people');
+    expect(describeProductWeight({ name: 'x', imagePaths: [], weightKg: 25 })!.startsWith(' ')).toBe(true);
+  });
+});
+
+describe('describeProductScale — staging de piezas grandes', () => {
+  it('pieza grande (>=0.45 de un adulto): colocación natural + cámara atrás, nunca encoger', () => {
+    const s = describeProductScale({ name: 'Canvas', imagePaths: [], heightCm: 150 });
+    expect(s).toContain('naturally rests');
+    expect(s).toContain('pulling the camera back');
+    expect(s).toContain('Never shrink the piece');
+  });
+
+  it('pieza chica: sin cláusula de staging (comportamiento actual)', () => {
+    const s = describeProductScale({ name: 'Taza', imagePaths: [], heightCm: 12 });
+    expect(s).not.toContain('naturally rests');
+    expect(s).not.toContain('pulling the camera back');
+  });
+});
+
+describe('stagingPlannerBlock', () => {
+  it('sin producto o sin datos físicos: vacío', () => {
+    expect(stagingPlannerBlock()).toBe('');
+    expect(stagingPlannerBlock({ name: 'x' })).toBe('');
+    expect(stagingPlannerBlock({ name: 'Taza', heightCm: 12 })).toBe('');
+  });
+
+  it('pieza grande: staging natural por tipo, con excepción de carga explícita', () => {
+    const s = stagingPlannerBlock({ name: 'Canvas', medium: 'canvas', heightCm: 150 });
+    expect(s).toContain('STAGING PROPORCIONAL');
+    expect(s).toContain('NO lo pongas en las manos');
+    expect(s).toContain('reposa de forma natural');
+    expect(s).toContain('Excepción');
+    expect(s.startsWith('\n')).toBe(true);
+  });
+
+  it('peso: bandas de esfuerzo; ligero no emite', () => {
+    expect(stagingPlannerBlock({ name: 'x', weightKg: 5 })).toContain('PESO DEL PRODUCTO');
+    expect(stagingPlannerBlock({ name: 'x', weightKg: 25 })).toContain('esfuerzo visible');
+    expect(stagingPlannerBlock({ name: 'x', weightKg: 40 })).toContain('dos personas');
+    expect(stagingPlannerBlock({ name: 'x', weightKg: 1 })).toBe('');
+  });
+
+  it('tamaño y peso a la vez: ambos bloques', () => {
+    const s = stagingPlannerBlock({ name: 'Canvas', heightCm: 150, weightKg: 12 });
+    expect(s).toContain('STAGING PROPORCIONAL');
+    expect(s).toContain('PESO DEL PRODUCTO');
   });
 });

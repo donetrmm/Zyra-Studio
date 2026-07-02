@@ -167,6 +167,16 @@ export function describeProductScale(product?: ProductInventory): string {
     : ratio < 0.80 ? ' If a person carries it, it takes both arms and covers them from thighs to chest; never render it as a small hand-held object.'
     : ratio < 1.10 ? ' If a person carries it, it takes both arms and covers them from knees to shoulders; never render it as a small hand-held board.'
     : ' Carrying it visibly dwarfs a single person; it cannot be casually held.';
+  // Staging/encuadre para piezas grandes (spec 2026-07-02): la preferencia es
+  // NO cargarla — colocada como ese TIPO de objeto reposa naturalmente (sin
+  // lista cerrada: el modelo decide por lo que ES el producto) y con la cámara
+  // suficientemente atrás para que quepa completa a escala real. Reconcilia el
+  // safe crop: "grande" se logra alejando cámara, nunca rompiendo proporción.
+  // La excepción (cargar/entregar explícito) la cubre `carry`.
+  const staging =
+    ratio >= 0.45
+      ? ' Unless the scene explicitly shows a person carrying it or handing it over, show the piece supported or placed the way this kind of object naturally rests in a real space, with any people beside it; frame the shot wide enough — pulling the camera back if needed — so the whole piece fits in frame at true scale next to the people. Never shrink the piece to make it fit the frame.'
+      : '';
   const dims =
     product.heightCm && product.widthCm
       ? `about ${product.heightCm} cm tall and ${product.widthCm} cm wide`
@@ -188,5 +198,67 @@ export function describeProductScale(product?: ProductInventory): string {
     }
     shape += ' — keep this exact aspect ratio';
   }
-  return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.${carry}`;
+  return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.${carry}${staging}`;
+}
+
+// Peso físico → interacción (spec 2026-07-02). EN, para compilers de imagen y
+// video (donde "lo mueve como si no pesara" más se nota). '' sin dato o <2kg;
+// empieza con espacio (concatenable, mismo contrato que describeProductScale).
+export function describeProductWeight(product?: ProductInventory): string {
+  const kg = product?.weightKg;
+  if (!kg || kg < 2) return '';
+  const interaction =
+    kg < 10
+      ? 'When a person lifts, carries or hands it over, they use a firm two-handed grip and their posture shows its clear heft; it is never tossed or waved around like a light prop.'
+      : kg < 30
+        ? 'Lifting or moving it takes visible effort — two hands, braced posture, slow deliberate movement; a person never swings it or handles it casually.'
+        : 'It is too heavy for one person to carry casually: moving it means dragging it, tilting it carefully, or two people lifting together; a single person never lifts it with ease.';
+  return ` The product weighs about ${kg} kg. ${interaction}`;
+}
+
+// Datos físicos mínimos del producto para los SYSTEM prompts de AUTORÍA de
+// escenas (matcher y asistente de refinado) — en español, porque esos SYSTEM
+// son en español. Independiente de ProductInventory: el planner no maneja
+// paths de imágenes.
+export type PlannerProductFacts = {
+  name?: string;
+  category?: string;
+  medium?: string;
+  heightCm?: number;
+  widthCm?: number;
+  weightKg?: number;
+};
+
+// Bloque de staging proporcional + peso para el planner (spec 2026-07-02).
+// Preferencia con excepción (decisión del usuario): default no-en-manos con
+// colocación natural POR TIPO (ejemplos ilustrativos, no lista cerrada);
+// cargar/entregar se permite si la idea lo pide explícito. '' sin datos.
+export function stagingPlannerBlock(product?: PlannerProductFacts): string {
+  if (!product) return '';
+  const parts: string[] = [];
+  const size = product.heightCm ?? product.widthCm;
+  const ratio = size && size > 0 ? size / ADULT_REF_CM : 0;
+  if (size && ratio >= 0.45) {
+    const dims =
+      product.heightCm && product.widthCm
+        ? `${product.heightCm}x${product.widthCm} cm`
+        : `${size} cm`;
+    const tipo = [product.medium, product.category].filter(Boolean).join(' / ');
+    parts.push(
+      `\nSTAGING PROPORCIONAL: el producto${tipo ? ` (${tipo})` : ''} mide ~${dims} — una pieza GRANDE respecto a una persona. Por defecto NO lo pongas en las manos de nadie: colócalo donde ese tipo de objeto vive o reposa de forma natural en la escena — decide según qué es el producto (un cuadro cuelga de la pared o va sobre un soporte; una lámpara de pie va al suelo; un mueble se asienta en el piso; una tabla se recarga) — con las personas AL LADO, y describe un plano suficientemente abierto para que la pieza completa se vea proporcional junto a ellas y quepa entera en el encuadre. Excepción: si la idea pide explícitamente cargarlo, moverlo o entregarlo, se permite — descríbelo a dos brazos y con la pieza cubriendo gran parte del cuerpo, nunca como objeto pequeño de mano.`,
+    );
+  }
+  const kg = product.weightKg;
+  if (kg && kg >= 2) {
+    const esfuerzo =
+      kg < 10
+        ? 'con agarre firme a dos manos y el peso evidente en la postura'
+        : kg < 30
+          ? 'con esfuerzo visible: dos manos, postura firme, movimiento lento y cuidadoso'
+          : 'sin cargarlo de forma casual: se arrastra, se inclina con cuidado o lo mueven dos personas';
+    parts.push(
+      `\nPESO DEL PRODUCTO: pesa ~${kg} kg. Cuando un personaje lo mueva, cargue o entregue, descríbelo ${esfuerzo}; nunca lo maneja como si no pesara.`,
+    );
+  }
+  return parts.join('');
 }

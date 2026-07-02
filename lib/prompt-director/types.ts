@@ -55,6 +55,10 @@ export type ProductInventory = {
   medium?: string;
   // Grosor del canto en mm (ej. canvas delgado ~10). Declarado por el usuario.
   thicknessMm?: number;
+  // Peso físico declarado en kg (opcional, jsonb product_brief). Ancla la
+  // INTERACCIÓN (cómo se carga/mueve, con qué esfuerzo) — complemento del
+  // tamaño, que ancla la PROPORCIÓN. Ausente = sin ancla (cero cambio).
+  weightKg?: number;
   imagePaths: string[];        // multi-ángulo del Brand Kit
   // AM: descripcion de uso por imagen (path -> "three-quarter view"). El compiler
   // la cita junto a la referencia. Opcional; ausente = cita sin uso.
