@@ -46,8 +46,10 @@ const POLL_TIMEOUT_MS = 30_000;
 // suprimían la directiva — FLUX entonces ignoraba las refs silenciosamente.
 const REF_MENTION_RE = /\b(image|imagen|ref)\s*\d+/i;
 
+// Lenguaje de CAPTURA, no de render: "photoreal/cinematic" etiquetan renders CG
+// en los datos de entrenamiento y producían el look de IA (plan 2026-07-02).
 const PHOTOREAL_DIRECTIVE =
-  'Photoreal cinematic photography, sharp focus, natural lighting, fine micro-details, professional camera, accurate skin tones.';
+  'A real photograph captured with a full-frame camera: believable ambient light with soft contact shadows, true-to-life colors, natural skin with visible texture, honest materials, sharp focus.';
 
 function buildPrompt(params: FluxParams, refCount: number): string {
   let prompt = params.prompt.trim();
