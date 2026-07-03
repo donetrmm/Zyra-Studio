@@ -2719,6 +2719,9 @@ export async function getReferencePoolAction(campaignId: string): Promise<
     entries: (ReferencePoolEntry & { thumbUrl: string | null })[];
     texts: ReferencePoolTexts;
     include: string[] | null;
+    // Hechos de construcción VIGENTES del brief: el dialog los muestra para que
+    // se vea lo ya aplicado (por análisis o a mano) sin re-analizar.
+    brief: { medium: string | null; thicknessMm: number | null; visualDetails: string | null };
   }>
 > {
   if (typeof campaignId !== 'string' || !campaignId) return { ok: false, error: 'validation_error' };
@@ -2747,7 +2750,14 @@ export async function getReferencePoolAction(campaignId: string): Promise<
     })),
   );
   const selection = normalizeReferenceSelection(campaign.reference_selection ?? null);
-  return { ok: true, data: { entries, texts: pool.texts, include: selection?.include ?? null } };
+  const rawBrief = (campaign.product_brief as Record<string, unknown> | null) ?? {};
+  const brief = {
+    medium: typeof rawBrief.medium === 'string' && rawBrief.medium ? rawBrief.medium : null,
+    thicknessMm: typeof rawBrief.thicknessMm === 'number' ? rawBrief.thicknessMm : null,
+    visualDetails:
+      typeof rawBrief.visualDetails === 'string' && rawBrief.visualDetails ? rawBrief.visualDetails : null,
+  };
+  return { ok: true, data: { entries, texts: pool.texts, include: selection?.include ?? null, brief } };
 }
 
 // Guarda la selección (o null = automático). include se intersecta con el pool

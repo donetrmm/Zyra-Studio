@@ -119,6 +119,9 @@ describe('buildReferencePool', () => {
     // Producto: los primeros 3 entran por default (tope automático), el 4to no.
     expect(byPath.get('p/1.jpg')).toMatchObject({ category: 'product', autoIncluded: true, label: 'Cuadro — frontal' });
     expect(byPath.get('p/4.jpg')).toMatchObject({ category: 'product', autoIncluded: false });
+    // El uso persistido viaja en la entrada (visible en el dialog sin re-analizar).
+    expect(byPath.get('p/1.jpg')?.usage).toBe('frontal');
+    expect(byPath.get('p/2.jpg')?.usage).toBeUndefined();
     // Empaque: tope automático 2.
     expect(byPath.get('pk/2.jpg')?.autoIncluded).toBe(true);
     expect(byPath.get('pk/3.jpg')?.autoIncluded).toBe(false);

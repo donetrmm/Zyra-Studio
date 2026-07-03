@@ -77,6 +77,12 @@ export function ReferencePoolDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // true = la campaña no tiene selección guardada (recorte automático).
   const [storedIsAuto, setStoredIsAuto] = useState(true);
+  // Hechos de construcción vigentes del brief (lo ya aplicado, visible siempre).
+  const [currentBrief, setCurrentBrief] = useState<{
+    medium: string | null;
+    thicknessMm: number | null;
+    visualDetails: string | null;
+  } | null>(null);
   // Análisis con IA de las imágenes de producto: propuesta editable antes de
   // aplicar (usos por imagen -> media_references; hechos -> product_brief).
   const [analyzing, setAnalyzing] = useState(false);
@@ -119,6 +125,8 @@ export function ReferencePoolDialog({
     if (res.ok) {
       toast.success('Análisis aplicado · los usos y el brief anclan la próxima generación');
       setProposal(null);
+      // Recargar el pool: los usos/brief recién aplicados quedan visibles al instante.
+      void loadPool();
     } else {
       toast.error(res.message ?? 'No se pudo aplicar el análisis');
     }
@@ -135,6 +143,7 @@ export function ReferencePoolDialog({
     }
     setEntries(res.data.entries);
     setTexts(res.data.texts);
+    setCurrentBrief(res.data.brief);
     const stored = res.data.include;
     setStoredIsAuto(stored === null);
     // Estado inicial: la selección guardada (+ masters, siempre viajan) o, en
@@ -243,7 +252,7 @@ export function ReferencePoolDialog({
                         onClick={() => toggle(e)}
                         aria-pressed={on}
                         disabled={e.locked}
-                        title={e.locked ? `${e.label} · siempre viaja` : e.label}
+                        title={`${e.label}${e.locked ? ' · siempre viaja' : ''}${e.usage ? `\nUso: ${e.usage}` : ''}`}
                         className={`group relative aspect-square overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
                           on ? 'border-primary ring-1 ring-primary/40' : 'border-border opacity-55 hover:opacity-80'
                         } ${e.locked ? 'cursor-default' : ''}`}
@@ -264,8 +273,34 @@ export function ReferencePoolDialog({
                     );
                   })}
                 </div>
+                {/* Usos vigentes (aplicados por análisis o a mano): visibles sin
+                    re-analizar; el caption del thumbnail los trunca. */}
+                {cat === 'product' && items.some((e) => e.usage) && (
+                  <ul className="mt-1.5 flex flex-col gap-0.5">
+                    {items
+                      .filter((e) => e.usage)
+                      .map((e, i) => (
+                        <li key={e.path} className="text-[11px] leading-snug text-muted-foreground">
+                          Imagen {i + 1}: {e.usage}
+                        </li>
+                      ))}
+                  </ul>
+                )}
               </div>
             ))}
+
+            {currentBrief && (currentBrief.medium || currentBrief.thicknessMm || currentBrief.visualDetails) && (
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Brief vigente:{' '}
+                {[
+                  currentBrief.medium,
+                  currentBrief.thicknessMm ? `${currentBrief.thicknessMm} mm de grosor` : null,
+                  currentBrief.visualDetails,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className={`text-[12px] ${over > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>

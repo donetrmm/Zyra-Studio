@@ -137,6 +137,9 @@ export type ReferencePoolEntry = {
   // Lo que el recorte AUTOMÁTICO mandaría (aprox.: los ángulos de cast dependen
   // del presupuesto por clip; se marca el mejor caso y la UI lo aclara en copy).
   autoIncluded: boolean;
+  // Uso PERSISTIDO de la imagen (usage_description): lo que ya se aplicó de un
+  // análisis previo o se escribió a mano. Visible en el dialog sin re-analizar.
+  usage?: string;
 };
 
 export type ReferencePoolInput = {
@@ -171,6 +174,7 @@ export function buildReferencePool(input: ReferencePoolInput): ReferencePoolEntr
       category: 'product',
       label: usage ? `${productName} — ${usage}` : productName,
       autoIncluded: i < AUTO_PRODUCT_CAP,
+      ...(usage ? { usage } : {}),
     });
   });
   input.packagingImagePaths.forEach((path, i) => {
