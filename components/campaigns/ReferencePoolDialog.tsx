@@ -211,7 +211,11 @@ export function ReferencePoolDialog({
           Referencias
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      {/* flex-col + cuerpo scrolleable: el DialogContent base es un grid centrado
+          por transform y scrollear TODO el contenido desbordaba el modal cuando
+          el panel del análisis crecía. Header y footer quedan fijos; solo el
+          cuerpo scrollea (min-h-0 permite que el flex hijo encoja). */}
+      <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Referencias de la campaña</DialogTitle>
           <DialogDescription>
@@ -221,6 +225,7 @@ export function ReferencePoolDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -231,7 +236,7 @@ export function ReferencePoolDialog({
             Esta campaña no tiene referencias de imagen (brand kit, cast o locaciones).
           </p>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             {grouped.map(({ cat, items }) => (
               <div key={cat}>
                 <p className="mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -280,7 +285,7 @@ export function ReferencePoolDialog({
                     {items
                       .filter((e) => e.usage)
                       .map((e, i) => (
-                        <li key={e.path} className="text-[11px] leading-snug text-muted-foreground">
+                        <li key={e.path} className="break-words text-[11px] leading-snug text-muted-foreground">
                           Imagen {i + 1}: {e.usage}
                         </li>
                       ))}
@@ -290,7 +295,7 @@ export function ReferencePoolDialog({
             ))}
 
             {currentBrief && (currentBrief.medium || currentBrief.thicknessMm || currentBrief.visualDetails) && (
-              <p className="text-[11px] leading-snug text-muted-foreground">
+              <p className="break-words text-[11px] leading-snug text-muted-foreground">
                 Brief vigente:{' '}
                 {[
                   currentBrief.medium,
@@ -326,7 +331,7 @@ export function ReferencePoolDialog({
             </div>
 
             {proposal && (
-              <div className="flex flex-col gap-2 rounded-lg border border-primary/40 bg-card/60 p-3">
+              <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-primary/40 bg-card/60 p-3">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Propuesta del análisis — revisa y edita antes de aplicar
                 </p>
@@ -422,7 +427,7 @@ export function ReferencePoolDialog({
                 </p>
                 {texts.product && (
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-[12px] leading-snug text-foreground/80">{texts.product}</p>
+                    <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">{texts.product}</p>
                     <Button asChild variant="ghost" size="sm" className="shrink-0">
                       <Link href="/app/brand-kits">
                         <PencilLine className="size-3" aria-hidden />
@@ -433,7 +438,7 @@ export function ReferencePoolDialog({
                 )}
                 {texts.characters.map((c) => (
                   <div key={c.name} className="flex items-start justify-between gap-2">
-                    <p className="text-[12px] leading-snug text-foreground/80">{c.text}</p>
+                    <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">{c.text}</p>
                     <Button asChild variant="ghost" size="sm" className="shrink-0">
                       <Link href="/app/cast">
                         <PencilLine className="size-3" aria-hidden />
@@ -444,7 +449,7 @@ export function ReferencePoolDialog({
                 ))}
                 {texts.locations.map((l) => (
                   <div key={l.name} className="flex items-start justify-between gap-2">
-                    <p className="text-[12px] leading-snug text-foreground/80">
+                    <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">
                       {l.name}
                       {l.description ? `: ${l.description}` : ''}
                     </p>
@@ -460,6 +465,7 @@ export function ReferencePoolDialog({
             )}
           </div>
         )}
+        </div>
 
         <DialogFooter className="gap-2">
           <Button type="button" variant="outline" size="sm" disabled={saving || loading} onClick={handleReset}>
