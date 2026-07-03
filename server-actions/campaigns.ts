@@ -40,8 +40,11 @@ import {
   GenerateSeriesSchema,
   MergeSequenceSchema,
   RequestFinalSchema,
+  SetReferenceSelectionSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
+import { loadReferencePool } from '@/lib/campaigns/reference-pool';
+import { normalizeReferenceSelection, type ReferencePoolEntry } from '@/lib/campaigns/reference-selection';
 import { mergeScenes } from '@/lib/campaigns/merge';
 import { type StudioItem, toStudioItem } from '@/lib/campaigns/studio-item';
 import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
@@ -49,7 +52,7 @@ import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { buildSeries, buildTemplateParams, type TemplateFixedParams, type TemplateSlots } from '@/lib/campaigns/distill';
 import { copyOutputVideoToReferences } from '@/lib/campaigns/video-ref';
 import { buildCampaignCsv, type CsvRow } from '@/lib/campaigns/report';
-import { signedOutputUrl } from '@/lib/supabase/storage';
+import { signedOutputUrl, signedReferenceUrl } from '@/lib/supabase/storage';
 import { compile, fromFormatRow, type FormatDirection } from '@/lib/prompt-director';
 import { DIALOGUE_LANGUAGE } from '@/lib/prompt-director/compilers/seedance';
 import { matchIdeas, type MatcherImage } from '@/lib/prompt-director/format-matcher';
@@ -1433,7 +1436,7 @@ export async function generateItemAction(
   // reusando el orquestador para un único item.
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom')
+    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom, reference_selection')
     .eq('id', item.campaign_id as string)
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
@@ -1477,6 +1480,7 @@ export async function generateItemAction(
       creative_guidelines: (campaign.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
+      reference_selection: (campaign.reference_selection as Record<string, unknown> | null) ?? null,
     },
     items: [{ ...item, status: 'planned' }] as never,
     formats: formatsMap as never,
@@ -1504,7 +1508,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom, reference_selection')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -1552,6 +1556,7 @@ export async function approveBatchAction(
       creative_guidelines: (campaign.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
+      reference_selection: (campaign.reference_selection as Record<string, unknown> | null) ?? null,
     },
     items: itemRows as never,
     formats: formatsMap,
@@ -2692,4 +2697,92 @@ export async function assignSequenceLocationAction(
   if (error) return { ok: false, error: 'internal_error' };
   revalidatePath(`/app/campaigns/${campaignId}`);
   return { ok: true };
+}
+
+// --- Selector de referencias de video (054) ---------------------------------
+
+const REFERENCE_POOL_CAMPAIGN_COLS =
+  'id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, reference_selection';
+
+// Pool de candidatos + selección vigente, con thumbnails firmados. Se carga al
+// abrir el dialog (no en el page load: firmar ~30 URLs por render sería gratis
+// para nadie).
+export async function getReferencePoolAction(campaignId: string): Promise<
+  Result<{
+    entries: (ReferencePoolEntry & { thumbUrl: string | null })[];
+    include: string[] | null;
+  }>
+> {
+  if (typeof campaignId !== 'string' || !campaignId) return { ok: false, error: 'validation_error' };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select(REFERENCE_POOL_CAMPAIGN_COLS)
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  const pool = await loadReferencePool(workspace.id, {
+    id: campaign.id as string,
+    brand_kit_id: campaign.brand_kit_id as string | null,
+    product_brief: campaign.product_brief as Record<string, unknown> | null,
+    language: campaign.language as string | null,
+    include_packaging: campaign.include_packaging as boolean | null,
+    music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+  });
+  const entries = await Promise.all(
+    pool.map(async (e) => ({
+      ...e,
+      thumbUrl: await signedReferenceUrl(e.path).catch(() => null),
+    })),
+  );
+  const selection = normalizeReferenceSelection(campaign.reference_selection ?? null);
+  return { ok: true, data: { entries, include: selection?.include ?? null } };
+}
+
+// Guarda la selección (o null = automático). include se intersecta con el pool
+// REAL antes de persistir: un path forjado no se guarda, y si nada intersecta se
+// rechaza (guardarlo dejaría la campaña sin referencias sin que se note).
+export async function setReferenceSelectionAction(input: unknown): Promise<Result<{ savedCount: number | null }>> {
+  const parsed = SetReferenceSelectionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { campaignId, include } = parsed.data;
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select(REFERENCE_POOL_CAMPAIGN_COLS)
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  let value: { include: string[] } | null = null;
+  if (include !== null) {
+    const pool = await loadReferencePool(workspace.id, {
+      id: campaign.id as string,
+      brand_kit_id: campaign.brand_kit_id as string | null,
+      product_brief: campaign.product_brief as Record<string, unknown> | null,
+      language: campaign.language as string | null,
+      include_packaging: campaign.include_packaging as boolean | null,
+      music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+    });
+    const valid = new Set(pool.map((e) => e.path));
+    const kept = [...new Set(include)].filter((p) => valid.has(p));
+    if (kept.length === 0) {
+      return { ok: false, error: 'validation_error', message: 'La selección no coincide con ninguna referencia de la campaña' };
+    }
+    value = { include: kept };
+  }
+
+  const { error } = await supabase
+    .from('campaigns')
+    .update({ reference_selection: value })
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id);
+  if (error) return { ok: false, error: 'internal_error' };
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, data: { savedCount: value ? value.include.length : null } };
 }

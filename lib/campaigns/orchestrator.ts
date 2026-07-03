@@ -17,6 +17,7 @@ import { selectBatchItems } from './batch-selection';
 import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/campaigns/storyboard-video';
+import { applyReferenceSelection, normalizeReferenceSelection } from './reference-selection';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from './guidelines';
 import { getStyleProfile, type VisualStyle } from '@/lib/prompt-director/style-profiles';
 
@@ -132,7 +133,8 @@ export type CampaignContext = {
 };
 
 // Resuelve media_references ids → storage paths, validando workspace.
-async function resolvePaths(
+// Exportada: el pool del selector de referencias (reference-pool.ts) la reusa.
+export async function resolvePaths(
   supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string,
   ids: string[],
@@ -757,6 +759,8 @@ export async function enqueueBatch(params: {
     // Perfil de estilo visual (051). Callers viejos pueden no seleccionarla.
     visual_style?: string | null;
     visual_style_custom?: string | null;
+    // Selección manual de referencias (054). Callers viejos pueden no seleccionarla.
+    reference_selection?: Record<string, unknown> | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;
@@ -771,6 +775,10 @@ export async function enqueueBatch(params: {
 
   const characterIds = [...new Set(selected.flatMap((i) => itemCharacterIds(i)))];
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
+  // Selección manual de referencias de la campaña (054): se aplica UPSTREAM al
+  // DirectorContext de cada item (nunca post-filtro: las citas @imageN del
+  // compiler están amarradas al orden). null = recorte automático.
+  const refSelection = normalizeReferenceSelection(campaign.reference_selection ?? null);
   const pricing = await loadPricing();
   const supabase = await createClient();
   const templateVideos = await loadTemplateVideoPaths(supabase, selected);
@@ -882,17 +890,20 @@ export async function enqueueBatch(params: {
     const panelPath = item.storyboard_image_id ? storyboardPanels.get(item.storyboard_image_id) : undefined;
     const storyboardMode = !!panelPath;
 
-    const baseDirCtx = directorContextFor(
-      item,
-      format,
-      ctx,
-      item.template_id ? templateVideos.get(item.template_id) : undefined,
-      (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
-      (() => {
-        const loc = item.location_id ? locations.get(item.location_id) : undefined;
-        if (!loc) return undefined;
-        return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
-      })(),
+    const baseDirCtx = applyReferenceSelection(
+      directorContextFor(
+        item,
+        format,
+        ctx,
+        item.template_id ? templateVideos.get(item.template_id) : undefined,
+        (item.reference_ids ?? []).map((id) => extraPaths.get(id)).filter((p): p is string => !!p),
+        (() => {
+          const loc = item.location_id ? locations.get(item.location_id) : undefined;
+          if (!loc) return undefined;
+          return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
+        })(),
+      ),
+      refSelection,
     );
     const dirCtx = storyboardMode ? onlyCharacterRefs(baseDirCtx) : baseDirCtx;
 

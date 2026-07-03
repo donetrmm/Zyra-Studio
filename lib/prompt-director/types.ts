@@ -120,6 +120,10 @@ export type DirectorContext = {
   // Perfil de estilo visual de la campaña (plan 2026-07-02). Ausente =
   // ultra_realista (default). custom solo viaja cuando slug === 'custom'.
   style?: { slug: import('./style-profiles').VisualStyle; custom?: string };
+  // Selección manual de referencias activa (applyReferenceSelection): las listas
+  // de imágenes YA vienen filtradas por el usuario, así que los topes por
+  // categoría de buildReferences se levantan (el tope global de 9 queda de red).
+  manualRefs?: boolean;
 };
 
 export type CompileRequest = {

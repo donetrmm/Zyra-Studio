@@ -52,6 +52,7 @@ import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
+import { ReferencePoolDialog } from './ReferencePoolDialog';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -365,6 +366,7 @@ export function CampaignStudioView({
             </Link>
           </Button>
           <span className="h-4 w-px bg-border/60" aria-hidden />
+          <ReferencePoolDialog campaignId={campaign.id} />
           <Button
             type="button"
             variant="outline"

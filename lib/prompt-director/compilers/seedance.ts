@@ -185,9 +185,15 @@ export function buildReferences(ctx: DirectorContext): {
     return imageN;
   };
 
+  // Selección manual (applyReferenceSelection): las listas ya vienen filtradas
+  // por el usuario, así que los topes POR CATEGORÍA se levantan — el usuario es
+  // el presupuesto. El tope global de 9 (pushImage) sigue siendo la red.
+  const manual = ctx.manualRefs === true;
   // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
   // dejar slots libres; el Brand Kit puede traer más.
-  const productImages = ctx.product?.imagePaths.slice(0, 3) ?? [];
+  // En manual no se pre-recorta: pushImage aplica el tope de 9 y CUENTA los
+  // drops (el pre-slice silenciaba el warning de recorte).
+  const productImages = ctx.product?.imagePaths.slice(0, manual ? Infinity : 3) ?? [];
   const productUsages = ctx.product?.imageUsages ?? {};
   for (const path of productImages) {
     const usage = productUsages[path];
@@ -207,7 +213,7 @@ export function buildReferences(ctx: DirectorContext): {
   }
 
   // Empaque (solo si el formato lo exige está en el contexto).
-  const packagingImages = ctx.product?.packagingImagePaths?.slice(0, 2) ?? [];
+  const packagingImages = ctx.product?.packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [];
   for (const path of packagingImages) {
     pushImage(path, 'packaging', (n) => `@image${n} is the product packaging, shown exactly as in the reference.`);
   }
@@ -215,7 +221,8 @@ export function buildReferences(ctx: DirectorContext): {
   // Personajes: presupuesto de ángulos según cuántos van en escena
   // (1 → master+2, 2 → master+1, 3 → solo master), para caber en 9 imágenes.
   const characters = (ctx.characters ?? []).slice(0, 3);
-  const anglesPer = characters.length >= 3 ? 0 : characters.length === 2 ? 1 : 2;
+  // Manual: los ángulos ya son exactamente los elegidos, no re-recortar por presupuesto.
+  const anglesPer = manual ? Infinity : characters.length >= 3 ? 0 : characters.length === 2 ? 1 : 2;
   for (const character of characters) {
     if (!character.masterImagePath) continue;
     const stateLabel = character.stateLabel;

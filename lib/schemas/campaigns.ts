@@ -209,6 +209,14 @@ export const MergeSequenceSchema = z.object({
   campaignId: z.string().uuid(),
 });
 
+// Selección manual de referencias de video (054). include = storage paths del
+// pool de la campaña; null = volver al recorte automático. El server intersecta
+// con el pool real antes de persistir (paths forjados no se guardan).
+export const SetReferenceSelectionSchema = z.object({
+  campaignId: z.string().uuid(),
+  include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
+});
+
 // Agregar un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
 // El modelo y el caption los decide el server (tier draft + caption generado).
 export const AddCampaignItemSchema = z.object({
