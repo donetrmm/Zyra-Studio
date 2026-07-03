@@ -11,6 +11,7 @@ import {
   physicsClause,
   sceneStyleDirective,
   stripDialogueForPanel,
+  chatRefPathsFor,
 } from './storyboard';
 
 describe('beatsNeedingPanel', () => {
@@ -332,5 +333,36 @@ describe('perfil de estilo en las directivas del panel', () => {
   it('perfil ultra_realista explícito sigue emitiendo el realismo humano', () => {
     const ctx = { ...(withChar as object), style: { slug: 'ultra_realista' as const } } as never;
     expect(humanRealismDirective(ctx, 'she smiles at the camera')).toContain('photographed human beings');
+  });
+});
+
+describe('chatRefPathsFor — refs que viajan en el turno de chat según los toggles', () => {
+  const refs = [
+    { storagePath: 'p/1.jpg', role: 'product' },
+    { storagePath: 'p/2.jpg', role: 'product' },
+    { storagePath: 'c/m.jpg', role: 'character' },
+    { storagePath: 'l/sala.jpg', role: 'environment' },
+  ];
+
+  it('sin toggles no viaja nada', () => {
+    expect(chatRefPathsFor(refs, { product: false, character: false, location: false })).toEqual([]);
+  });
+
+  it('cada toggle adjunta su rol; locación usa el rol environment', () => {
+    expect(chatRefPathsFor(refs, { product: true, character: false, location: true })).toEqual([
+      'p/1.jpg',
+      'p/2.jpg',
+      'l/sala.jpg',
+    ]);
+    expect(chatRefPathsFor(refs, { product: false, character: true, location: false })).toEqual(['c/m.jpg']);
+  });
+
+  it('orden estable: producto, personaje, locación', () => {
+    expect(chatRefPathsFor(refs, { product: true, character: true, location: true })).toEqual([
+      'p/1.jpg',
+      'p/2.jpg',
+      'c/m.jpg',
+      'l/sala.jpg',
+    ]);
   });
 });

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Images, Loader2, RotateCcw } from 'lucide-react';
+import Link from 'next/link';
+import { Images, Loader2, PencilLine, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,8 +15,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { getReferencePoolAction, setReferenceSelectionAction } from '@/server-actions/campaigns';
-// Type-only: reference-selection es módulo de server pero los tipos se borran al compilar.
-import type { ReferencePoolCategory, ReferencePoolEntry } from '@/lib/campaigns/reference-selection';
+// reference-selection es un módulo puro sin IO: CATEGORY_APPLIES (valor) es
+// seguro en cliente; los tipos se borran al compilar.
+import {
+  CATEGORY_APPLIES,
+  type ReferencePoolCategory,
+  type ReferencePoolEntry,
+  type ReferencePoolTexts,
+} from '@/lib/campaigns/reference-selection';
 
 type PoolEntry = ReferencePoolEntry & { thumbUrl: string | null };
 
@@ -42,14 +49,24 @@ const CATEGORY_ORDER: ReferencePoolCategory[] = [
   'extra',
 ];
 
-// Selector de referencias de video de la campaña: qué imágenes viajan al modelo
-// (tope 9). null (automático) = recorte por prioridad actual. La selección se
-// aplica al generar/regenerar video; los paneles de storyboard no la usan.
-export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
+// Selector de referencias de la campaña: qué imágenes viajan al generar. La
+// selección es UNA por campaña y la comparten video y paneles de storyboard;
+// cada contexto explica qué le aplica (contexto storyboard: solo producto,
+// masters del cast y locación llegan a paneles, y en regenerar/refinar solo
+// viajan las que los toggles del beat metan al chat — la identidad la anclan
+// las descripciones de texto, visibles abajo en read-only).
+export function ReferencePoolDialog({
+  campaignId,
+  context = 'video',
+}: {
+  campaignId: string;
+  context?: 'video' | 'storyboard';
+}) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [entries, setEntries] = useState<PoolEntry[]>([]);
+  const [texts, setTexts] = useState<ReferencePoolTexts | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // true = la campaña no tiene selección guardada (recorte automático).
   const [storedIsAuto, setStoredIsAuto] = useState(true);
@@ -64,6 +81,7 @@ export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
       return;
     }
     setEntries(res.data.entries);
+    setTexts(res.data.texts);
     const stored = res.data.include;
     setStoredIsAuto(stored === null);
     // Estado inicial: la selección guardada (+ masters, siempre viajan) o, en
@@ -91,7 +109,7 @@ export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
     setSaving(false);
     if (res.ok) {
       setStoredIsAuto(false);
-      toast.success('Selección de referencias guardada · aplica al generar o regenerar video');
+      toast.success('Selección de referencias guardada · aplica al generar o regenerar');
       setOpen(false);
     } else {
       toast.error(res.message ?? 'No se pudo guardar la selección');
@@ -133,11 +151,11 @@ export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Referencias del video</DialogTitle>
+          <DialogTitle>Referencias de la campaña</DialogTitle>
           <DialogDescription>
-            Elige qué imágenes viajan al modelo al generar video (tope {MODEL_IMAGE_CAP} por clip).
-            Las hojas maestras del cast siempre viajan: anclan la identidad. En automático, los
-            ángulos del cast entran según el presupuesto del clip (menos personajes, más ángulos).
+            {context === 'storyboard'
+              ? `Una sola selección por campaña, compartida con el video. A los PANELES llegan producto, hojas del cast y locación — y solo en paneles nuevos: al regenerar o refinar viajan únicamente las que actives con los toggles del beat; la identidad la sostienen las descripciones de abajo.`
+              : `Elige qué imágenes viajan al modelo al generar video (tope ${MODEL_IMAGE_CAP} por clip). Las hojas maestras del cast siempre viajan: anclan la identidad. En automático, los ángulos del cast entran según el presupuesto del clip.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -154,8 +172,13 @@ export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
           <div className="flex flex-col gap-4">
             {grouped.map(({ cat, items }) => (
               <div key={cat}>
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   {CATEGORY_LABELS[cat]}
+                  {context === 'storyboard' && !CATEGORY_APPLIES[cat].panel && (
+                    <span className="rounded-full border border-border px-1.5 py-px text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">
+                      solo video
+                    </span>
+                  )}
                 </p>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {items.map((e) => {
@@ -192,11 +215,59 @@ export function ReferencePoolDialog({ campaignId }: { campaignId: string }) {
             ))}
 
             <p className={`text-[12px] ${over > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>
-              {count} seleccionadas de {MODEL_IMAGE_CAP} que acepta el modelo
+              {count} seleccionadas de {MODEL_IMAGE_CAP} que acepta el video por clip
               {over > 0 &&
                 ` — se recortarán ${over} por prioridad (producto, empaque, cast, locación, mapa, extras)`}
               {storedIsAuto && ' · hoy la campaña usa el recorte automático'}
             </p>
+
+            {context === 'storyboard' && texts && (
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Descripciones que viajan (anclas de texto)
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Al regenerar o refinar, la identidad se sostiene con estas cláusulas — se editan
+                  en su fuente, no aquí: cambiarlas por envío haría derivar el siguiente panel.
+                </p>
+                {texts.product && (
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[12px] leading-snug text-foreground/80">{texts.product}</p>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <Link href="/app/brand-kits">
+                        <PencilLine className="size-3" aria-hidden />
+                        Brand Kit
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+                {texts.characters.map((c) => (
+                  <div key={c.name} className="flex items-start justify-between gap-2">
+                    <p className="text-[12px] leading-snug text-foreground/80">{c.text}</p>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <Link href="/app/cast">
+                        <PencilLine className="size-3" aria-hidden />
+                        Cast
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+                {texts.locations.map((l) => (
+                  <div key={l.name} className="flex items-start justify-between gap-2">
+                    <p className="text-[12px] leading-snug text-foreground/80">
+                      {l.name}
+                      {l.description ? `: ${l.description}` : ''}
+                    </p>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <Link href="/app/brand/locations">
+                        <PencilLine className="size-3" aria-hidden />
+                        Locaciones
+                      </Link>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

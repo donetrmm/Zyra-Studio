@@ -21,7 +21,8 @@ import {
   resolveLocations,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
+import { applyReferenceSelection, normalizeReferenceSelection } from '@/lib/campaigns/reference-selection';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { uploadReference, downloadReferenceBuffer } from '@/lib/supabase/storage';
@@ -91,6 +92,8 @@ type CampaignRow = {
   creative_guidelines: Record<string, unknown> | null;
   visual_style: string | null;
   visual_style_custom: string | null;
+  // Selección manual de referencias (054): también filtra las refs del panel.
+  reference_selection: Record<string, unknown> | null;
 };
 
 async function loadItemAndCampaign(
@@ -109,7 +112,7 @@ async function loadItemAndCampaign(
 
   const { data: rawCampaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines, visual_style, visual_style_custom')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines, visual_style, visual_style_custom, reference_selection')
     .eq('id', item.campaign_id)
     .single();
   if (campErr || !rawCampaign) return null;
@@ -179,7 +182,7 @@ async function loadPreviousPanelRef(
 
 export async function generatePanelAction(
   itemId: string,
-  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean },
+  opts?: { productRefInChat?: boolean; characterRefInChat?: boolean; locationRefInChat?: boolean },
 ): Promise<Result<{ generationId: string }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
 
@@ -272,7 +275,12 @@ export async function generatePanelAction(
     storyboard_image_id: null,
   };
 
-  const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
+  // La selección manual de referencias de la campaña (054) también filtra las
+  // refs del panel (producto/locación; los masters del cast nunca se filtran).
+  const dirCtx = applyReferenceSelection(
+    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation),
+    normalizeReferenceSelection(campaign.reference_selection),
+  );
 
   // Modo estricto de zona segura: genera la base en 4:5 (garantia geometrica) y luego
   // extiende a 9:16. Solo cuando el flag esta on, hay safeCrop 4:5 y el aspecto es 9:16.
@@ -315,21 +323,32 @@ export async function generatePanelAction(
   const characterRefPointer = characterRefInChat
     ? ' A reference image of each character is also attached — reproduce their exact face, hair, build and wardrobe; the previous panel remains the base shot to re-frame, do not replace the scene with the character image.'
     : '';
+  const locationRefInChat =
+    Boolean(prevRef) &&
+    (opts?.locationRefInChat ?? process.env.STORYBOARD_LOCATION_REF_IN_CHAT === '1');
+  const imageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');
+  // El pointer de locación se gatea por PRESENCIA de refs environment (locación
+  // solo-texto no adjunta nada; un pointer a una imagen inexistente es una
+  // instrucción muerta que confunde al modelo).
+  const locationRefPointer =
+    locationRefInChat && imageRefs.some((r) => r.role === 'environment')
+      ? ' A reference image of the location is also attached — keep the scene inside this exact place (same architecture, surfaces and lighting); the previous panel remains the base shot to re-frame, do not replace the scene with the location image.'
+      : '';
   // El diálogo del beat (`Dialogue: "..."`) es guion de VIDEO: en el panel Nano
   // lo quema como subtítulo (bug 2026-07-02). Se elimina en AMBAS ramas; el
   // video lo conserva (viene del scene_prompt original, no de aquí).
   const panelScene = stripDialogueForPanel(item.scene_prompt);
   const panelPromptBody = prevRef
-    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${panelScene}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${physicsClause(dirCtx)}${noText}`
+    ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${panelScene}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${characterRefPointer}${locationRefPointer}${physicsClause(dirCtx)}${noText}`
     : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, panelScene)}${sceneStyleDirective(dirCtx, panelScene)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
   const panelPrompt = panelPromptBody;
 
-  const imageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');
   const referencePaths = imageRefs.map((r) => r.storagePath);
-  const chatRefPaths = [
-    ...(productRefInChat ? imageRefs.filter((r) => r.role === 'product').map((r) => r.storagePath) : []),
-    ...(characterRefInChat ? imageRefs.filter((r) => r.role === 'character').map((r) => r.storagePath) : []),
-  ];
+  const chatRefPaths = chatRefPathsFor(imageRefs, {
+    product: productRefInChat,
+    character: characterRefInChat,
+    location: locationRefInChat,
+  });
 
   const payload = buildStoryboardJobPayload({
     campaignItemId: itemId,
@@ -469,6 +488,7 @@ export async function refinePanelAction(
   opts?: {
     productRefInChat?: boolean;
     characterRefInChat?: boolean;
+    locationRefInChat?: boolean;
     strongEdit?: boolean;
     // 1-3 intentos paralelos de la misma edición (mismo padre); cada uno cobra.
     variants?: number;
@@ -573,7 +593,12 @@ export async function refinePanelAction(
     character_state_hint: null,
   };
 
-  const dirCtx = directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation);
+  // La selección manual de referencias de la campaña (054) también filtra las
+  // refs del panel (producto/locación; los masters del cast nunca se filtran).
+  const dirCtx = applyReferenceSelection(
+    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation),
+    normalizeReferenceSelection(campaign.reference_selection),
+  );
 
   const guidelines = dirCtx.guidelines;
   const strictSafe =
@@ -600,16 +625,21 @@ export async function refinePanelAction(
   const refineImageRefs = compiled.compiled.references.filter((r) => r.kind === 'image');
   const refineProductRefInChat = opts?.productRefInChat ?? process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1';
   const refineCharacterRefInChat = opts?.characterRefInChat ?? process.env.STORYBOARD_CHARACTER_REF_IN_CHAT === '1';
-  const refineChatRefPaths = [
-    ...(refineProductRefInChat ? refineImageRefs.filter((r) => r.role === 'product').map((r) => r.storagePath) : []),
-    ...(refineCharacterRefInChat ? refineImageRefs.filter((r) => r.role === 'character').map((r) => r.storagePath) : []),
-  ];
+  const refineLocationRefInChat = opts?.locationRefInChat ?? process.env.STORYBOARD_LOCATION_REF_IN_CHAT === '1';
+  const refineChatRefPaths = chatRefPathsFor(refineImageRefs, {
+    product: refineProductRefInChat,
+    character: refineCharacterRefInChat,
+    location: refineLocationRefInChat,
+  });
   const refinePointers = [
     refineProductRefInChat && refineImageRefs.some((r) => r.role === 'product')
       ? ' A reference image of the product is attached — match its real construction and proportions exactly (edge thickness, frame, finish, printed content), while still applying the requested edit.'
       : '',
     refineCharacterRefInChat && refineImageRefs.some((r) => r.role === 'character')
       ? ' A reference image of each character is attached — keep their exact face, hair, build and wardrobe.'
+      : '',
+    refineLocationRefInChat && refineImageRefs.some((r) => r.role === 'environment')
+      ? ' A reference image of the location is attached — keep the scene inside this exact place (same architecture, surfaces and lighting), while still applying the requested edit.'
       : '',
   ].join('');
   const refinePrompt = compileRefinePrompt(instruction, refineDirCtx, {

@@ -44,7 +44,11 @@ import {
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
 import { loadReferencePool } from '@/lib/campaigns/reference-pool';
-import { normalizeReferenceSelection, type ReferencePoolEntry } from '@/lib/campaigns/reference-selection';
+import {
+  normalizeReferenceSelection,
+  type ReferencePoolEntry,
+  type ReferencePoolTexts,
+} from '@/lib/campaigns/reference-selection';
 import { mergeScenes } from '@/lib/campaigns/merge';
 import { type StudioItem, toStudioItem } from '@/lib/campaigns/studio-item';
 import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
@@ -2710,6 +2714,7 @@ const REFERENCE_POOL_CAMPAIGN_COLS =
 export async function getReferencePoolAction(campaignId: string): Promise<
   Result<{
     entries: (ReferencePoolEntry & { thumbUrl: string | null })[];
+    texts: ReferencePoolTexts;
     include: string[] | null;
   }>
 > {
@@ -2733,13 +2738,13 @@ export async function getReferencePoolAction(campaignId: string): Promise<
     music_ref_id: (campaign.music_ref_id as string | null) ?? null,
   });
   const entries = await Promise.all(
-    pool.map(async (e) => ({
+    pool.entries.map(async (e) => ({
       ...e,
       thumbUrl: await signedReferenceUrl(e.path).catch(() => null),
     })),
   );
   const selection = normalizeReferenceSelection(campaign.reference_selection ?? null);
-  return { ok: true, data: { entries, include: selection?.include ?? null } };
+  return { ok: true, data: { entries, texts: pool.texts, include: selection?.include ?? null } };
 }
 
 // Guarda la selección (o null = automático). include se intersecta con el pool
@@ -2769,7 +2774,7 @@ export async function setReferenceSelectionAction(input: unknown): Promise<Resul
       include_packaging: campaign.include_packaging as boolean | null,
       music_ref_id: (campaign.music_ref_id as string | null) ?? null,
     });
-    const valid = new Set(pool.map((e) => e.path));
+    const valid = new Set(pool.entries.map((e) => e.path));
     const kept = [...new Set(include)].filter((p) => valid.has(p));
     if (kept.length === 0) {
       return { ok: false, error: 'validation_error', message: 'La selección no coincide con ninguna referencia de la campaña' };

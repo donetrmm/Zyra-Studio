@@ -156,6 +156,23 @@ export function chainedCharacterFidelity(ctx: DirectorContext): string {
   return ` ${facts} Keep each person's exact face, hair, build, skin and wardrobe identical to the previous shot; do not redraw, re-age, restyle or change who they are.`;
 }
 
+// Refs que se adjuntan al TURNO DE CHAT (regenerar encadenado / refinar) según
+// los toggles "mantener idéntico" del beat. En chat las referencias externas no
+// viajan solas (refSlots=0): estos toggles son la única vía de meter la ficha
+// del producto, la hoja del cast o la imagen de la locación (rol environment).
+// Orden estable producto → personaje → locación (los pointers del prompt citan
+// en ese orden). Puro; ambas actions (regenerar y refinar) lo comparten.
+export function chatRefPathsFor(
+  refs: { storagePath: string; role: string }[],
+  toggles: { product: boolean; character: boolean; location: boolean },
+): string[] {
+  return [
+    ...(toggles.product ? refs.filter((r) => r.role === 'product').map((r) => r.storagePath) : []),
+    ...(toggles.character ? refs.filter((r) => r.role === 'character').map((r) => r.storagePath) : []),
+    ...(toggles.location ? refs.filter((r) => r.role === 'environment').map((r) => r.storagePath) : []),
+  ];
+}
+
 // Prompt del REFINADO conversacional de un panel (Nano Banana chat multi-turn).
 // El refinado entra en chat real (hay thought_signature del panel previo), y ahí el
 // provider descarta las referencias externas (refSlots=0). Por eso NO se usa el prompt

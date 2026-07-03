@@ -7,6 +7,8 @@
 // buildReferences emite citas @image1..N amarradas al orden de construcción y
 // un post-filtro las desalinea todas.
 import type { DirectorContext } from '@/lib/prompt-director';
+import type { CharacterInventory, ProductInventory } from '@/lib/prompt-director/types';
+import { describeCharacter, describeProduct } from '@/lib/prompt-director/inventory';
 
 export type ReferenceSelection = { include: string[] };
 
@@ -83,6 +85,48 @@ export type ReferencePoolCategory =
   | 'location'
   | 'scale_map'
   | 'extra';
+
+// Dónde viaja cada categoría — contrato de honestidad del dialog. Los PANELES
+// (compiler FLUX de storyboard) solo adjuntan producto, hoja maestra del cast y
+// locación; empaque/ángulos/mapa/extras son de video (Seedance). Y en paneles
+// encadenados/refinados ni siquiera esas viajan salvo por los toggles del beat
+// (refSlots=0 en chat): el dialog lo explica en copy, no aquí.
+export const CATEGORY_APPLIES: Record<ReferencePoolCategory, { video: boolean; panel: boolean }> = {
+  product: { video: true, panel: true },
+  packaging: { video: true, panel: false },
+  character_master: { video: true, panel: true },
+  character_angle: { video: true, panel: false },
+  location: { video: true, panel: true },
+  scale_map: { video: true, panel: false },
+  extra: { video: true, panel: false },
+};
+
+// Las cláusulas de TEXTO que anclan identidad (lo que viaja aunque las imágenes
+// no: encadenado/refinado usan exactamente estas, via chainedProductFidelity /
+// chainedCharacterFidelity). fidelity:false = la variante sin "as in the
+// reference images", que es la que sobrevive en chat. Read-only en la UI: se
+// editan en el Brand Kit / Cast / Locaciones, no por envío (bifurcar la verdad
+// hace derivar el siguiente panel).
+export type ReferencePoolTexts = {
+  product: string | null;
+  characters: { name: string; text: string }[];
+  locations: { name: string; description: string | null }[];
+};
+
+export function buildReferencePoolTexts(input: {
+  product: ProductInventory | null;
+  characters: CharacterInventory[];
+  locations: { name: string; description: string | null }[];
+}): ReferencePoolTexts {
+  return {
+    product: input.product ? describeProduct(input.product, { fidelity: false }) : null,
+    characters: input.characters.map((c) => ({
+      name: c.name,
+      text: describeCharacter(c, { fidelity: false }).text,
+    })),
+    locations: input.locations,
+  };
+}
 
 export type ReferencePoolEntry = {
   path: string;

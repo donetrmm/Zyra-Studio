@@ -18,6 +18,7 @@ import {
   stabilizePanelUrls,
   type PanelState,
 } from './storyboard-panel-sync';
+import { ReferencePoolDialog } from './ReferencePoolDialog';
 import { createClient } from '@/lib/supabase/client';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -305,6 +306,10 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // del re-anclaje de producto sin tocar el env flag global.
   const [productRef, setProductRef] = useState<Record<string, boolean>>({});
   const [characterRef, setCharacterRef] = useState<Record<string, boolean>>({});
+  // Adjunta la imagen de la locación en el turno de chat (regenerar/refinar):
+  // para refinados que recomponen la cámara o abren zonas del set que el panel
+  // previo no muestra. Solo visible en beats con locación asignada.
+  const [locationRef, setLocationRef] = useState<Record<string, boolean>>({});
   // Edición fuerte del refinado: single-turn (sin historial de chat). Para cambios
   // que el refinado conversacional no respeta (construcción del producto, geometría).
   const [strongEdit, setStrongEdit] = useState<Record<string, boolean>>({});
@@ -427,6 +432,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const res = await generatePanelAction(beatId, {
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
+      locationRefInChat: locationRef[beatId] ?? false,
     });
     if (!res.ok) {
       delete awaitingGenRef.current[beatId];
@@ -461,6 +467,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const res = await refinePanelAction(beatId, instruction, {
       productRefInChat: productRef[beatId] ?? false,
       characterRefInChat: characterRef[beatId] ?? false,
+      locationRefInChat: locationRef[beatId] ?? false,
       strongEdit: strongEdit[beatId] ?? false,
       variants,
     });
@@ -501,21 +508,24 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
             {withoutPanel.length > 0 && ` · ${withoutPanel.length} sin panel`}
           </p>
         </div>
-        {withoutPanel.length > 0 && (
-          <Button type="button" disabled={generatingAll} onClick={handleGenerateAll}>
-            {generatingAll ? (
-              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="size-3.5" aria-hidden />
-            )}
-            Generar storyboard
-            {panelCostFresh != null && (
-              <span className="text-primary-foreground/80">
-                · −{panelCostFresh * withoutPanel.length} cr
-              </span>
-            )}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ReferencePoolDialog campaignId={campaignId} context="storyboard" />
+          {withoutPanel.length > 0 && (
+            <Button type="button" disabled={generatingAll} onClick={handleGenerateAll}>
+              {generatingAll ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="size-3.5" aria-hidden />
+              )}
+              Generar storyboard
+              {panelCostFresh != null && (
+                <span className="text-primary-foreground/80">
+                  · −{panelCostFresh * withoutPanel.length} cr
+                </span>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {creatives.length > 1 && (
@@ -759,6 +769,26 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                     Mantener al personaje idéntico al regenerar o refinar
                   </label>
                 </div>
+
+                {/* Mantener la locación al regenerar/refinar (adjunta la imagen del
+                    lugar en el turno de chat). Solo beats con locación asignada:
+                    sin locación no hay imagen environment que adjuntar. */}
+                {beat.locationId && (
+                  <div className="flex items-center gap-2 px-0.5">
+                    <Switch
+                      id={`locref-${beat.id}`}
+                      size="sm"
+                      checked={locationRef[beat.id] ?? false}
+                      disabled={busy}
+                      onCheckedChange={(checked) =>
+                        setLocationRef((prev) => ({ ...prev, [beat.id]: checked }))
+                      }
+                    />
+                    <label htmlFor={`locref-${beat.id}`} className="text-[11px] text-muted-foreground">
+                      Mantener la locación idéntica al regenerar o refinar
+                    </label>
+                  </div>
+                )}
 
                 {/* Edición fuerte: el refinado obedece el cambio en modo directo (sin
                     historial de chat), aunque recomponga un poco la escena. Para

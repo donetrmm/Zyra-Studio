@@ -4,7 +4,10 @@ import {
   normalizeReferenceSelection,
   applyReferenceSelection,
   buildReferencePool,
+  buildReferencePoolTexts,
+  CATEGORY_APPLIES,
 } from './reference-selection';
+import { compilePanel } from './storyboard';
 
 const ctx: DirectorContext = {
   product: {
@@ -129,6 +132,18 @@ describe('buildReferencePool', () => {
     expect(byPath.get('x/extra.jpg')?.category).toBe('extra');
   });
 
+  it('composición con compilePanel: excluir producto lo quita de las refs del panel, el master del cast queda', () => {
+    const filtered = applyReferenceSelection(ctx, { include: ['l/sala.jpg'] });
+    const beat = { id: 'b1', scene_prompt: 'toma del producto', aspect_ratio: '9:16', storyboard_image_id: null };
+    const compiled = compilePanel(beat, filtered, 'flux-2-pro-preview');
+    expect(compiled.ok).toBe(true);
+    if (!compiled.ok) return;
+    const roles = compiled.compiled.references.map((r) => r.role);
+    expect(roles).not.toContain('product');
+    expect(roles).toContain('character'); // master siempre viaja
+    expect(compiled.compiled.references.some((r) => r.storagePath === 'l/sala.jpg')).toBe(true);
+  });
+
   it('sin nombre de producto usa label genérico y deduplica paths repetidos', () => {
     const pool = buildReferencePool({
       product: { imagePaths: ['p/1.jpg', 'p/1.jpg'] },
@@ -143,5 +158,41 @@ describe('buildReferencePool', () => {
     expect(pool.filter((e) => e.path === 'p/1.jpg')).toHaveLength(1);
     expect(pool.filter((e) => e.path === 'l/sala.jpg')).toHaveLength(1);
     expect(pool.find((e) => e.path === 'p/1.jpg')?.label).toBe('Producto');
+  });
+});
+
+describe('CATEGORY_APPLIES — dónde viaja cada categoría (contrato del dialog)', () => {
+  it('paneles solo usan producto, master del cast y locación; video usa todo', () => {
+    expect(CATEGORY_APPLIES.product).toEqual({ video: true, panel: true });
+    expect(CATEGORY_APPLIES.character_master).toEqual({ video: true, panel: true });
+    expect(CATEGORY_APPLIES.location).toEqual({ video: true, panel: true });
+    expect(CATEGORY_APPLIES.packaging.panel).toBe(false);
+    expect(CATEGORY_APPLIES.character_angle.panel).toBe(false);
+    expect(CATEGORY_APPLIES.scale_map.panel).toBe(false);
+    expect(CATEGORY_APPLIES.extra.panel).toBe(false);
+    expect(Object.values(CATEGORY_APPLIES).every((a) => a.video)).toBe(true);
+  });
+});
+
+describe('buildReferencePoolTexts — las descripciones que anclan por texto', () => {
+  it('producto con visualDetails, personajes con nombre y locaciones con descripción', () => {
+    const texts = buildReferencePoolTexts({
+      product: { name: 'Cuadro', visualDetails: 'lienzo con atardecer', imagePaths: ['p/1.jpg'] },
+      characters: [{ name: 'Ana', description: 'mujer de pelo negro, sonriente', masterImagePath: 'c/m.jpg' }],
+      locations: [{ name: 'Sala', description: 'sala moderna con sofá gris' }],
+    });
+    expect(texts.product).toBeTruthy();
+    expect(texts.product).toContain('atardecer');
+    expect(texts.characters).toHaveLength(1);
+    expect(texts.characters[0].name).toBe('Ana');
+    expect(texts.characters[0].text).toContain('Ana');
+    expect(texts.locations).toEqual([{ name: 'Sala', description: 'sala moderna con sofá gris' }]);
+  });
+
+  it('sin producto ni cast devuelve vacíos sin tronar', () => {
+    const texts = buildReferencePoolTexts({ product: null, characters: [], locations: [] });
+    expect(texts.product).toBeNull();
+    expect(texts.characters).toEqual([]);
+    expect(texts.locations).toEqual([]);
   });
 });

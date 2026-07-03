@@ -10,7 +10,12 @@ import {
   resolvePaths,
   itemCharacterIds,
 } from './orchestrator';
-import { buildReferencePool, type ReferencePoolEntry } from './reference-selection';
+import {
+  buildReferencePool,
+  buildReferencePoolTexts,
+  type ReferencePoolEntry,
+  type ReferencePoolTexts,
+} from './reference-selection';
 
 export type ReferencePoolCampaignRow = {
   id: string;
@@ -21,12 +26,13 @@ export type ReferencePoolCampaignRow = {
   music_ref_id?: string | null;
 };
 
-// Carga el pool de candidatos de la campaña. El caller ya validó ownership
+// Carga el pool de candidatos de la campaña + las cláusulas de texto que anclan
+// identidad (para el dialog del storyboard). El caller ya validó ownership
 // (workspace) de la campaña; aquí los loaders re-validan workspace por fila.
 export async function loadReferencePool(
   workspaceId: string,
   campaign: ReferencePoolCampaignRow,
-): Promise<ReferencePoolEntry[]> {
+): Promise<{ entries: ReferencePoolEntry[]; texts: ReferencePoolTexts }> {
   const supabase = await createClient();
   const { data: itemRows } = await supabase
     .from('campaign_items')
@@ -54,21 +60,22 @@ export async function loadReferencePool(
   const extraRefIds = [...new Set(items.flatMap((i) => (i.reference_ids as string[] | null) ?? []))];
   const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
 
-  return buildReferencePool({
+  const usedCharacters = characterIds
+    .map((id) => ctx.characters.get(id))
+    .filter((c): c is NonNullable<typeof c> => !!c);
+
+  const entries = buildReferencePool({
     product: {
       name: ctx.productName,
       imagePaths: ctx.productImagePaths,
       imageUsages: ctx.productImageUsages,
     },
     packagingImagePaths: ctx.packagingImagePaths,
-    characters: characterIds
-      .map((id) => ctx.characters.get(id))
-      .filter((c): c is NonNullable<typeof c> => !!c)
-      .map((c) => ({
-        name: c.name,
-        masterImagePath: c.masterImagePath,
-        angleImagePaths: c.angleImagePaths,
-      })),
+    characters: usedCharacters.map((c) => ({
+      name: c.name,
+      masterImagePath: c.masterImagePath,
+      angleImagePaths: c.angleImagePaths,
+    })),
     locations: [...locations.values()].map((l) => ({
       name: l.name,
       imagePaths: l.imagePaths,
@@ -76,4 +83,28 @@ export async function loadReferencePool(
     })),
     extraImagePaths: [...extraPaths.values()],
   });
+
+  const texts = buildReferencePoolTexts({
+    product: ctx.productName
+      ? {
+          name: ctx.productName,
+          visualDetails: ctx.visualDetails,
+          palette: ctx.palette,
+          imagePaths: ctx.productImagePaths,
+          medium: ctx.productMedium,
+          thicknessMm: ctx.productThicknessMm,
+          heightCm: ctx.productHeightCm,
+          widthCm: ctx.productWidthCm,
+          weightKg: ctx.productWeightKg,
+        }
+      : null,
+    characters: usedCharacters.map((c) => ({
+      name: c.name,
+      description: c.description,
+      masterImagePath: c.masterImagePath,
+    })),
+    locations: [...locations.values()].map((l) => ({ name: l.name, description: l.description })),
+  });
+
+  return { entries, texts };
 }
