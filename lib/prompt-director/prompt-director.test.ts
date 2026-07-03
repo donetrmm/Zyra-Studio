@@ -382,19 +382,23 @@ describe('compile seedance', () => {
     };
     const es = compile(req, fullContext());
     expect(es.ok).toBe(true);
-    if (es.ok) expect(es.compiled.prompt).toContain('must be in Spanish');
+    if (es.ok) {
+      expect(es.compiled.prompt).toContain('must be in Mexican Latin American Spanish');
+      // Anti-castellano explícito (2026-07-02): el seseo nombrado es el ancla.
+      expect(es.compiled.prompt).toContain('never a Castilian accent');
+    }
 
     const en = compile(req, { ...fullContext(), language: 'en' as const });
     expect(en.ok).toBe(true);
     if (en.ok) {
       expect(en.compiled.prompt).toContain('must be in English');
-      expect(en.compiled.prompt).not.toContain('must be in Spanish');
+      expect(en.compiled.prompt).not.toContain('must be in Mexican Latin American Spanish');
     }
 
     // Sin audio no hay diálogo que dirigir.
     const silent = compile({ ...req, generateAudio: false }, fullContext());
     expect(silent.ok).toBe(true);
-    if (silent.ok) expect(silent.compiled.prompt).not.toContain('must be in Spanish');
+    if (silent.ok) expect(silent.compiled.prompt).not.toContain('must be in Mexican Latin American Spanish');
   });
 
   it('plantilla viva entra como @video1 con rol camera_motion', () => {
