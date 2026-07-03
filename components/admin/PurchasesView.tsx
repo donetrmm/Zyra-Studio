@@ -127,6 +127,7 @@ export function PurchasesView({ purchases }: { purchases: AdminPurchaseRow[] }) 
             rows={3}
             placeholder="Motivo del rechazo (visible para el usuario)…"
             maxLength={500}
+            className="max-h-40 overflow-y-auto"
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRejecting(null)} disabled={busy}>

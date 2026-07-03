@@ -83,6 +83,7 @@ export function CreditAdjustDialog({ userId, email, currentBalance }: Props) {
               required
               minLength={3}
               maxLength={280}
+              className="max-h-40 overflow-y-auto"
               placeholder="Compensación por bug, bono manual, etc."
               aria-invalid={errors?.reason ? true : undefined}
             />

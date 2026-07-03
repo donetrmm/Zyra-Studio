@@ -533,7 +533,11 @@ export function CampaignStudioView({
       )}
 
       <Dialog open={reprocessOpen} onOpenChange={(o) => { if (!reprocessing) setReprocessOpen(o); }}>
-        <DialogContent className="sm:max-w-lg">
+        {/* flex-col + topes de alto: el Textarea base usa field-sizing-content
+            (crece con el contenido, ignora rows) y una idea larga inflaba el
+            modal más allá del viewport. El textarea y la lista de notas
+            scrollean internos; header y botones quedan fijos. */}
+        <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Reprocesar idea con IA</DialogTitle>
             <DialogDescription>
@@ -546,9 +550,9 @@ export function CampaignStudioView({
               <p className="text-xs text-foreground">
                 Plan reprocesado: {reprocessDone.items} creativos · ~{reprocessDone.credits} cr en borradores.
               </p>
-              <ul className="space-y-1">
+              <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
                 {reprocessDone.notes.map((n, i) => (
-                  <li key={i} className="text-2xs text-amber-400/90">{n}</li>
+                  <li key={i} className="break-words text-2xs text-amber-400/90">{n}</li>
                 ))}
               </ul>
               <div className="flex justify-end">
@@ -566,10 +570,10 @@ export function CampaignStudioView({
                 rows={6}
                 maxLength={6000}
                 placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
-                className="text-xs"
+                className="max-h-56 min-h-24 overflow-y-auto text-xs"
               />
               {reprocessError && (
-                <p className="text-2xs text-amber-400/90">{reprocessError}</p>
+                <p className="break-words text-2xs text-amber-400/90">{reprocessError}</p>
               )}
               <div className="flex justify-end gap-2">
                 <Button
