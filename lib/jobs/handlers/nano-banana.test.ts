@@ -13,7 +13,10 @@ vi.mock('@/lib/providers/nano-banana', () => ({
   NANO_VARIANT: '2K',
   nanoVariantToResolution: () => '2K',
 }));
-vi.mock('@/lib/campaigns/storyboard-expand', () => ({ extendPanelTo916: (...a: unknown[]) => extendMock(...a) }));
+vi.mock('@/lib/campaigns/storyboard-expand', () => ({
+  extendPanelTo916Attempt: (...a: unknown[]) => extendMock(...a),
+  MAX_EXPAND_ATTEMPTS: 3,
+}));
 vi.mock('@/lib/supabase/storage', () => ({
   uploadSafeBase: (...a: unknown[]) => uploadSafeBaseMock(...a),
   uploadThoughtSignature: (...a: unknown[]) => uploadSigMock(...a),
@@ -71,9 +74,9 @@ describe('nanoBananaHandler', () => {
     if (res.kind === 'finalize') expect(res.metadata).toEqual({});
     expect(uploadSigMock).not.toHaveBeenCalled();
   });
-  it('estricto poll -> descarga safe_base, expande, finalize', async () => {
+  it('estricto poll -> descarga safe_base, expande (limpio), finalize; primer intento por default', async () => {
     dlOutMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg' });
-    extendMock.mockResolvedValue({ buffer: Buffer.from('916'), mimeType: 'image/jpeg' });
+    extendMock.mockResolvedValue({ ok: true, buffer: Buffer.from('916'), mimeType: 'image/jpeg' });
     const r = row(true);
     r.provider_payload = { thought_signature: 'sig', safe_base_path: 'ws/gen-1/safe-base.jpg' };
     const res = await nanoBananaHandler.handle(r, 'poll');
@@ -82,6 +85,39 @@ describe('nanoBananaHandler', () => {
       expect(res.outputBuffer).toEqual(Buffer.from('916'));
       expect(res.metadata).toEqual({ thought_signature: 'sig', safe_base_path: 'ws/gen-1/safe-base.jpg' });
     }
+    // (base, attempt, sceneHint): sin expand_attempt en el payload, es el intento 1.
+    expect(extendMock.mock.calls[0][1]).toBe(1);
+  });
+  it('estricto poll con texto en bandas y quedan intentos -> continue con expand_attempt+1 (hop QStash)', async () => {
+    dlOutMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg' });
+    extendMock.mockResolvedValue({ ok: false });
+    const r = row(true);
+    r.provider_payload = { safe_base_path: 'ws/gen-1/safe-base.jpg' };
+    const res = await nanoBananaHandler.handle(r, 'poll');
+    expect(res.kind).toBe('continue');
+    if (res.kind === 'continue') {
+      expect(res.providerPayload).toEqual({ expand_attempt: 2 });
+      expect(res.delaySeconds).toBe(0);
+    }
+  });
+  it('estricto poll con expand_attempt en el payload -> pasa ese intento al expand', async () => {
+    dlOutMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg' });
+    extendMock.mockResolvedValue({ ok: true, buffer: Buffer.from('916'), mimeType: 'image/jpeg' });
+    const r = row(true);
+    r.provider_payload = { safe_base_path: 'ws/gen-1/safe-base.jpg', expand_attempt: 3 };
+    const res = await nanoBananaHandler.handle(r, 'poll');
+    expect(res.kind).toBe('finalize');
+    expect(extendMock.mock.calls[0][1]).toBe(3);
+  });
+  it('el ProviderError del expand (ultimo intento con texto) -> fail limpio', async () => {
+    const { ProviderError } = await import('@/lib/providers/types');
+    dlOutMock.mockResolvedValue({ buffer: Buffer.from('base'), mimeType: 'image/jpeg' });
+    extendMock.mockRejectedValue(new ProviderError('agrego texto o rotulos', 'unknown', false));
+    const r = row(true);
+    r.provider_payload = { safe_base_path: 'ws/gen-1/safe-base.jpg', expand_attempt: 3 };
+    const res = await nanoBananaHandler.handle(r, 'poll');
+    expect(res.kind).toBe('fail');
+    if (res.kind === 'fail') expect(res.message).toContain('agrego texto o rotulos');
   });
   it('un ProviderError de Nano -> fail con code safety', async () => {
     const { ProviderError } = await import('@/lib/providers/types');

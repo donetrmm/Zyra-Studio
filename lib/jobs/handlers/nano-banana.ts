@@ -4,7 +4,7 @@ import type { StoryboardJobPayload, StoryboardPrevTurnRef } from '@/lib/campaign
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateNanoBanana, NANO_VARIANT, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { ProviderError, type ImageReference, type NanoBananaParams, type NanoBananaTurn } from '@/lib/providers/types';
-import { extendPanelTo916 } from '@/lib/campaigns/storyboard-expand';
+import { extendPanelTo916Attempt } from '@/lib/campaigns/storyboard-expand';
 import { centralSafeCrop } from '@/lib/images/safe-area';
 import { downloadOutputBuffer, downloadReferenceBuffer, uploadSafeBase, uploadThoughtSignature } from '@/lib/supabase/storage';
 
@@ -136,17 +136,28 @@ export const nanoBananaHandler: JobHandler = {
         }
         return { kind: 'continue', delaySeconds: 0, providerPayload };
       }
-      // action === 'poll' (solo estricto): descargar la base 4:5 y expandir a 9:16.
-      // No hay MAX_POLLS aquí a propósito: 'poll' siempre retorna finalize/fail (nunca
-      // continue), así que no hay re-encolado infinito; timeout_at cubre el job atascado.
+      // action === 'poll' (solo estricto): descargar la base 4:5 y hacer UN intento
+      // de expand a 9:16. Si el gate anti-texto tira el intento y quedan más, se
+      // devuelve 'continue' con expand_attempt+1: cada intento corre en su propio
+      // hop de QStash con presupuesto fresco de 60s (el loop inline de 3 intentos
+      // excedía maxDuration y dejaba la gen colgada en processing — 2026-07-03).
+      // Acotado: expand_attempt <= MAX_EXPAND_ATTEMPTS (el último intento con texto
+      // lanza ProviderError => fail limpio), sin re-encolado infinito; timeout_at
+      // sigue cubriendo el job atascado.
       const pp = (gen.provider_payload ?? {}) as {
         thought_signature?: string;
         thought_signature_path?: string;
         safe_base_path?: string;
+        expand_attempt?: number;
       };
       if (!pp.safe_base_path) throw new ProviderError('poll sin safe_base_path', 'invalid_input', false);
+      const attempt = typeof pp.expand_attempt === 'number' && pp.expand_attempt >= 1 ? pp.expand_attempt : 1;
       const { buffer } = await downloadOutputBuffer(pp.safe_base_path);
-      const expanded = await extendPanelTo916({ buffer, mimeType: 'image/jpeg' }, p.expandHint);
+      const expanded = await extendPanelTo916Attempt({ buffer, mimeType: 'image/jpeg' }, attempt, p.expandHint);
+      if (!expanded.ok) {
+        // El worker mergea provider_payload: safe_base_path y la firma sobreviven.
+        return { kind: 'continue', delaySeconds: 0, providerPayload: { expand_attempt: attempt + 1 } };
+      }
       const metadata: Record<string, unknown> = { safe_base_path: pp.safe_base_path };
       if (pp.thought_signature_path) metadata.thought_signature_path = pp.thought_signature_path;
       // Compat: jobs en vuelo encolados antes del cambio traen la firma inline.
