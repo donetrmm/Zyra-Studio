@@ -12,6 +12,12 @@ import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
 import { useStoryboardPanelRealtime, panelUpdateFromRow, slimPanelRow, type SlimPanelRow } from './use-storyboard-panel-realtime';
+import {
+  reconcilePanelStates,
+  clearLinkedOverlays,
+  stabilizePanelUrls,
+  type PanelState,
+} from './storyboard-panel-sync';
 import { createClient } from '@/lib/supabase/client';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -25,11 +31,6 @@ const ERROR_MESSAGES: Record<string, string> = {
 function friendlyError(error: string, message?: string): string {
   return ERROR_MESSAGES[error] ?? message ?? error;
 }
-
-type PanelState =
-  | { status: 'idle'; panelUrl: string | null }
-  | { status: 'generating' }
-  | { status: 'error'; message: string };
 
 // Quita un beat del mapa de refinados-en-vuelo (devuelve la misma ref si no estaba,
 // para no re-renderizar de mas). Modulo-level: ref estable para los useCallback.
@@ -64,13 +65,81 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     creatives[0]?.key ?? null,
   );
 
+  // Beats con un refinado en vuelo: mantiene la imagen actual visible con un overlay
+  // "Refinando..." hasta que el refresh trae el beat ya enlazado a la gen nueva.
+  // Distinto de 'generating', que reemplaza la imagen por el spinner (parte de cero).
+  const [refiningBeats, setRefiningBeats] = useState<Record<string, boolean>>({});
+
+  // Estado local por beat: refleja URL y estado de generación sin necesitar Realtime.
+  const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() => {
+    const init: Record<string, PanelState> = {};
+    for (const b of beats) {
+      init[b.id] = { status: 'idle', panelUrl: b.panelUrl };
+    }
+    return init;
+  });
+
+  // Generaciones esperadas por beat tras un click de regenerar/refinar (lista:
+  // un lote de variantes espera varias). ['pending'] mientras el server action
+  // crea las filas (aún no hay ids). Sin este mapa, el heal/Realtime emite el
+  // 'done' de una generación ANTERIOR del beat en esa ventana y apaga el loader
+  // del intento nuevo (Realtime no escucha INSERTs, así que nada lo vuelve a
+  // encender hasta un reload).
+  const awaitingGenRef = useRef<Record<string, string[]>>({});
+
+  // Dones de variantes de un lote AÚN en vuelo (solo se lee/escribe en callbacks,
+  // nunca en render). Al cerrar el lote se publican en readyGens.
+  const batchDoneRef = useRef<Record<string, string[]>>({});
+
+  // Generaciones COMPLETADAS (done) del intento TERMINADO, por beat. El flip
+  // 'generating' -> 'idle' y la limpieza del overlay NO pasan al recibir el done:
+  // esperan a que un refresh entregue el beat ya ENLAZADO a una de estas gens
+  // (el promote corre en su propio job después del done). Sin esta espera, el
+  // panel mostraba "Sin panel"/panel viejo un instante entre el done y el promote.
+  // Es estado (no ref) porque la reconciliación lo lee durante el render. En un
+  // lote ×3 los ids se publican juntos al terminar la última variante, así el
+  // primer done no apaga el overlay con variantes todavía en vuelo.
+  const [readyGens, setReadyGens] = useState<Record<string, string[]>>({});
+
+  // Reset al iniciar un intento (regenerar/refinar/lote): un done publicado del
+  // intento anterior apunta a la gen YA enlazada y flipearía el loader nuevo.
+  const resetCompletedGens = (beatId: string) => {
+    delete batchDoneRef.current[beatId];
+    setReadyGens((prev) => {
+      if (!(beatId in prev)) return prev;
+      const next = { ...prev };
+      delete next[beatId];
+      return next;
+    });
+  };
+
+  // Reconciliar prop -> estado tras router.refresh(): el lazy initializer de useState
+  // solo siembra UNA vez, así que sin esto el panel recién generado/refinado se queda
+  // en "Sin panel" hasta un reload duro y withoutPanel/el contador/el botón quedan
+  // stale (riesgo de doble cobro al reclicar). Patrón de React "ajustar estado al
+  // cambiar una prop" EN RENDER (no en efecto: evita el cascading-render). `beats` solo
+  // cambia de referencia cuando el server vuelve a renderizar (el refresh), no en los
+  // re-render de cliente. `stableBeats` conserva la URL previa cuando el server solo
+  // re-firmó el MISMO asset (createSignedUrl emite token nuevo por render): sin eso,
+  // cada refresh cambiaba el src de TODOS los <img> y la grilla entera parpadeaba
+  // durante generación/refinado.
+  const [reconciledBeats, setReconciledBeats] = useState(beats);
+  const [stableBeats, setStableBeats] = useState(beats);
+  if (beats !== reconciledBeats) {
+    setReconciledBeats(beats);
+    const nextStable = stabilizePanelUrls(stableBeats, beats);
+    setStableBeats(nextStable);
+    setPanelStates((prev) => reconcilePanelStates(prev, nextStable, readyGens) ?? prev);
+    setRefiningBeats((prev) => clearLinkedOverlays(prev, nextStable, readyGens) ?? prev);
+  }
+
   // Mapa beatId -> beat (para reconstruir los beats del creativo en su orden).
-  const beatById = new Map(beats.map((b) => [b.id, b]));
+  const beatById = new Map(stableBeats.map((b) => [b.id, b]));
   const selectedCreative =
     creatives.find((c) => c.key === selectedCreativeKey) ?? creatives[0] ?? null;
   const visibleBeats: StoryboardBeat[] = selectedCreative
     ? selectedCreative.beatIds.map((id) => beatById.get(id)).filter((b): b is StoryboardBeat => b != null)
-    : beats;
+    : stableBeats;
 
   // Locación actual del creativo seleccionado: primer locationId no nulo de sus beats.
   const currentLocationId = visibleBeats.find((b) => b.locationId)?.locationId ?? null;
@@ -108,57 +177,6 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     }
   }
 
-  // Beats con un refinado en vuelo: mantiene la imagen actual visible con un overlay
-  // "Refinando..." hasta que Realtime cierra la generacion (done/failed). Distinto de
-  // 'generating', que reemplaza la imagen por el spinner (regenerar parte de cero).
-  const [refiningBeats, setRefiningBeats] = useState<Record<string, boolean>>({});
-
-  // Estado local por beat: refleja URL y estado de generación sin necesitar Realtime.
-  const [panelStates, setPanelStates] = useState<Record<string, PanelState>>(() => {
-    const init: Record<string, PanelState> = {};
-    for (const b of beats) {
-      init[b.id] = { status: 'idle', panelUrl: b.panelUrl };
-    }
-    return init;
-  });
-
-  // Reconciliar prop -> estado tras router.refresh(): el lazy initializer de useState
-  // solo siembra UNA vez, así que sin esto el panel recién generado/refinado se queda
-  // en "Sin panel" hasta un reload duro y withoutPanel/el contador/el botón quedan
-  // stale (riesgo de doble cobro al reclicar). Patrón de React "ajustar estado al
-  // cambiar una prop" EN RENDER (no en efecto: evita el cascading-render). `beats` solo
-  // cambia de referencia cuando el server vuelve a renderizar (el refresh), no en los
-  // re-render de cliente, así que esto corre exactamente cuando antes corría el efecto.
-  // Solo tocamos entradas 'idle' (no pisamos 'generating'/'error' en vuelo) y creamos
-  // la clave si falta.
-  const [reconciledBeats, setReconciledBeats] = useState(beats);
-  if (beats !== reconciledBeats) {
-    setReconciledBeats(beats);
-    setPanelStates((prev) => {
-      let changed = false;
-      const next: Record<string, PanelState> = { ...prev };
-      for (const b of beats) {
-        const cur = prev[b.id];
-        if (!cur) {
-          next[b.id] = { status: 'idle', panelUrl: b.panelUrl };
-          changed = true;
-        } else if (cur.status === 'idle' && cur.panelUrl !== b.panelUrl) {
-          next[b.id] = { status: 'idle', panelUrl: b.panelUrl };
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }
-
-  // Generaciones esperadas por beat tras un click de regenerar/refinar (lista:
-  // un lote de variantes espera varias). ['pending'] mientras el server action
-  // crea las filas (aún no hay ids). Sin este mapa, el heal/Realtime emite el
-  // 'done' de una generación ANTERIOR del beat en esa ventana y apaga el loader
-  // del intento nuevo (Realtime no escucha INSERTs, así que nada lo vuelve a
-  // encender hasta un reload).
-  const awaitingGenRef = useRef<Record<string, string[]>>({});
-
   // Realtime: el worker genera el panel async; escuchamos el estado de la generacion.
   const onPanelUpdate = useCallback(
     (u: { campaignItemId: string; status: string; errorMessage: string | null; generationId: string | null }) => {
@@ -175,7 +193,15 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
           if (rest.length > 0) {
             // Quedan variantes del lote en vuelo: refrescar para mostrar la que
             // llegó, pero mantener el loader/overlay hasta que termine el lote.
+            // El done se acumula en el ref (no en readyGens): publicarlo ya
+            // apagaría el overlay con variantes todavía en vuelo.
             awaitingGenRef.current[u.campaignItemId] = rest;
+            if (u.status === 'done' && u.generationId) {
+              const done = batchDoneRef.current[u.campaignItemId] ?? [];
+              if (!done.includes(u.generationId)) {
+                batchDoneRef.current[u.campaignItemId] = [...done, u.generationId];
+              }
+            }
             router.refresh();
             return;
           }
@@ -183,8 +209,26 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
         }
       }
       if (u.status === 'done') {
-        setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
-        setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'idle', panelUrl: null } }));
+        if (u.generationId) {
+          // Publicar los done del intento (el lote completo, si lo hubo): el flip
+          // a idle y la limpieza del overlay ocurren cuando un refresh entrega el
+          // beat ya ENLAZADO a una de estas gens — en un lote ×3 la enlazada puede
+          // ser cualquier variante, no necesariamente la última en terminar.
+          // Mientras tanto el spinner/overlay cubren el hueco del promote.
+          const batch = batchDoneRef.current[u.campaignItemId] ?? [];
+          delete batchDoneRef.current[u.campaignItemId];
+          const ids = batch.includes(u.generationId) ? batch : [...batch, u.generationId];
+          setReadyGens((prev) => {
+            const cur = prev[u.campaignItemId] ?? [];
+            const merged = [...cur, ...ids.filter((id) => !cur.includes(id))];
+            return merged.length === cur.length ? prev : { ...prev, [u.campaignItemId]: merged };
+          });
+        } else {
+          // Sin id no hay forma de esperar el enlace: degradar al flip inmediato
+          // para no dejar el loader encendido (fila legacy, no debería pasar).
+          setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
+          setPanelStates((prev) => ({ ...prev, [u.campaignItemId]: { status: 'idle', panelUrl: null } }));
+        }
         router.refresh();
       } else if (u.status === 'failed') {
         setRefiningBeats((prev) => clearBeat(prev, u.campaignItemId));
@@ -356,6 +400,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     setGeneratingAll(true);
     for (const beat of withoutPanel) {
       setPanelStates((prev) => ({ ...prev, [beat.id]: { status: 'generating' } }));
+      // Reset del intento: sin esto, un done publicado del intento ANTERIOR
+      // (mismo id ya enlazado) flipearía el spinner nuevo de inmediato.
+      resetCompletedGens(beat.id);
       awaitingGenRef.current[beat.id] = ['pending'];
       const res = await generatePanelAction(beat.id);
       if (!res.ok) {
@@ -373,7 +420,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
   async function handleRegenerate(beatId: string) {
     setPanelStates((prev) => ({ ...prev, [beatId]: { status: 'generating' } }));
-    // 'pending' bloquea eventos terminales viejos hasta conocer el id real.
+    // 'pending' bloquea eventos terminales viejos hasta conocer el id real; el
+    // reset de completados evita que el done del intento anterior flippee este.
+    resetCompletedGens(beatId);
     awaitingGenRef.current[beatId] = ['pending'];
     const res = await generatePanelAction(beatId, {
       productRefInChat: productRef[beatId] ?? false,
@@ -401,6 +450,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     // la generacion (Realtime lo cierra en done/failed). Se mantiene la panelUrl visible
     // (no la ponemos en null como antes, que dejaba "Sin panel" ~80s sin feedback).
     setRefiningBeats((prev) => ({ ...prev, [beatId]: true }));
+    resetCompletedGens(beatId);
     awaitingGenRef.current[beatId] = ['pending'];
     setRefineErrors((prev) => {
       if (!(beatId in prev)) return prev;
