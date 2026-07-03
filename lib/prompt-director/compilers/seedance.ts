@@ -46,7 +46,10 @@ export const AUDIO_BEAT_SYNC_CITATION =
 // robótica. OJO: acento mexicano sustituye al "neutral LatAm" original —
 // decisión tomada de ese ejemplo que funcionó.
 export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
-  es: 'All spoken dialogue and any voice-over must be in Spanish with a natural Mexican accent. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  // es-MX explícito y anti-castellano (2026-07-02): "Spanish" a secas tira al
+  // acento de España en el modelo. Los marcadores prohibidos van nombrados: el
+  // seseo (c/z como s suave, nunca la "th" castellana) es EL delator del acento.
+  es: 'All spoken dialogue and any voice-over must be in Mexican Latin American Spanish (es-MX) with a natural Mexican accent — never a Castilian accent from Spain: pronounce c and z as a soft s (Latin American seseo), never as the Castilian "th" sound, and use Mexican intonation, rhythm and vocabulary. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
   en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
 };
 
