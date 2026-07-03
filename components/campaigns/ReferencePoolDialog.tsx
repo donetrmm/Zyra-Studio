@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Images, Loader2, PencilLine, RotateCcw } from 'lucide-react';
+import { Images, Loader2, PencilLine, RotateCcw, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +14,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { getReferencePoolAction, setReferenceSelectionAction } from '@/server-actions/campaigns';
+import {
+  analyzeProductReferencesAction,
+  applyReferenceAnalysisAction,
+  getReferencePoolAction,
+  setReferenceSelectionAction,
+} from '@/server-actions/campaigns';
+// Type-only: reference-analysis es server-only pero los tipos se borran al compilar.
+import type { ReferenceAnalysisProposal } from '@/lib/campaigns/reference-analysis';
 // reference-selection es un módulo puro sin IO: CATEGORY_APPLIES (valor) es
 // seguro en cliente; los tipos se borran al compilar.
 import {
@@ -70,6 +77,52 @@ export function ReferencePoolDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // true = la campaña no tiene selección guardada (recorte automático).
   const [storedIsAuto, setStoredIsAuto] = useState(true);
+  // Análisis con IA de las imágenes de producto: propuesta editable antes de
+  // aplicar (usos por imagen -> media_references; hechos -> product_brief).
+  const [analyzing, setAnalyzing] = useState(false);
+  const [applyingAnalysis, setApplyingAnalysis] = useState(false);
+  const [proposal, setProposal] = useState<ReferenceAnalysisProposal | null>(null);
+
+  async function handleAnalyze() {
+    const productPaths = entries
+      .filter((e) => e.category === 'product' && selected.has(e.path))
+      .map((e) => e.path)
+      .slice(0, 6);
+    if (productPaths.length === 0) {
+      toast.error('Selecciona al menos una imagen de producto para analizar');
+      return;
+    }
+    setAnalyzing(true);
+    setProposal(null);
+    const res = await analyzeProductReferencesAction({ campaignId, paths: productPaths });
+    setAnalyzing(false);
+    if (res.ok) {
+      setProposal(res.data);
+      if (res.data.usages.length === 0 && Object.keys(res.data.brief).length === 0) {
+        toast.error('El análisis no encontró nada que proponer');
+        setProposal(null);
+      }
+    } else {
+      toast.error(res.message ?? 'No se pudo analizar las imágenes');
+    }
+  }
+
+  async function handleApplyAnalysis() {
+    if (!proposal) return;
+    setApplyingAnalysis(true);
+    const res = await applyReferenceAnalysisAction({
+      campaignId,
+      usages: proposal.usages.filter((u) => u.usage.trim()),
+      brief: proposal.brief,
+    });
+    setApplyingAnalysis(false);
+    if (res.ok) {
+      toast.success('Análisis aplicado · los usos y el brief anclan la próxima generación');
+      setProposal(null);
+    } else {
+      toast.error(res.message ?? 'No se pudo aplicar el análisis');
+    }
+  }
 
   async function loadPool() {
     setLoading(true);
@@ -214,12 +267,114 @@ export function ReferencePoolDialog({
               </div>
             ))}
 
-            <p className={`text-[12px] ${over > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>
-              {count} seleccionadas de {MODEL_IMAGE_CAP} que acepta el video por clip
-              {over > 0 &&
-                ` — se recortarán ${over} por prioridad (producto, empaque, cast, locación, mapa, extras)`}
-              {storedIsAuto && ' · hoy la campaña usa el recorte automático'}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className={`text-[12px] ${over > 0 ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                {count} seleccionadas de {MODEL_IMAGE_CAP} que acepta el video por clip
+                {over > 0 &&
+                  ` — se recortarán ${over} por prioridad (producto, empaque, cast, locación, mapa, extras)`}
+                {storedIsAuto && ' · hoy la campaña usa el recorte automático'}
+              </p>
+              {entries.some((e) => e.category === 'product') && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={analyzing || saving}
+                  onClick={() => void handleAnalyze()}
+                  title="Deriva con visión qué muestra cada imagen de producto (frontal, canto, detalle) y propone grosor, soporte y detalles para el brief"
+                >
+                  {analyzing ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <ScanEye className="size-3.5" aria-hidden />}
+                  Analizar con IA
+                </Button>
+              )}
+            </div>
+
+            {proposal && (
+              <div className="flex flex-col gap-2 rounded-lg border border-primary/40 bg-card/60 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Propuesta del análisis — revisa y edita antes de aplicar
+                </p>
+                {proposal.usages.map((u, i) => (
+                  <div key={u.path} className="flex items-center gap-2">
+                    <span className="w-24 shrink-0 truncate text-[11px] text-muted-foreground" title={u.path}>
+                      {entries.find((e) => e.path === u.path)?.label ?? `Imagen ${i + 1}`}
+                    </span>
+                    <input
+                      type="text"
+                      value={u.usage}
+                      aria-label={`Uso de la imagen ${i + 1}`}
+                      onChange={(ev) =>
+                        setProposal((prev) =>
+                          prev
+                            ? { ...prev, usages: prev.usages.map((x) => (x.path === u.path ? { ...x, usage: ev.target.value } : x)) }
+                            : prev,
+                        )
+                      }
+                      className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                    />
+                  </div>
+                ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-[11px] text-muted-foreground" htmlFor="analysis-medium">
+                    Soporte
+                  </label>
+                  <input
+                    id="analysis-medium"
+                    type="text"
+                    value={proposal.brief.medium ?? ''}
+                    placeholder="canvas print…"
+                    onChange={(ev) =>
+                      setProposal((prev) =>
+                        prev ? { ...prev, brief: { ...prev.brief, medium: ev.target.value || undefined } } : prev,
+                      )
+                    }
+                    className="w-40 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
+                  <label className="text-[11px] text-muted-foreground" htmlFor="analysis-thickness">
+                    Grosor (mm)
+                  </label>
+                  <input
+                    id="analysis-thickness"
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={proposal.brief.thicknessMm ?? ''}
+                    onChange={(ev) => {
+                      const v = Math.round(Number(ev.target.value));
+                      setProposal((prev) =>
+                        prev
+                          ? { ...prev, brief: { ...prev.brief, thicknessMm: v > 0 && v <= 300 ? v : undefined } }
+                          : prev,
+                      );
+                    }}
+                    className="w-20 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
+                </div>
+                {proposal.brief.visualDetails !== undefined && (
+                  <textarea
+                    value={proposal.brief.visualDetails ?? ''}
+                    aria-label="Detalles visuales propuestos"
+                    rows={2}
+                    onChange={(ev) =>
+                      setProposal((prev) =>
+                        prev ? { ...prev, brief: { ...prev.brief, visualDetails: ev.target.value || undefined } } : prev,
+                      )
+                    }
+                    className="min-w-0 resize-none rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" size="sm" disabled={applyingAnalysis} onClick={() => setProposal(null)}>
+                    Descartar
+                  </Button>
+                  <Button type="button" size="sm" disabled={applyingAnalysis} onClick={() => void handleApplyAnalysis()}>
+                    {applyingAnalysis ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
+                    Aplicar análisis
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {context === 'storyboard' && texts && (
               <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">

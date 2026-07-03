@@ -224,6 +224,25 @@ export function describeProductScale(
   return ` The product is a physical piece, ${dims}${shape} - ${proportion}. Render it at this real-world scale and proportion relative to the people, and keep that size constant in every shot; do not shrink or enlarge it between shots, do not exaggerate it into an oversized floor-to-ceiling piece, and do not miniaturize it.${carry}${staging}`;
 }
 
+// Explica QUÉ muestra cada imagen de producto adjunta (usage_description del
+// brand kit) y exige calzar la construcción que cada vista fija. Existe porque
+// una referencia de canto/perfil viajaba como píxeles sin función: el pointer
+// genérico ("reproduce its printed image") solo ancla el arte impreso y el
+// modelo ignoraba justo lo que esa vista fija (grosor, marco, acabado).
+// '' si ninguna imagen presente tiene uso declarado; empieza con espacio
+// (concatenable, mismo contrato que describeProductScale). La usan el compiler
+// FLUX (panel fresco) y los pointers de chat (regenerar/refinar).
+export function productUsageClause(
+  paths: string[],
+  usages?: Record<string, string>,
+): string {
+  const described = paths
+    .map((p) => usages?.[p]?.trim())
+    .filter((u): u is string => !!u);
+  if (described.length === 0) return '';
+  return ` The attached product reference images include: ${described.join('; ')}. Match exactly the construction each view shows — edge thickness, frame, finish and proportions — not just the printed artwork.`;
+}
+
 // Peso físico → interacción (spec 2026-07-02). EN, para compilers de imagen y
 // video (donde "lo mueve como si no pesara" más se nota). '' sin dato o <2kg;
 // empieza con espacio (concatenable, mismo contrato que describeProductScale).

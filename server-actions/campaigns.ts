@@ -32,6 +32,8 @@ import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   AddCampaignItemSchema,
+  AnalyzeReferencesSchema,
+  ApplyReferenceAnalysisSchema,
   ApproveBatchSchema,
   CreateCampaignStudioSchema,
   CreateVariantSchema,
@@ -44,6 +46,7 @@ import {
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
 import { loadReferencePool } from '@/lib/campaigns/reference-pool';
+import { analyzeProductImages, type ReferenceAnalysisProposal } from '@/lib/campaigns/reference-analysis';
 import {
   normalizeReferenceSelection,
   type ReferencePoolEntry,
@@ -2790,4 +2793,108 @@ export async function setReferenceSelectionAction(input: unknown): Promise<Resul
   if (error) return { ok: false, error: 'internal_error' };
   revalidatePath(`/app/campaigns/${campaignId}`);
   return { ok: true, data: { savedCount: value ? value.include.length : null } };
+}
+
+// Analiza con visión las imágenes de producto elegidas y devuelve una PROPUESTA
+// (usos por imagen + hechos de construcción para el brief). No persiste nada:
+// el usuario edita/confirma y aplica con applyReferenceAnalysisAction.
+export async function analyzeProductReferencesAction(input: unknown): Promise<Result<ReferenceAnalysisProposal>> {
+  const parsed = AnalyzeReferencesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { campaignId, paths } = parsed.data;
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select(REFERENCE_POOL_CAMPAIGN_COLS)
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  // Solo paths que son imágenes de PRODUCTO del pool real (no storage arbitrario).
+  const pool = await loadReferencePool(workspace.id, {
+    id: campaign.id as string,
+    brand_kit_id: campaign.brand_kit_id as string | null,
+    product_brief: campaign.product_brief as Record<string, unknown> | null,
+    language: campaign.language as string | null,
+    include_packaging: campaign.include_packaging as boolean | null,
+    music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+  });
+  const productPaths = new Set(pool.entries.filter((e) => e.category === 'product').map((e) => e.path));
+  const valid = [...new Set(paths)].filter((p) => productPaths.has(p));
+  if (valid.length === 0) {
+    return { ok: false, error: 'validation_error', message: 'Selecciona imágenes de producto para analizar' };
+  }
+
+  try {
+    const images = await Promise.all(
+      valid.map(async (path) => {
+        const { buffer, mimeType } = await downloadReferenceBuffer(path);
+        return { path, buffer, mimeType };
+      }),
+    );
+    const proposal = await analyzeProductImages(images);
+    return { ok: true, data: proposal };
+  } catch (err) {
+    console.error('[campaigns:analyze-refs] fallo', { campaignId, err });
+    return { ok: false, error: 'internal_error', message: 'No se pudo analizar las imágenes' };
+  }
+}
+
+// Aplica el análisis confirmado: persiste los usos en la FUENTE
+// (media_references.usage_description, compartida por video y paneles) y
+// mergea los hechos de construcción al product_brief de la campaña. Nada por
+// generación: bifurcar la verdad hace derivar el siguiente panel.
+export async function applyReferenceAnalysisAction(input: unknown): Promise<Result<{ updatedImages: number }>> {
+  const parsed = ApplyReferenceAnalysisSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { campaignId, usages, brief } = parsed.data;
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: campaign } = await supabase
+    .from('campaigns')
+    .select(REFERENCE_POOL_CAMPAIGN_COLS)
+    .eq('id', campaignId)
+    .eq('workspace_id', workspace.id)
+    .single();
+  if (!campaign) return { ok: false, error: 'not_found' };
+
+  const pool = await loadReferencePool(workspace.id, {
+    id: campaign.id as string,
+    brand_kit_id: campaign.brand_kit_id as string | null,
+    product_brief: campaign.product_brief as Record<string, unknown> | null,
+    language: campaign.language as string | null,
+    include_packaging: campaign.include_packaging as boolean | null,
+    music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+  });
+  const productPaths = new Set(pool.entries.filter((e) => e.category === 'product').map((e) => e.path));
+
+  let updatedImages = 0;
+  for (const u of usages) {
+    if (!productPaths.has(u.path)) continue;
+    const { error, count } = await supabase
+      .from('media_references')
+      .update({ usage_description: u.usage }, { count: 'exact' })
+      .eq('workspace_id', workspace.id)
+      .eq('storage_url', u.path);
+    if (!error) updatedImages += count ?? 0;
+  }
+
+  const briefPatch: Record<string, unknown> = {};
+  if (brief.medium) briefPatch.medium = brief.medium;
+  if (brief.thicknessMm) briefPatch.thicknessMm = brief.thicknessMm;
+  if (brief.visualDetails) briefPatch.visualDetails = brief.visualDetails;
+  if (Object.keys(briefPatch).length > 0) {
+    const current = (campaign.product_brief as Record<string, unknown> | null) ?? {};
+    const { error } = await supabase
+      .from('campaigns')
+      .update({ product_brief: { ...current, ...briefPatch } })
+      .eq('id', campaignId)
+      .eq('workspace_id', workspace.id);
+    if (error) return { ok: false, error: 'internal_error', message: 'No se pudo actualizar el brief' };
+  }
+
+  revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, data: { updatedImages } };
 }

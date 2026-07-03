@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeProduct, describeProductScale, describeProductWeight, stagingPlannerBlock, ADULT_REF_CM } from './inventory';
+import { describeProduct, describeProductScale, describeProductWeight, productUsageClause, stagingPlannerBlock, ADULT_REF_CM } from './inventory';
 
 describe('describeProduct — objeto vs impreso', () => {
   const base = { name: 'X', palette: ['red'], imagePaths: [] as string[], visualDetails: 'a family party photo' };
@@ -193,5 +193,26 @@ describe('stagingPlannerBlock', () => {
   it('el bloque de peso incluye el escape de física', () => {
     const s = stagingPlannerBlock({ name: 'x', weightKg: 12 });
     expect(s).toContain('salvo que la idea pida explícitamente romper la física');
+  });
+});
+
+describe('productUsageClause — explica qué muestra cada imagen de producto adjunta', () => {
+
+  it('sin usos declarados devuelve vacío (no inventar funciones)', () => {
+    expect(productUsageClause(['p/1.jpg', 'p/2.jpg'], undefined)).toBe('');
+    expect(productUsageClause(['p/1.jpg'], {})).toBe('');
+  });
+
+  it('enumera solo los usos de las imágenes presentes y exige calzar la construcción', () => {
+    const clause = productUsageClause(['p/1.jpg', 'p/2.jpg', 'p/3.jpg'], {
+      'p/1.jpg': 'frontal view of the printed artwork',
+      'p/3.jpg': 'edge profile showing the ~20mm thickness',
+      'p/otro.jpg': 'no incluida',
+    });
+    expect(clause).toContain('frontal view of the printed artwork');
+    expect(clause).toContain('edge profile showing the ~20mm thickness');
+    expect(clause).not.toContain('no incluida');
+    expect(clause).toContain('construction');
+    expect(clause.startsWith(' ')).toBe(true); // concatenable
   });
 });

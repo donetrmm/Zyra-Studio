@@ -217,6 +217,26 @@ export const SetReferenceSelectionSchema = z.object({
   include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
 });
 
+// Análisis por visión de las imágenes de producto (botón "Analizar con IA").
+export const AnalyzeReferencesSchema = z.object({
+  campaignId: z.string().uuid(),
+  paths: z.array(z.string().trim().min(1).max(500)).min(1).max(6),
+});
+
+// Aplicar el análisis confirmado por el usuario: usos por imagen (fuente:
+// media_references.usage_description) + hechos de construcción al brief.
+export const ApplyReferenceAnalysisSchema = z.object({
+  campaignId: z.string().uuid(),
+  usages: z
+    .array(z.object({ path: z.string().trim().min(1).max(500), usage: z.string().trim().min(1).max(300) }))
+    .max(6),
+  brief: z.object({
+    medium: z.string().trim().min(1).max(120).optional(),
+    thicknessMm: z.number().int().positive().max(300).optional(),
+    visualDetails: z.string().trim().min(1).max(600).optional(),
+  }),
+});
+
 // Agregar un creativo suelto al plan (specs/v2/03 tarea 1: addItem).
 // El modelo y el caption los decide el server (tier draft + caption generado).
 export const AddCampaignItemSchema = z.object({

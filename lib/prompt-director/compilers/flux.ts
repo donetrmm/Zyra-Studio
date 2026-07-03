@@ -2,7 +2,7 @@
 // Estructura: sujeto + entorno + iluminación (palanca de calidad #1) + estilo
 // + paleta. Sin keyword soup (el antislop limpia al final en index.ts).
 
-import { describeCharacter, describeProduct } from '../inventory';
+import { describeCharacter, describeProduct, productUsageClause } from '../inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
@@ -77,9 +77,16 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   // Referencias: producto (hasta 4) + hoja maestra de cada personaje (hasta 3).
   // El personaje ancla la identidad; va después del producto. Tope 8 (FLUX 2).
   const references: CompiledReference[] = [];
-  for (const storagePath of ctx.product?.imagePaths.slice(0, 4) ?? []) {
+  const productPaths = ctx.product?.imagePaths.slice(0, 4) ?? [];
+  for (const storagePath of productPaths) {
     references.push({ storagePath, kind: 'image', role: 'product' });
   }
+  // Uso por imagen (usage_description del brand kit): sin esto, una vista de
+  // canto/perfil viaja como píxeles sin función y el grosor/construcción que
+  // fija se ignora. El compiler de video ya cita usos por @imageN; aquí no hay
+  // numeración, así que se enumeran en bloque.
+  const usageClause = productUsageClause(productPaths, ctx.product?.imageUsages);
+  if (usageClause) sections.push(usageClause.trim());
   for (const character of (ctx.characters ?? []).slice(0, 3)) {
     if (character.masterImagePath) {
       references.push({
