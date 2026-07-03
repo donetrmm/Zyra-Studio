@@ -132,10 +132,13 @@ function toTimeline(action: string, duration: number): string {
     .join('. ')}.`;
 }
 
-// Tope de trabajo del prompt: ModelArk no documenta límite de caracteres;
-// 4000 es el techo propio de SubmitSeedanceSchema — el compiler avisa antes de
-// que un submit manual lo rechace.
-const PROMPT_CHAR_BUDGET = 4000;
+// Tope de trabajo del prompt: ModelArk/Atlas no documentan límite de caracteres
+// y prompts de ~6200 ya pasaron en producción (path storyboard, que además
+// apende citas DESPUÉS del compile). El techo duro del sistema es el schema de
+// generación (8000); este budget deja margen para esos apéndices. Antes era
+// 4000 (espejo viejo de SubmitSeedanceSchema) y el desborde podía comerse la
+// acción COMPLETA (bug 2026-07-02: lip-sync sin guion → audio inventado).
+const PROMPT_CHAR_BUDGET = 6000;
 
 // Recorta la acción en frontera de frase/palabra para no cortar a media palabra
 // cuando el prompt compilado excede el techo duro.
@@ -535,18 +538,34 @@ export function compileSeedance(
   const hasRefs = references.length > 0;
   let prompt = sections.filter(Boolean).join('\n');
   if (prompt.length > PROMPT_CHAR_BUDGET) {
-    // Garantía dura: el prompt compilado no puede pasar de 4000 (cap de
-    // SubmitSeedanceSchema). Recortamos SOLO la acción —preservando su inicio
-    // (gancho + primer diálogo) y dejando intactas las cláusulas finales
-    // obligatorias (idioma del diálogo, cláusula negativa)— en vez de dejar que
-    // el submit rechace el guion. Si no cabe, hay que dividirlo en escenas.
+    // Recortamos SOLO la acción, dejando intactas las cláusulas finales
+    // obligatorias (idioma del diálogo, cláusula negativa). EL GUION ES SAGRADO
+    // (bug 2026-07-02): si el recorte se comería el diálogo — o la acción entera,
+    // cuando el desborde supera su largo — el modelo recibe SPEECH_DIRECTION sin
+    // guion y INVENTA el audio. En ese caso se reconstruye la acción como gancho
+    // (primera frase) + segmentos de diálogo completos, aunque el prompt quede
+    // por encima del budget: el techo real del sistema es 8000 y un prompt largo
+    // es infinitamente mejor que un lip-sync improvisado.
     const overflow = prompt.length - PROMPT_CHAR_BUDGET;
     const action = sections[actionIndex];
-    sections[actionIndex] = clampToBudget(action, Math.max(0, action.length - overflow));
+    const trimmed = clampToBudget(action, Math.max(0, action.length - overflow));
+    const dialogues = action.match(/(?:dialogue|di[aá]logo)\s*:\s*["“][^"“”]*["”]\.?/gi) ?? [];
+    const keepsDialogue = dialogues.every((d) => trimmed.includes(d));
+    if ((action.length > 0 && trimmed.length === 0) || !keepsDialogue) {
+      const firstDot = action.indexOf('. ');
+      const hook = firstDot > 0 ? action.slice(0, firstDot + 1) : action.split('\n')[0];
+      const rebuilt = [hook, ...dialogues.filter((d) => !hook.includes(d))].join(' ').trim();
+      sections[actionIndex] = rebuilt || action;
+      warnings.push(
+        `prompt: excede el techo de ${PROMPT_CHAR_BUDGET} caracteres incluso preservando solo gancho y diálogo; divide el creativo en escenas`,
+      );
+    } else {
+      sections[actionIndex] = trimmed;
+      warnings.push(
+        `prompt: la acción se recortó para caber en el techo de ${PROMPT_CHAR_BUDGET} caracteres; divide el creativo en escenas para usar todo el guion`,
+      );
+    }
     prompt = sections.filter(Boolean).join('\n');
-    warnings.push(
-      `prompt: la acción se recortó para caber en el techo de ${PROMPT_CHAR_BUDGET} caracteres; divide el creativo en escenas para usar todo el guion`,
-    );
   }
 
   return {

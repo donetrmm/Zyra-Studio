@@ -330,7 +330,7 @@ describe('compile seedance', () => {
     expect(prompt).toContain('natural Mexican accent');
   });
 
-  it('recorta solo la acción para garantizar ≤4000, preservando las cláusulas finales', () => {
+  it('recorta solo la acción para el techo, preservando cláusulas finales Y el diálogo', () => {
     const huge = '0-3s: Brenda stares into the camera as the LED wall scrolls endless family photographs. '.repeat(80);
     const res = compile(
       {
@@ -344,12 +344,34 @@ describe('compile seedance', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const { prompt, warnings } = res.compiled;
-    // Garantía dura: el prompt compilado nunca supera el cap de SubmitSeedanceSchema.
-    expect(prompt.length).toBeLessThanOrEqual(4000);
     // Las cláusulas finales obligatorias sobreviven al recorte de la acción.
     expect(prompt).toContain('No on-screen text');
     expect(prompt).toContain('natural Mexican accent');
-    expect(warnings.some((w) => w.includes('se recortó'))).toBe(true);
+    // EL GUION ES SAGRADO (bug 2026-07-02): el diálogo sobrevive SIEMPRE al
+    // recorte — sin guion, el lip-sync inventa el audio.
+    expect(prompt).toContain('No la pierdas');
+    expect(warnings.some((w) => w.includes('recort') || w.includes('techo'))).toBe(true);
+  });
+
+  it('desborde mayor que la acción: el guion sobrevive aunque el prompt exceda el budget', () => {
+    // Andamiaje gigante (visualDetails ~6500 chars) + acción corta con diálogo:
+    // el recorte ingenuo dejaba la acción en CERO y el modelo inventaba el audio.
+    const ctx = fullContext();
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt: 'Ana leans forward, pointing at the lens. Dialogue: "¡Mira esto!"',
+        durationS: 4,
+        aspectRatio: '9:16',
+      },
+      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(440) } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt, warnings } = res.compiled;
+    expect(prompt).toContain('Mira esto');
+    expect(prompt).toContain('Ana leans forward');
+    expect(warnings.some((w) => w.includes('techo'))).toBe(true);
   });
 
   it('el diálogo hablado va en español por default y en inglés si la campaña lo pide', () => {
