@@ -15,7 +15,8 @@ import { getReferencePathsAction } from '@/server-actions/creation';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { generateScaleMap, generateScaleMapFromMaster, isGenError } from '@/components/creation/generate';
+import { generateScaleMap, generateScaleMapFromMaster, isGenError, refineLocationMaster } from '@/components/creation/generate';
+import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 import { buildLocationPrompt } from '@/lib/prompt-director/asset-prompts';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
@@ -329,6 +330,23 @@ function LocationEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
+
+        {/* Refinado iterativo de la maestra (feedback 2026-07-04): cambia luz,
+            hora o elementos sin regenerar el lugar de cero. Guarda con el
+            Guardar del editor (el cambio de maestra invalida el light_profile). */}
+        {masterImages.length > 0 && (
+          <MasterImageRefiner
+            image={masterImages[0]}
+            refine={refineLocationMaster}
+            onResult={(r) => setMasterImages([r])}
+            placeholder="ej. quita los coches de la calle"
+            quickActions={[
+              { label: 'De noche', instruction: 'Turn the scene to night time: dark sky, ambient and practical lights on, believable night lighting.' },
+              { label: 'Luz más cálida', instruction: 'Make the lighting warmer and softer, golden-hour feel, still believable for the place.' },
+              { label: 'Despejar', instruction: 'Remove any people, clutter and distracting loose objects, leaving the space clean and ready for a scene.' },
+            ]}
+          />
+        )}
 
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">

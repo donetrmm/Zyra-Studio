@@ -6,7 +6,8 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster } from './generate';
+import { buildProductPrompt, generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster, refineCharacterMaster, refineLocationMaster, retouchUploaded } from './generate';
+import { stripSlop } from '@/lib/prompt-director/antislop';
 
 describe('generateProductAngle', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -128,5 +129,106 @@ describe('generateScaleMapFromMaster', () => {
     const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
     expect(call.provider).toBe('nano-banana');
     expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
+  });
+});
+
+// Concepto de producto con control desde la plataforma (feedback 2026-07-04):
+// contexto de la toma + referencias de inspiración, no solo la descripción.
+describe('buildProductPrompt', () => {
+  it('estudio (default): packshot sobre fondo limpio', () => {
+    const p = buildProductPrompt('una lata de té matcha');
+    expect(p).toContain('una lata de té matcha');
+    expect(p).toMatch(/Studio product photograph/);
+    expect(p).toMatch(/no text, no watermark/i);
+  });
+
+  it('lifestyle: el producto en su contexto de uso, sin fondo de estudio', () => {
+    const p = buildProductPrompt('una lata de té matcha', 'lifestyle');
+    expect(p).toMatch(/real-world setting/);
+    expect(p).not.toMatch(/seamless background/);
+  });
+
+  it('casero: foto de celular con balance neutro, sin lenguaje de estudio', () => {
+    const p = buildProductPrompt('una lata de té matcha', 'casero');
+    expect(p).toMatch(/smartphone/);
+    expect(p).toMatch(/neutral white balance/);
+    expect(p).not.toMatch(/Studio product photograph|professional/);
+  });
+
+  it('con referencias: instruye seguir su lenguaje de diseño (forma, logo, colores)', () => {
+    const p = buildProductPrompt('una lata de té', 'estudio', 2);
+    expect(p).toMatch(/reference images/);
+    expect(p).toMatch(/logo or label/);
+    expect(buildProductPrompt('una lata de té')).not.toMatch(/reference/i);
+  });
+
+  it('ningún contexto usa términos de la lista antislop', () => {
+    for (const shot of ['estudio', 'lifestyle', 'casero'] as const) {
+      expect(stripSlop(buildProductPrompt('x', shot, 1)).removed).toEqual([]);
+    }
+  });
+});
+
+// Refinado de maestras ya guardadas (feedback 2026-07-04): personaje y locación
+// ganan la edición iterativa que antes solo tenía el producto.
+describe('refineCharacterMaster', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('edita la maestra vía editUploaded preservando identidad, con la instrucción al mando', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await refineCharacterMaster({ id: 'm', storagePath: 'ws/m.png' }, 'shorter hair, denim jacket');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'nano-banana' }>).conversational).toBe(false);
+    expect(call.references).toEqual([{ id: 'm', storagePath: 'ws/m.png' }]);
+    expect(call.prompt).toContain('shorter hair, denim jacket');
+    expect(call.prompt).toMatch(/same person identity/i);
+    expect(call.prompt).toMatch(/master reference portrait/i);
+    // El peinado NO va en la guarda de identidad: la instrucción debe poder cambiarlo.
+    expect(call.prompt).not.toMatch(/same hairstyle/i);
+  });
+});
+
+describe('refineLocationMaster', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('edita la maestra preservando el lugar (arquitectura y encuadre)', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await refineLocationMaster({ id: 'loc', storagePath: 'ws/loc.png' }, 'turn it to night time');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect(call.references).toEqual([{ id: 'loc', storagePath: 'ws/loc.png' }]);
+    expect(call.prompt).toContain('turn it to night time');
+    expect(call.prompt).toMatch(/same place|same architecture/i);
+    expect(call.prompt).toMatch(/empty of people/i);
+  });
+});
+
+describe('retouchUploaded', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('retoca una subida con guarda genérica (solo cambia lo pedido)', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await retouchUploaded({ id: 'up', storagePath: 'ws/up.png' }, 'remove the background');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect(call.references).toEqual([{ id: 'up', storagePath: 'ws/up.png' }]);
+    expect(call.prompt).toContain('remove the background');
+    expect(call.prompt).toMatch(/Keep everything else/i);
   });
 });

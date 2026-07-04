@@ -13,6 +13,7 @@ import {
   generateProductConcept,
   generatePackaging,
   isGenError,
+  type ProductShot,
 } from './generate';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
@@ -79,6 +80,11 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   // Perfil de estilo visual del personaje (mismo selector que CastPage/wizard).
   const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
   const [visualStyleCustom, setVisualStyleCustom] = useState('');
+  // Producto (feedback 2026-07-04): contexto de la toma + imágenes de
+  // inspiración (boceto, producto parecido, logo) que guían el concepto.
+  const [productShot, setProductShot] = useState<ProductShot>('estudio');
+  const [inspoRefs, setInspoRefs] = useState<ImgRef[]>([]);
+  const inspoFileRef = useRef<HTMLInputElement>(null);
 
   const title =
     kind === 'character' ? 'Crear personaje con IA'
@@ -96,7 +102,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     if (text.trim().length < 3) return;
     setBusy(true);
     try {
-      const res = await clarifyCreationAction({ text: text.trim(), hasReference: false });
+      const res = await clarifyCreationAction({ text: text.trim(), hasReference: inspoRefs.length > 0 });
       if (!res.ok) { toast.error(res.message || 'No se pudo procesar'); return; }
       setClarify(res.data);
       if (res.data.questions.length === 0) await runCharacter(res.data.enrichedPrompt);
@@ -107,9 +113,10 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
   async function runCharacter(appearance: string) {
     setBusy(true);
     try {
+      const inspo = inspoRefs[0];
       const out = await generateCharacter(
         appearance,
-        undefined,
+        inspo ? { id: inspo.id, storagePath: inspo.storagePath } : undefined,
         visualStyle,
         visualStyle === 'custom' ? visualStyleCustom.trim() : undefined,
       );
@@ -123,10 +130,28 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
     if (text.trim().length < 3 || busy) return;
     setBusy(true);
     try {
-      const out = await generateProductConcept(text.trim());
+      const out = await generateProductConcept(text.trim(), {
+        shot: productShot,
+        references: inspoRefs.map((r) => ({ id: r.id, storagePath: r.storagePath })),
+      });
       if (isGenError(out)) { toast.error(out.message || 'No se pudo generar'); return; }
       setVersions([out]); setCurrent(0); setStep('preview');
     } finally { setBusy(false); }
+  }
+
+  // Sube una imagen de inspiración que guía la generación (producto: hasta 2;
+  // personaje: 1 — generateCharacter acepta una sola referencia).
+  async function addInspo(file: File | undefined) {
+    if (!file || inspoRefs.length >= (kind === 'product' ? 2 : 1)) return;
+    setBusy(true);
+    try {
+      const res = await uploadReferenceFile(file);
+      if (!res.ok) { toast.error(res.message); return; }
+      setInspoRefs((rs) => [...rs, { id: res.ref.id, storagePath: res.ref.storagePath, previewUrl: res.ref.previewUrl }]);
+    } finally {
+      setBusy(false);
+      if (inspoFileRef.current) inspoFileRef.current.value = '';
+    }
   }
 
   // ---- product create: empaque a partir del producto actual ----
@@ -282,6 +307,30 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
                 placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Inspiración (opcional)</span>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {inspoRefs.map((r) => (
+                    <div key={r.id} className="group relative size-14 overflow-hidden rounded-lg border border-border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.previewUrl} alt="inspiración" className="size-full object-cover" />
+                      <button type="button" aria-label="Quitar inspiración" onClick={() => setInspoRefs((rs) => rs.filter((x) => x.id !== r.id))}
+                        className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
+                        <X className="size-3" aria-hidden />
+                      </button>
+                    </div>
+                  ))}
+                  {inspoRefs.length < 1 && (
+                    <button type="button" onClick={() => inspoFileRef.current?.click()} disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                      <ImagePlus className="size-3" aria-hidden /> Subir imagen
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">Mood, estilo de ropa o vibra que quieres — no se copia la cara (el personaje es ficticio).</p>
+                <input ref={inspoFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={(e) => void addInspo(e.target.files?.[0])} />
+              </div>
+              <div>
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Estilo visual</span>
                 <div className="mt-1.5">
                   <VisualStyleSelector
@@ -312,6 +361,61 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
               <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
                 placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
+
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Inspiración (opcional)</span>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {inspoRefs.map((r) => (
+                    <div key={r.id} className="group relative size-14 overflow-hidden rounded-lg border border-border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.previewUrl} alt="inspiración" className="size-full object-cover" />
+                      <button type="button" aria-label="Quitar inspiración" onClick={() => setInspoRefs((rs) => rs.filter((x) => x.id !== r.id))}
+                        className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100">
+                        <X className="size-3" aria-hidden />
+                      </button>
+                    </div>
+                  ))}
+                  {inspoRefs.length < 2 && (
+                    <button type="button" onClick={() => inspoFileRef.current?.click()} disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50">
+                      <ImagePlus className="size-3" aria-hidden /> Subir imagen
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">Boceto, producto parecido o tu logo: la IA sigue su forma, colores y marca.</p>
+                <input ref={inspoFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                  onChange={(e) => void addInspo(e.target.files?.[0])} />
+              </div>
+
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Contexto de la toma</span>
+                <div className="mt-1.5 flex gap-2">
+                  {(
+                    [
+                      { value: 'estudio', label: 'Estudio', hint: 'Packshot sobre fondo limpio, luz comercial pareja' },
+                      { value: 'lifestyle', label: 'Lifestyle', hint: 'El producto en su contexto de uso real' },
+                      { value: 'casero', label: 'Casero', hint: 'Foto espontánea de celular, tipo UGC' },
+                    ] as const
+                  ).map((o) => (
+                    <button key={o.value} type="button" title={o.hint} onClick={() => setProductShot(o.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-[12.5px] transition-colors ${
+                        productShot === o.value
+                          ? 'border-primary/60 bg-primary/10 text-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                      }`}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">
+                  {productShot === 'estudio'
+                    ? 'Packshot sobre fondo limpio, luz comercial pareja.'
+                    : productShot === 'lifestyle'
+                      ? 'El producto en su contexto de uso real.'
+                      : 'Foto espontánea de celular, tipo UGC.'}
+                </p>
+              </div>
+
               <button type="button" onClick={runConcept} disabled={busy || text.trim().length < 3}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
                 {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5" aria-hidden />} Generar concepto

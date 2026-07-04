@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Loader2, Plus, Upload, X } from 'lucide-react';
+import { Check, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
+import { isGenError, retouchUploaded } from '@/components/creation/generate';
 import { cn } from '@/lib/utils';
 
 export type ReferenceClient = {
@@ -37,6 +38,39 @@ export function ReferencesPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const count = value.length;
   const over = count > maxRefs;
+  // Retoque con IA de una referencia (feedback 2026-07-04: las fotos subidas no
+  // se podían editar sin salir de la plataforma). El resultado reemplaza el
+  // slot y queda además en la Biblioteca como generación.
+  const [retouching, setRetouching] = useState<ReferenceClient | null>(null);
+  const [retouchText, setRetouchText] = useState('');
+  const [retouchBusy, setRetouchBusy] = useState(false);
+
+  async function applyRetouch() {
+    if (!retouching || retouchText.trim().length < 3 || retouchBusy) return;
+    setRetouchBusy(true);
+    try {
+      const out = await retouchUploaded(
+        { id: retouching.id, storagePath: retouching.storagePath },
+        retouchText.trim(),
+      );
+      if (isGenError(out)) {
+        toast.error(out.message || 'No se pudo retocar la imagen');
+        return;
+      }
+      onChange(
+        value.map((r) =>
+          r.id === retouching.id
+            ? { id: out.refId, storagePath: out.storagePath, previewUrl: out.previewUrl, filename: retouching.filename }
+            : r,
+        ),
+      );
+      setRetouching(null);
+      setRetouchText('');
+      toast.success('Imagen retocada; la versión editada quedó también en tu Biblioteca');
+    } finally {
+      setRetouchBusy(false);
+    }
+  }
 
   const uploadFile = useCallback(
     async (file: File): Promise<ReferenceClient | null> => {
@@ -163,6 +197,19 @@ export function ReferencesPanel({
                 >
                   <X className="size-2.5" aria-hidden />
                 </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRetouching(r);
+                    setRetouchText('');
+                  }}
+                  className="absolute left-0.5 top-0.5 grid size-[18px] place-items-center rounded-full bg-background/70 text-foreground backdrop-blur"
+                  aria-label="Retocar con IA"
+                  title="Retocar con IA"
+                >
+                  <Sparkles className="size-2.5" aria-hidden />
+                </button>
                 <div className="absolute bottom-0.5 left-1 rounded bg-background/70 px-1.5 font-mono text-[9.5px] text-foreground/85">
                   {i + 1}
                 </div>
@@ -188,6 +235,45 @@ export function ReferencesPanel({
           </div>
         )}
       </div>
+      {retouching && (
+        <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+          <p className="mb-1.5 text-[11.5px] text-muted-foreground">
+            Retocar <span className="text-foreground">{retouching.filename}</span> con IA (un cambio por vez):
+          </p>
+          <div className="flex gap-1.5">
+            <input
+              value={retouchText}
+              onChange={(e) => setRetouchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void applyRetouch();
+                }
+              }}
+              placeholder="ej. quita el fondo, mejora la luz"
+              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+            />
+            <button
+              type="button"
+              onClick={() => void applyRetouch()}
+              disabled={retouchBusy || retouchText.trim().length < 3}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-[11.5px] font-medium text-foreground hover:bg-primary/15 disabled:opacity-50"
+            >
+              {retouchBusy ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Sparkles className="size-3" aria-hidden />}
+              Aplicar
+            </button>
+            <button
+              type="button"
+              onClick={() => setRetouching(null)}
+              disabled={retouchBusy}
+              className="shrink-0 rounded-md border border-border px-2.5 py-1.5 text-[11.5px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {over && (
         <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11.5px] text-amber-400">
           Acepta máximo {maxRefs} referencias. Quita {count - maxRefs}.

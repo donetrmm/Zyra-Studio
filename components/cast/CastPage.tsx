@@ -9,7 +9,8 @@ import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterS
 import { getReferencePathsAction } from '@/server-actions/creation';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
-import { generateCharacterState, refineCharacterState, isGenError } from '@/components/creation/generate';
+import { generateCharacterState, refineCharacterState, refineCharacterMaster, isGenError } from '@/components/creation/generate';
+import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
@@ -402,6 +403,19 @@ function CharacterEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
+
+        {/* Refinado iterativo de la maestra (feedback 2026-07-04): antes solo se
+            podía editar durante la creación en el wizard; post-guardado obligaba
+            a Photoshop o a regenerar de cero. Preserva la identidad; el cambio
+            pedido (peinado, ropa, expresión) manda. */}
+        {masterImages.length > 0 && (
+          <MasterImageRefiner
+            image={masterImages[0]}
+            refine={refineCharacterMaster}
+            onResult={(r) => setMasterImages([r])}
+            placeholder="ej. pelo más corto, chaqueta de mezclilla"
+          />
+        )}
 
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">

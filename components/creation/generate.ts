@@ -102,6 +102,20 @@ export async function editUploaded(
   return fixAsReference(res.data.generationId);
 }
 
+// Retoque genérico de una imagen SUBIDA (feedback 2026-07-04: las fotos propias
+// no se podían editar con IA en la plataforma). Guarda genérica: solo cambia lo
+// pedido, el resto de la imagen se preserva. El resultado es una generación
+// (queda en la Biblioteca) y una media_reference reutilizable.
+export async function retouchUploaded(
+  reference: { id: string; storagePath: string },
+  instruction: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Apply only this change to the reference image: ${instruction.trim()}. ` +
+    `Keep everything else exactly as in the original — same subject, framing, colors and detail.`;
+  return editUploaded(reference, prompt);
+}
+
 // Hornea una VARIANTE DE ESTADO de un personaje (P05) desde su hoja maestra,
 // vía editUploaded (la master entra como referencia). Preserva la identidad
 // EXACTA; cambia solo el estado fisico (vestuario/piel). El `state` describe el
@@ -145,6 +159,37 @@ export async function refineCharacterState(
     `Apply only this change: ${instruction}. ` +
     `Same plain background and even studio lighting unless the change explicitly says otherwise.`;
   return editUploaded(stateRef, prompt);
+}
+
+// Re-edita la HOJA MAESTRA de un personaje YA GUARDADO (feedback 2026-07-04:
+// antes solo se podía editar durante la creación en el wizard). Guarda de
+// identidad: cara, complexión y piel se preservan; la instrucción manda sobre
+// lo demás (peinado, ropa, expresión). Mantiene el encuadre de hoja maestra.
+export async function refineCharacterMaster(
+  masterRef: { id: string; storagePath: string },
+  instruction: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Keep the exact same person identity as the reference image — same face, complexion and build — ` +
+    `and keep the head-and-shoulders master-portrait framing with its plain background and even lighting. ` +
+    `Apply only this change: ${instruction}. ` +
+    `The result must still read as the same person's master reference portrait.`;
+  return editUploaded(masterRef, prompt);
+}
+
+// Re-edita la MAESTRA de una locación (feedback 2026-07-04: las locaciones no
+// tenían edición iterativa). Guarda de lugar: misma arquitectura, disposición y
+// encuadre; la instrucción cambia luz/hora/elementos. Sin personas salvo que la
+// instrucción lo pida (contrato de escenario de las locaciones).
+export async function refineLocationMaster(
+  masterRef: { id: string; storagePath: string },
+  instruction: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Keep the exact same place as the reference image — same architecture, layout, surfaces and camera framing. ` +
+    `Apply only this change: ${instruction}. ` +
+    `The result must still read as the same location, empty of people unless the change explicitly says otherwise.`;
+  return editUploaded(masterRef, prompt);
 }
 
 // Mapa de escala (P15): diagrama top-down del set desde una descripción. FLUX
@@ -197,25 +242,56 @@ export async function generateScaleMapFromMaster(
 
 // Producto CONCEPTO desde cero (marca sin foto): FLUX desde la descripción.
 // Legítimo solo cuando no hay producto real — es un concepto, no una foto fiel.
-function buildProductPrompt(description: string): string {
-  return (
-    `Studio product photograph of ${description}. ` +
-    'Centered on a clean seamless background, soft even commercial lighting that shows form, ' +
-    'material and texture, sharp focus, high detail, professional product photography. ' +
-    'No text, no watermark.'
-  );
+// Contexto de la toma (feedback 2026-07-04): estudio (packshot, default),
+// lifestyle (en su contexto de uso) o casero (foto de celular/UGC).
+export type ProductShot = 'estudio' | 'lifestyle' | 'casero';
+
+const PRODUCT_SHOT_BLOCKS: Record<ProductShot, string> = {
+  estudio:
+    'Studio product photograph: centered on a clean seamless background, soft even commercial ' +
+    'lighting that shows form, material and texture, sharp focus, high detail.',
+  lifestyle:
+    'Lifestyle product photograph: the product placed in a natural real-world setting where it ' +
+    'would actually be used, believable ambient light with true-to-life colors, the product ' +
+    'clearly the hero of the frame, sharp focus on it.',
+  casero:
+    'Casual photo taken handheld on a modern smartphone: the product in an everyday spot, ' +
+    'slightly imperfect framing, natural automatic exposure, neutral white balance with ' +
+    'true-to-life colors — a spontaneous snapshot, not a staged production.',
+};
+
+export function buildProductPrompt(
+  description: string,
+  shot: ProductShot = 'estudio',
+  referenceCount = 0,
+): string {
+  // Con inspiración: seguir su lenguaje de diseño sin copiarla literal — cubre
+  // boceto, producto parecido y logo por integrar.
+  const refClause =
+    referenceCount > 0
+      ? ' Follow the provided reference images for the design language — shape, materials, colors and any logo or label shown in them, integrated faithfully into one coherent product.'
+      : '';
+  const noText = referenceCount > 0 ? 'No text beyond what the references show, no watermark.' : 'No text, no watermark.';
+  return `${shot === 'estudio' ? 'Studio product photograph of' : shot === 'lifestyle' ? 'Product photograph of' : 'Photo of'} ${description}. ${PRODUCT_SHOT_BLOCKS[shot]}${refClause} ${noText}`;
 }
 
-export async function generateProductConcept(description: string): Promise<GeneratedImage | GenError> {
+export async function generateProductConcept(
+  description: string,
+  opts?: { references?: { id: string; storagePath: string }[]; shot?: ProductShot },
+): Promise<GeneratedImage | GenError> {
+  const shot = opts?.shot ?? 'estudio';
+  const references = (opts?.references ?? []).slice(0, 2);
   const res = await submitGenerationAction({
     provider: 'flux' as const,
     model: 'flux-2-pro-preview' as const,
     variant: 'default' as const,
-    prompt: buildProductPrompt(description),
+    prompt: buildProductPrompt(description, shot, references.length),
     aspectRatio: '1:1' as const,
     megapixels: 2 as const,
-    photoreal: true,
-    references: [],
+    // casero: la PHOTOREAL_DIRECTIVE de FLUX (cámara full-frame) contradice el
+    // bloque smartphone — su lenguaje de captura ya viaja en el prompt.
+    photoreal: shot !== 'casero',
+    references,
   });
   if (!res.ok) return { error: res.error, message: res.message };
   return fixAsReference(res.data.generationId);
