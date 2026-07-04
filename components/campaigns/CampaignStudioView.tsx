@@ -51,6 +51,7 @@ import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { clipDownloadName } from '@/lib/campaigns/clip-download-name';
+import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
 import { ReferencePoolDialog } from './ReferencePoolDialog';
@@ -1187,6 +1188,50 @@ function ProductionView({
   // Visor inline del creativo generado (evita ir a la Biblioteca).
   const [viewing, setViewing] = useState<{ generationId: string; title: string; filename: string } | null>(null);
 
+  // Descarga masiva: todos los videos terminados de la campaña, secuencial (el
+  // fetch del blob ya espacia los saves; un zip en RAM con N videos es riesgo).
+  // El navegador pide permiso de "descargas múltiples" en la primera.
+  const downloadable = groups
+    .flatMap((g) => g.items)
+    .filter((i) => i.generationId != null && ['draft_ready', 'final_ready'].includes(i.status));
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  async function handleDownloadAll() {
+    setDownloadingAll(true);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const [idx, item] of downloadable.entries()) {
+        setDownloadProgress(idx + 1);
+        try {
+          const res = await fetch(`/api/generations/${item.generationId}`, { cache: 'no-store' });
+          const d = res.ok ? ((await res.json()) as { outputUrl: string | null }) : null;
+          if (!d?.outputUrl) {
+            failed++;
+            continue;
+          }
+          await downloadFile(
+            d.outputUrl,
+            clipDownloadName({
+              sequenceId: item.sequenceId,
+              sceneIndex: item.sceneIndex,
+              generationId: item.generationId as string,
+            }),
+          );
+          ok++;
+        } catch {
+          failed++;
+        }
+      }
+    } finally {
+      setDownloadingAll(false);
+      setDownloadProgress(0);
+    }
+    if (failed > 0) toast.error(`${ok} videos descargados · ${failed} fallaron`);
+    else toast.success(`${ok} video${ok === 1 ? '' : 's'} descargado${ok === 1 ? '' : 's'}`);
+  }
+
   async function handleCancel(generationId: string) {
     setBusy(`cancel:${generationId}`);
     const res = await cancelGenerationAction(generationId);
@@ -1274,6 +1319,27 @@ function ProductionView({
 
   return (
     <div className="mt-5 space-y-4">
+      {downloadable.length > 0 && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={downloadingAll}
+            onClick={handleDownloadAll}
+            title="Descarga cada video con su número de clip (clip-01, clip-02, …)"
+          >
+            {downloadingAll ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Download className="size-3.5" aria-hidden />
+            )}
+            {downloadingAll
+              ? `Descargando ${downloadProgress}/${downloadable.length}…`
+              : `Descargar todos (${downloadable.length})`}
+          </Button>
+        </div>
+      )}
       {groups.map((group) => {
         const pending = group.items.filter((i) => ['planned', 'failed'].includes(i.status)).length;
         const generatingItems = group.items.filter((i) => ['sample', 'queued', 'approved'].includes(i.status));
