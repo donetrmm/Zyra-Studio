@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFrameArgs } from './video-frame';
+import { buildFrameArgs, buildAudioArgs } from './video-frame';
 
 describe('buildFrameArgs', () => {
   it('miniatura: escala a 512 y comprime', () => {
@@ -24,6 +24,19 @@ describe('buildFrameArgs', () => {
       '-frames:v', '1',
       '-q:v', '2',
       'out.jpg',
+    ]);
+  });
+});
+
+describe('buildAudioArgs', () => {
+  it('extrae solo el audio como AAC 128k (sin flags de video)', () => {
+    expect(buildAudioArgs('in.mp4', 'out.m4a')).toEqual([
+      '-loglevel', 'error',
+      '-i', 'in.mp4',
+      '-vn',
+      '-acodec', 'aac',
+      '-b:a', '128k',
+      'out.m4a',
     ]);
   });
 });

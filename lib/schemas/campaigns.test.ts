@@ -28,8 +28,9 @@ describe('CreateCampaignStudioSchema — visualStyle', () => {
     const r = CreateCampaignStudioSchema.safeParse(base);
     expect(r.success && r.data.visualStyle).toBe('ultra_realista');
   });
-  it('acepta los 4 valores y rechaza otros', () => {
+  it('acepta los 5 valores y rechaza otros', () => {
     expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'animado' }).success).toBe(true);
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'casero' }).success).toBe(true);
     expect(CreateCampaignStudioSchema.safeParse({ ...base, visualStyle: 'vaporwave' }).success).toBe(false);
   });
   it('custom exige descripción', () => {

@@ -237,6 +237,8 @@ function LocationEditor({
         ),
         aspectRatio: '16:9' as const,
         megapixels: 2 as const,
+        // Solo ultra_realista: la PHOTOREAL_DIRECTIVE de FLUX (cámara full-frame)
+        // contradiría el bloque smartphone del estilo 'casero'.
         photoreal: visualStyle === 'ultra_realista',
         references: [],
       });

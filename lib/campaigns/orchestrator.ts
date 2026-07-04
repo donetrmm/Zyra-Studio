@@ -9,12 +9,13 @@ import {
   DIALOGUE_LANGUAGE,
   SPEECH_DIRECTION,
   hasSpokenDialogue,
+  resolveVideoLook,
   sceneHasVoice,
 } from '@/lib/prompt-director/compilers/seedance';
 import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
-import { isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug } from './sequence-chain';
+import { chainAudioPaths, isLocationMode, isStoryboardVideoMode, nextSceneItem, shouldReturnLastFrame, toImage2VideoSlug, type ChainAudioSource } from './sequence-chain';
 import { uploadReference } from '@/lib/supabase/storage';
 import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/campaigns/storyboard-video';
 import { applyReferenceSelection, normalizeReferenceSelection } from './reference-selection';
@@ -112,6 +113,10 @@ export type CampaignContext = {
   // P16: storage path de la pista de referencia de ritmo (media_reference
   // type='audio'). undefined cuando la campaña no tiene pista.
   audioRefPath?: string;
+  // Fuente de audio de los clips ENCADENADOS (spike 2026-07-04): 'prev_clip'
+  // pasa el audio del clip anterior como referencia (consistencia de voz);
+  // undefined/'music' = la pista P16 (comportamiento previo).
+  chainAudioSource?: ChainAudioSource;
   // AM: uso por imagen de producto (path -> "three-quarter view"). Opcional.
   productImageUsages?: Record<string, string>;
   // Tamaño físico del producto (de product_brief). Opcional; ancla la escala en
@@ -235,6 +240,8 @@ export async function loadCampaignContext(
     include_packaging?: boolean | null;
     // P16: media_reference id de la pista de referencia de ritmo.
     music_ref_id?: string | null;
+    // Fuente de audio de clips encadenados (055). Callers viejos: undefined = music.
+    chain_audio_source?: string | null;
     // Guías creativas opt-in (columna creative_guidelines). Tolerante: si no llega o
     // falla el parse, se trata como vacío (sin guías activas).
     creative_guidelines?: Record<string, unknown> | null;
@@ -355,6 +362,7 @@ export async function loadCampaignContext(
     characters,
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
+    ...(campaign.chain_audio_source === 'prev_clip' ? { chainAudioSource: 'prev_clip' as const } : {}),
     guidelines,
     ...(campaign.visual_style
       ? {
@@ -474,6 +482,20 @@ type ChainParams = {
   // P16: pista de referencia de ritmo de la campaña; se re-ancla en cada clip
   // de la cadena (los encadenados no pasan por el compiler). undefined → sin pista.
   audioRefPath?: string;
+  // Spike 2026-07-04: con 'prev_clip', el avance extrae el audio del clip
+  // previo y lo pasa como referencia al siguiente (consistencia de voz).
+  // undefined → 'music' (la pista P16, comportamiento previo).
+  audioSource?: ChainAudioSource;
+  // PATH del audio extraído del clip PREVIO (solo audioSource='prev_clip'):
+  // viaja en el chain para que la REGENERACIÓN del clip lo reutilice sin
+  // re-extraer (espejo de prevFramePath).
+  prevAudioPath?: string;
+  // Look de video YA RESUELTO (resolveVideoLook: perfil + register del formato,
+  // con la degradación a filmic de registers estilizados): se re-ancla en CADA
+  // clip de la cadena — los encadenados no pasan por el compiler y sin esto el
+  // color/cámara derivan. undefined (cadenas viejas) → NO se emite cláusula
+  // (nunca asumir realista: pisaría el look de campañas fantasía/animado).
+  videoLook?: string;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -484,7 +506,16 @@ export function buildContinuationPrompt(
   scenePrompt: string,
   productCount: number,
   characterCount: number,
-  opts?: { withClosingFrame?: boolean; language?: 'es' | 'en'; generateAudio?: boolean },
+  opts?: {
+    withClosingFrame?: boolean;
+    language?: 'es' | 'en';
+    generateAudio?: boolean;
+    prevClipAudio?: boolean;
+    // Look del video del perfil de estilo (getStyleProfile(...).video): se
+    // re-ancla en cada clip encadenado — el compiler no corre aquí y sin esto
+    // el balance de color y la cámara del estilo derivan clip a clip.
+    videoLook?: string;
+  },
 ): string {
   const refs: string[] = [];
   let idx = 0;
@@ -510,7 +541,15 @@ export function buildContinuationPrompt(
       `@image${idx} is the target final frame — end the shot exactly on it, matching its composition, framing and pose so the next shot continues seamlessly.`,
     );
   }
-  const base = `${refs.join(' ')} ${scenePrompt.trim()}`.trim();
+  // Spike audio encadenado: el audio del clip previo viaja como @audio1 y se
+  // cita explícito (la música P16 nunca se citó aquí; no cambiar ese contrato).
+  if (opts?.prevClipAudio) {
+    refs.push(
+      '@audio1 is the audio of the previous shot — keep the same voice timbre and accent and the same sound ambience, continuing as one uninterrupted scene.',
+    );
+  }
+  const withLook = opts?.videoLook ? ` Video look: ${opts.videoLook}.` : '';
+  const base = `${refs.join(' ')} ${scenePrompt.trim()}${withLook}`.trim();
   // Re-anclar la voz en CADA clip (#3): sin esto el clip 1 habla es-MX con
   // lip-sync pero los siguientes pierden la directiva y Seedance puede derivar a
   // inglés/acento neutro o narración a mitad de la toma continua. Mismas
@@ -541,6 +580,28 @@ export async function storeChainFrame(
     return await uploadReference(workspaceId, `chain/${sequenceId}/from-${sceneIndex}.${ext}`, buf, mime);
   } catch (err) {
     console.error('[chain] heredar fotograma falló', { sequenceId, err });
+    return null;
+  }
+}
+
+// Sube el audio extraído del clip (buffer ya en memoria del finalize) a
+// references, devolviendo el PATH interno — espejo de storeChainFrame pero sin
+// descarga (el finalize ya tiene el MP4). Best-effort: null si falla.
+export async function storeChainAudio(
+  workspaceId: string,
+  sequenceId: string,
+  sceneIndex: number,
+  audioBuffer: Buffer,
+): Promise<string | null> {
+  try {
+    return await uploadReference(
+      workspaceId,
+      `chain/${sequenceId}/audio-from-${sceneIndex}.m4a`,
+      audioBuffer,
+      'audio/mp4',
+    );
+  } catch (err) {
+    console.error('[chain] heredar audio falló', { sequenceId, err });
     return null;
   }
 }
@@ -589,6 +650,9 @@ async function resolveCharacterMasterPathsAdmin(
 export async function advanceSequenceChain(
   gen: { id: string; user_id: string; workspace_id: string; model_id: string; params: Record<string, unknown> },
   frame: { path?: string; url?: string },
+  // Spike audio encadenado: PATH interno del audio del clip recién terminado
+  // (lo extrajo/subió el finalize cuando audioSource='prev_clip'). Opcional.
+  prevAudioPath?: string | null,
 ): Promise<void> {
   const chain = gen.params.chain as ChainParams | undefined;
   if (!chain) return;
@@ -642,11 +706,24 @@ export async function advanceSequenceChain(
   const pricing = await loadPricing();
   const cost = seedanceCostPerItem(pricing, r2vModel, resolution, duration);
   const returnLast = shouldReturnLastFrame(chainItems, next.sceneIndex);
+  const generateAudio = (nextRow.audio as boolean | null) ?? true;
+  // Fuente de audio del clip de continuación (spike 2026-07-04): la voz del
+  // clip anterior o la música P16, excluyentes (límite Seedance: 15s combinados)
+  // y solo si el clip lleva audio.
+  const chainAudio = chainAudioPaths(chain.audioSource, chain.audioRefPath, prevAudioPath, generateAudio);
   const prompt = buildContinuationPrompt(
     nextRow.scene_prompt as string,
     productPaths.length,
     characterPaths.length,
-    { language, generateAudio: (nextRow.audio as boolean | null) ?? true },
+    {
+      language,
+      generateAudio,
+      prevClipAudio: chainAudio.kind === 'prev_clip',
+      // Look YA RESUELTO en la siembra de la cadena. Cadenas viejas sin el
+      // campo: SIN cláusula — asumir realista pisaría el look de campañas
+      // fantasía/animado en vuelo durante el deploy.
+      ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
+    },
   );
 
   const { data: inserted, error: insErr } = await admin
@@ -663,9 +740,9 @@ export async function advanceSequenceChain(
         aspectRatio: nextRow.aspect_ratio ?? '9:16',
         resolution,
         duration,
-        generateAudio: nextRow.audio ?? true,
+        generateAudio,
         referenceImagePaths,
-        ...(chain.audioRefPath ? { referenceAudioPaths: [chain.audioRefPath] } : {}),
+        ...(chainAudio.paths.length ? { referenceAudioPaths: chainAudio.paths } : {}),
         returnLastFrame: returnLast,
         chain: {
           campaignId: chain.campaignId,
@@ -677,6 +754,9 @@ export async function advanceSequenceChain(
           resolution,
           language,
           ...(chain.audioRefPath ? { audioRefPath: chain.audioRefPath } : {}),
+          ...(chain.audioSource ? { audioSource: chain.audioSource } : {}),
+          ...(chainAudio.kind === 'prev_clip' ? { prevAudioPath: chainAudio.paths[0] } : {}),
+          ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -755,6 +835,8 @@ export async function enqueueBatch(params: {
     language?: string | null;
     include_packaging?: boolean | null;
     music_ref_id?: string | null;
+    // Fuente de audio de clips encadenados (055). Callers viejos: undefined = music.
+    chain_audio_source?: string | null;
     creative_guidelines?: Record<string, unknown> | null;
     // Perfil de estilo visual (051). Callers viejos pueden no seleccionarla.
     visual_style?: string | null;
@@ -1047,6 +1129,13 @@ export async function enqueueBatch(params: {
                       resolution,
                       language: ctx.language,
                       ...(ctx.audioRefPath ? { audioRefPath: ctx.audioRefPath } : {}),
+                      ...(ctx.chainAudioSource ? { audioSource: ctx.chainAudioSource } : {}),
+                      // Resuelto AQUÍ (el register del formato solo se conoce en
+                      // la siembra): los clips de continuación lo re-anclan tal cual.
+                      videoLook: resolveVideoLook(
+                        getStyleProfile(ctx.visualStyle, ctx.visualStyleCustom),
+                        baseDirCtx.format?.register ?? '',
+                      ),
                     } satisfies ChainParams,
                   }
                 : {}),

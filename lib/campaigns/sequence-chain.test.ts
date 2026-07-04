@@ -4,6 +4,7 @@ import {
   firstSceneItem,
   nextSceneItem,
   shouldReturnLastFrame,
+  chainAudioPaths,
 } from './sequence-chain';
 
 const items = [
@@ -106,5 +107,41 @@ describe('toImage2VideoSlug', () => {
     expect(toImage2VideoSlug('bytedance/seedance-2.0/reference-to-video')).toBe(
       'bytedance/seedance-2.0/image-to-video',
     );
+  });
+});
+
+describe('chainAudioPaths', () => {
+  it('prev_clip con audio extraído: usa el audio del clip anterior', () => {
+    expect(chainAudioPaths('prev_clip', 'ws/music.mp3', 'ws/chain/audio-1.m4a')).toEqual({
+      paths: ['ws/chain/audio-1.m4a'],
+      kind: 'prev_clip',
+    });
+  });
+
+  it('prev_clip sin audio extraído: sin referencia (no cae a la música)', () => {
+    expect(chainAudioPaths('prev_clip', 'ws/music.mp3', null)).toEqual({ paths: [], kind: null });
+  });
+
+  it('music (o ausente): la pista de la campaña, como siempre', () => {
+    expect(chainAudioPaths('music', 'ws/music.mp3', 'ws/a.m4a')).toEqual({
+      paths: ['ws/music.mp3'],
+      kind: 'music',
+    });
+    expect(chainAudioPaths(undefined, 'ws/music.mp3', null)).toEqual({
+      paths: ['ws/music.mp3'],
+      kind: 'music',
+    });
+  });
+
+  it('sin música ni audio: vacío', () => {
+    expect(chainAudioPaths('music', undefined, undefined)).toEqual({ paths: [], kind: null });
+    expect(chainAudioPaths(undefined, undefined, undefined)).toEqual({ paths: [], kind: null });
+  });
+});
+
+describe('chainAudioPaths — clip mudo (generateAudio=false)', () => {
+  it('no viaja ninguna referencia de audio, sea música o voz del clip previo', () => {
+    expect(chainAudioPaths('prev_clip', 'ws/music.mp3', 'ws/a.m4a', false)).toEqual({ paths: [], kind: null });
+    expect(chainAudioPaths('music', 'ws/music.mp3', null, false)).toEqual({ paths: [], kind: null });
   });
 });

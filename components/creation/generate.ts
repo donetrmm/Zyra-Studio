@@ -31,6 +31,8 @@ export async function generateCharacter(
     prompt: buildCharacterMasterPrompt(appearance, style, customText),
     aspectRatio: '3:4' as const,
     megapixels: 2 as const,
+    // Solo ultra_realista: la PHOTOREAL_DIRECTIVE de FLUX describe cámara
+    // full-frame profesional y contradiría el bloque smartphone de 'casero'.
     photoreal: (style ?? 'ultra_realista') === 'ultra_realista',
     references: reference ? [reference] : [],
   });

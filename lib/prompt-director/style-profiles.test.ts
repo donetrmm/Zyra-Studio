@@ -22,8 +22,19 @@ describe('getStyleProfile', () => {
     expect(p.assetLocation).not.toMatch(/photorealistic|cinematic/i);
     expect(p.assetCharacter).not.toMatch(/photorealistic|cinematic/i);
     expect(p.groundedPhysics).toBe(true);
-    // El look de video conserva el contrato actual del compiler de Seedance.
-    expect(p.video).toBe('ultra realistic, filmic color grading');
+    // Look de video: base ultra realista + balance neutro (feedback 2026-07-04:
+    // controlar la dominante amarilla).
+    expect(p.video).toMatch(/^ultra realistic, filmic color grading/);
+    expect(p.video).toMatch(/neutral white balance/);
+  });
+
+  // Feedback 2026-07-04: "controlar tonos amarillos, poner colores naturales".
+  // Los generadores tienen warm-bias; el balance neutro se pide explícito.
+  it('ultra_realista pide balance de blancos neutro en todas las etapas', () => {
+    const p = getStyleProfile('ultra_realista');
+    expect(p.assetLocation).toMatch(/neutral white balance/);
+    expect(p.assetCharacter).toMatch(/neutral white balance/);
+    expect(p.panel).toMatch(/neutral white balance/);
   });
 
   it('ningún bloque usa términos de la lista antislop', () => {
@@ -70,12 +81,37 @@ describe('presets Fase 1', () => {
   });
 
   it('ningún preset nuevo usa términos antislop', () => {
-    for (const slug of ['fantasia', 'animado'] as const) {
+    for (const slug of ['fantasia', 'animado', 'casero'] as const) {
       const p = getStyleProfile(slug);
       for (const block of [p.assetLocation, p.assetCharacter, p.panel, p.video]) {
         expect(stripSlop(block).removed).toEqual([]);
       }
     }
+  });
+
+  // Feedback 2026-07-04: "poder escoger tipo de cámara (profesional, iPhone)".
+  // Casero = captura de smartphone/UGC; la cámara profesional sigue siendo el
+  // default de ultra_realista.
+  it('casero: captura de smartphone, foto-real, balance neutro y física anclada', () => {
+    const p = getStyleProfile('casero');
+    expect(p.slug).toBe('casero');
+    expect(p.photoreal).toBe(true);
+    expect(p.groundedPhysics).toBe(true);
+    expect(p.assetLocation).toMatch(/smartphone/);
+    expect(p.assetCharacter).toMatch(/smartphone/);
+    expect(p.panel).toMatch(/neutral white balance/);
+    expect(p.video).toMatch(/smartphone/);
+    expect(p.planner).toContain('CASERO');
+    // Sin vocabulario de producción profesional: ese es justo el look contrario.
+    expect(p.assetLocation).not.toMatch(/full-frame|cinematic/i);
+  });
+
+  it('photoreal solo en los perfiles de foto real (ultra_realista y casero)', () => {
+    expect(getStyleProfile('ultra_realista').photoreal).toBe(true);
+    expect(getStyleProfile('casero').photoreal).toBe(true);
+    expect(getStyleProfile('fantasia').photoreal).toBe(false);
+    expect(getStyleProfile('animado').photoreal).toBe(false);
+    expect(getStyleProfile('custom', 'acuarela suave').photoreal).toBe(false);
   });
 });
 

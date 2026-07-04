@@ -394,4 +394,12 @@ describe('expressionDirective', () => {
   it('respeta la emoción grande declarada (no la contiene)', () => {
     expect(expressionDirective(withChar, 'she breaks down crying reading the letter')).toBe('');
   });
+
+  // El perfil casero es foto-real: las directivas de personas aplican igual que
+  // en ultra_realista (photoreal decide, no el slug).
+  it('perfil casero (foto-real) emite realismo humano y expresión contenida', () => {
+    const ctx = { ...withChar, style: { slug: 'casero' as const } };
+    expect(humanRealismDirective(ctx, 'she holds the frame and smiles')).toContain('real, photographed human beings');
+    expect(expressionDirective(ctx, 'she holds the frame and smiles')).toMatch(/never wide forced advertising smiles/);
+  });
 });

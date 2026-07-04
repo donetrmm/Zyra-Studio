@@ -9,7 +9,7 @@ import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
-import { getStyleProfile } from '../style-profiles';
+import { getStyleProfile, type StyleProfile } from '../style-profiles';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type {
   CompiledPrompt,
@@ -324,6 +324,20 @@ const LIGHT_OR_LENS_RE =
 // (#A). Da una base coherente cuando ni el scenePrompt ni el formato la
 // especifican: UGC/handheld → luz natural y foco profundo; hero/cinematic →
 // key light controlada y profundidad de campo corta.
+// Registros de formato que piden una estética estilizada/surreal (el-icono,
+// mundo-imposible): ahí "ultra realistic" contradice el look del formato.
+export const STYLIZED_VIDEO_REGISTER_RE =
+  /\b(surreal|imposible|impossible|stylized|estilizad|abstract|abstracto|surrealist|hyperreal|dreamlike|onírico|animat)\w*/i;
+
+// Look de video efectivo para un perfil + register de formato. Exportada: los
+// clips ENCADENADOS (advanceSequenceChain) no pasan por este compiler y deben
+// re-anclar EXACTAMENTE el mismo look que llevó el clip 1 — incluida la
+// degradación a solo filmic cuando el register es estilizado.
+export function resolveVideoLook(profile: StyleProfile, register: string): string {
+  if (!profile.photoreal) return profile.video;
+  return STYLIZED_VIDEO_REGISTER_RE.test(register) ? 'filmic color grading' : profile.video;
+}
+
 function cinematographyDefault(register: string): string {
   const handheld =
     /handheld|selfie|ugc|vlog|casual|conversacional|primera persona|testimon|a pie de calle|\bcalle\b/i.test(register);
@@ -387,18 +401,8 @@ export function compileSeedance(
   const aspect = req.aspectRatio ?? '9:16';
   const orientation = aspect === '9:16' || aspect === '3:4' ? 'vertical' : aspect === '1:1' ? 'square' : 'horizontal';
   const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
-  const stylizedRegister = /\b(surreal|imposible|impossible|stylized|estilizad|abstract|abstracto|surrealist|hyperreal|dreamlike|onírico|animat)\w*/i.test(
-    ctx.format?.register ?? '',
-  );
-  // Perfil declarado no-realista → su look manda. Perfil realista (o ausente)
-  // con formato estilizado (el-icono, mundo-imposible) → se degrada a solo
-  // filmic (comportamiento actual).
-  const look =
-    profile.slug !== 'ultra_realista'
-      ? profile.video
-      : stylizedRegister
-        ? 'filmic color grading'
-        : profile.video;
+  const stylizedRegister = STYLIZED_VIDEO_REGISTER_RE.test(ctx.format?.register ?? '');
+  const look = resolveVideoLook(profile, ctx.format?.register ?? '');
   sections.push(
     `A ${duration ? `${duration}-second ` : ''}${orientation} (${aspect}) commercial video, ${look}.`,
   );
@@ -520,6 +524,9 @@ export function compileSeedance(
   const lightAlreadyDirected = LIGHT_OR_LENS_RE.test(
     `${req.scenePrompt} ${ctx.format?.cameraStyle ?? ''} ${ctx.format?.register ?? ''}`,
   );
+  // DELIBERADO: gate por slug, NO por profile.photoreal — 'casero' es foto-real
+  // pero esta base describe luz de operador profesional (key/fill/rim) que
+  // contradiría su look handheld de celular; su luz ya viene del encabezado.
   if (profile.slug === 'ultra_realista' && !stylizedRegister && !hasLookReference && !lightAlreadyDirected) {
     sections.push(cinematographyDefault(ctx.format?.register ?? ''));
   }

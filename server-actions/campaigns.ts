@@ -18,7 +18,7 @@ import {
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
 import { buildClosingFrameRef } from '@/lib/campaigns/closing-frame';
-import { nextSceneItem } from '@/lib/campaigns/sequence-chain';
+import { chainAudioPaths, nextSceneItem, type ChainAudioSource } from '@/lib/campaigns/sequence-chain';
 import {
   buildContinuationPrompt,
   enqueueBatch,
@@ -468,6 +468,7 @@ export async function createCampaignStudioAction(
       visual_style_custom:
         parsed.data.visualStyle === 'custom' ? (parsed.data.visualStyleCustom ?? null) : null,
       music_ref_id: parsed.data.musicRefId ?? null,
+      chain_audio_source: parsed.data.chainAudioSource,
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
@@ -1269,6 +1270,11 @@ export async function generateItemAction(
             prevFramePath?: string;
             resolution?: string;
             language?: 'es' | 'en';
+            // Audio y look re-anclados (spike 2026-07-04); cadenas viejas no los traen.
+            audioRefPath?: string;
+            audioSource?: ChainAudioSource;
+            prevAudioPath?: string;
+            videoLook?: string;
           };
           referenceImagePaths?: string[];
           returnLastFrame?: boolean;
@@ -1341,6 +1347,16 @@ export async function generateItemAction(
         ...(closingRef ? [closingRef] : []),
       ];
 
+      // Mismo re-anclaje que advanceSequenceChain: look del perfil y audio de
+      // referencia (música o voz del clip previo) — sin esto el clip regenerado
+      // desentonaba con sus vecinos (look profesional/amarillo, otra voz).
+      const regenAudioOn = pp.generateAudio ?? (item.audio as boolean | null) ?? true;
+      const regenChainAudio = chainAudioPaths(
+        pp.chain.audioSource,
+        pp.chain.audioRefPath,
+        pp.chain.prevAudioPath,
+        regenAudioOn,
+      );
       const prompt = buildContinuationPrompt(
         item.scene_prompt as string,
         productPaths.length,
@@ -1349,7 +1365,9 @@ export async function generateItemAction(
           withClosingFrame: anchored,
           // Re-anclar voz también al regenerar un clip de continuación (#3).
           language: pp.chain.language ?? 'es',
-          generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
+          generateAudio: regenAudioOn,
+          prevClipAudio: regenChainAudio.kind === 'prev_clip',
+          ...(pp.chain.videoLook ? { videoLook: pp.chain.videoLook } : {}),
         },
       );
       const cost = (prevGen.credits_estimated as number) ?? 0;
@@ -1369,8 +1387,9 @@ export async function generateItemAction(
             aspectRatio: pp.aspectRatio ?? (item.aspect_ratio as string | null) ?? '9:16',
             resolution: pp.resolution ?? '480p',
             duration: pp.duration ?? (item.duration_s as number | null) ?? 5,
-            generateAudio: pp.generateAudio ?? (item.audio as boolean | null) ?? true,
+            generateAudio: regenAudioOn,
             referenceImagePaths,
+            ...(regenChainAudio.paths.length ? { referenceAudioPaths: regenChainAudio.paths } : {}),
             returnLastFrame: mode === 'this-and-forward' ? true : (pp.returnLastFrame ?? false),
             chain: {
               ...pp.chain,
@@ -1443,7 +1462,7 @@ export async function generateItemAction(
   // reusando el orquestador para un único item.
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom, reference_selection')
+    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection')
     .eq('id', item.campaign_id as string)
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
@@ -1484,6 +1503,7 @@ export async function generateItemAction(
       language: campaign.language as string | null,
       include_packaging: campaign.include_packaging as boolean | null,
       music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+      chain_audio_source: (campaign.chain_audio_source as string | null) ?? null,
       creative_guidelines: (campaign.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
@@ -1515,7 +1535,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom, reference_selection')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -1560,6 +1580,7 @@ export async function approveBatchAction(
       language: campaign.language as string | null,
       include_packaging: campaign.include_packaging as boolean | null,
       music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+      chain_audio_source: (campaign.chain_audio_source as string | null) ?? null,
       creative_guidelines: (campaign.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
@@ -2474,10 +2495,10 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, creative_guidelines, visual_style, visual_style_custom)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom)')
     .eq('id', itemId)
     .single();
-  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null; creative_guidelines?: Record<string, unknown> | null; visual_style?: string | null; visual_style_custom?: string | null } } | null)?.campaigns;
+  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null; chain_audio_source?: string | null; creative_guidelines?: Record<string, unknown> | null; visual_style?: string | null; visual_style_custom?: string | null } } | null)?.campaigns;
   if (!item || camp?.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
 
   let format: FormatDirection | undefined;
@@ -2509,6 +2530,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
       language: (camp.language as string | null) ?? null,
       include_packaging: camp.include_packaging ?? null,
       music_ref_id: (camp.music_ref_id as string | null) ?? null,
+      chain_audio_source: (camp.chain_audio_source as string | null) ?? null,
       creative_guidelines: (camp.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (camp.visual_style as string | null) ?? null,
       visual_style_custom: (camp.visual_style_custom as string | null) ?? null,

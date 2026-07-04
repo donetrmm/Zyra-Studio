@@ -108,6 +108,9 @@ export function CampaignStudioWizard({
   // Perfil de estilo visual de la campaña (051): define el look de todo el plan.
   const [visualStyle, setVisualStyle] = useState<VisualStyle>('ultra_realista');
   const [visualStyleCustom, setVisualStyleCustom] = useState('');
+  // Fuente de audio de los clips encadenados (055): pista musical (default) o
+  // el audio del clip anterior. Excluyentes (límite Seedance: 15s combinados).
+  const [chainAudioSource, setChainAudioSource] = useState<'music' | 'prev_clip'>('music');
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
@@ -203,6 +206,7 @@ export function CampaignStudioWizard({
         ? { visualStyleCustom: visualStyleCustom.trim() }
         : {}),
       ...(music ? { musicRefId: music.id } : {}),
+      chainAudioSource,
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -663,6 +667,45 @@ export function CampaignStudioWizard({
                   />
                 )}
                 {musicBusy ? <p className="text-2xs text-muted-foreground">Subiendo pista…</p> : null}
+              </section>
+
+              <section className="space-y-2">
+                <span className="text-xs font-medium text-foreground/80">
+                  Audio de referencia en anuncios de varias escenas
+                </span>
+                <p className="text-2xs text-muted-foreground">
+                  Solo puede viajar una referencia de audio por clip (límite de 15s). Elige qué
+                  guía a los clips encadenados de una secuencia.
+                </p>
+                <div className="flex gap-2" role="radiogroup" aria-label="Audio de los clips encadenados">
+                  {(
+                    [
+                      { value: 'music', label: 'Pista musical', hint: 'El ritmo de la pista guía cada clip (como hasta ahora)' },
+                      { value: 'prev_clip', label: 'Voz del clip anterior', hint: 'Cada clip hereda el audio del anterior: misma voz y ambiente' },
+                    ] as const
+                  ).map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={chainAudioSource === o.value}
+                      title={o.hint}
+                      onClick={() => setChainAudioSource(o.value)}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
+                        chainAudioSource === o.value
+                          ? 'border-primary/60 bg-primary/10 text-foreground'
+                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-2xs text-muted-foreground">
+                  {chainAudioSource === 'prev_clip'
+                    ? 'La voz y el ambiente se mantienen consistentes entre clips; la pista musical solo guía el primer clip.'
+                    : 'La pista musical (si la subes) guía el ritmo de todos los clips.'}
+                </p>
               </section>
             </div>
           )}

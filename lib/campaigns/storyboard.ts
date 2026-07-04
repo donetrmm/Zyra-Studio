@@ -91,7 +91,7 @@ export function isStylized(
 export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string): string {
   if ((ctx.characters?.length ?? 0) === 0) return '';
   const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
-  if (profile.slug !== 'ultra_realista') return '';
+  if (!profile.photoreal) return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
   return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
 }
@@ -104,7 +104,7 @@ export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string)
 export function expressionDirective(ctx: DirectorContext, scenePrompt: string): string {
   if ((ctx.characters?.length ?? 0) === 0) return '';
   const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
-  if (profile.slug !== 'ultra_realista') return '';
+  if (!profile.photoreal) return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
   if (declaresHighEmotion(scenePrompt)) return '';
   return NATURAL_EXPRESSION_CLAUSE;
@@ -119,10 +119,10 @@ export function expressionDirective(ctx: DirectorContext, scenePrompt: string): 
 // fresco — en ramas de edición el re-render está vetado (ver humanRealismDirective).
 export function sceneStyleDirective(ctx: DirectorContext, scenePrompt: string): string {
   const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
-  // Con perfil realista (o ausente), un beat individual estilizado por texto
+  // Con perfil foto-real (o ausente), un beat individual estilizado por texto
   // apaga la directiva (regex de compatibilidad); con perfil declarado
   // no-realista, el perfil manda y emite su propio bloque.
-  if (profile.slug === 'ultra_realista' && isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) {
+  if (profile.photoreal && isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) {
     return '';
   }
   return `${profile.panel}${profile.groundedPhysics ? WORLD_COHERENCE_CLAUSE : ''}`;

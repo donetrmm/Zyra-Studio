@@ -13,7 +13,7 @@
 // OJO: ningún bloque puede usar términos de la lista antislop (antislop.ts);
 // el test lo verifica con stripSlop.
 
-export type VisualStyle = 'ultra_realista' | 'fantasia' | 'animado' | 'custom';
+export type VisualStyle = 'ultra_realista' | 'casero' | 'fantasia' | 'animado' | 'custom';
 
 export type StyleProfile = {
   slug: VisualStyle;
@@ -30,6 +30,11 @@ export type StyleProfile = {
   // false = el estilo permite doblar la física (fantasía): apaga las cláusulas
   // de coherencia física en panel, edición y planner.
   groundedPhysics: boolean;
+  // true = el estilo ES una fotografía real (ultra_realista, casero): aplican
+  // las directivas de personas foto-reales (humanRealismDirective,
+  // expressionDirective) y el flag photoreal de FLUX. Los estilos no-photoreal
+  // definen su propia estética completa en sus bloques.
+  photoreal: boolean;
 };
 
 // Física del mundo para prompts de IMAGEN (panel fresco, panel encadenado,
@@ -45,16 +50,37 @@ export const PLANNER_PHYSICS_BLOCK =
 
 const ULTRA_REALISTA: StyleProfile = {
   slug: 'ultra_realista',
+  // "neutral white balance (no warm yellow cast)": los generadores tienen
+  // warm-bias y la dominante amarilla se corrige pidiendo el balance explícito
+  // (feedback 2026-07-04).
   assetLocation:
-    'The image is a real photograph of the place, captured on location with a full-frame camera and a 35mm lens: believable ambient light with soft contact shadows, true-to-life colors and dynamic range, honest materials showing subtle everyday wear, and natural lived-in detail kept plausible. Documentary framing with slight natural imperfection — a real place, not a staged showroom and not a computer-generated render.',
+    'The image is a real photograph of the place, captured on location with a full-frame camera and a 35mm lens: believable ambient light with soft contact shadows, true-to-life colors with a neutral white balance (no warm yellow cast), honest materials showing subtle everyday wear, and natural lived-in detail kept plausible. Documentary framing with slight natural imperfection — a real place, not a staged showroom and not a computer-generated render.',
   assetCharacter:
-    'The image is a real unretouched photograph of the person, taken with a full-frame camera and an 85mm portrait lens: natural skin with visible pores and fine texture, true-to-life eyes and hair, and lifelike light on the face — a photographed human being, not a computer-generated render.',
+    'The image is a real unretouched photograph of the person, taken with a full-frame camera and an 85mm portrait lens: natural skin with visible pores and fine texture, true-to-life eyes and hair with a neutral white balance, and lifelike light on the face — a photographed human being, not a computer-generated render.',
   panel:
-    ' Render the whole scene as a real photograph: believable ambient light with soft contact shadows, true-to-life colors, and honest materials with natural texture and subtle wear — a captured moment, not a computer-generated render.',
-  // Contrato actual del compiler de Seedance (no cambiar en Fase 0).
-  video: 'ultra realistic, filmic color grading',
+    ' Render the whole scene as a real photograph: believable ambient light with soft contact shadows, true-to-life colors with a neutral white balance (no warm yellow cast), and honest materials with natural texture and subtle wear — a captured moment, not a computer-generated render.',
+  video: 'ultra realistic, filmic color grading with a neutral white balance and true-to-life colors',
   planner: '',
   groundedPhysics: true,
+  photoreal: true,
+};
+
+// Cámara casera/UGC (feedback 2026-07-04: "poder escoger tipo de cámara").
+// Mismo mundo foto-real que ultra_realista pero capturado con un smartphone:
+// el look espontáneo tipo contenido de usuario, no producción montada.
+const CASERO: StyleProfile = {
+  slug: 'casero',
+  assetLocation:
+    'The image is a casual photo of the place taken handheld on a modern smartphone: slightly imperfect framing, natural automatic exposure, neutral white balance with true-to-life colors, everyday objects left where they are — a real lived-in place captured in the moment, not a staged set and not a computer-generated render.',
+  assetCharacter:
+    'The image is a casual unretouched photo of the person taken on a modern smartphone: natural skin with visible texture, soft everyday light, neutral white balance with true-to-life colors — a real person in a spontaneous photo, not a computer-generated render.',
+  panel:
+    ' Render the whole scene as a casual handheld smartphone photo: slightly imperfect framing, natural automatic exposure, neutral white balance with true-to-life colors, and honest everyday detail — a spontaneous captured moment, not a staged production and not a computer-generated render.',
+  video: 'a casual handheld smartphone video look with natural exposure, neutral white balance and true-to-life colors',
+  planner:
+    '\nESTILO DE LA CAMPAÑA: CASERO (grabado con celular). Escribe las escenas como momentos cotidianos espontáneos — encuadres imperfectos, acciones naturales de la vida diaria, luz del lugar tal cual; nada de producción montada ni iluminación de estudio.',
+  groundedPhysics: true,
+  photoreal: true,
 };
 
 const FANTASIA: StyleProfile = {
@@ -69,6 +95,7 @@ const FANTASIA: StyleProfile = {
   planner:
     '\nESTILO DE LA CAMPAÑA: FANTASÍA. Las escenas pueden doblar la física y la lógica del mundo real cuando sirva a la idea; cuando lo hagan, descríbelo explícito en el scenePrompt.',
   groundedPhysics: false,
+  photoreal: false,
 };
 
 const ANIMADO: StyleProfile = {
@@ -83,6 +110,7 @@ const ANIMADO: StyleProfile = {
   planner:
     '\nESTILO DE LA CAMPAÑA: ANIMADO (película de animación 3D). Escribe las escenas pensadas para ese look; la física sigue siendo creíble salvo un gag deliberado.',
   groundedPhysics: true,
+  photoreal: false,
 };
 
 // El estilo custom nace del texto del usuario: cada bloque lo cita tal cual.
@@ -98,6 +126,7 @@ function customProfile(text: string): StyleProfile {
     video: t,
     planner: `\nESTILO DE LA CAMPAÑA (definido por el usuario): ${t}. Escribe cada scenePrompt coherente con ese estilo.`,
     groundedPhysics: true,
+    photoreal: false,
   };
 }
 
@@ -105,6 +134,8 @@ function customProfile(text: string): StyleProfile {
 // usuario (customText). Sin texto (o solo espacios), custom cae al default.
 export function getStyleProfile(style?: string | null, customText?: string | null): StyleProfile {
   switch (style) {
+    case 'casero':
+      return CASERO;
     case 'fantasia':
       return FANTASIA;
     case 'animado':

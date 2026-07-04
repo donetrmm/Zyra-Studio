@@ -67,3 +67,27 @@ export function isStoryboardVideoMode(item: { storyboard_image_id: string | null
 export function toImage2VideoSlug(slug: string): string {
   return slug.replace('reference-to-video', 'image-to-video');
 }
+
+// Fuente del audio de referencia de un clip ENCADENADO (spike 2026-07-04). Son
+// excluyentes porque Seedance limita las refs de audio a 15s combinados:
+// 'music' = la pista P16 de la campaña (comportamiento previo, y el default);
+// 'prev_clip' = el audio extraído del clip anterior (consistencia de voz).
+// Si el usuario eligió prev_clip pero la extracción falló (clip mudo, ffmpeg),
+// NO se cae a la música: mezclar fuentes entre clips de una misma secuencia
+// suena más inconsistente que un clip sin referencia.
+// Con generateAudio=false el clip es MUDO: ninguna referencia viaja (una ref
+// de voz junto a generate_audio=false es un payload contradictorio).
+export type ChainAudioSource = 'music' | 'prev_clip';
+
+export function chainAudioPaths(
+  source: ChainAudioSource | undefined,
+  musicPath: string | undefined,
+  prevAudioPath: string | null | undefined,
+  generateAudio = true,
+): { paths: string[]; kind: ChainAudioSource | null } {
+  if (!generateAudio) return { paths: [], kind: null };
+  if (source === 'prev_clip') {
+    return prevAudioPath ? { paths: [prevAudioPath], kind: 'prev_clip' } : { paths: [], kind: null };
+  }
+  return musicPath ? { paths: [musicPath], kind: 'music' } : { paths: [], kind: null };
+}

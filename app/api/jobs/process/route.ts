@@ -6,7 +6,9 @@ import { dispatchJob, dispatchCancel } from '@/lib/jobs/dispatch';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { confirmCredits, failGeneration } from '@/lib/credits/operations';
 import { finalizeGeneration } from '@/lib/jobs/finalize';
-import { advanceSequenceChain, storeChainFrame } from '@/lib/campaigns/orchestrator';
+import { advanceSequenceChain, storeChainAudio, storeChainFrame } from '@/lib/campaigns/orchestrator';
+import { extractVideoAudio } from '@/lib/jobs/video-frame';
+import { downloadOutputBuffer } from '@/lib/supabase/storage';
 import { promoteStoryboardPanel, storyboardCampaignItemId } from '@/lib/jobs/storyboard-finalize';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
@@ -92,7 +94,44 @@ export async function POST(req: Request) {
   if (action === 'advance_chain') {
     try {
       if (generation.params?.chain && (parsed.lastFramePath || parsed.lastFrameUrl)) {
-        await advanceSequenceChain(generation, { path: parsed.lastFramePath, url: parsed.lastFrameUrl });
+        // Spike audio encadenado: la extracción corre AQUÍ (presupuesto fresco
+        // de 60s), no en el finalize — un post-step inline tras 'done' arriesga
+        // el kill por maxDuration y dejaría la cadena sin avanzar (mismo patrón
+        // que movió el promote del storyboard a su propio job). Best-effort en
+        // su propio try: sin audio la cadena avanza igual.
+        const chain = generation.params.chain as { sequenceId: string; sceneIndex: number; audioSource?: string };
+        let prevAudioPath: string | null = null;
+        if (chain.audioSource === 'prev_clip') {
+          try {
+            // output_url no viaja en el select estándar del worker: query
+            // puntual solo en este modo (la gen ya está 'done' con el MP4 subido).
+            const { data: outRow } = await admin
+              .from('generations')
+              .select('output_url')
+              .eq('id', generation.id)
+              .single();
+            const outputUrl = (outRow as { output_url?: string | null } | null)?.output_url;
+            if (outputUrl) {
+              const { buffer } = await downloadOutputBuffer(outputUrl);
+              const audioBuffer = await extractVideoAudio(buffer);
+              if (audioBuffer) {
+                prevAudioPath = await storeChainAudio(
+                  generation.workspace_id,
+                  chain.sequenceId,
+                  chain.sceneIndex,
+                  audioBuffer,
+                );
+              }
+            }
+          } catch (err) {
+            console.warn('[worker] audio del clip previo no disponible, la cadena sigue sin él', { generationId, err });
+          }
+        }
+        await advanceSequenceChain(
+          generation,
+          { path: parsed.lastFramePath, url: parsed.lastFrameUrl },
+          prevAudioPath,
+        );
       }
     } catch (err) {
       console.error('[worker] avance de cadena falló', { generationId, err });

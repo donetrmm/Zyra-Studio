@@ -94,10 +94,14 @@ export const CreateCampaignStudioSchema = z
     aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
     // Perfil de estilo visual de la campaña (051): define el look de todas las
     // etapas (planner, panel, refinado, video). custom exige descripción.
-    visualStyle: z.enum(['ultra_realista', 'fantasia', 'animado', 'custom']).default('ultra_realista'),
+    visualStyle: z.enum(['ultra_realista', 'casero', 'fantasia', 'animado', 'custom']).default('ultra_realista'),
     visualStyleCustom: z.string().trim().min(3).max(400).optional(),
     // P16: pista de audio de referencia de ritmo (media_reference type='audio', <=15s).
     musicRefId: z.string().uuid().optional(),
+    // Fuente de audio de los clips encadenados (055): pista musical (default) o
+    // el audio del clip anterior (consistencia de voz). Excluyentes: Seedance
+    // limita las referencias de audio a 15s combinados.
+    chainAudioSource: z.enum(['music', 'prev_clip']).default('music'),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
   })

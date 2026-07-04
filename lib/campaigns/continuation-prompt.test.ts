@@ -67,3 +67,30 @@ describe('buildContinuationPrompt', () => {
     expect(out).toMatch(/still print, not animated/);
   });
 });
+
+describe('buildContinuationPrompt — audio del clip anterior (spike 2026-07-04)', () => {
+  it('con prevClipAudio cita @audio1 y pide conservar timbre y ambiente', () => {
+    const out = buildContinuationPrompt('Scene.', 1, 0, { prevClipAudio: true });
+    expect(out).toContain('@audio1 is the audio of the previous shot');
+    expect(out).toContain('same voice timbre');
+  });
+
+  it('sin prevClipAudio no menciona @audio (la música P16 nunca se citó aquí)', () => {
+    expect(buildContinuationPrompt('Scene.', 1, 0)).not.toContain('@audio');
+    expect(buildContinuationPrompt('Scene.', 1, 0, { prevClipAudio: false })).not.toContain('@audio');
+  });
+});
+
+describe('buildContinuationPrompt — look del perfil re-anclado (feedback video 2026-07-04)', () => {
+  it('re-ancla el look del video (balance neutro / cámara del estilo)', () => {
+    const out = buildContinuationPrompt('Scene.', 1, 0, {
+      videoLook: 'ultra realistic, filmic color grading with a neutral white balance and true-to-life colors',
+    });
+    expect(out).toContain('Video look: ultra realistic');
+    expect(out).toContain('neutral white balance');
+  });
+
+  it('sin videoLook no añade la cláusula (compat con tests previos)', () => {
+    expect(buildContinuationPrompt('Scene.', 1, 0)).not.toContain('Video look:');
+  });
+});

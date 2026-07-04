@@ -3,11 +3,34 @@
 import { Input } from '@/components/ui/input';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
+// Los hints son la guía de estilo del usuario: qué esperar de cada preset y
+// cuándo usarlo (se muestran bajo el selector para la opción elegida).
 export const VISUAL_STYLE_OPTIONS: Array<{ value: VisualStyle; label: string; hint: string }> = [
-  { value: 'ultra_realista', label: 'Ultra realista', hint: 'Fotografía real, física creíble' },
-  { value: 'fantasia', label: 'Fantasía', hint: 'Mundos imaginarios, física libre' },
-  { value: 'animado', label: 'Animado', hint: 'Look de animación 3D' },
-  { value: 'custom', label: 'Personalizado', hint: 'Describe tu propio estilo' },
+  {
+    value: 'ultra_realista',
+    label: 'Ultra realista',
+    hint: 'Fotografía profesional: cámara full-frame, colores naturales sin tonos amarillos, física creíble. Para anuncios con look de producción.',
+  },
+  {
+    value: 'casero',
+    label: 'Casero',
+    hint: 'Foto y video de celular: espontáneo, encuadre imperfecto, luz del lugar. Para contenido tipo UGC que no parece anuncio.',
+  },
+  {
+    value: 'fantasia',
+    label: 'Fantasía',
+    hint: 'Mundos imaginarios con luz pictórica; la física puede romperse al servicio de la idea.',
+  },
+  {
+    value: 'animado',
+    label: 'Animado',
+    hint: 'Película de animación 3D: formas limpias, color expresivo, física creíble.',
+  },
+  {
+    value: 'custom',
+    label: 'Personalizado',
+    hint: 'Describe tu propio estilo (ej. acuarela suave, cómic de línea clara) y todas las etapas lo siguen.',
+  },
 ];
 
 // Selector de perfil de estilo visual (plan 2026-07-02). Mismo patron visual
@@ -45,6 +68,10 @@ export function VisualStyleSelector({
           </button>
         ))}
       </div>
+      {/* Guía del estilo elegido: siempre visible (el title solo aparece en hover). */}
+      <p className="mt-1.5 text-2xs text-muted-foreground">
+        {VISUAL_STYLE_OPTIONS.find((o) => o.value === value)?.hint}
+      </p>
       {value === 'custom' && (
         <Input
           value={customText}
