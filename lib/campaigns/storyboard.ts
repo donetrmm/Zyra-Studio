@@ -5,6 +5,7 @@ import { compile, type CompileResult, type DirectorContext } from '@/lib/prompt-
 import { describeCharacter, describeProduct, describeProductScale, describeProductWeight } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { getStyleProfile, WORLD_COHERENCE_CLAUSE, type VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { declaresHighEmotion, NATURAL_EXPRESSION_CLAUSE } from '@/lib/prompt-director/acting';
 
 export type PanelBeat = {
   id: string;
@@ -93,6 +94,20 @@ export function humanRealismDirective(ctx: DirectorContext, scenePrompt: string)
   if (profile.slug !== 'ultra_realista') return '';
   if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
   return ' Render the people as real, photographed human beings — natural skin with pores and subtle texture, realistic eyes and hair, and lifelike light on the face — but keep their exact identity, face, body and wardrobe, and keep the product, exactly as in the reference images; change only the photographic realism of the rendering, never who the people are or what the product is.';
+}
+
+// Expresión contenida para el panel FRESCO (feedback 2026-07-04): mismas guardas
+// que humanRealismDirective (personajes presentes, perfil realista, no estilizado)
+// más el respeto a la emoción grande declarada (igual que el acting del video:
+// si el guion pide llanto/grito, no se contiene). Solo panel fresco — en ramas
+// de edición cualquier cláusula que toque la cara arriesga drift de identidad.
+export function expressionDirective(ctx: DirectorContext, scenePrompt: string): string {
+  if ((ctx.characters?.length ?? 0) === 0) return '';
+  const profile = getStyleProfile(ctx.style?.slug, ctx.style?.custom);
+  if (profile.slug !== 'ultra_realista') return '';
+  if (isStylized(ctx.format?.register ?? '', scenePrompt, ctx.style)) return '';
+  if (declaresHighEmotion(scenePrompt)) return '';
+  return NATURAL_EXPRESSION_CLAUSE;
 }
 
 // Estilo/realismo del ENTORNO para el panel FRESCO + coherencia física. A

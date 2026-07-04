@@ -17,6 +17,22 @@ export const ACTING_RESTRAINT_DIRECTION =
 export const ACTING_ENERGETIC_DIRECTION =
   'Acting: confident, energetic physical performance — still controlled and believable, never mugging or over-the-top; the body carries the energy through clean, intentional movement.';
 
+// Expresión contenida para el PANEL fresco del storyboard (feedback 2026-07-04:
+// "las expresiones se ven poco naturales y exageradas"). La sonrisa-de-anuncio
+// nace en la imagen y el video la hereda (el panel viaja como first-frame /
+// referencia), así que el freno se aplica en el origen visual. Subordinada a la
+// fidelidad, como humanRealismDirective: dirige la INTENSIDAD de la expresión,
+// nunca re-renderiza identidad. Empieza con espacio (concatenable).
+export const NATURAL_EXPRESSION_CLAUSE =
+  ' Facial expressions and body language stay natural and understated: relaxed faces, small honest gestures, the candid ease of people who do not know they are being photographed — never wide forced advertising smiles, never theatrical poses or exaggerated emotion. Keep everyone\'s exact identity, face and body from the reference images; only the intensity of the expression is directed here.';
+
+// Bloque en español para el SYSTEM del matcher/planner (patrón de
+// PLANNER_PHYSICS_BLOCK): las emociones nacen contenidas en el scenePrompt.
+// Si el planner escribe "ríe a carcajadas", ninguna cláusula del compiler lo
+// contiene después — el guion manda. Empieza con \n.
+export const PLANNER_ACTING_BLOCK =
+  '\nACTUACIÓN Y EXPRESIONES: escribe las emociones como gestos pequeños y observables, en secuencia (una sonrisa leve, una mirada que baja, una exhalación) — nunca muecas grandes ni poses teatrales ("enorme sonrisa", "ríe a carcajadas", "cara de asombro"), salvo que la idea pida esa emoción explícitamente. Las personas actúan con la naturalidad de quien no sabe que lo filman.';
+
 // Registros que piden energía física (mismo criterio compartido con audioDirection en
 // compilers/seedance.ts — UN solo regex para que no diverjan). Cubre vocabulario en
 // inglés y español; \b en los tokens cortos (bold/drop/beat/dance) evita falsos

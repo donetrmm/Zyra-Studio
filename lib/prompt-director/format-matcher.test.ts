@@ -679,6 +679,16 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).not.toContain('FÍSICA Y COHERENCIA DEL MUNDO');
   });
 
+  it('incluye el bloque de actuación (las emociones nacen como gestos pequeños)', () => {
+    const s = buildMatcherSystemPrompt({});
+    expect(s).toContain('ACTUACIÓN Y EXPRESIONES');
+  });
+
+  it('perfil animado/fantasía: sin bloque de actuación (el estilo tolera expresividad)', () => {
+    expect(buildMatcherSystemPrompt({ visualStyle: 'animado' })).not.toContain('ACTUACIÓN Y EXPRESIONES');
+    expect(buildMatcherSystemPrompt({ visualStyle: 'fantasia' })).not.toContain('ACTUACIÓN Y EXPRESIONES');
+  });
+
   it('custom: el texto del usuario entra al system', () => {
     const s = buildMatcherSystemPrompt({ visualStyle: 'custom', visualStyleCustom: 'acuarela suave' });
     expect(s).toContain('acuarela suave');

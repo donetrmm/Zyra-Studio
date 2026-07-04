@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   ACTING_RESTRAINT_DIRECTION,
   ACTING_ENERGETIC_DIRECTION,
+  NATURAL_EXPRESSION_CLAUSE,
+  PLANNER_ACTING_BLOCK,
   actingDirectionFor,
   declaresHighEmotion,
   facesIntended,
   findUnexpandedActions,
   findOvermechanicalActions,
 } from './acting';
+import { stripSlop } from './antislop';
 
 describe('declaresHighEmotion', () => {
   it('detecta emoción grande (en y es)', () => {
@@ -114,5 +117,27 @@ describe('findOvermechanicalActions', () => {
     expect(
       findOvermechanicalActions('she uncaps the bottle and sets it on the table'),
     ).toHaveLength(0);
+  });
+});
+
+// Expresiones naturales (feedback 2026-07-04): la sobreactuación nace en el
+// PANEL (sonrisa de anuncio) y en el ORIGEN (el planner escribe muecas grandes).
+describe('NATURAL_EXPRESSION_CLAUSE', () => {
+  it('es concatenable y frena la sonrisa de anuncio sin tocar la identidad', () => {
+    expect(NATURAL_EXPRESSION_CLAUSE.startsWith(' ')).toBe(true);
+    expect(NATURAL_EXPRESSION_CLAUSE).toMatch(/never wide forced advertising smiles/);
+    expect(NATURAL_EXPRESSION_CLAUSE).toMatch(/exact identity/);
+  });
+
+  it('sin términos de la lista antislop', () => {
+    expect(stripSlop(NATURAL_EXPRESSION_CLAUSE).removed).toEqual([]);
+  });
+});
+
+describe('PLANNER_ACTING_BLOCK', () => {
+  it('las emociones nacen como gestos pequeños, con la excepción declarada', () => {
+    expect(PLANNER_ACTING_BLOCK.startsWith('\n')).toBe(true);
+    expect(PLANNER_ACTING_BLOCK).toContain('ACTUACIÓN Y EXPRESIONES');
+    expect(PLANNER_ACTING_BLOCK).toContain('salvo que la idea');
   });
 });

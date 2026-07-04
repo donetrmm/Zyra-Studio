@@ -6,6 +6,7 @@ import {
   compilePanel,
   compilePanelEdit,
   compileRefinePrompt,
+  expressionDirective,
   humanRealismDirective,
   isStylized,
   physicsClause,
@@ -364,5 +365,33 @@ describe('chatRefPathsFor — refs que viajan en el turno de chat según los tog
       'c/m.jpg',
       'l/sala.jpg',
     ]);
+  });
+});
+
+// Expresión contenida en el panel FRESCO (feedback 2026-07-04): la "sonrisa de
+// anuncio" nace en el panel y el video la hereda como first-frame/referencia.
+describe('expressionDirective', () => {
+  const withChar = { characters: [{ name: 'Ana', description: 'mujer', masterImagePath: 'ws/ana.png' }] };
+
+  it('con personajes y perfil realista inyecta el freno de expresión', () => {
+    const d = expressionDirective(withChar, 'she holds the framed photo and smiles');
+    expect(d).toMatch(/never wide forced advertising smiles/);
+    expect(d.startsWith(' ')).toBe(true);
+  });
+
+  it('sin personajes no emite nada', () => {
+    expect(expressionDirective({ product: { name: 'Canvas', imagePaths: [] } }, 'a hand places the canvas')).toBe('');
+  });
+
+  it('se omite con perfil no realista (el estilo manda su propia expresividad)', () => {
+    expect(expressionDirective({ ...withChar, style: { slug: 'animado' as const } }, 'she smiles')).toBe('');
+  });
+
+  it('se omite en creativos estilizados por texto', () => {
+    expect(expressionDirective(withChar, 'a cartoon version of the family waves')).toBe('');
+  });
+
+  it('respeta la emoción grande declarada (no la contiene)', () => {
+    expect(expressionDirective(withChar, 'she breaks down crying reading the letter')).toBe('');
   });
 });

@@ -22,7 +22,7 @@ import {
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { applyReferenceSelection, normalizeReferenceSelection } from '@/lib/campaigns/reference-selection';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, expressionDirective, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { uploadReference, downloadReferenceBuffer } from '@/lib/supabase/storage';
@@ -348,7 +348,7 @@ export async function generatePanelAction(
   const panelScene = stripDialogueForPanel(item.scene_prompt);
   const panelPromptBody = prevRef
     ? `Same scene as the provided previous shot — keep the SAME location, the SAME product (faithful and in the same position in the scene), and the SAME characters and wardrobe. But RE-FRAME this as a clearly DIFFERENT camera shot: change the angle, distance and composition so it is visibly a NEW shot, NOT the same frame as the previous one. Follow the framing and action described here exactly: ${panelScene}.${chainedProductFidelity(dirCtx)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${creativeGuidelineClauses(baseDirCtx.guidelines, { isOpeningBeat: (item.scene_index ?? 0) === 0 })}${characterFidelityText}${productRefPointer}${productUsagePointer}${characterRefPointer}${locationRefPointer}${physicsClause(dirCtx)}${noText}`
-    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, panelScene)}${sceneStyleDirective(dirCtx, panelScene)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
+    : `${compiled.compiled.prompt}${humanRealismDirective(dirCtx, panelScene)}${expressionDirective(dirCtx, panelScene)}${sceneStyleDirective(dirCtx, panelScene)}${describeProductScale(dirCtx.product)}${describeProductWeight(dirCtx.product)}${noText}`;
   const panelPrompt = panelPromptBody;
 
   const referencePaths = imageRefs.map((r) => r.storagePath);

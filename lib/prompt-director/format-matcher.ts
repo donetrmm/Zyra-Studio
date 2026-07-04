@@ -10,6 +10,7 @@ import { ProviderError } from '@/lib/providers/types';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { plannerStyleBlocks, type VisualStyle } from './style-profiles';
+import { PLANNER_ACTING_BLOCK } from './acting';
 import { stagingPlannerBlock, type PlannerProductFacts } from './inventory';
 export { CustomFormatSchema, type CustomFormat };
 
@@ -443,6 +444,14 @@ export function buildMatcherSystemPrompt(opts: {
   // con objetos anclados. Fantasía relaja la física (groundedPhysics: false).
   // Misma política que el asistente de refinado (plannerStyleBlocks compartido).
   system += plannerStyleBlocks(opts.visualStyle, opts.visualStyleCustom);
+
+  // Actuación contenida (feedback 2026-07-04): las emociones nacen como gestos
+  // pequeños en el scenePrompt — el compiler no puede contener lo que el guion
+  // ya declaró grande. Animado/fantasía quedan fuera: su expresividad es parte
+  // del estilo declarado.
+  if (opts.visualStyle !== 'animado' && opts.visualStyle !== 'fantasia') {
+    system += PLANNER_ACTING_BLOCK;
+  }
 
   // Producto físico (spec 2026-07-02): staging proporcional + peso. Los
   // scenePrompt nacen con la pieza montada donde reposa naturalmente y con la
