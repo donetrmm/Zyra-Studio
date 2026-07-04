@@ -70,7 +70,19 @@ export default async function StoryboardPage({
     created_at: g.created_at as string,
     params: { storyboard: { campaignItemId: (g as { beat_id?: string | null }).beat_id ?? undefined } },
   }));
-  const pendingPromotes = findUnpromotedPanels(healGens, healItems).slice(0, 12);
+  // Gens que YA dejaron media_reference: su promote corrió. Si el beat apunta a
+  // otra cosa fue el usuario (imagen manual, restore) — el heal no debe pisarlo.
+  const promotedGenIds = new Set<string>();
+  if (healGens.length > 0) {
+    const { data: promotedRefs } = await supabase
+      .from('media_references')
+      .select('source_generation_id')
+      .in('source_generation_id', healGens.map((g) => g.id));
+    for (const ref of promotedRefs ?? []) {
+      if (ref.source_generation_id) promotedGenIds.add(ref.source_generation_id as string);
+    }
+  }
+  const pendingPromotes = findUnpromotedPanels(healGens, healItems, promotedGenIds).slice(0, 12);
   for (const genId of pendingPromotes) {
     try {
       await enqueueJob({ generationId: genId, action: 'promote_storyboard' });

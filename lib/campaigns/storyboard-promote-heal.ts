@@ -1,7 +1,11 @@
 // Detecta paneles de storyboard cuyo promote se perdió: la generación 'done' más
-// reciente de cada beat debería ser la enlazada (storyboard_generation_id). Si no
-// lo es, ese promote murió (encolado fallido o job agotó reintentos) y hay que
-// re-encolarlo. Puro: la página hace las queries y este helper decide.
+// reciente de cada beat debería haber sido promovida (dejó una media_reference con
+// source_generation_id). Si nunca lo fue, ese promote murió (encolado fallido o job
+// agotó reintentos) y hay que re-encolarlo. Que el beat apunte a OTRA cosa no es
+// señal de promote perdido: subir una imagen manual desenlaza la generación
+// (storyboard_generation_id null) y restaurar una versión enlaza una gen vieja a
+// propósito — re-encolar ahí pisaba la decisión del usuario al recargar la página.
+// Puro: la página hace las queries y este helper decide.
 
 export type HealGenRow = { id: string; created_at: string; params: Record<string, unknown> };
 export type HealItemRow = { id: string; storyboard_generation_id: string | null };
@@ -16,7 +20,13 @@ export function healCutoffIso(nowMs: number = Date.now()): string {
   return new Date(nowMs - HEAL_MIN_AGE_MS).toISOString();
 }
 
-export function findUnpromotedPanels(gens: HealGenRow[], items: HealItemRow[]): string[] {
+// promotedGenIds: gens que ya tienen una media_reference (su promote SÍ corrió).
+// Nunca se re-encolan aunque el beat no las tenga enlazadas.
+export function findUnpromotedPanels(
+  gens: HealGenRow[],
+  items: HealItemRow[],
+  promotedGenIds: ReadonlySet<string>,
+): string[] {
   const itemById = new Map(items.map((i) => [i.id, i]));
   const newestByBeat = new Map<string, HealGenRow>();
   for (const g of gens) {
@@ -30,6 +40,7 @@ export function findUnpromotedPanels(gens: HealGenRow[], items: HealItemRow[]): 
   }
   const out: string[] = [];
   for (const [beatId, g] of newestByBeat) {
+    if (promotedGenIds.has(g.id)) continue;
     if (itemById.get(beatId)!.storyboard_generation_id !== g.id) out.push(g.id);
   }
   return out;

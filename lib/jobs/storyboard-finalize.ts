@@ -11,7 +11,8 @@ export function storyboardCampaignItemId(gen: GenerationRow): string | null {
 }
 
 // Un promote reintentado (QStash) o tardío no debe pisar un panel más nuevo ya
-// enlazado. Devuelve true si la gen enlazada es más reciente que esta. Puro.
+// enlazado. Devuelve true si lo enlazado (gen o media_reference manual) es más
+// reciente que esta gen. Puro.
 export function isStalePromote(
   genCreatedAt: string | null,
   linkedCreatedAt: string | null | undefined,
@@ -31,11 +32,13 @@ export async function promoteStoryboardPanel(gen: GenerationRow): Promise<void> 
 
   const { data: itemRow } = await admin
     .from('campaign_items')
-    .select('storyboard_generation_id')
+    .select('storyboard_generation_id, storyboard_image_id')
     .eq('id', itemId)
     .single();
-  const linkedId =
-    (itemRow as { storyboard_generation_id?: string | null } | null)?.storyboard_generation_id ?? null;
+  const item = itemRow as
+    | { storyboard_generation_id?: string | null; storyboard_image_id?: string | null }
+    | null;
+  const linkedId = item?.storyboard_generation_id ?? null;
   // Idempotencia: este promote ya corrió (retry de QStash) — nada que hacer.
   if (linkedId === gen.id) return;
 
@@ -56,11 +59,25 @@ export async function promoteStoryboardPanel(gen: GenerationRow): Promise<void> 
       .single();
     const linkedCreatedAt = (linked as { created_at?: string } | null)?.created_at;
     if (isStalePromote(row?.created_at ?? null, linkedCreatedAt)) return;
+  } else if (item?.storyboard_image_id) {
+    // Beat enlazado a una imagen SIN generación: panel manual (upload). Un promote
+    // tardío no debe pisarlo si la subida es posterior a esta gen.
+    const { data: linkedRef } = await admin
+      .from('media_references')
+      .select('created_at')
+      .eq('id', item.storyboard_image_id)
+      .single();
+    const refCreatedAt = (linkedRef as { created_at?: string } | null)?.created_at;
+    if (isStalePromote(row?.created_at ?? null, refCreatedAt)) return;
   }
 
   const imageId = await promoteOutputToReference(gen.workspace_id, gen.user_id, outputUrl, gen.id);
-  await admin
+  const { error: linkErr } = await admin
     .from('campaign_items')
     .update({ storyboard_image_id: imageId, storyboard_generation_id: gen.id })
     .eq('id', itemId);
+  // Sin throw, un link fallido dejaba la gen con media_reference pero sin enlazar,
+  // y el heal (que decide por existencia de la ref) ya no la rescataría: 500 aquí
+  // hace que QStash reintente el promote completo.
+  if (linkErr) throw new Error(`promote link failed: ${linkErr.message}`);
 }
