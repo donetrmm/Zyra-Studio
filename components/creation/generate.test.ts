@@ -6,7 +6,7 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { buildProductPrompt, generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster, refineCharacterMaster, refineLocationMaster, retouchUploaded } from './generate';
+import { buildProductPrompt, generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster, refineCharacterMaster, refineLocationMaster, retouchUploaded, refineProductImage } from './generate';
 import { stripSlop } from '@/lib/prompt-director/antislop';
 
 describe('generateProductAngle', () => {
@@ -230,5 +230,46 @@ describe('retouchUploaded', () => {
     expect(call.references).toEqual([{ id: 'up', storagePath: 'ws/up.png' }]);
     expect(call.prompt).toContain('remove the background');
     expect(call.prompt).toMatch(/Keep everything else/i);
+  });
+});
+
+// Vistas de producto (feedback 2026-07-04): perfil 90° junto al 3/4, y retoque
+// de cualquier vista preservando el producto.
+describe('generateProductAngle — profile', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('rota el producto a perfil 90° con las mismas guardas que el 3/4', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await generateProductAngle({ id: 'src', storagePath: 'ws/src.png' }, 'profile');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect(call.references).toEqual([{ id: 'src', storagePath: 'ws/src.png' }]);
+    expect(call.prompt).toMatch(/side profile view \(turned 90 degrees\)/i);
+    expect(call.prompt).toMatch(/do NOT return the original/i);
+    expect(call.prompt).toMatch(/Do not alter or invent any label text/i);
+  });
+});
+
+describe('refineProductImage', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('aplica el cambio pedido con guarda de identidad del producto', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+    const res = await refineProductImage({ id: 'v', storagePath: 'ws/v.png' }, 'fondo blanco puro');
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.references).toEqual([{ id: 'v', storagePath: 'ws/v.png' }]);
+    expect(call.prompt).toContain('fondo blanco puro');
+    expect(call.prompt).toMatch(/product identity perfectly consistent/i);
+    expect(call.prompt).toMatch(/Do not alter or invent any label text/i);
   });
 });

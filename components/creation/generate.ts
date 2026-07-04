@@ -131,20 +131,39 @@ export async function generateCharacterState(
   return editUploaded(masterRef, prompt);
 }
 
-// Vista 3/4 de un PRODUCTO (P01). El producto suele ser una foto SUBIDA, así que
-// va por editUploaded (la foto entra como referencia de Nano Banana, no como parent
-// conversacional). Rota la cámara preservando la identidad del producto; NO altera
-// ni inventa la etiqueta (respeta "no fabricar texto de marca").
-const PRODUCT_ANGLE_PROMPT: Record<'three-quarter', string> = {
+// Vistas de un PRODUCTO (P01 + feedback 2026-07-04): 3/4 y perfil 90°. El
+// producto suele ser una foto SUBIDA, así que va por editUploaded (la foto
+// entra como referencia de Nano Banana, no como parent conversacional). Rota
+// la cámara preservando la identidad del producto; NO altera ni inventa la
+// etiqueta (respeta "no fabricar texto de marca").
+export type ProductAngleView = 'three-quarter' | 'profile';
+
+const PRODUCT_ANGLE_PROMPT: Record<ProductAngleView, string> = {
   'three-quarter':
     'Rotate the camera to show the exact same product from a three-quarter angle (turned about 45 degrees), so its front and one side are both visible at once. This MUST be a newly rendered view from a clearly different angle — do NOT return the original framing or a copy of the input image. Keep the product identity perfectly consistent: identical shape, colors, label, logo, materials and proportions; same soft even studio lighting and clean plain background. Do not alter or invent any label text.',
+  profile:
+    'Rotate the camera to show the exact same product from a direct side profile view (turned 90 degrees), so only its side is visible. This MUST be a newly rendered view from a clearly different angle — do NOT return the original framing or a copy of the input image. Keep the product identity perfectly consistent: identical shape, colors, label, logo, materials and proportions; same soft even studio lighting and clean plain background. Do not alter or invent any label text.',
 };
 
 export async function generateProductAngle(
   productRef: { id: string; storagePath: string },
-  view: 'three-quarter',
+  view: ProductAngleView,
 ): Promise<GeneratedImage | GenError> {
   return editUploaded(productRef, PRODUCT_ANGLE_PROMPT[view]);
+}
+
+// Retoca una VISTA de producto (subida o generada) con una instrucción libre,
+// preservando la identidad del producto (feedback 2026-07-04: las vistas
+// generadas no se podían corregir — solo borrar y regenerar).
+export async function refineProductImage(
+  productRef: { id: string; storagePath: string },
+  instruction: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    `Apply only this change to the reference image: ${instruction.trim()}. ` +
+    `Keep the product identity perfectly consistent — identical shape, colors, label, logo, ` +
+    `materials and proportions. Do not alter or invent any label text.`;
+  return editUploaded(productRef, prompt);
 }
 
 // Refina un ESTADO ya generado (P05): re-edita la imagen del estado con una

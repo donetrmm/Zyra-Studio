@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
-import { generateProductAngle, isGenError } from '@/components/creation/generate';
+import { generateProductAngle, refineProductImage, isGenError, type ProductAngleView } from '@/components/creation/generate';
+import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -241,7 +242,10 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
   );
   const [saving, startSave] = useTransition();
   const [detecting, setDetecting] = useState(false);
-  const [angling, setAngling] = useState(false);
+  // Vista en generación ('three-quarter' | 'profile') o null.
+  const [angling, setAngling] = useState<ProductAngleView | null>(null);
+  // Vista con el retoque IA abierto (feedback 2026-07-04).
+  const [refiningId, setRefiningId] = useState<string | null>(null);
 
   async function saveUsage(refId: string, value: string) {
     setProductUsages((prev) => ({ ...prev, [refId]: value }));
@@ -264,31 +268,49 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
     } finally { setDetecting(false); }
   }
 
-  // Genera la vista 3/4 del producto (P01) desde la PRIMERA imagen subida y la
-  // antepone a la lista (tope 4). Se conserva al Guardar (setBrandKitImagesAction).
-  async function generateThreeQuarter() {
+  // Genera una vista del producto (3/4 o perfil 90°, P01 + feedback 2026-07-04)
+  // desde la PRIMERA imagen subida y la antepone a la lista (tope 4). Se
+  // conserva al Guardar (setBrandKitImagesAction).
+  const ANGLE_LABEL: Record<ProductAngleView, { name: string; usage: string }> = {
+    'three-quarter': { name: 'vista 3/4', usage: 'three-quarter view' },
+    profile: { name: 'vista 90° (perfil)', usage: 'side profile view' },
+  };
+  async function generateAngleView(view: ProductAngleView) {
     if (productImages.length === 0 || productImages.length >= 4 || angling) return;
-    setAngling(true);
+    setAngling(view);
     try {
       const src = productImages[0];
       const pathRes = await getReferencePathsAction([src.id]);
       const storagePath = pathRes.ok ? pathRes.data[src.id] : undefined;
       if (!storagePath) { toast.error('No se pudo resolver la imagen de producto'); return; }
-      const out = await generateProductAngle({ id: src.id, storagePath }, 'three-quarter');
-      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar la vista 3/4'); return; }
+      const out = await generateProductAngle({ id: src.id, storagePath }, view);
+      if (isGenError(out)) { toast.error(out.message || `No se pudo generar la ${ANGLE_LABEL[view].name}`); return; }
       setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
-      await setReferenceUsageAction({ refId: out.refId, usage: 'three-quarter view' });
+      await setReferenceUsageAction({ refId: out.refId, usage: ANGLE_LABEL[view].usage });
       // El modelo a veces devuelve la imagen casi intacta (no rota). Lo detectamos
       // por hash perceptual y avisamos para que el usuario regenere.
       const cmp = await compareReferencesAction({ a: src.id, b: out.refId });
       if (cmp.ok && cmp.data.nearlyIdentical) {
         toast.warning('La vista salió casi idéntica a la original: el modelo no rotó esta vez. Bórrala y genera de nuevo.');
       } else {
-        toast.success('Vista 3/4 generada; guarda el kit para conservarla');
+        toast.success(`${ANGLE_LABEL[view].name} generada; guarda el kit para conservarla`);
       }
     } finally {
-      setAngling(false);
+      setAngling(null);
     }
+  }
+
+  // Retoque IA de una vista concreta (feedback 2026-07-04): corrige la vista
+  // generada (o subida) sin borrarla y regenerar. El resultado reemplaza la
+  // vista en su posición y hereda su descripción de uso.
+  function adoptRefinedView(oldId: string, r: { id: string; previewUrl: string | null }) {
+    setProductImages((prev) => prev.map((img) => (img.id === oldId ? { id: r.id, previewUrl: r.previewUrl } : img)));
+    const usage = productUsages[oldId] ?? '';
+    if (usage && r.id !== oldId) {
+      setProductUsages((prev) => ({ ...prev, [r.id]: usage }));
+      void setReferenceUsageAction({ refId: r.id, usage });
+    }
+    setRefiningId(r.id);
   }
 
   function handleSave() {
@@ -339,20 +361,45 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
             {productImages.map((img) => (
-              <div key={img.id} className="flex items-center gap-2">
-                {img.previewUrl ? (
-                  <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
-                ) : (
-                  <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
+              <div key={img.id}>
+                <div className="flex items-center gap-2">
+                  {img.previewUrl ? (
+                    <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
+                  ) : (
+                    <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
+                  )}
+                  <input
+                    type="text"
+                    aria-label="Uso de esta vista de producto"
+                    defaultValue={productUsages[img.id] ?? ''}
+                    placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
+                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setRefiningId((cur) => (cur === img.id ? null : img.id))}
+                    title="Retocar esta vista con IA"
+                    aria-label="Retocar esta vista con IA"
+                    className={`grid size-8 shrink-0 place-items-center rounded-md border transition-colors ${
+                      refiningId === img.id
+                        ? 'border-primary/60 bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Sparkles className="size-3.5" aria-hidden />
+                  </button>
+                </div>
+                {refiningId === img.id && (
+                  <div className="ml-12 mt-1.5">
+                    <MasterImageRefiner
+                      image={img}
+                      refine={refineProductImage}
+                      onResult={(r) => adoptRefinedView(img.id, r)}
+                      placeholder="ej. fondo blanco puro, centra el producto"
+                    />
+                  </div>
                 )}
-                <input
-                  type="text"
-                  aria-label="Uso de esta vista de producto"
-                  defaultValue={productUsages[img.id] ?? ''}
-                  placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
-                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
-                />
               </div>
             ))}
           </div>
@@ -369,23 +416,30 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
           Detectar nombre, paleta y tono desde la imagen
         </button>
 
-        <button
-          type="button"
-          onClick={generateThreeQuarter}
-          disabled={angling || productImages.length === 0 || productImages.length >= 4}
-          title={
-            productImages.length === 0
-              ? 'Sube primero una imagen de producto'
-              : productImages.length >= 4
-                ? 'Ya tienes el máximo de vistas (4)'
-                : 'Genera una vista 3/4 para reducir la deriva geométrica en video'
-          }
-          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {angling ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
-          Generar vista 3/4 del producto
-          {angleCost != null && <span className="text-muted-foreground">· −{angleCost} cr</span>}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {(['three-quarter', 'profile'] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => void generateAngleView(view)}
+              disabled={angling !== null || productImages.length === 0 || productImages.length >= 4}
+              title={
+                productImages.length === 0
+                  ? 'Sube primero una imagen de producto'
+                  : productImages.length >= 4
+                    ? 'Ya tienes el máximo de vistas (4)'
+                    : view === 'three-quarter'
+                      ? 'Genera una vista 3/4 para reducir la deriva geométrica en video'
+                      : 'Genera la vista lateral (90°) del producto'
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {angling === view ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+              {view === 'three-quarter' ? 'Generar vista 3/4' : 'Generar vista 90°'}
+              {angleCost != null && <span className="text-muted-foreground">· −{angleCost} cr</span>}
+            </button>
+          ))}
+        </div>
 
         <ReferenceImagesUploader
           label="Empaque"
