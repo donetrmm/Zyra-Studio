@@ -50,6 +50,7 @@ import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
+import { clipDownloadName } from '@/lib/campaigns/clip-download-name';
 import type { PricingRow } from '@/lib/credits/types';
 import type { StudioItem } from '@/lib/campaigns/studio-item';
 import { ReferencePoolDialog } from './ReferencePoolDialog';
@@ -1184,7 +1185,7 @@ function ProductionView({
   const [distilling, setDistilling] = useState<StudioItem | null>(null);
   const [varianting, setVarianting] = useState<StudioItem | null>(null);
   // Visor inline del creativo generado (evita ir a la Biblioteca).
-  const [viewing, setViewing] = useState<{ generationId: string; title: string } | null>(null);
+  const [viewing, setViewing] = useState<{ generationId: string; title: string; filename: string } | null>(null);
 
   async function handleCancel(generationId: string) {
     setBusy(`cancel:${generationId}`);
@@ -1432,6 +1433,11 @@ function ProductionView({
                               setViewing({
                                 generationId: d.generationId as string,
                                 title: d.sceneSummary ?? d.scenePrompt,
+                                filename: clipDownloadName({
+                                  sequenceId: d.sequenceId,
+                                  sceneIndex: d.sceneIndex,
+                                  generationId: d.generationId as string,
+                                }),
                               })
                             }
                           >
@@ -1558,6 +1564,11 @@ function ProductionView({
                             setViewing({
                               generationId: f.generationId as string,
                               title: f.sceneSummary ?? f.scenePrompt,
+                              filename: clipDownloadName({
+                                sequenceId: f.sequenceId,
+                                sceneIndex: f.sceneIndex,
+                                generationId: f.generationId as string,
+                              }),
                             })
                           }
                         >
@@ -1638,6 +1649,7 @@ function ProductionView({
         <GenerationViewer
           generationId={viewing.generationId}
           title={viewing.title}
+          filename={viewing.filename}
           onClose={() => setViewing(null)}
         />
       )}

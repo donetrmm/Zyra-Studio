@@ -19,10 +19,13 @@ type Detail = {
 export function GenerationViewer({
   generationId,
   title,
+  filename,
   onClose,
 }: {
   generationId: string;
   title: string;
+  // Nombre de descarga sin extensión (ej. clip-02-a1b2c3); sin él cae al id corto.
+  filename?: string;
   onClose: () => void;
 }) {
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -51,7 +54,7 @@ export function GenerationViewer({
     if (!detail?.outputUrl) return;
     setDownloading(true);
     try {
-      await downloadFile(detail.outputUrl, `1to1-${generationId.slice(0, 8)}`);
+      await downloadFile(detail.outputUrl, filename ?? `1to1-${generationId.slice(0, 8)}`);
     } catch {
       toast.error('No se pudo descargar el video');
     } finally {

@@ -47,11 +47,18 @@ export default async function CampaignDetailRoute({
   if (brief?.productName && view !== 'assets') {
     const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }] =
       await Promise.all([
+        // Orden con desempates: los clips de una secuencia comparten scheduled_date
+        // y sin tiebreaker Postgres los devuelve en orden arbitrario (Producción los
+        // mostraba en desorden). sequence_id junta las escenas de cada anuncio,
+        // scene_index las pone en su número, created_at estabiliza los sueltos.
         supabase
           .from('campaign_items')
           .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint')
           .eq('campaign_id', id)
-          .order('scheduled_date'),
+          .order('scheduled_date')
+          .order('sequence_id')
+          .order('scene_index')
+          .order('created_at'),
         supabase.from('formats').select('id, name, description'),
         supabase.from('characters').select('id, name').eq('workspace_id', workspace.id),
         supabase
