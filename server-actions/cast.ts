@@ -15,8 +15,9 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: s
 const UpsertCharacterSchema = z.object({
   name: z.string().trim().min(1).max(80),
   // Apariencia, vestuario y manera de actuar. Los marcadores de edad los
-  // limpia el Prompt Director al compilar.
-  description: z.string().trim().max(600).optional(),
+  // limpia el Prompt Director al compilar. 2000: cabe una descripción exacta
+  // o un prompt pegado (feedback 2026-07-04); el techo del prompt final es 8000.
+  description: z.string().trim().max(2000).optional(),
   masterImageId: z.string().uuid(),
   angleImageIds: z.array(z.string().uuid()).max(2).default([]),
 });

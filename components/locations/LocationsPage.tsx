@@ -317,8 +317,8 @@ function LocationEditor({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Ambiente, luz, estilo arquitectónico, época: café de barrio con luz cálida, mesas de madera, ventana a la calle…"
-            rows={3}
-            maxLength={600}
+            rows={5}
+            maxLength={2000}
             className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
         </div>

@@ -303,7 +303,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
           {step === 'intent' && kind === 'character' && (
             <>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Describe lo que quieres</label>
-              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={2000}
                 placeholder="una creadora de cocina, pelo rizado, entrega cercana…"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
               <div>
@@ -358,7 +358,7 @@ export function CreationWizard({ kind, productFlow, existing, onSave, onClose }:
           {step === 'intent' && kind === 'product' && productFlow !== 'improve' && (
             <>
               <p className="text-[13px] text-muted-foreground">Describe el producto. La IA generará un <span className="text-foreground">concepto</span> — no una foto real.</p>
-              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000}
+              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} maxLength={2000}
                 placeholder="ej. una lata de té matcha de 330ml, acabado mate verde salvia"
                 className="w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
 

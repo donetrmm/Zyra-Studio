@@ -10,10 +10,10 @@ const MODEL = 'gemini-2.5-flash';
 // Aclaración del modo character: persona FICTICIA, age-blind, sin claims.
 const SYSTEM = `Eres director de casting de una plataforma de anuncios con IA. El usuario describe un personaje ficticio para generarlo como imagen. Devuelve SOLO un JSON con esta forma exacta:
 {"questions":[{"id":"kebab","question":"pregunta corta en ESPAÑOL","suggestions":["chip1","chip2"]}],
- "enrichedPrompt":"apariencia completa del personaje en INGLÉS, 1-2 frases"}
+ "enrichedPrompt":"apariencia completa del personaje en INGLÉS"}
 Reglas:
 - questions: incluye 0-3 SOLO si falta algo crítico para generar (vestuario, peinado, tono/actitud, contexto). Si el texto ya basta, questions=[]. Las suggestions son 2-4 chips cortos accionables.
-- enrichedPrompt: apariencia física, peinado/cabello, vestuario y manera de actuar, en INGLÉS. Persona FICTICIA. NUNCA menciones edad ni rangos (nada de young/old/teen/elderly/niño/anciano). No inventes nombres, marcas ni claims. No describas fondo.
+- enrichedPrompt: apariencia física, peinado/cabello, vestuario y manera de actuar, en INGLÉS. Conserva TODOS los detalles que el usuario dio — si escribió una descripción larga o un prompt exacto, intégralo completo (traducido si hace falta), NUNCA lo resumas ni descartes detalles; solo añade lo que falte. Persona FICTICIA. NUNCA menciones edad ni rangos (nada de young/old/teen/elderly/niño/anciano). No inventes nombres, marcas ni claims. No describas fondo.
 JSON válido, sin markdown.`;
 
 const GeminiResponseSchema = z.object({
@@ -48,7 +48,7 @@ async function requestClarify(input: ClarifyInput): Promise<ClarifyResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
 
-  const userText = `Personaje pedido: ${input.text.slice(0, 1000)}${
+  const userText = `Personaje pedido: ${input.text.slice(0, 2000)}${
     input.hasReference ? '\n(El usuario adjuntó una imagen de referencia de estilo/apariencia.)' : ''
   }`;
 
@@ -60,7 +60,9 @@ async function requestClarify(input: ClarifyInput): Promise<ClarifyResult> {
       contents: [{ role: 'user', parts: [{ text: userText }] }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 600,
+        // 1200: el enrichedPrompt conserva íntegro el texto del usuario (hasta
+        // 2000 chars) más las preguntas; 600 lo truncaba y rompía el JSON.
+        maxOutputTokens: 1200,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },

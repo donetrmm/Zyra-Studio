@@ -3,8 +3,9 @@ import { z } from 'zod';
 export type CreationKind = 'character' | 'product';
 
 // Entrada de la aclaración (solo modo character; product no pasa por aquí).
+// 2000: cabe una descripción exacta o un prompt pegado (feedback 2026-07-04).
 export const ClarifyInputSchema = z.object({
-  text: z.string().trim().min(1).max(1000),
+  text: z.string().trim().min(1).max(2000),
   hasReference: z.boolean().default(false),
 });
 export type ClarifyInput = z.infer<typeof ClarifyInputSchema>;
@@ -31,6 +32,8 @@ export const ClarifyResultSchema = z.object({
         })
         .slice(0, 3),
     ),
-  enrichedPrompt: z.string().trim().min(1).max(1500),
+  // 3000: el enriquecido conserva íntegro el texto del usuario (hasta 2000) y
+  // solo completa lo que falte — no lo resume.
+  enrichedPrompt: z.string().trim().min(1).max(3000),
 });
 export type ClarifyResult = z.infer<typeof ClarifyResultSchema>;
