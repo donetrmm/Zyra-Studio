@@ -20,7 +20,27 @@ const UpsertCharacterSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   masterImageId: z.string().uuid(),
   angleImageIds: z.array(z.string().uuid()).max(2).default([]),
+  // Voz asignada (voice_clones, clonada o cargada). null/ausente = sin voz. El
+  // hablante primario del clip la ancla como referencia de timbre (@audio1) en
+  // generación. Ownership por workspace se valida en el action.
+  voiceCloneId: z.string().uuid().nullish(),
 });
+
+// La voz debe pertenecer a la misma workspace (voice_clones.workspace_id). Se
+// valida aquí (no en RLS): defensa contra asignar una voz ajena por id.
+async function validateVoiceOwnership(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  voiceCloneId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('voice_clones')
+    .select('id')
+    .eq('id', voiceCloneId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  return !!data;
+}
 
 async function validateImageOwnership(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -72,6 +92,10 @@ export async function createCharacterAction(input: unknown): Promise<Result<{ id
     return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
   }
 
+  if (parsed.data.voiceCloneId && !(await validateVoiceOwnership(supabase, workspace.id, parsed.data.voiceCloneId))) {
+    return { ok: false, error: 'forbidden', message: 'Voz no pertenece al workspace' };
+  }
+
   // Sin descripción tecleada → se infiere de la hoja maestra (el modelo la VE),
   // para que el Prompt Director nunca ancle al personaje sin apariencia.
   const description =
@@ -86,6 +110,7 @@ export async function createCharacterAction(input: unknown): Promise<Result<{ id
       master_image_id: parsed.data.masterImageId,
       angle_image_ids: parsed.data.angleImageIds,
       reference_image_ids: allIds, // compat V1: generación suelta usa este campo
+      voice_clone_id: parsed.data.voiceCloneId ?? null,
     })
     .select('id')
     .single();
@@ -105,6 +130,10 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
     return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
   }
 
+  if (parsed.data.voiceCloneId && !(await validateVoiceOwnership(supabase, workspace.id, parsed.data.voiceCloneId))) {
+    return { ok: false, error: 'forbidden', message: 'Voz no pertenece al workspace' };
+  }
+
   // Igual que en el alta: descripción vacía se infiere de la hoja maestra.
   const description =
     parsed.data.description ?? (await describeFromMaster(supabase, parsed.data.masterImageId));
@@ -118,6 +147,9 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
         master_image_id: parsed.data.masterImageId,
         angle_image_ids: parsed.data.angleImageIds,
         reference_image_ids: allIds,
+        // null explícito = desasignar la voz. undefined no se manda (el schema
+        // usa nullish: ausente y null son distinguibles aquí).
+        voice_clone_id: parsed.data.voiceCloneId ?? null,
       },
       { count: 'exact' },
     )

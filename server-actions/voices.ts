@@ -52,11 +52,11 @@ export async function cloneVoiceAction(
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
 
-  const files: { buffer: Buffer; filename: string }[] = [];
+  const files: { buffer: Buffer; filename: string; mime: string }[] = [];
   for (const entry of formData.getAll('files')) {
     if (!(entry instanceof File) || entry.size === 0) continue;
     const arrayBuf = await entry.arrayBuffer();
-    files.push({ buffer: Buffer.from(arrayBuf), filename: entry.name });
+    files.push({ buffer: Buffer.from(arrayBuf), filename: entry.name, mime: entry.type });
   }
   if (files.length === 0) {
     return { ok: false, error: 'validation_error', message: 'Sube al menos un archivo de audio' };
@@ -71,6 +71,26 @@ export async function cloneVoiceAction(
       files,
     });
 
+    // Guarda el PRIMER archivo como muestra (voice-samples) para que la voz
+    // clonada también sirva de referencia de timbre (@audio1) al anclarla a un
+    // personaje del Cast. Best-effort: si el formato no es de los aceptados por
+    // el bucket, la clonada queda sin sample (funciona para TTS, no para @audio1).
+    let samplePath: string | null = null;
+    const sample = files[0];
+    const sampleExt = sample.mime ? UPLOAD_VOICE_MIME[sample.mime] : undefined;
+    if (sampleExt) {
+      try {
+        samplePath = await uploadVoiceSample(
+          user.id,
+          `clone/${crypto.randomUUID()}.${sampleExt}`,
+          sample.buffer,
+          sample.mime,
+        );
+      } catch {
+        samplePath = null;
+      }
+    }
+
     const { data: row, error } = await supabase
       .from('voice_clones')
       .insert({
@@ -79,6 +99,7 @@ export async function cloneVoiceAction(
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         elevenlabs_voice_id: voiceId,
+        sample_storage_url: samplePath,
         status: 'ready',
       })
       .select('id')
@@ -86,6 +107,7 @@ export async function cloneVoiceAction(
 
     if (error || !row) {
       await deleteVoice(voiceId).catch(() => {});
+      if (samplePath) await deleteVoiceSample(samplePath).catch(() => {});
       return { ok: false, error: 'internal_error', message: error?.message ?? 'insert failed' };
     }
 

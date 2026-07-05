@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import { Loader2, Mic2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, describeCharacterAction, updateCharacterAction } from '@/server-actions/cast';
 import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction, updateCharacterStateImageAction } from '@/server-actions/character-states';
@@ -25,15 +25,27 @@ export type CastCharacter = {
   description: string | null;
   master_image_id: string | null;
   angle_image_ids: string[];
+  voice_clone_id: string | null;
+};
+
+export type CastVoice = {
+  id: string;
+  name: string;
+  kind: 'cloned' | 'uploaded';
+  // La voz sirve como referencia de timbre en video solo si tiene un audio de
+  // muestra. Las cargadas siempre; las clonadas, desde que se guarda su sample.
+  hasSample: boolean;
 };
 
 export function CastPage({
   characters,
   previews,
+  voices,
   fluxCost,
 }: {
   characters: CastCharacter[];
   previews: Record<string, string>;
+  voices: CastVoice[];
   fluxCost: number;
 }) {
   const router = useRouter();
@@ -74,6 +86,7 @@ export function CastPage({
         <CharacterEditor
           character={editing === 'new' ? null : editing}
           previews={previews}
+          voices={voices}
           fluxCost={fluxCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
@@ -159,18 +172,21 @@ type CharacterState = { id: string; label: string; stateImageId: string | null; 
 function CharacterEditor({
   character,
   previews,
+  voices,
   fluxCost,
   onClose,
   onSaved,
 }: {
   character: CastCharacter | null;
   previews: Record<string, string>;
+  voices: CastVoice[];
   fluxCost: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(character?.name ?? '');
   const [description, setDescription] = useState(character?.description ?? '');
+  const [voiceCloneId, setVoiceCloneId] = useState<string>(character?.voice_clone_id ?? '');
   const [masterImages, setMasterImages] = useState<RefImage[]>(
     character?.master_image_id
       ? [{ id: character.master_image_id, previewUrl: previews[character.master_image_id] ?? null }]
@@ -340,6 +356,8 @@ function CharacterEditor({
         description: description.trim() || undefined,
         masterImageId: masterImages[0].id,
         angleImageIds: angleImages.map((i) => i.id),
+        // '' = sin voz → null explícito (desasigna en update).
+        voiceCloneId: voiceCloneId || null,
       };
       const res = character
         ? await updateCharacterAction(character.id, payload)
@@ -394,6 +412,32 @@ function CharacterEditor({
             maxLength={2000}
             className="mt-1.5 w-full rounded-md border border-border bg-background p-3 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
+        </div>
+
+        <div>
+          <label htmlFor="cast-voice" className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Mic2 className="size-3" aria-hidden /> Voz
+          </label>
+          <select
+            id="cast-voice"
+            value={voiceCloneId}
+            onChange={(e) => setVoiceCloneId(e.target.value)}
+            className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <option value="">Sin voz</option>
+            {voices.map((v) => (
+              <option key={v.id} value={v.id} disabled={!v.hasSample}>
+                {v.name}
+                {v.kind === 'cloned' ? ' (clonada)' : ' (cargada)'}
+                {v.hasSample ? '' : ' — sin muestra de audio'}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground/70">
+            {voices.length === 0
+              ? 'Aún no tienes voces. Créalas o cárgalas en Marca › Voces para asignarlas aquí.'
+              : 'Cuando este personaje sea el que habla en un clip, su voz se usa como referencia de timbre en el video.'}
+          </p>
         </div>
 
         <ReferenceImagesUploader

@@ -51,3 +51,28 @@ describe('buildReferences — modo manual (ctx.manualRefs)', () => {
     expect(warnings.some((w) => w.includes('recortadas'))).toBe(true);
   });
 });
+
+describe('buildReferences — slot de audio (voz vs música)', () => {
+  it('solo música: la cita como audio_rhythm', () => {
+    const { references, lines } = buildReferences(ctxWith({ audioRefPath: 'a/music.mp3' }));
+    const audio = references.filter((r) => r.kind === 'audio');
+    expect(audio).toEqual([{ storagePath: 'a/music.mp3', kind: 'audio', role: 'audio_rhythm' }]);
+    expect(lines.some((l) => l.includes('sync scene energy to its beats'))).toBe(true);
+  });
+
+  it('solo voz: la cita como voice_ref con directiva de timbre', () => {
+    const { references, lines } = buildReferences(ctxWith({ voiceRefPath: 'v/voz.mp3' }));
+    const audio = references.filter((r) => r.kind === 'audio');
+    expect(audio).toEqual([{ storagePath: 'v/voz.mp3', kind: 'audio', role: 'voice_ref' }]);
+    expect(lines.some((l) => l.includes('voice reference for the speaking character'))).toBe(true);
+  });
+
+  it('voz gana sobre música: un solo slot @audio1, la voz', () => {
+    const { references, lines } = buildReferences(
+      ctxWith({ audioRefPath: 'a/music.mp3', voiceRefPath: 'v/voz.mp3' }),
+    );
+    const audio = references.filter((r) => r.kind === 'audio');
+    expect(audio).toEqual([{ storagePath: 'v/voz.mp3', kind: 'audio', role: 'voice_ref' }]);
+    expect(lines.some((l) => l.includes('sync scene energy to its beats'))).toBe(false);
+  });
+});

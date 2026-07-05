@@ -69,6 +69,9 @@ export function onlyCharacterRefs(ctx: DirectorContext): DirectorContext {
     extraImagePaths: [],
     templateVideoPath: undefined,
     audioRefPath: undefined,
+    // La voz (como la música) no está en el panel; se re-ancla vía buildCastR2VRefs
+    // desde el baseDirCtx, solo en beats R2V. Aquí se quita para no doble-citarla.
+    voiceRefPath: undefined,
     // Solo la HOJA MAESTRA del cast (sin ángulos): re-ancla la identidad con una
     // referencia canónica, igual que la cadena de secuencias (que usa master
     // explícita, no las refs compiladas que mezclan master y ángulos).

@@ -65,6 +65,33 @@ describe('buildCastR2VRefs', () => {
     expect(referenceAudioPaths).toEqual([]);
     expect(extraCitation).not.toContain('@audio1');
   });
+
+  it('con voiceRef: la voz ocupa @audio1 y cita timbre (no beat-sync)', () => {
+    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+      ['cast-a.png'],
+      [],
+      'panel.png',
+      undefined,
+      'voice.mp3',
+    );
+    expect(referenceAudioPaths).toEqual(['voice.mp3']);
+    expect(extraCitation).toContain('@audio1');
+    expect(extraCitation).toContain('voice reference for the speaking character');
+    expect(extraCitation).not.toContain('sync scene energy to its beats');
+  });
+
+  it('voz gana sobre música cuando ambas están presentes', () => {
+    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+      ['cast-a.png'],
+      [],
+      'panel.png',
+      'music.mp3',
+      'voice.mp3',
+    );
+    expect(referenceAudioPaths).toEqual(['voice.mp3']);
+    expect(extraCitation).toContain('vocal timbre');
+    expect(extraCitation).not.toContain('sync scene energy to its beats');
+  });
 });
 
 describe('beatNamesCast', () => {

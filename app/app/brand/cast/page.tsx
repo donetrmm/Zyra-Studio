@@ -3,19 +3,37 @@ import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { estimateCredits } from '@/lib/credits/estimator';
-import { CastPage, type CastCharacter } from '@/components/cast/CastPage';
+import { CastPage, type CastCharacter, type CastVoice } from '@/components/cast/CastPage';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CastRoute() {
-  const { workspace } = await requireWorkspace();
+  const { user, workspace } = await requireWorkspace();
   const supabase = await createClient();
 
   const { data: rows } = await supabase
     .from('characters')
-    .select('id, name, description, master_image_id, angle_image_ids, reference_image_ids')
+    .select('id, name, description, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
     .eq('workspace_id', workspace.id)
     .order('created_at', { ascending: false });
+
+  // Voces disponibles para asignar (clonadas o cargadas). Solo listas: el picker
+  // muestra nombre; el enlace guarda el id.
+  const { data: voiceRows } = await supabase
+    .from('voice_clones')
+    .select('id, name, elevenlabs_voice_id, sample_storage_url')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  const voices: CastVoice[] = (voiceRows ?? []).map((v) => ({
+    id: v.id as string,
+    name: v.name as string,
+    // Clonada (ElevenLabs) vs cargada (audio subido) se distingue por
+    // elevenlabs_voice_id — las clonadas también guardan sample ahora.
+    kind: v.elevenlabs_voice_id ? 'cloned' : 'uploaded',
+    // Solo las voces con audio de muestra sirven como referencia de timbre en video.
+    hasSample: !!v.sample_storage_url,
+  }));
 
   const characters: CastCharacter[] = (rows ?? []).map((c) => ({
     id: c.id as string,
@@ -25,6 +43,7 @@ export default async function CastRoute() {
     master_image_id:
       (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0] ?? null,
     angle_image_ids: (c.angle_image_ids as string[]) ?? [],
+    voice_clone_id: (c.voice_clone_id as string | null) ?? null,
   }));
 
   const allImageIds = [
@@ -64,5 +83,5 @@ export default async function CastRoute() {
     // sin fila de pricing: el botón se muestra sin costo
   }
 
-  return <CastPage characters={characters} previews={previews} fluxCost={fluxCost} />;
+  return <CastPage characters={characters} previews={previews} voices={voices} fluxCost={fluxCost} />;
 }

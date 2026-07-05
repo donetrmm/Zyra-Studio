@@ -43,6 +43,14 @@ export const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
 export const AUDIO_BEAT_SYNC_CITATION =
   '@audio1 sets the background audio mood and rhythm; sync scene energy to its beats.';
 
+// Voz del hablante (personaje principal del clip): @audio1 como referencia de
+// timbre/acento para el diálogo hablado. Misma apuesta que el encadenado prev_clip:
+// Seedance usa el audio citado como molde de voz. Comparte el slot @audio1 con la
+// música — cuando hay voz, la música se omite (la voz gana). Sin espacio inicial:
+// el compiler la usa como línea propia; el storyboard antepone el espacio al concatenar.
+export const VOICE_TIMBRE_CITATION =
+  '@audio1 is the voice reference for the speaking character — match its exact vocal timbre, pitch and accent for all spoken dialogue in this clip. Use it only as a voice model, not as background music.';
+
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
 // La dirección de voz natural (cadencia, pausas, anti-locutor) viene del
@@ -299,8 +307,12 @@ export function buildReferences(ctx: DirectorContext): {
     );
   }
 
-  // Audio de referencia: mood y ritmo.
-  if (ctx.audioRefPath) {
+  // Audio de referencia: un único slot @audio1. La voz del hablante gana sobre la
+  // música (el usuario la asignó al personaje); si no hay voz, va la música.
+  if (ctx.voiceRefPath) {
+    references.push({ storagePath: ctx.voiceRefPath, kind: 'audio', role: 'voice_ref' });
+    lines.push(VOICE_TIMBRE_CITATION);
+  } else if (ctx.audioRefPath) {
     references.push({ storagePath: ctx.audioRefPath, kind: 'audio', role: 'audio_rhythm' });
     lines.push(AUDIO_BEAT_SYNC_CITATION);
   }

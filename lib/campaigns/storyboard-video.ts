@@ -1,6 +1,6 @@
 // Helpers puros del video desde storyboard (modo B). El orquestador hace el IO.
 
-import { AUDIO_BEAT_SYNC_CITATION } from '../prompt-director/compilers/seedance';
+import { AUDIO_BEAT_SYNC_CITATION, VOICE_TIMBRE_CITATION } from '../prompt-director/compilers/seedance';
 
 // Manijas de edición: clips independientes (sin encadenar) necesitan puntos de
 // corte limpios para montarse en post. Se pide abrir en el fotograma inicial
@@ -48,6 +48,7 @@ export function buildCastR2VRefs(
   productRefs: string[],
   panelPath: string,
   audioRef?: string,
+  voiceRef?: string,
 ): { referenceImagePaths: string[]; referenceAudioPaths: string[]; extraCitation: string } {
   const referenceImagePaths = [...castRefs, ...productRefs, panelPath];
   let n = castRefs.length;
@@ -67,10 +68,14 @@ export function buildCastR2VRefs(
   // Confina el cross-cut a la misma escena (ver STORYBOARD_SCENE_CONTINUITY): evita que
   // una toma secundaria saque al personaje al fondo de su hoja maestra.
   extraCitation += STORYBOARD_SCENE_CONTINUITY;
-  // P16 storyboard: música de referencia (beat-sync) solo en R2V. @audio1 usa su
-  // propio contador, separado de @image1..N, igual que el compiler normal.
-  const referenceAudioPaths = audioRef ? [audioRef] : [];
-  if (audioRef) {
+  // Audio de referencia (solo R2V): un único slot @audio1, contador propio separado
+  // de @image1..N. La VOZ del hablante gana sobre la música (el usuario la asignó al
+  // personaje); sin voz, va la música (beat-sync P16).
+  const audioSlot = voiceRef ?? audioRef;
+  const referenceAudioPaths = audioSlot ? [audioSlot] : [];
+  if (voiceRef) {
+    extraCitation += ` ${VOICE_TIMBRE_CITATION}`;
+  } else if (audioRef) {
     extraCitation += ` ${AUDIO_BEAT_SYNC_CITATION}`;
   }
   return { referenceImagePaths, referenceAudioPaths, extraCitation };

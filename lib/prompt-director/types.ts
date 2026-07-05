@@ -12,6 +12,7 @@ export type ReferenceRole =
   | 'style'          // dirección estética
   | 'camera_motion'  // video: replicar cámara/ritmo (plantillas vivas)
   | 'audio_rhythm'   // audio: mood y beats
+  | 'voice_ref'      // audio: voz del hablante (timbre/acento del diálogo)
   | 'start_frame';   // image2video: fotograma inicial
 
 export type ReferenceKind = 'image' | 'video' | 'audio';
@@ -111,6 +112,12 @@ export type DirectorContext = {
   // Plantilla viva: video ganador como referencia de estructura/cámara/ritmo.
   templateVideoPath?: string;
   audioRefPath?: string;
+  // Voz del HABLANTE primario del clip (voice_clones.sample_storage_url del
+  // personaje principal). Se cita como @audio1 para anclar el timbre/acento del
+  // diálogo hablado. Mutuamente excluyente con audioRefPath: solo hay un slot de
+  // audio en Seedance y la voz gana (el usuario la asignó explícitamente).
+  // Ausente = sin voz asignada → se usa audioRefPath (música) como antes.
+  voiceRefPath?: string;
   // Idioma del diálogo/voz hablada. El prompt va en inglés, pero el modelo
   // habla en el idioma del prompt salvo directiva explícita. Default 'es'.
   language?: 'es' | 'en';

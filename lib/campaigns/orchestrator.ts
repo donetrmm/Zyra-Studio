@@ -111,7 +111,7 @@ export type CampaignContext = {
   palette?: string[];
   productImagePaths: string[];
   packagingImagePaths: string[];
-  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string> }>;
+  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string>; voiceRefPath?: string }>;
   // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
   language: 'es' | 'en';
   // P16: storage path de la pista de referencia de ritmo (media_reference
@@ -296,11 +296,11 @@ export async function loadCampaignContext(
     }
   }
 
-  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string> }>();
+  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string>; voiceRefPath?: string }>();
   if (characterIds.length) {
     const { data: rows } = await supabase
       .from('characters')
-      .select('id, workspace_id, name, description, master_image_id, reference_image_ids, angle_image_ids')
+      .select('id, workspace_id, name, description, master_image_id, reference_image_ids, angle_image_ids, voice_clone_id')
       .in('id', characterIds);
     const imageIds: string[] = [];
     for (const c of rows ?? []) {
@@ -309,6 +309,24 @@ export async function loadCampaignContext(
       imageIds.push(...((c.angle_image_ids as string[]) ?? []).slice(0, 2));
     }
     const paths = await resolvePaths(supabase, workspaceId, imageIds);
+    // Voz asignada a cada personaje: resuelve voice_clone_id → sample_storage_url.
+    // Solo las voces con audio de muestra (cargadas, o clonadas con sample) sirven
+    // como referencia de timbre; las clonadas sin sample no aportan @audio1.
+    const voiceIds = [
+      ...new Set((rows ?? []).map((c) => c.voice_clone_id as string | null).filter((id): id is string => !!id)),
+    ];
+    const voiceSamples = new Map<string, string>();
+    if (voiceIds.length) {
+      const { data: voiceRows } = await supabase
+        .from('voice_clones')
+        .select('id, workspace_id, sample_storage_url')
+        .in('id', voiceIds);
+      for (const v of voiceRows ?? []) {
+        if (v.workspace_id === workspaceId && v.sample_storage_url) {
+          voiceSamples.set(v.id as string, v.sample_storage_url as string);
+        }
+      }
+    }
     for (const c of rows ?? []) {
       if (c.workspace_id !== workspaceId) continue;
       const masterId = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
@@ -316,11 +334,14 @@ export async function loadCampaignContext(
       if (masterPath) {
         const angleIds = ((c.angle_image_ids as string[]) ?? []).slice(0, 2);
         const angleImagePaths = angleIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+        const voiceId = c.voice_clone_id as string | null;
+        const voiceRefPath = voiceId ? voiceSamples.get(voiceId) : undefined;
         characters.set(c.id as string, {
           name: c.name as string,
           description: (c.description as string) ?? '',
           masterImagePath: masterPath,
           angleImagePaths,
+          ...(voiceRefPath ? { voiceRefPath } : {}),
         });
       }
     }
@@ -387,6 +408,10 @@ export function directorContextFor(
   location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
+  // Voz del hablante: el personaje PRIMARIO del clip (primer character_id). Su
+  // sample de voz ancla el timbre del diálogo. Un solo slot @audio1 → una sola voz.
+  const primaryCharId = itemCharacterIds(item)[0];
+  const voiceRefPath = primaryCharId ? ctx.characters.get(primaryCharId)?.voiceRefPath : undefined;
   const characters = itemCharacterIds(item)
     .map((id) => ctx.characters.get(id))
     .filter((c): c is NonNullable<typeof c> => !!c)
@@ -425,6 +450,7 @@ export function directorContextFor(
     templateVideoPath,
     language: ctx.language,
     audioRefPath: ctx.audioRefPath,
+    ...(voiceRefPath ? { voiceRefPath } : {}),
     guidelines: ctx.guidelines,
     ...(ctx.visualStyle
       ? { style: { slug: ctx.visualStyle, ...(ctx.visualStyleCustom ? { custom: ctx.visualStyleCustom } : {}) } }
@@ -1081,8 +1107,12 @@ export async function enqueueBatch(params: {
     // base ANTES de onlyCharacterRefs (que lo quitó del dirCtx del compile) y se
     // re-ancla solo en beats R2V (reference2video la soporta; image2video no).
     const storyboardAudioRef = useR2V ? baseDirCtx.audioRefPath : undefined;
+    // Voz del hablante: igual que la música, se toma del baseDirCtx (onlyCharacterRefs
+    // la quitó del compile). Gana sobre la música en el slot @audio1 (lo resuelve
+    // buildCastR2VRefs). Solo en beats R2V, donde el cast actúa y habla.
+    const storyboardVoiceRef = useR2V ? baseDirCtx.voiceRefPath : undefined;
     const { referenceImagePaths: castR2VRefs, referenceAudioPaths: castR2VAudios, extraCitation } = useR2V
-      ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string, storyboardAudioRef)
+      ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string, storyboardAudioRef, storyboardVoiceRef)
       : { referenceImagePaths: [] as string[], referenceAudioPaths: [] as string[], extraCitation: '' };
     // Manijas de entrada/salida solo en clips de storyboard (independientes): puntos
     // de corte limpios para montaje en post.
