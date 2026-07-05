@@ -1,5 +1,9 @@
 # Fase L — Preflight de coherencia de campaña (revisión de inputs antes de generar)
 
+> **Estado: A CONSIDERAR** — propuesta de diseño sin decisión de construcción. Su valor es
+> real pero acotado (red de seguridad de inputs, no subidor de calidad); ver "Alcance de
+> impacto (honesto)" antes de priorizarla frente a la Fase M (realismo/expresiones).
+>
 > **~1–2 días la Fase 0 · roadmap de 3 fases**
 >
 > Al generar el plan de una campaña, un chequeo con Gemini Flash revisa los **inputs**
