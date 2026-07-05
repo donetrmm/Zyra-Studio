@@ -167,6 +167,21 @@ describe('buildProductPrompt', () => {
       expect(stripSlop(buildProductPrompt('x', shot, 1)).removed).toEqual([]);
     }
   });
+
+  // Feedback 2026-07-04: controlar la dominante amarilla también en el concepto
+  // de producto (estudio/lifestyle heredaban el warm-bias del generador).
+  it('estudio y lifestyle piden balance neutro (anti-amarillo)', () => {
+    expect(buildProductPrompt('una lata', 'estudio')).toMatch(/neutral white balance/);
+    expect(buildProductPrompt('una lata', 'lifestyle')).toMatch(/neutral white balance/);
+  });
+
+  // Auditoría BD 2026-07-04: la descripción del producto no se saneaba (a
+  // diferencia de locación/personaje) y la keyword soup reintroducía el look de IA.
+  it('sanea la descripción del usuario (quita keyword soup y photorealistic)', () => {
+    const p = buildProductPrompt('una lata de té, 8k, highly detailed, photorealistic');
+    expect(p).toContain('una lata de té');
+    expect(p).not.toMatch(/8k|highly detailed|photorealistic/i);
+  });
 });
 
 // Refinado de maestras ya guardadas (feedback 2026-07-04): personaje y locación

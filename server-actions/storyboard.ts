@@ -22,7 +22,7 @@ import {
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { applyReferenceSelection, normalizeReferenceSelection } from '@/lib/campaigns/reference-selection';
-import { compilePanel, compilePanelEdit, compileRefinePrompt, expressionDirective, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel } from '@/lib/campaigns/storyboard';
+import { compilePanel, compilePanelEdit, compileRefinePrompt, expressionDirective, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel, NO_TEXT_CLAUSE } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { uploadReference, downloadReferenceBuffer } from '@/lib/supabase/storage';
@@ -309,7 +309,7 @@ export async function generatePanelAction(
   }
 
   const prevRef = await loadPreviousPanelRef(supabase, workspace.id, item.campaign_id, item.scene_index, item.sequence_id, item.location_id);
-  const noText = ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
+  const noText = NO_TEXT_CLAUSE;
   const productRefInChat =
     Boolean(prevRef) &&
     (opts?.productRefInChat ?? process.env.STORYBOARD_PRODUCT_REF_IN_CHAT === '1');

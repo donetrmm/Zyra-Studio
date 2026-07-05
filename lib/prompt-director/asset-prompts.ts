@@ -16,7 +16,7 @@ import { stripSlop } from './antislop';
 // "photorealistic" se quita aparte: no está en la lista global (en prompts
 // libres puede ser legítimo) pero en activos produce el look de render que el
 // plan de estilos eliminó — y los activos anclan todo río abajo.
-function cleanAssetDescription(description: string): string {
+export function cleanAssetDescription(description: string): string {
   return stripSlop(description)
     .text.replace(/,?\s*\bphoto-?realistic\b/gi, '')
     .replace(/\s{2,}/g, ' ')

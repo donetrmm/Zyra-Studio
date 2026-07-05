@@ -22,7 +22,9 @@ import type {
 // OJO: NO prohibir "logos" a secas — el logo impreso en el empaque del producto
 // referenciado es branding legítimo y central del anuncio. Solo se prohíbe que el
 // modelo INVENTE/añada logos o tipografía que no estén físicamente en el producto.
-const NEGATIVE_CLAUSE =
+// Exportada: los clips de continuación de secuencia (buildContinuationPrompt) la
+// re-anclan porque no pasan por el compiler y perdían la protección anti-overlay.
+export const NEGATIVE_CLAUSE =
   'No on-screen text overlays, captions, subtitles or watermarks added by the model. Do not invent or add any logo or typography that is not physically part of the referenced product.';
 
 // Guard anti-rostros: SOLO cuando NINGÚN rostro es intencional (clip de puro
@@ -30,7 +32,9 @@ const NEGATIVE_CLAUSE =
 // Si hay personaje del Cast (cara anclada por referencia) o habla EN cámara
 // (lip-sync), el rostro ES el objetivo del clip y prohibir "rostros reales" se
 // contradice con la referencia y la dirección de lip-sync → degrada la cara.
-const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
+// Exportada: la reusan los clips de continuación (buildContinuationPrompt) en
+// tomas de puro producto, mismo gate (!facesIntended) que el compiler.
+export const NO_REAL_FACES_CLAUSE = 'No real, identifiable human faces.';
 
 // Directiva de beat-sync del audio de referencia. Fuente única: la cita el compiler
 // normal (rama @audio1) y la rama R2V del storyboard (buildCastR2VRefs) para que la

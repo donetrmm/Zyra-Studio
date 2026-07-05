@@ -14,6 +14,8 @@ import { AcceptRefineInputSchema, RefineTurnInputSchema } from '@/lib/schemas/re
 import type { FormatDirection } from '@/lib/prompt-director/types';
 import { plannerStyleBlocks } from '@/lib/prompt-director/style-profiles';
 import { stagingPlannerBlock, type PlannerProductFacts } from '@/lib/prompt-director/inventory';
+import { PLANNER_ACTING_BLOCK } from '@/lib/prompt-director/acting';
+import { CreativeGuidelinesSchema, type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { validateOwnedCharacters } from '@/lib/campaigns/characters';
 import { insertOrRecoverCustomFormat } from '@/lib/campaigns/custom-format';
 
@@ -36,7 +38,7 @@ async function loadContext(campaignId: string, draft: RefineDraft) {
   const supabase = await createClient();
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, product_brief, language, brand_kit_id, aspect_ratio, visual_style, visual_style_custom')
+    .select('id, workspace_id, product_brief, language, brand_kit_id, aspect_ratio, visual_style, visual_style_custom, creative_guidelines')
     .eq('id', campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -120,10 +122,28 @@ function buildSystemPrompt(args: {
   // Datos físicos del producto (spec 2026-07-02): staging proporcional + peso,
   // misma paridad que el matcher (buildMatcherSystemPrompt).
   product?: PlannerProductFacts;
+  // Guías creativas de la campaña (producto completo / hook héroe): el refinado
+  // autora scenePrompts y debe respetarlas igual que el matcher (auditoría
+  // 2026-07-04: eran un hueco de cobertura de esta ruta).
+  guidelines?: CreativeGuidelines;
 }): string {
   const shots = SHOTS.map((s) => `- ${s.slug}: ${s.name} (${s.whenToUse})`).join('\n');
   const cast = args.characters.map((c) => `- id=${c.id} ${c.name}`).join('\n') || '(vacío)';
   const duration = args.format?.defaultDurationS ?? 8;
+  // Guías creativas de la campaña (mismos textos que buildMatcherSystemPrompt).
+  const guidelineBlocks =
+    (args.guidelines?.showFullProduct
+      ? '\nPrioriza encuadres que muestren el producto COMPLETO; evita close-ups extremos que lo recorten, salvo una toma de detalle deliberada.'
+      : '') +
+    (args.guidelines?.hookProductHero
+      ? '\nSi este creativo es el primer beat (hook) de la campaña, encuádralo con el producto completo como protagonista (héroe), a tamaño grande.'
+      : '');
+  // Actuación contenida (feedback 2026-07-04): las emociones nacen como gestos
+  // pequeños en el scenePrompt — el compiler no contiene lo que el guion ya
+  // declaró grande. Animado/fantasía quedan fuera (su expresividad es del estilo),
+  // igual que el matcher.
+  const actingBlock =
+    args.visualStyle !== 'animado' && args.visualStyle !== 'fantasia' ? PLANNER_ACTING_BLOCK : '';
   return `Eres director creativo senior guiando a un usuario SIN experiencia para
 definir un creativo de video publicitario. Producto: "${args.productName}".
 Formato: ${args.format ? `${args.format.name} — registro ${args.format.register}, cámara ${args.format.cameraStyle}, ${duration}s` : 'aún sin formato'}.
@@ -165,7 +185,7 @@ Reglas duras:
   sin marcadores de segundos (es lo que el usuario lee en el panel).
 - En etapa shot propone slugs SOLO de este catálogo:\n${shots}
 - En etapa refs, characterId solo de este Cast:\n${cast}
-- Nunca inventes atributos del producto ni claims.${plannerStyleBlocks(args.visualStyle, args.visualStyleCustom)}${stagingPlannerBlock(args.product)}
+- Nunca inventes atributos del producto ni claims.${guidelineBlocks}${plannerStyleBlocks(args.visualStyle, args.visualStyleCustom)}${actingBlock}${stagingPlannerBlock(args.product)}
 Devuelve SOLO JSON: {"reply":"...","stage":"what|shot|refs|review","chips":[...],"draftPatch":{...}}`;
 }
 
@@ -194,6 +214,9 @@ export async function refineItemTurnAction(input: unknown): Promise<
   };
   const userTurns = parsed.data.history.filter((t) => t.role === 'user').length + 1;
   const currentStage: Stage = userTurns >= MAX_TURNS ? 'review' : parsed.data.stage;
+  const guidelines: CreativeGuidelines | undefined = ctx.campaign.creative_guidelines
+    ? CreativeGuidelinesSchema.safeParse(ctx.campaign.creative_guidelines).data
+    : undefined;
 
   try {
     const turn = await requestRefineTurn({
@@ -214,6 +237,7 @@ export async function refineItemTurnAction(input: unknown): Promise<
           widthCm: brief.widthCm,
           weightKg: brief.weightKg,
         },
+        guidelines,
       }),
       history: [...parsed.data.history, { role: 'user', text: parsed.data.userMessage }],
     });

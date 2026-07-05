@@ -266,6 +266,17 @@ describe('compileRefinePrompt', () => {
     } as never);
     expect(p).not.toContain('cast soft contact shadows');
   });
+
+  // Auditoría 2026-07-04 (#4): el refinado perdía el guard anti-texto que el panel
+  // fresco/encadenado sí llevan; Nano quema rótulos también al editar.
+  it('inyecta el guard anti-texto en ambos modos, antes de la instrucción final', () => {
+    const sandwich = compileRefinePrompt('make the canvas thinner', ctx);
+    expect(sandwich).toContain('Do not render any text');
+    expect(sandwich.indexOf('Do not render any text')).toBeLessThan(sandwich.indexOf('FINAL INSTRUCTION'));
+    const strong = compileRefinePrompt('make the canvas thinner', ctx, { strong: true });
+    expect(strong).toContain('Do not render any text');
+    expect(strong.indexOf('Do not render any text')).toBeLessThan(strong.indexOf('FINAL INSTRUCTION'));
+  });
 });
 
 describe('sceneStyleDirective', () => {

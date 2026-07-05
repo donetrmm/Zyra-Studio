@@ -7,6 +7,14 @@ import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { getStyleProfile, WORLD_COHERENCE_CLAUSE, type VisualStyle } from '@/lib/prompt-director/style-profiles';
 import { declaresHighEmotion, NATURAL_EXPRESSION_CLAUSE } from '@/lib/prompt-director/acting';
 
+// Guard anti-texto del panel (SIEMPRE): el panel es imagen fija de un storyboard
+// que luego se vuelve video — el texto/subtítulo lo maneja el pipeline aparte, y
+// Nano tiende a quemar rótulos. Empieza con espacio (concatenable). Fuente única:
+// la usan el panel fresco/encadenado (server-actions/storyboard.ts) y el refinado
+// (compileRefinePrompt) — este último la perdía (auditoría 2026-07-04).
+export const NO_TEXT_CLAUSE =
+  ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
+
 export type PanelBeat = {
   id: string;
   scene_prompt: string;
@@ -215,7 +223,7 @@ export function compileRefinePrompt(
   // un delta imperceptible). Se exige además un cambio VISIBLE: el modo de
   // edición de estos modelos tiende al ajuste mínimo.
   if (opts?.strong) {
-    return `${lead} Change only what this edit asks, and render the change clearly and unmistakably — a subtle, barely visible adjustment is a failure. Keep everything else (people, faces, wardrobe, product, scene, lighting, framing) exactly as in the attached image.${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply: ${lead}`;
+    return `${lead} Change only what this edit asks, and render the change clearly and unmistakably — a subtle, barely visible adjustment is a failure. Keep everything else (people, faces, wardrobe, product, scene, lighting, framing) exactly as in the attached image.${NO_TEXT_CLAUSE}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply: ${lead}`;
   }
   // Sandwich: la edición abre Y cierra el prompt. El modelo pesa mucho el final;
   // con la edición solo al inicio, las anclas de fidelidad (que van después)
@@ -229,7 +237,7 @@ export function compileRefinePrompt(
   // producto); el staging/encuadre no entra a esta rama. La rama ENCADENADA en
   // server-actions/storyboard.ts sí lo mantiene: ahí re-encuadrar es el propósito,
   // y el carve-out de close-up/detail shot protege los beats que no deben moverse.
-  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product, { staging: false })}${describeProductWeight(ctx.product)}${physicsClause(ctx)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
+  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product, { staging: false })}${describeProductWeight(ctx.product)}${physicsClause(ctx)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${NO_TEXT_CLAUSE}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

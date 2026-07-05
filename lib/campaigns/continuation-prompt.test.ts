@@ -7,7 +7,7 @@ describe('buildContinuationPrompt', () => {
     expect(out).toContain('@image1 is the product');
     expect(out).toContain('@image2 is the final frame of the previous shot');
     expect(out).not.toContain('@image3');
-    expect(out.endsWith('A dog runs.')).toBe(true);
+    expect(out).toContain('A dog runs.');
   });
 
   it('con personaje: lo cita entre el producto y el fotograma previo', () => {
@@ -92,5 +92,42 @@ describe('buildContinuationPrompt — look del perfil re-anclado (feedback video
 
   it('sin videoLook no añade la cláusula (compat con tests previos)', () => {
     expect(buildContinuationPrompt('Scene.', 1, 0)).not.toContain('Video look:');
+  });
+});
+
+// Auditoría de directivas 2026-07-04 (#5): la cadena perdía actuación contenida,
+// cláusula negativa y guard anti-rostros que el compiler sí inyecta en el clip 1.
+describe('buildContinuationPrompt — directivas re-ancladas (#5)', () => {
+  it('cláusula negativa (anti-overlay/anti-logo inventado) en todo clip', () => {
+    const out = buildContinuationPrompt('Scene.', 1, 0);
+    expect(out).toContain('No on-screen text overlays');
+    expect(out).toContain('Do not invent or add any logo');
+  });
+
+  it('con personaje: actuación contenida; sin cara: guard anti-rostros', () => {
+    const conCast = buildContinuationPrompt('The presenter reacts.', 1, 1);
+    expect(conCast).toContain('restrained performance');
+    expect(conCast).not.toContain('No real, identifiable human faces');
+
+    const sinCara = buildContinuationPrompt('The can rotates on marble.', 1, 0);
+    expect(sinCara).toContain('No real, identifiable human faces');
+    expect(sinCara).not.toContain('restrained performance');
+  });
+
+  it('registro enérgico pide actuación enérgica en vez de contenida', () => {
+    const out = buildContinuationPrompt('The presenter dances.', 1, 1, { register: 'bold kinetic dance' });
+    expect(out).toContain('energetic physical performance');
+    expect(out).not.toContain('restrained performance');
+  });
+
+  it('emoción alta declarada no recibe contención de actuación', () => {
+    const out = buildContinuationPrompt('The character breaks down crying.', 1, 1);
+    expect(out).not.toContain('restrained performance');
+    expect(out).not.toContain('energetic physical performance');
+  });
+
+  it('sanea la keyword soup del scenePrompt (paridad con compile)', () => {
+    const out = buildContinuationPrompt('A hero shot, 8k, highly detailed.', 1, 0);
+    expect(out).not.toMatch(/8k|highly detailed/i);
   });
 });

@@ -1,6 +1,6 @@
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
-import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
+import { buildCharacterMasterPrompt, cleanAssetDescription } from '@/lib/prompt-director/asset-prompts';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
 export type GeneratedImage = { generationId: string; refId: string; previewUrl: string; storagePath: string };
@@ -266,13 +266,16 @@ export async function generateScaleMapFromMaster(
 export type ProductShot = 'estudio' | 'lifestyle' | 'casero';
 
 const PRODUCT_SHOT_BLOCKS: Record<ProductShot, string> = {
+  // Balance neutro explícito (feedback 2026-07-04: controlar la dominante
+  // amarilla): los generadores tienen warm-bias y el packshot lo hereda.
   estudio:
     'Studio product photograph: centered on a clean seamless background, soft even commercial ' +
-    'lighting that shows form, material and texture, sharp focus, high detail.',
+    'lighting that shows form, material and texture, neutral white balance with true-to-life ' +
+    'colors and no warm yellow cast, sharp focus, high detail.',
   lifestyle:
     'Lifestyle product photograph: the product placed in a natural real-world setting where it ' +
-    'would actually be used, believable ambient light with true-to-life colors, the product ' +
-    'clearly the hero of the frame, sharp focus on it.',
+    'would actually be used, believable ambient light with true-to-life colors and a neutral ' +
+    'white balance, the product clearly the hero of the frame, sharp focus on it.',
   casero:
     'Casual photo taken handheld on a modern smartphone: the product in an everyday spot, ' +
     'slightly imperfect framing, natural automatic exposure, neutral white balance with ' +
@@ -284,6 +287,10 @@ export function buildProductPrompt(
   shot: ProductShot = 'estudio',
   referenceCount = 0,
 ): string {
+  // Sanea la descripción del usuario igual que locación/personaje (auditoría BD
+  // 2026-07-04): keyword soup pegada de otras herramientas ("8k, photorealistic")
+  // reintroducía el look de render — los prompts de producto no pasan por compiler.
+  const clean = cleanAssetDescription(description);
   // Con inspiración: seguir su lenguaje de diseño sin copiarla literal — cubre
   // boceto, producto parecido y logo por integrar.
   const refClause =
@@ -291,7 +298,7 @@ export function buildProductPrompt(
       ? ' Follow the provided reference images for the design language — shape, materials, colors and any logo or label shown in them, integrated faithfully into one coherent product.'
       : '';
   const noText = referenceCount > 0 ? 'No text beyond what the references show, no watermark.' : 'No text, no watermark.';
-  return `${shot === 'estudio' ? 'Studio product photograph of' : shot === 'lifestyle' ? 'Product photograph of' : 'Photo of'} ${description}. ${PRODUCT_SHOT_BLOCKS[shot]}${refClause} ${noText}`;
+  return `${shot === 'estudio' ? 'Studio product photograph of' : shot === 'lifestyle' ? 'Product photograph of' : 'Photo of'} ${clean}. ${PRODUCT_SHOT_BLOCKS[shot]}${refClause} ${noText}`;
 }
 
 export async function generateProductConcept(

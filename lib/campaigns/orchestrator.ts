@@ -7,11 +7,15 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import { compile, fromFormatRow, onlyCharacterRefs, type DirectorContext } from '@/lib/prompt-director';
 import {
   DIALOGUE_LANGUAGE,
+  NEGATIVE_CLAUSE,
+  NO_REAL_FACES_CLAUSE,
   SPEECH_DIRECTION,
   hasSpokenDialogue,
   resolveVideoLook,
   sceneHasVoice,
 } from '@/lib/prompt-director/compilers/seedance';
+import { actingDirectionFor, declaresHighEmotion } from '@/lib/prompt-director/acting';
+import { stripSlop } from '@/lib/prompt-director/antislop';
 import type { SeedanceResolution } from '@/lib/providers/seedance';
 import { seedanceCostPerItem } from './estimate';
 import { selectBatchItems } from './batch-selection';
@@ -496,6 +500,10 @@ type ChainParams = {
   // color/cámara derivan. undefined (cadenas viejas) → NO se emite cláusula
   // (nunca asumir realista: pisaría el look de campañas fantasía/animado).
   videoLook?: string;
+  // Registro del formato (bold/kinetic/asmr…): se re-ancla para elegir la
+  // directiva de actuación correcta (contenida vs enérgica) en cada clip de la
+  // cadena, igual que el compiler. undefined (cadenas viejas) → contenida.
+  register?: string;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -515,6 +523,9 @@ export function buildContinuationPrompt(
     // re-ancla en cada clip encadenado — el compiler no corre aquí y sin esto
     // el balance de color y la cámara del estilo derivan clip a clip.
     videoLook?: string;
+    // Registro del formato: decide actuación contenida vs enérgica (paridad con
+    // el compiler). undefined → contenida.
+    register?: string;
   },
 ): string {
   const refs: string[] = [];
@@ -550,15 +561,33 @@ export function buildContinuationPrompt(
   }
   const withLook = opts?.videoLook ? ` Video look: ${opts.videoLook}.` : '';
   const base = `${refs.join(' ')} ${scenePrompt.trim()}${withLook}`.trim();
+
+  // Directivas deterministas que el clip 1 recibe del compiler pero la cadena
+  // perdía (auditoría 2026-07-04): sin ellas la actuación se sobreactúa clip a
+  // clip, y podían aparecer overlays/logos inventados o rostros reales espurios.
+  // Mismos gates y constantes que compileSeedance.
+  const directives: string[] = [];
+  // Actuación: solo con rostro intencional (personaje anclado o hablante) y sin
+  // emoción alta declarada; contenida por defecto, enérgica en registros bold.
+  const faces = characterCount > 0 || hasSpokenDialogue(scenePrompt);
+  const acting = faces ? actingDirectionFor(opts?.register ?? '', declaresHighEmotion(scenePrompt)) : null;
+  if (acting) directives.push(acting);
   // Re-anclar la voz en CADA clip (#3): sin esto el clip 1 habla es-MX con
   // lip-sync pero los siguientes pierden la directiva y Seedance puede derivar a
-  // inglés/acento neutro o narración a mitad de la toma continua. Mismas
-  // constantes y guards que el compiler; gateado por audio.
+  // inglés/acento neutro o narración a mitad de la toma continua. Gateado por audio.
   const generateAudio = opts?.generateAudio ?? true;
-  const voice: string[] = [];
-  if (generateAudio && hasSpokenDialogue(scenePrompt)) voice.push(SPEECH_DIRECTION);
-  if (generateAudio && sceneHasVoice(scenePrompt)) voice.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
-  return voice.length ? `${base} ${voice.join(' ')}` : base;
+  if (generateAudio && hasSpokenDialogue(scenePrompt)) directives.push(SPEECH_DIRECTION);
+  if (generateAudio && sceneHasVoice(scenePrompt)) directives.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
+  // Cláusula negativa (siempre) y guard anti-rostros (solo tomas sin cara
+  // intencional), al final como en el compiler.
+  directives.push(NEGATIVE_CLAUSE);
+  if (!faces) directives.push(NO_REAL_FACES_CLAUSE);
+
+  const full = directives.length ? `${base} ${directives.join(' ')}` : base;
+  // Antislop sobre el prompt completo (paridad con compile(): la cadena no pasa
+  // por el compiler y nunca lo recibía). Las cláusulas deterministas ya están
+  // limpias; el saneo aplica al scenePrompt del planner/usuario.
+  return stripSlop(full).text;
 }
 
 // Descarga el fotograma del proveedor (URL efímera) y lo sube a references,
@@ -723,6 +752,9 @@ export async function advanceSequenceChain(
       // campo: SIN cláusula — asumir realista pisaría el look de campañas
       // fantasía/animado en vuelo durante el deploy.
       ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
+      // Register de la siembra: actuación contenida/enérgica por clip. Cadenas
+      // viejas sin el campo → contenida (default de actingDirectionFor).
+      ...(chain.register !== undefined ? { register: chain.register } : {}),
     },
   );
 
@@ -757,6 +789,7 @@ export async function advanceSequenceChain(
           ...(chain.audioSource ? { audioSource: chain.audioSource } : {}),
           ...(chainAudio.kind === 'prev_clip' ? { prevAudioPath: chainAudio.paths[0] } : {}),
           ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
+          ...(chain.register !== undefined ? { register: chain.register } : {}),
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -1136,6 +1169,9 @@ export async function enqueueBatch(params: {
                         getStyleProfile(ctx.visualStyle, ctx.visualStyleCustom),
                         baseDirCtx.format?.register ?? '',
                       ),
+                      // Register crudo: elige actuación contenida vs enérgica en
+                      // cada clip de continuación (paridad con el compiler).
+                      register: baseDirCtx.format?.register ?? '',
                     } satisfies ChainParams,
                   }
                 : {}),

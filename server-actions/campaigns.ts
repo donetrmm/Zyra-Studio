@@ -1275,6 +1275,7 @@ export async function generateItemAction(
             audioSource?: ChainAudioSource;
             prevAudioPath?: string;
             videoLook?: string;
+            register?: string;
           };
           referenceImagePaths?: string[];
           returnLastFrame?: boolean;
@@ -1368,6 +1369,7 @@ export async function generateItemAction(
           generateAudio: regenAudioOn,
           prevClipAudio: regenChainAudio.kind === 'prev_clip',
           ...(pp.chain.videoLook ? { videoLook: pp.chain.videoLook } : {}),
+          ...(pp.chain.register !== undefined ? { register: pp.chain.register } : {}),
         },
       );
       const cost = (prevGen.credits_estimated as number) ?? 0;
