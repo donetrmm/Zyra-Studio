@@ -141,3 +141,23 @@ describe('PLANNER_ACTING_BLOCK', () => {
     expect(PLANNER_ACTING_BLOCK).toContain('salvo que la idea');
   });
 });
+
+// Auditoría BD 2026-07-04: guiones del planner previos al freno de expresión
+// declaran alegría grande ("her face beaming with joy") que el detector no
+// reconocía — la cláusula de contención se inyectaba EN CONTRA del guion.
+describe('declaresHighEmotion — alegría grande declarada', () => {
+  it('reconoce la alegría grande en inglés y español', () => {
+    expect(declaresHighEmotion('her face beaming with joy')).toBe(true);
+    expect(declaresHighEmotion('she is ecstatic, overjoyed by the gift')).toBe(true);
+    expect(declaresHighEmotion('ríe a carcajadas al abrir la caja')).toBe(true);
+  });
+
+  it('no confunde "beam" de luz/estructura con la sonrisa', () => {
+    expect(declaresHighEmotion('a beam of warm light crosses the room')).toBe(false);
+    expect(declaresHighEmotion('sunlight beaming through the window')).toBe(false);
+  });
+
+  it('una sonrisa suave sigue sin contar como emoción grande', () => {
+    expect(declaresHighEmotion('she lifts the can and smiles softly')).toBe(false);
+  });
+});

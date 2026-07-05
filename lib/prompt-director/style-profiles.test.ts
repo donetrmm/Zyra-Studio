@@ -113,6 +113,38 @@ describe('presets Fase 1', () => {
     expect(getStyleProfile('animado').photoreal).toBe(false);
     expect(getStyleProfile('custom', 'acuarela suave').photoreal).toBe(false);
   });
+
+  // Bug 2026-07-04: el wrapper de la hoja maestra horneaba luz de ESTUDIO
+  // (studio lighting/seamless/sharp focus) para todos los perfiles y peleaba
+  // con el bloque smartphone de casero — salía el look pulido de IA. El
+  // setting del retrato (luz, fondo, nitidez) ahora viene del perfil.
+  it('portraitSetting: casero pide luz natural de ventana, sin estudio ni seamless', () => {
+    const s = getStyleProfile('casero').portraitSetting;
+    expect(s).toMatch(/natural window light/);
+    expect(s).toMatch(/smartphone/);
+    expect(s).not.toMatch(/studio lighting|seamless/i);
+  });
+
+  it('portraitSetting: ultra_realista conserva el retrato de estudio', () => {
+    const s = getStyleProfile('ultra_realista').portraitSetting;
+    expect(s).toMatch(/studio lighting/);
+    expect(s).toMatch(/seamless background/);
+  });
+
+  it('portraitSetting: todos los perfiles lo definen y pasa antislop', () => {
+    for (const slug of ['ultra_realista', 'casero', 'fantasia', 'animado'] as const) {
+      const s = getStyleProfile(slug).portraitSetting;
+      expect(s.length).toBeGreaterThan(10);
+      expect(stripSlop(s).removed).toEqual([]);
+    }
+    expect(getStyleProfile('custom', 'acuarela').portraitSetting.length).toBeGreaterThan(10);
+  });
+
+  it('casero.assetCharacter refuerza imperfecciones humanas (anti look-de-IA)', () => {
+    const p = getStyleProfile('casero');
+    expect(p.assetCharacter).toMatch(/facial asymmetry/);
+    expect(p.assetCharacter).toMatch(/no beauty retouching/);
+  });
 });
 
 describe('plannerStyleBlocks', () => {

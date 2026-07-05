@@ -35,7 +35,17 @@ export type StyleProfile = {
   // expressionDirective) y el flag photoreal de FLUX. Los estilos no-photoreal
   // definen su propia estética completa en sus bloques.
   photoreal: boolean;
+  // Luz, fondo y nitidez del RETRATO de la hoja maestra (buildCharacterMasterPrompt).
+  // Por perfil porque el wrapper fijaba estudio para todos y contradecía el
+  // bloque smartphone de casero (bug 2026-07-04): el modelo resolvía hacia el
+  // retrato pulido de estudio — el look de IA. Sin punto final.
+  portraitSetting: string;
 };
+
+// Retrato de estudio: el setting clásico de hoja de referencia (identidad
+// estable, luz pareja). Lo usan todos los perfiles salvo casero.
+const STUDIO_PORTRAIT_SETTING =
+  'soft even studio lighting, plain light gray seamless background, sharp focus on the face';
 
 // Física del mundo para prompts de IMAGEN (panel fresco, panel encadenado,
 // refinado sandwich). Empieza con espacio (concatenable). Es de ANCLAJE, no de
@@ -63,6 +73,7 @@ const ULTRA_REALISTA: StyleProfile = {
   planner: '',
   groundedPhysics: true,
   photoreal: true,
+  portraitSetting: STUDIO_PORTRAIT_SETTING,
 };
 
 // Cámara casera/UGC (feedback 2026-07-04: "poder escoger tipo de cámara").
@@ -72,8 +83,10 @@ const CASERO: StyleProfile = {
   slug: 'casero',
   assetLocation:
     'The image is a casual photo of the place taken handheld on a modern smartphone: slightly imperfect framing, natural automatic exposure, neutral white balance with true-to-life colors, everyday objects left where they are — a real lived-in place captured in the moment, not a staged set and not a computer-generated render.',
+  // Imperfecciones humanas explícitas (feedback 2026-07-04): sin ellas el
+  // modelo entrega el retrato pulido "de anuncio" que se lee como IA.
   assetCharacter:
-    'The image is a casual unretouched photo of the person taken on a modern smartphone: natural skin with visible texture, soft everyday light, neutral white balance with true-to-life colors — a real person in a spontaneous photo, not a computer-generated render.',
+    'The image is a casual unretouched photo of the person taken on a modern smartphone: natural skin with visible pores and texture, slight natural facial asymmetry, a few stray hairs, everyday clothes with natural wrinkles, neutral white balance with true-to-life colors, no beauty retouching — a real person in a spontaneous photo, not a computer-generated render.',
   panel:
     ' Render the whole scene as a casual handheld smartphone photo: slightly imperfect framing, natural automatic exposure, neutral white balance with true-to-life colors, and honest everyday detail — a spontaneous captured moment, not a staged production and not a computer-generated render.',
   video: 'a casual handheld smartphone video look with natural exposure, neutral white balance and true-to-life colors',
@@ -81,6 +94,8 @@ const CASERO: StyleProfile = {
     '\nESTILO DE LA CAMPAÑA: CASERO (grabado con celular). Escribe las escenas como momentos cotidianos espontáneos — encuadres imperfectos, acciones naturales de la vida diaria, luz del lugar tal cual; nada de producción montada ni iluminación de estudio.',
   groundedPhysics: true,
   photoreal: true,
+  portraitSetting:
+    'soft natural window light with gentle shadow falloff and slight exposure variation, a plain painted light-gray interior wall with subtle texture as the background, and the slight optical softness of a smartphone lens',
 };
 
 const FANTASIA: StyleProfile = {
@@ -96,6 +111,7 @@ const FANTASIA: StyleProfile = {
     '\nESTILO DE LA CAMPAÑA: FANTASÍA. Las escenas pueden doblar la física y la lógica del mundo real cuando sirva a la idea; cuando lo hagan, descríbelo explícito en el scenePrompt.',
   groundedPhysics: false,
   photoreal: false,
+  portraitSetting: STUDIO_PORTRAIT_SETTING,
 };
 
 const ANIMADO: StyleProfile = {
@@ -111,6 +127,7 @@ const ANIMADO: StyleProfile = {
     '\nESTILO DE LA CAMPAÑA: ANIMADO (película de animación 3D). Escribe las escenas pensadas para ese look; la física sigue siendo creíble salvo un gag deliberado.',
   groundedPhysics: true,
   photoreal: false,
+  portraitSetting: STUDIO_PORTRAIT_SETTING,
 };
 
 // El estilo custom nace del texto del usuario: cada bloque lo cita tal cual.
@@ -127,6 +144,7 @@ function customProfile(text: string): StyleProfile {
     planner: `\nESTILO DE LA CAMPAÑA (definido por el usuario): ${t}. Escribe cada scenePrompt coherente con ese estilo.`,
     groundedPhysics: true,
     photoreal: false,
+    portraitSetting: STUDIO_PORTRAIT_SETTING,
   };
 }
 

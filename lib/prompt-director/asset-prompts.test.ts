@@ -45,4 +45,36 @@ describe('asset prompts con perfil', () => {
     const p = buildCharacterMasterPrompt('un chef', 'custom', 'estilo cómic europeo, línea clara');
     expect(p).toContain('estilo cómic europeo');
   });
+
+  // Bug 2026-07-04: el wrapper fijaba estudio (studio lighting/seamless/sharp
+  // focus) y contradecía el bloque smartphone de casero — el modelo resolvía
+  // hacia el retrato pulido de estudio (look de IA).
+  it('casero: la hoja maestra NO pide estudio; pide ventana + pared real + óptica de celular', () => {
+    const p = buildCharacterMasterPrompt('mujer de veintes, pelo ondulado', 'casero');
+    expect(p).not.toMatch(/studio lighting|seamless/i);
+    expect(p).toMatch(/natural window light/);
+    expect(p).toMatch(/smartphone/);
+    // El contrato de hoja maestra (identidad estable) se conserva.
+    expect(p).toMatch(/head-and-shoulders portrait/);
+    expect(p).toMatch(/Neutral relaxed expression/);
+    expect(p).toMatch(/looking straight at the camera/);
+  });
+});
+
+// Auditoría BD 2026-07-04: descripciones de activos pegadas de otras
+// herramientas traen keyword soup ("8k, highly detailed, photorealistic") que
+// reintroduce el look de IA por la puerta de los datos — los prompts de activos
+// no pasaban por los compilers y nadie las saneaba.
+describe('sanitización de descripciones de activos', () => {
+  it('locación: quita términos antislop y "photorealistic" de la descripción', () => {
+    const p = buildLocationPrompt('un jardín trasero, highly detailed, 8k, photorealistic');
+    expect(p).toContain('un jardín trasero');
+    expect(p).not.toMatch(/8k|highly detailed|photorealistic/i);
+  });
+
+  it('personaje: ídem sobre la descripción', () => {
+    const p = buildCharacterMasterPrompt('mujer de veintes, masterpiece, ultra detailed');
+    expect(p).toContain('mujer de veintes');
+    expect(p).not.toMatch(/masterpiece|ultra detailed/i);
+  });
 });

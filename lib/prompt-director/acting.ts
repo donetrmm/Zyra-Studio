@@ -40,13 +40,20 @@ export const PLANNER_ACTING_BLOCK =
 export const ENERGETIC_REGISTER_RE =
   /\bbeat\b|r[ií]tmic|kinet|en[eé]rg|\bbold\b|\bdance\b|\bdrop\b|speed ?ramp|alegr|festiv|fiesta|celebra|din[áa]mic|vibra|\bupbeat\b|j[úu]bil|euf[óo]r/i;
 
-// ¿El guion declara una emoción grande (grito/llanto/furia/pánico)? Cuando la hay,
-// NO se inyecta restraint: dejamos pasar la emoción declarada sin contenerla.
+// ¿El guion declara una emoción grande? Cuando la hay, NO se inyecta restraint:
+// dejamos pasar la emoción declarada sin contenerla. Cubre extremos
+// (grito/llanto/furia/pánico) y alegría grande explícita (auditoría BD
+// 2026-07-04: guiones con "beaming with joy" recibían la contención en contra).
 const HIGH_EMOTION_RE =
-  /\b(scream|shout|sob|cry|cries|crying|weep|wail|rage|furious|terrified|panic|grito|gritar|llant|llora|sollo|furi|aterr|p[aá]nico)\w*/i;
+  /\b(scream|shout|sob|cry|cries|crying|weep|wail|rage|furious|terrified|panic|ecstat|overjoy|jubilant|euphori|grito|gritar|llant|llora|sollo|furi|aterr|p[aá]nico|carcajad|euf[oó]ri)\w*/i;
+
+// "beam" solo es ambiguo (viga, rayo de luz): la sonrisa grande es "beaming
+// with joy/pride/…" — se detecta con el "with" para no frenar locaciones con
+// "sunlight beaming through the window".
+const BEAMING_RE = /\bbeam\w*\s+with\b/i;
 
 export function declaresHighEmotion(text: string): boolean {
-  return HIGH_EMOTION_RE.test(text);
+  return HIGH_EMOTION_RE.test(text) || BEAMING_RE.test(text);
 }
 
 // Directiva de actuación adecuada al registro y la emoción declarada, o null
