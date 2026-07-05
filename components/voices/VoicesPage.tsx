@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { FlaskConical, Loader2, Mic, Pause, Play, Plus, RotateCcw, Trash2, Volume2 } from 'lucide-react';
+import { FlaskConical, Loader2, Mic, Pause, Play, Plus, RotateCcw, Trash2, Upload, Volume2 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
 import { toast } from 'sonner';
-import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction } from '@/server-actions/voices';
+import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction, uploadVoiceAction } from '@/server-actions/voices';
 import { cn } from '@/lib/utils';
 
 type VoiceRow = {
@@ -14,6 +14,10 @@ type VoiceRow = {
   name: string;
   description: string | null;
   elevenlabs_voice_id: string | null;
+  // Voz CARGADA (no clonada): audio subido tal cual. sampleUrl = URL firmada
+  // para reproducirlo. Las clonadas traen elevenlabs_voice_id y no sampleUrl.
+  sample_storage_url?: string | null;
+  sampleUrl?: string | null;
   status: string;
   created_at: string;
 };
@@ -30,10 +34,12 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
     setVoices(initial);
   }
   const [showClone, setShowClone] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [tryingId, setTryingId] = useState<string | null>(null);
   const [tryText, setTryText] = useState('Hola, esta es mi voz clonada en 1to1 Studio.');
   const [tryAudio, setTryAudio] = useState<string | null>(null);
   const [cloning, startClone] = useTransition();
+  const [uploading, startUpload] = useTransition();
   const [deleting, startDelete] = useTransition();
   const [trying, startTry] = useTransition();
 
@@ -46,6 +52,19 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
       }
       toast.success('Voz clonada');
       setShowClone(false);
+      router.refresh();
+    });
+  }
+
+  function handleUpload(formData: FormData) {
+    startUpload(async () => {
+      const res = await uploadVoiceAction(formData);
+      if (!res.ok) {
+        toast.error(res.message || 'Error al cargar la voz');
+        return;
+      }
+      toast.success('Voz cargada');
+      setShowUpload(false);
       router.refresh();
     });
   }
@@ -94,21 +113,93 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
             </span>
           </div>
           <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
-            Clona voces a partir de samples de audio para usarlas en la generación de texto a voz. Sube 1-2 minutos de audio limpio para mejores resultados.
+            Clona voces desde samples de audio para texto a voz, o carga un audio ya terminado (hecho aquí o en otra herramienta) para tenerlo en tu biblioteca.
           </p>
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400">
             Gratis por tiempo limitado
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowClone(true)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
-        >
-          <Plus className="size-4" aria-hidden />
-          Clonar voz
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setShowUpload(true); setShowClone(false); }}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3.5 py-2 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
+          >
+            <Upload className="size-4" aria-hidden />
+            Cargar audio
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowClone(true); setShowUpload(false); }}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
+          >
+            <Plus className="size-4" aria-hidden />
+            Clonar voz
+          </button>
+        </div>
       </div>
+
+      {/* Upload dialog: voz cargada tal cual (sin clonar) */}
+      {showUpload && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-border bg-muted/30 px-5 py-3.5">
+            <h2 className="text-[15px] font-medium text-foreground">Cargar una voz</h2>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              Sube un audio ya terminado. Queda en tu biblioteca y se puede reproducir. No genera texto a voz (para eso, clónala). MP3, WAV, M4A u OGG.
+            </p>
+          </div>
+          <form action={handleUpload} className="space-y-3 p-5">
+            <div>
+              <label htmlFor="upload-name" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre</label>
+              <input
+                id="upload-name"
+                name="name"
+                required
+                placeholder="Ej: Locución producto"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            </div>
+            <div>
+              <label htmlFor="upload-description" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Descripción (opcional)</label>
+              <input
+                id="upload-description"
+                name="description"
+                placeholder="Ej: Voz femenina, tono cálido"
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+              />
+            </div>
+            <div>
+              <label htmlFor="upload-file" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Audio</label>
+              <input
+                id="upload-file"
+                name="file"
+                type="file"
+                accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,audio/mp4,audio/x-m4a,audio/m4a,audio/aac"
+                required
+                className="mt-1 w-full text-[12.5px] text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-primary file:cursor-pointer"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Un archivo, hasta 50 MB</p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={uploading}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
+                {uploading ? 'Cargando...' : 'Cargar voz'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUpload(false)}
+                className="rounded-md border border-border px-4 py-2 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Clone dialog */}
       {showClone && (
@@ -208,17 +299,17 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                 Cerrar
               </button>
             </div>
-            {tryAudio && <MiniPlayer src={tryAudio} />}
+            {tryAudio && <MiniPlayer src={tryAudio} className="mt-3" />}
           </div>
         </div>
       )}
 
       {/* Voice grid */}
-      {voices.length === 0 && !showClone ? (
+      {voices.length === 0 && !showClone && !showUpload ? (
         <PageEmptyState
           icon={Mic}
-          title="No tienes voces clonadas"
-          sub="Clona tu primera voz subiendo un sample de audio para usarla en generación de texto a voz"
+          title="No tienes voces"
+          sub="Clona una voz desde un sample de audio para texto a voz, o carga un audio ya terminado para tenerlo en tu biblioteca"
         />
       ) : (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -273,6 +364,10 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                     Volver a clonar
                   </button>
                 )}
+                {/* Voz cargada: reproductor del audio subido (sin TTS). */}
+                {!v.elevenlabs_voice_id && v.sampleUrl && (
+                  <MiniPlayer src={v.sampleUrl} autoPlay={false} className="flex-1" />
+                )}
                 <button
                   type="button"
                   onClick={() => handleDelete(v.id, v.name)}
@@ -291,7 +386,7 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   );
 }
 
-function MiniPlayer({ src }: { src: string }) {
+function MiniPlayer({ src, autoPlay = true, className }: { src: string; autoPlay?: boolean; className?: string }) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -299,7 +394,9 @@ function MiniPlayer({ src }: { src: string }) {
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
-    el.play().then(() => setPlaying(true)).catch(() => {});
+    // Autoplay solo cuando el player nace de una acción del usuario (probar voz);
+    // en la lista de voces cargadas NO autoreproduce (serían varios a la vez).
+    if (autoPlay) el.play().then(() => setPlaying(true)).catch(() => {});
     const onTime = () => {
       if (el.duration) setProgress(el.currentTime / el.duration);
     };
@@ -307,7 +404,7 @@ function MiniPlayer({ src }: { src: string }) {
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('ended', onEnd);
     return () => { el.pause(); el.removeEventListener('timeupdate', onTime); el.removeEventListener('ended', onEnd); };
-  }, [src]);
+  }, [src, autoPlay]);
 
   function toggle() {
     const el = audioRef.current;
@@ -324,7 +421,7 @@ function MiniPlayer({ src }: { src: string }) {
   }
 
   return (
-    <div className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+    <div className={cn('flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5', className)}>
       <audio ref={audioRef} src={src} />
       <button type="button" onClick={toggle} className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
         {playing ? <Pause className="size-3" aria-hidden /> : <Play className="ml-0.5 size-3" aria-hidden />}

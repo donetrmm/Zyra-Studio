@@ -5,6 +5,7 @@ import { createClient } from './server';
 export const REFERENCES_BUCKET = 'references';
 export const OUTPUTS_BUCKET = 'outputs';
 export const THUMBNAILS_BUCKET = 'thumbnails';
+export const VOICE_SAMPLES_BUCKET = 'voice-samples';
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24; // 24h
 
@@ -135,6 +136,40 @@ export async function signedReferenceUrlAdmin(path: string): Promise<string> {
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (error || !data) throw new Error(`sign reference (admin) failed: ${error?.message ?? 'unknown'}`);
   return data.signedUrl;
+}
+
+// Voces CARGADAS por el usuario (no clonadas): audio subido tal cual. El path
+// empieza con el userId — la RLS del bucket voice-samples (013) exige
+// foldername[1] = auth.uid(). Sube con admin (el worker/action no siempre tiene
+// sesión de storage), lee con la sesión del usuario (signedVoiceSampleUrl).
+export async function uploadVoiceSample(
+  userId: string,
+  key: string,
+  buffer: Buffer,
+  mimeType: string,
+): Promise<string> {
+  const admin = createAdminClient();
+  const path = `${userId}/${key}`;
+  const { error } = await admin.storage
+    .from(VOICE_SAMPLES_BUCKET)
+    .upload(path, buffer, { contentType: mimeType, upsert: true });
+  if (error) throw new Error(`upload voice sample failed: ${error.message}`);
+  return path;
+}
+
+export async function signedVoiceSampleUrl(path: string): Promise<string> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.storage
+    .from(VOICE_SAMPLES_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) throw new Error(`sign voice sample failed: ${error?.message ?? 'unknown'}`);
+  return data.signedUrl;
+}
+
+export async function deleteVoiceSample(path: string): Promise<void> {
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from(VOICE_SAMPLES_BUCKET).remove([path]);
+  if (error) throw new Error(`delete voice sample failed: ${error.message}`);
 }
 
 export async function downloadReferenceBuffer(path: string): Promise<{

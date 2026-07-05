@@ -7,8 +7,26 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { cloneVoice, deleteVoice, getVoicePreview, tts } from '@/lib/providers/elevenlabs';
 import { OFFICIAL_VOICE_IDS } from '@/lib/elevenlabs/official-voices';
+import { deleteVoiceSample, uploadVoiceSample } from '@/lib/supabase/storage';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
+
+// Voces CARGADAS (no clonadas): se guarda el audio tal cual. MIME aceptados =
+// los del bucket voice-samples (ampliados en 056). Sin ElevenLabs: es un audio
+// fijo, no un modelo con el que se genere habla nueva.
+const UPLOAD_VOICE_MIME: Record<string, string> = {
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/m4a': 'm4a',
+  'audio/aac': 'aac',
+};
+const MAX_VOICE_BYTES = 50 * 1024 * 1024;
 
 // Cache module-level del preview_url por voiceId. Sobrevive entre invocaciones
 // que reusan la instancia (Fluid Compute). Si la instancia se mata, otra
@@ -78,6 +96,68 @@ export async function cloneVoiceAction(
   }
 }
 
+// Carga una voz desde un audio YA TERMINADO (hecho aquí o en otra herramienta):
+// se guarda tal cual, sin clonar por ElevenLabs. Queda reproducible en "Mis
+// voces"; no sirve para texto-a-voz (eso requiere clonarla). El discriminador es
+// sample_storage_url presente + elevenlabs_voice_id NULL.
+export async function uploadVoiceAction(
+  formData: FormData,
+): Promise<Result<{ id: string }>> {
+  const { user, workspace } = await requireWorkspace();
+
+  const parsed = CloneSchema.safeParse({
+    name: formData.get('name'),
+    description: formData.get('description') || undefined,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: parsed.error.message };
+  }
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'validation_error', message: 'Sube un archivo de audio' };
+  }
+  if (file.size > MAX_VOICE_BYTES) {
+    return { ok: false, error: 'validation_error', message: 'El audio supera el límite de 50 MB' };
+  }
+  const ext = UPLOAD_VOICE_MIME[file.type];
+  if (!ext) {
+    return { ok: false, error: 'validation_error', message: 'Formato no soportado (usa MP3, WAV, M4A, OGG)' };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const supabase = await createClient();
+
+  let samplePath: string;
+  try {
+    samplePath = await uploadVoiceSample(user.id, `uploaded/${crypto.randomUUID()}.${ext}`, buffer, file.type);
+  } catch (err) {
+    return { ok: false, error: 'internal_error', message: (err as Error).message };
+  }
+
+  const { data: row, error } = await supabase
+    .from('voice_clones')
+    .insert({
+      user_id: user.id,
+      workspace_id: workspace.id,
+      name: parsed.data.name,
+      description: parsed.data.description ?? null,
+      elevenlabs_voice_id: null,
+      sample_storage_url: samplePath,
+      status: 'ready',
+    })
+    .select('id')
+    .single();
+
+  if (error || !row) {
+    await deleteVoiceSample(samplePath).catch(() => {});
+    return { ok: false, error: 'internal_error', message: error?.message ?? 'insert failed' };
+  }
+
+  revalidatePath('/app/brand/voices');
+  return { ok: true, data: { id: row.id as string } };
+}
+
 export async function deleteVoiceAction(
   voiceCloneId: string,
 ): Promise<Result<{ deleted: true }>> {
@@ -86,7 +166,7 @@ export async function deleteVoiceAction(
 
   const { data: row } = await supabase
     .from('voice_clones')
-    .select('elevenlabs_voice_id')
+    .select('elevenlabs_voice_id, sample_storage_url')
     .eq('id', voiceCloneId)
     .eq('user_id', user.id)
     .single();
@@ -101,6 +181,10 @@ export async function deleteVoiceAction(
     } catch {
       // Best-effort
     }
+  }
+  // Voz cargada: borra también el audio del bucket (best-effort).
+  if (row.sample_storage_url) {
+    await deleteVoiceSample(row.sample_storage_url as string).catch(() => {});
   }
 
   const { error } = await supabase
