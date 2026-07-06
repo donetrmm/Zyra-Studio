@@ -8,6 +8,9 @@ export const IngestInputSchema = z.object({
 });
 export type IngestInput = z.infer<typeof IngestInputSchema>;
 
+const EMPTY_PRODUCT_FACTS = { heightCm: null, widthCm: null, weightKg: null, thicknessMm: null, medium: null };
+const EMPTY_GUIDELINES = { safeCrop: null, showFullProduct: false, hookProductHero: false };
+
 // Salida CRUDA de Gemini: laxo, cada campo con catch/default para que un valor
 // malformado no tire el objeto (la salida del LLM es estocástica).
 export const IngestRawSchema = z.object({
@@ -19,8 +22,8 @@ export const IngestRawSchema = z.object({
       thicknessMm: z.number().positive().max(500).nullable().catch(null).default(null),
       medium: z.string().trim().max(120).nullable().catch(null).default(null),
     })
-    .catch({ heightCm: null, widthCm: null, weightKg: null, thicknessMm: null, medium: null })
-    .default({ heightCm: null, widthCm: null, weightKg: null, thicknessMm: null, medium: null }),
+    .catch(EMPTY_PRODUCT_FACTS)
+    .default(EMPTY_PRODUCT_FACTS),
   productVisualDetails: z.string().trim().max(800).nullable().catch(null).default(null),
   visualStyle: z
     .enum(['ultra_realista', 'casero', 'fantasia', 'animado'])
@@ -33,8 +36,8 @@ export const IngestRawSchema = z.object({
       showFullProduct: z.boolean().catch(false).default(false),
       hookProductHero: z.boolean().catch(false).default(false),
     })
-    .catch({ safeCrop: null, showFullProduct: false, hookProductHero: false })
-    .default({ safeCrop: null, showFullProduct: false, hookProductHero: false }),
+    .catch(EMPTY_GUIDELINES)
+    .default(EMPTY_GUIDELINES),
   castMentions: z.array(z.string().trim().min(1).max(60)).catch([]).default([]),
   locationHints: z.array(z.string().trim().min(1).max(200)).catch([]).default([]),
   narrative: z.string().trim().catch('').default(''),

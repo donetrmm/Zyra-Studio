@@ -1,4 +1,5 @@
 import 'server-only';
+import { z } from 'zod';
 import { IngestRawSchema, type IngestBriefOverrides, type IngestResult } from '@/lib/schemas/ingest';
 import type { ProductBrief } from './brief';
 import { ProviderError } from '@/lib/providers/types';
@@ -34,13 +35,11 @@ Reglas:
 Cast disponible del workspace (para resolver menciones; NO lo repitas en la salida): __CAST__.
 Devuelve SOLO el JSON válido, sin markdown.`;
 
-const GeminiResponseSchema = {
-  parse(json: unknown): string {
-    const j = json as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const parts = j.candidates?.[0]?.content?.parts ?? [];
-    return parts.map((p) => p.text ?? '').join('');
-  },
-};
+const GeminiResponseSchema = z.object({
+  candidates: z
+    .array(z.object({ content: z.object({ parts: z.array(z.object({ text: z.string() })).optional() }).optional() }))
+    .min(1),
+});
 
 function extractJson(raw: string): string {
   const trimmed = raw.trim();
@@ -51,7 +50,7 @@ function extractJson(raw: string): string {
 function norm(s: string): string {
   return s
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
 }
@@ -176,6 +175,8 @@ export async function ingestMasterPrompt(input: {
     const text = await res.text().catch(() => '');
     throw new ProviderError(`Gemini ingest ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
   }
-  const raw = GeminiResponseSchema.parse(await res.json());
+  const parsed = GeminiResponseSchema.safeParse(await res.json());
+  if (!parsed.success) throw new ProviderError('Respuesta inesperada de Gemini en ingesta', 'unknown', false);
+  const raw = (parsed.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   return parseIngestResult(raw, { castNames: input.castNames, masterPrompt: input.masterPrompt });
 }
