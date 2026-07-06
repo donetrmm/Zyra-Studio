@@ -901,6 +901,7 @@ export async function generatePlanAction(input: unknown): Promise<
       scene_index: i.sceneIndex,
       sequence_label: i.sequenceLabel,
       character_state_hint: i.characterStateHint ?? null,
+      transition_hint: i.transitionHint ?? null,
     })),
   );
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };

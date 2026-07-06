@@ -280,8 +280,8 @@ describe('buildDirectedPlan', () => {
             characterIds: [],
             invented: [],
             scenes: [
-              { scenePrompt: 'A wall ignites and the artwork appears on it', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null },
-              { scenePrompt: 'The artwork hangs above a sofa in a living room', durationS: 4, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null },
+              { scenePrompt: 'A wall ignites and the artwork appears on it', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+              { scenePrompt: 'The artwork hangs above a sofa in a living room', durationS: 4, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
             ],
             sequenceLabel: 'Reveal',
           },
@@ -311,8 +311,8 @@ describe('buildDirectedPlan', () => {
             format: customFmt, count: 1, durationS: null, scenePrompt: null, sceneSummary: null,
             characterIds: [], invented: [],
             scenes: [
-              { scenePrompt: 'A wall ignites and the artwork appears', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null },
-              { scenePrompt: 'The logo glows over the illuminated artwork', durationS: null, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null },
+              { scenePrompt: 'A wall ignites and the artwork appears', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+              { scenePrompt: 'The logo glows over the illuminated artwork', durationS: null, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
             ],
             sequenceLabel: 'Renace tu pared',
           },
@@ -425,7 +425,7 @@ describe('buildDirectedPlan', () => {
           scenes: [{
             // 15 palabras / 2.5 wps ≈ 6s necesarios en un clip de 4s → debe subir (clamp 8).
             scenePrompt: 'medium shot — she speaks to camera. Dialogue: "Esto cambió por completo todas y cada una de mis mañanas desde el primer día."',
-            durationS: 4, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null,
+            durationS: 4, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null,
           }],
           sequenceLabel: 'X',
         }],
@@ -561,9 +561,9 @@ describe('buildDirectedPlan', () => {
         format, count: 1, scenePrompt: null, durationS: null, sceneSummary: null,
         characterIds: [], invented: [],
         scenes: [
-          { scenePrompt: 'Scene one with the product', durationS: 4, sceneSummary: 'uno', beatRole: 'beat' as const, characterStateHint: null },
-          { scenePrompt: 'Scene two with the product', durationS: 6, sceneSummary: 'dos', beatRole: 'beat' as const, characterStateHint: null },
-          { scenePrompt: 'Scene three with the product', durationS: 5, sceneSummary: 'tres', beatRole: 'beat' as const, characterStateHint: null },
+          { scenePrompt: 'Scene one with the product', durationS: 4, sceneSummary: 'uno', beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+          { scenePrompt: 'Scene two with the product', durationS: 6, sceneSummary: 'dos', beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+          { scenePrompt: 'Scene three with the product', durationS: 5, sceneSummary: 'tres', beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
         ],
         sequenceLabel: 'Mi anuncio',
       }],

@@ -114,6 +114,9 @@ const SceneSchema = z.object({
   beatRole: z.enum(['reveal', 'action', 'beat']).catch('beat').default('beat'),
   // P05: label EXACTO de un estado fisico del personaje listado, o null. Patron beatRole.
   characterStateHint: z.string().trim().nullable().catch(null).default(null),
+  // Pista de corte hacia el siguiente clip cuando el guion pide transición
+  // motivada: el gesto/encuadre sobre el que cae el corte. null si no aplica.
+  transitionHint: z.string().trim().min(1).max(200).nullable().catch(null).default(null),
 });
 export type MatchedScene = {
   scenePrompt: string;
@@ -121,6 +124,7 @@ export type MatchedScene = {
   sceneSummary: string | null;
   beatRole: 'reveal' | 'action' | 'beat';
   characterStateHint: string | null;
+  transitionHint: string | null;
 };
 
 const MatchSchema = z.object({
@@ -167,6 +171,7 @@ const MatchSchema = z.object({
           sceneSummary: parsed.data.sceneSummary,
           beatRole: parsed.data.beatRole,
           characterStateHint: parsed.data.characterStateHint,
+          transitionHint: parsed.data.transitionHint,
         } satisfies MatchedScene];
       }),
     ),
@@ -386,7 +391,11 @@ Por cada idea distinta devuelve un match:
   Si dudas, 'beat'","characterStateHint":"Si en esta escena un personaje del Cast
   está en un ESTADO FÍSICO listado entre paréntesis junto a su nombre
   (estados: sudado, mojado…), pon ese label EXACTO aquí; si no aplica o no hay
-  estados listados, null"}.
+  estados listados, null","transitionHint":"si el guion pide una transición
+  MOTIVADA al siguiente clip (match-cut, whip-pan, corte sobre un gesto), nombra
+  en UNA frase corta el beat/encuadre de CIERRE sobre el que cae el corte (ej.
+  'corta sobre el canvas ya montado'); la escena SIGUIENTE debe ABRIR de forma
+  coherente con ese cierre. null si no hay transición motivada"}.
   Maximo 16 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].

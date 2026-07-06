@@ -69,6 +69,9 @@ export type PlanItemDraft = {
   // Estado físico del personaje para esta escena (P05): label de character_states.
   // null en creativos normales (un solo clip sin estado declarado).
   characterStateHint: string | null;
+  // Pista de corte hacia el siguiente clip (ingesta de prompt maestro). null en
+  // clips sueltos o plan por mix.
+  transitionHint: string | null;
 };
 
 // Presentador inventado cuando el formato pide personaje y la campaña no
@@ -294,7 +297,7 @@ export type DirectedIdea = {
   invented: Array<{ name: string; description: string }>;
   // Si la idea es un anuncio multi-escena, las escenas que el matcher propuso.
   // Vacio = idea normal (un solo clip).
-  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat'; characterStateHint: string | null }>;
+  scenes: Array<{ scenePrompt: string; durationS: number | null; sceneSummary: string | null; beatRole: 'reveal' | 'action' | 'beat'; characterStateHint: string | null; transitionHint: string | null }>;
   sequenceLabel: string | null;
   // P05 clip único: estado físico inferido por el matcher a nivel idea (label
   // EXACTO de un estado horneado del personaje), o null/ausente. Las escenas de
@@ -382,6 +385,7 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
           sceneIndex,
           sequenceLabel: idea.sequenceLabel,
           characterStateHint: sc.characterStateHint ?? null,
+          transitionHint: sc.transitionHint ?? null,
         } satisfies PlanItemDraft;
       });
     }
@@ -465,6 +469,8 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         // Idea normal (un solo clip): el matcher pudo inferir un estado a nivel
         // idea (P05); los N creativos de count>1 comparten el mismo estado.
         characterStateHint: idea.characterStateHint ?? null,
+        // Idea normal (un solo clip): sin transición al siguiente clip.
+        transitionHint: null,
       });
     }
     return items;
@@ -551,6 +557,8 @@ export function buildPlan(input: PlannerInput): PlanItemDraft[] {
         sequenceLabel: null,
         // buildPlan genera creativos normales (sin secuencias): sin state hint.
         characterStateHint: null,
+        // buildPlan genera creativos normales (sin secuencias): sin transición.
+        transitionHint: null,
       });
     }
     return items;
