@@ -974,6 +974,9 @@ export async function enqueueBatch(params: {
     visual_style_custom?: string | null;
     // Selección manual de referencias (054). Callers viejos pueden no seleccionarla.
     reference_selection?: Record<string, unknown> | null;
+    // Vestuario (specs/v2/16): outfit por personaje de toda la campaña. Se pasa
+    // tal cual a loadCampaignContext (el narrowing del jsonb vive allá).
+    character_outfit_map?: Record<string, unknown> | null;
   };
   items: ItemRow[];
   formats: Map<string, FormatRow>;

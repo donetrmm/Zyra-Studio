@@ -24,6 +24,10 @@ export type ReferencePoolCampaignRow = {
   language?: string | null;
   include_packaging?: boolean | null;
   music_ref_id?: string | null;
+  // Vestuario (specs/v2/16): la fila viaja tal cual a loadCampaignContext, así
+  // que el ctx del pool queda completo (el pool hoy no consume el map, pero un
+  // ctx parcial aquí sería una fuente silenciosa de drift si empieza a hacerlo).
+  character_outfit_map?: Record<string, unknown> | null;
 };
 
 // Carga el pool de candidatos de la campaña + las cláusulas de texto que anclan

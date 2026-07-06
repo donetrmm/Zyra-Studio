@@ -94,6 +94,9 @@ type CampaignRow = {
   visual_style_custom: string | null;
   // Selección manual de referencias (054): también filtra las refs del panel.
   reference_selection: Record<string, unknown> | null;
+  // Vestuario (specs/v2/16): outfit por personaje de toda la campaña; el
+  // narrowing del jsonb lo hace loadCampaignContext.
+  character_outfit_map: Record<string, unknown> | null;
 };
 
 async function loadItemAndCampaign(
@@ -112,7 +115,7 @@ async function loadItemAndCampaign(
 
   const { data: rawCampaign, error: campErr } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines, visual_style, visual_style_custom, reference_selection')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, creative_guidelines, visual_style, visual_style_custom, reference_selection, character_outfit_map')
     .eq('id', item.campaign_id)
     .single();
   if (campErr || !rawCampaign) return null;

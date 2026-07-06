@@ -1491,7 +1491,7 @@ export async function generateItemAction(
   // reusando el orquestador para un único item.
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection')
+    .select('id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection, character_outfit_map')
     .eq('id', item.campaign_id as string)
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
@@ -1537,6 +1537,7 @@ export async function generateItemAction(
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
       reference_selection: (campaign.reference_selection as Record<string, unknown> | null) ?? null,
+      character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
     },
     items: [{ ...item, status: 'planned' }] as never,
     formats: formatsMap as never,
@@ -1564,7 +1565,7 @@ export async function approveBatchAction(
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection')
+    .select('id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, reference_selection, character_outfit_map')
     .eq('id', parsed.data.campaignId)
     .eq('workspace_id', workspace.id)
     .single();
@@ -1614,6 +1615,7 @@ export async function approveBatchAction(
       visual_style: (campaign.visual_style as string | null) ?? null,
       visual_style_custom: (campaign.visual_style_custom as string | null) ?? null,
       reference_selection: (campaign.reference_selection as Record<string, unknown> | null) ?? null,
+      character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
     },
     items: itemRows as never,
     formats: formatsMap,
@@ -2524,10 +2526,10 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, character_outfit_map)')
     .eq('id', itemId)
     .single();
-  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null; chain_audio_source?: string | null; creative_guidelines?: Record<string, unknown> | null; visual_style?: string | null; visual_style_custom?: string | null } } | null)?.campaigns;
+  const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null; chain_audio_source?: string | null; creative_guidelines?: Record<string, unknown> | null; visual_style?: string | null; visual_style_custom?: string | null; character_outfit_map?: Record<string, unknown> | null } } | null)?.campaigns;
   if (!item || camp?.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
 
   let format: FormatDirection | undefined;
@@ -2563,6 +2565,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
       creative_guidelines: (camp.creative_guidelines as Record<string, unknown> | null) ?? null,
       visual_style: (camp.visual_style as string | null) ?? null,
       visual_style_custom: (camp.visual_style_custom as string | null) ?? null,
+      character_outfit_map: camp.character_outfit_map ?? null,
     },
     charIds,
   );
@@ -2760,7 +2763,7 @@ export async function assignSequenceLocationAction(
 // --- Selector de referencias de video (054) ---------------------------------
 
 const REFERENCE_POOL_CAMPAIGN_COLS =
-  'id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, reference_selection';
+  'id, workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, reference_selection, character_outfit_map';
 
 // Pool de candidatos + selección vigente, con thumbnails firmados. Se carga al
 // abrir el dialog (no en el page load: firmar ~30 URLs por render sería gratis
@@ -2793,6 +2796,7 @@ export async function getReferencePoolAction(campaignId: string): Promise<
     language: campaign.language as string | null,
     include_packaging: campaign.include_packaging as boolean | null,
     music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+    character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
   });
   const entries = await Promise.all(
     pool.entries.map(async (e) => ({
@@ -2837,6 +2841,7 @@ export async function setReferenceSelectionAction(input: unknown): Promise<Resul
       language: campaign.language as string | null,
       include_packaging: campaign.include_packaging as boolean | null,
       music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+      character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
     });
     const valid = new Set(pool.entries.map((e) => e.path));
     const kept = [...new Set(include)].filter((p) => valid.has(p));
@@ -2881,6 +2886,7 @@ export async function analyzeProductReferencesAction(input: unknown): Promise<Re
     language: campaign.language as string | null,
     include_packaging: campaign.include_packaging as boolean | null,
     music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+    character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
   });
   const productPaths = new Set(pool.entries.filter((e) => e.category === 'product').map((e) => e.path));
   const valid = [...new Set(paths)].filter((p) => productPaths.has(p));
@@ -2928,6 +2934,7 @@ export async function applyReferenceAnalysisAction(input: unknown): Promise<Resu
     language: campaign.language as string | null,
     include_packaging: campaign.include_packaging as boolean | null,
     music_ref_id: (campaign.music_ref_id as string | null) ?? null,
+    character_outfit_map: (campaign.character_outfit_map as Record<string, unknown> | null) ?? null,
   });
   const productPaths = new Set(pool.entries.filter((e) => e.category === 'product').map((e) => e.path));
 
