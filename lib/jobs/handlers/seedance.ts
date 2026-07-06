@@ -9,7 +9,7 @@ import {
   type SeedanceResolution,
 } from '@/lib/providers/seedance';
 import { ProviderError } from '@/lib/providers/types';
-import { signedReferenceUrlAdmin } from '@/lib/supabase/storage';
+import { signedReferenceUrlAdmin, signedVoiceSampleUrlAdmin } from '@/lib/supabase/storage';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
 
 // Un clip de hasta 15 s con referencias puede tardar varios minutos.
@@ -27,11 +27,14 @@ type SeedanceParams = {
   imageUrl?: string;
   referenceStoragePath?: string;
   endReferenceStoragePath?: string;
-  // reference2video: paths en el bucket references, en el MISMO orden en que
-  // el prompt los cita como @Image1.., @Video1.., @Audio1..
+  // reference2video: imagen/video viven en el bucket references, en el MISMO
+  // orden en que el prompt los cita como @Image1.., @Video1.., @Audio1..
   referenceImagePaths?: string[];
   referenceVideoPaths?: string[];
+  // El audio declara su bucket: la música es un media_reference (references),
+  // pero la VOZ del personaje vive en voice-samples. Default: references.
   referenceAudioPaths?: string[];
+  referenceAudioBucket?: 'references' | 'voice-samples';
   // Encadenado de secuencias (specs/v2/09): pedir el último fotograma.
   returnLastFrame?: boolean;
 };
@@ -40,9 +43,12 @@ function nextDelay(attempts: number): number {
   return attempts < 8 ? 15 : 30;
 }
 
-async function signAll(paths: string[] | undefined): Promise<string[] | undefined> {
+async function signAll(
+  paths: string[] | undefined,
+  signer: (path: string) => Promise<string> = signedReferenceUrlAdmin,
+): Promise<string[] | undefined> {
   if (!paths?.length) return undefined;
-  return Promise.all(paths.map((p) => signedReferenceUrlAdmin(p)));
+  return Promise.all(paths.map((p) => signer(p)));
 }
 
 export const seedanceHandler: JobHandler = {
@@ -65,7 +71,12 @@ export const seedanceHandler: JobHandler = {
         const [imageUrls, videoUrls, audioUrls] = await Promise.all([
           signAll(params.referenceImagePaths),
           signAll(params.referenceVideoPaths),
-          signAll(params.referenceAudioPaths),
+          signAll(
+            params.referenceAudioPaths,
+            params.referenceAudioBucket === 'voice-samples'
+              ? signedVoiceSampleUrlAdmin
+              : signedReferenceUrlAdmin,
+          ),
         ]);
         const startedAt = Date.now();
         const { taskId } = await submitTask({
