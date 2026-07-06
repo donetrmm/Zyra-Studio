@@ -1232,7 +1232,7 @@ export async function generateItemAction(
   const { data: item } = await supabase
     .from('campaign_items')
     .select(
-      'id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, generation_id, campaigns!inner(workspace_id)',
+      'id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint, generation_id, campaigns!inner(workspace_id)',
     )
     .eq('id', itemId)
     .single();
@@ -1572,7 +1572,7 @@ export async function approveBatchAction(
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint')
     .eq('campaign_id', campaign.id)
     .eq('format_id', parsed.data.formatId)
     .order('created_at');
@@ -2052,7 +2052,7 @@ export async function generateSeriesAction(
       })),
     )
     .select(
-      'id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint',
+      'id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint, character_outfit_hint',
     );
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
 

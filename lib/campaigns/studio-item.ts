@@ -31,6 +31,10 @@ export type StudioItem = {
   // personaje), o null = master neutro. Lo fija el matcher (inferencia) o el
   // usuario (override en el editor).
   characterStateHint: string | null;
+  // Vestuario (specs/v2/16): override de outfit para este item, por label
+  // (labels de character_outfits del/de los personaje(s)). null = usa el
+  // outfit de campaña (character_outfit_map) o el cuerpo completo base.
+  characterOutfitHint: string | null;
 };
 
 // Proyecta una fila cruda de campaign_items a StudioItem. Los nombres de formato
@@ -71,5 +75,6 @@ export function toStudioItem(
     sequenceLabel: (row.sequence_label as string | null) ?? null,
     locationId: (row.location_id as string | null) ?? null,
     characterStateHint: (row.character_state_hint as string | null) ?? null,
+    characterOutfitHint: (row.character_outfit_hint as string | null) ?? null,
   };
 }

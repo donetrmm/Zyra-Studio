@@ -77,6 +77,9 @@ export type CharacterInventory = {
   // P05: label del estado fisico activo en ESTA escena (sudado/mojado/...). Cuando
   // existe, masterImagePath es la variante de estado y el compiler usa su vestuario.
   stateLabel?: string;
+  // Vestuario (specs/v2/16): cuerpo completo (base u outfit resuelto) — ancla la
+  // ropa y proporciones; la identidad sigue viniendo de masterImagePath.
+  fullBodyImagePath?: string;
 };
 
 export type DirectorContext = {

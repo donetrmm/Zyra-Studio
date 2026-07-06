@@ -58,6 +58,9 @@ export type ItemRow = {
   storyboard_image_id: string | null;
   // Estado físico del personaje para esta escena (P05). null = sin estado declarado.
   character_state_hint: string | null;
+  // Vestuario (specs/v2/16): override de outfit para ESTE clip, por label. null =
+  // usa el outfit de campaña (character_outfit_map) o el cuerpo completo base.
+  character_outfit_hint: string | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -105,13 +108,32 @@ type FormatRow = {
   default_audio: boolean;
 };
 
+// Entry por personaje del contexto de campaña. Vestuario (specs/v2/16):
+// fullBodyImagePath es el cuerpo completo BASE (characters.full_body_image_id);
+// outfits son sus variantes intercambiables con label — la resolución final
+// (hint del clip → map de campaña → base) la hace directorContextFor.
+export type CharacterContextEntry = {
+  name: string;
+  description: string;
+  masterImagePath: string;
+  angleImagePaths: string[];
+  states?: Record<string, string>;
+  voiceRefPath?: string;
+  fullBodyImagePath?: string;
+  outfits?: Array<{ id: string; label: string; path: string }>;
+};
+
 export type CampaignContext = {
   productName: string;
   visualDetails?: string;
   palette?: string[];
   productImagePaths: string[];
   packagingImagePaths: string[];
-  characters: Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string>; voiceRefPath?: string }>;
+  characters: Map<string, CharacterContextEntry>;
+  // Vestuario (specs/v2/16): outfit elegido por personaje para TODA la campaña
+  // ({ characterId: outfitId }), de campaigns.character_outfit_map. Ausente/null
+  // en campañas sin selección — la resolución cae al cuerpo completo base.
+  characterOutfitMap?: Record<string, string> | null;
   // Idioma del diálogo hablado de la campaña (migración 029); default 'es'.
   language: 'es' | 'en';
   // P16: storage path de la pista de referencia de ritmo (media_reference
@@ -252,6 +274,9 @@ export async function loadCampaignContext(
     // Perfil de estilo visual (051). Callers viejos pueden no seleccionarla.
     visual_style?: string | null;
     visual_style_custom?: string | null;
+    // Vestuario (specs/v2/16): outfit elegido por personaje para toda la
+    // campaña ({ characterId: outfitId }). Callers viejos pueden no traerlo.
+    character_outfit_map?: Record<string, unknown> | null;
   },
   characterIds: string[],
 ): Promise<CampaignContext> {
@@ -296,17 +321,19 @@ export async function loadCampaignContext(
     }
   }
 
-  const characters = new Map<string, { name: string; description: string; masterImagePath: string; angleImagePaths: string[]; states?: Record<string, string>; voiceRefPath?: string }>();
+  const characters = new Map<string, CharacterContextEntry>();
   if (characterIds.length) {
     const { data: rows } = await supabase
       .from('characters')
-      .select('id, workspace_id, name, description, master_image_id, reference_image_ids, angle_image_ids, voice_clone_id')
+      .select('id, workspace_id, name, description, master_image_id, reference_image_ids, angle_image_ids, voice_clone_id, full_body_image_id')
       .in('id', characterIds);
     const imageIds: string[] = [];
     for (const c of rows ?? []) {
       const masterId = (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0];
       if (masterId) imageIds.push(masterId);
       imageIds.push(...((c.angle_image_ids as string[]) ?? []).slice(0, 2));
+      const fullBodyId = c.full_body_image_id as string | null;
+      if (fullBodyId) imageIds.push(fullBodyId);
     }
     const paths = await resolvePaths(supabase, workspaceId, imageIds);
     // Voz asignada a cada personaje: resuelve voice_clone_id → sample_storage_url.
@@ -336,12 +363,15 @@ export async function loadCampaignContext(
         const angleImagePaths = angleIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
         const voiceId = c.voice_clone_id as string | null;
         const voiceRefPath = voiceId ? voiceSamples.get(voiceId) : undefined;
+        const fullBodyId = c.full_body_image_id as string | null;
+        const fullBodyImagePath = fullBodyId ? paths.get(fullBodyId) : undefined;
         characters.set(c.id as string, {
           name: c.name as string,
           description: (c.description as string) ?? '',
           masterImagePath: masterPath,
           angleImagePaths,
           ...(voiceRefPath ? { voiceRefPath } : {}),
+          ...(fullBodyImagePath ? { fullBodyImagePath } : {}),
         });
       }
     }
@@ -363,6 +393,26 @@ export async function loadCampaignContext(
     }
   }
 
+  // Vestuario (specs/v2/16): outfits intercambiables de cada personaje (cuerpo
+  // completo con label). Espejo del bloque de character_states de arriba.
+  if (charIds.length) {
+    const { data: outfitRows } = await supabase
+      .from('character_outfits')
+      .select('id, character_id, label, outfit_image_id')
+      .in('character_id', charIds);
+    const outfitImgIds = (outfitRows ?? [])
+      .map((r) => r.outfit_image_id as string | null)
+      .filter((x): x is string => !!x);
+    const outfitPaths = await resolvePaths(supabase, workspaceId, outfitImgIds);
+    for (const r of outfitRows ?? []) {
+      const ent = characters.get(r.character_id as string);
+      const path = (r.outfit_image_id as string | null) ? outfitPaths.get(r.outfit_image_id as string) : undefined;
+      if (ent && path) {
+        (ent.outfits ??= []).push({ id: r.id as string, label: r.label as string, path });
+      }
+    }
+  }
+
   let audioRefPath: string | undefined;
   if (campaign.music_ref_id) {
     const audioMap = await resolvePaths(supabase, workspaceId, [campaign.music_ref_id]);
@@ -371,6 +421,17 @@ export async function loadCampaignContext(
 
   const guidelinesParsed = CreativeGuidelinesSchema.safeParse(campaign.creative_guidelines ?? {});
   const guidelines = guidelinesParsed.success ? guidelinesParsed.data : {};
+
+  // Vestuario (specs/v2/16): { characterId: outfitId } de campaigns.character_outfit_map.
+  // Narrowing manual (sin any): solo entradas string sobreviven; jsonb malformado o
+  // ausente cae a null (la resolución cae al cuerpo completo base).
+  const rawOutfitMap = campaign.character_outfit_map;
+  const characterOutfitMap: Record<string, string> | null =
+    rawOutfitMap && typeof rawOutfitMap === 'object'
+      ? Object.fromEntries(
+          Object.entries(rawOutfitMap).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+        )
+      : null;
 
   return {
     productName: brief.productName ?? 'the product',
@@ -385,6 +446,7 @@ export async function loadCampaignContext(
     productThicknessMm: brief.thicknessMm,
     productWeightKg: brief.weightKg,
     characters,
+    ...(characterOutfitMap ? { characterOutfitMap } : {}),
     language: campaign.language === 'en' ? 'en' : 'es',
     audioRefPath,
     ...(campaign.chain_audio_source === 'prev_clip' ? { chainAudioSource: 'prev_clip' as const } : {}),
@@ -408,21 +470,31 @@ export function directorContextFor(
   location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
+  // Vestuario (specs/v2/16): override de outfit de ESTE clip, por label.
+  const outfitHint = (item.character_outfit_hint as string | null) ?? null;
   // Voz del hablante: el personaje PRIMARIO del clip (primer character_id). Su
   // sample de voz ancla el timbre del diálogo. Un solo slot @audio1 → una sola voz.
   const primaryCharId = itemCharacterIds(item)[0];
   const voiceRefPath = primaryCharId ? ctx.characters.get(primaryCharId)?.voiceRefPath : undefined;
   const characters = itemCharacterIds(item)
-    .map((id) => ctx.characters.get(id))
-    .filter((c): c is NonNullable<typeof c> => !!c)
-    .map((c) => {
+    .map((id) => ({ id, c: ctx.characters.get(id) }))
+    .filter((e): e is { id: string; c: CharacterContextEntry } => !!e.c)
+    .map(({ id, c }) => {
       const statePath = stateHint ? c.states?.[stateHint] : undefined;
+      // Resolución de vestuario (specs/v2/16): hint del clip (label) → outfit de
+      // campaña (map por id) → cuerpo completo base → nada (sin regresión). El
+      // hint huérfano (label que ya no existe) cae al siguiente nivel, no rompe.
+      const fromHint = outfitHint ? c.outfits?.find((o) => o.label === outfitHint)?.path : undefined;
+      const mappedId = ctx.characterOutfitMap?.[id];
+      const fromMap = mappedId ? c.outfits?.find((o) => o.id === mappedId)?.path : undefined;
+      const fullBodyImagePath = fromHint ?? fromMap ?? c.fullBodyImagePath;
       return {
         name: c.name,
         description: c.description,
         masterImagePath: statePath ?? c.masterImagePath,
         angleImagePaths: c.angleImagePaths,
         ...(statePath ? { stateLabel: stateHint as string } : {}),
+        ...(fullBodyImagePath ? { fullBodyImagePath } : {}),
       };
     });
   return {
@@ -715,7 +787,7 @@ export async function advanceSequenceChain(
 
   const { data: itemRows } = await admin
     .from('campaign_items')
-    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint')
+    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint, character_outfit_hint')
     .eq('campaign_id', chain.campaignId)
     .eq('sequence_id', chain.sequenceId);
   if (!itemRows?.length) return;

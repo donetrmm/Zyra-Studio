@@ -161,6 +161,96 @@ describe('directorContextFor — peso del producto', () => {
   });
 });
 
+describe('directorContextFor — resolución de outfit (specs/v2/16)', () => {
+  it('sin nada: el personaje no lleva fullBodyImagePath (comportamiento actual)', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+      }]]),
+      language: 'es',
+    };
+    const it1 = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null, character_outfit_hint: null } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc = directorContextFor(it1, null, ctx);
+    expect(dc.characters?.[0].fullBodyImagePath).toBeUndefined();
+  });
+
+  it('con full_body base: viaja como fullBodyImagePath', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+        fullBodyImagePath: 'c/full.png',
+      }]]),
+      language: 'es',
+    };
+    const it1 = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null, character_outfit_hint: null } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc = directorContextFor(it1, null, ctx);
+    expect(dc.characters?.[0].fullBodyImagePath).toBe('c/full.png');
+  });
+
+  it('outfit de campaña (map por id) reemplaza al base', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+        fullBodyImagePath: 'c/full.png',
+        outfits: [{ id: 'o1', label: 'deportivo', path: 'c/o1.png' }],
+      }]]),
+      language: 'es',
+      characterOutfitMap: { c1: 'o1' },
+    };
+    const it1 = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null, character_outfit_hint: null } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc = directorContextFor(it1, null, ctx);
+    expect(dc.characters?.[0].fullBodyImagePath).toBe('c/o1.png');
+  });
+
+  it('hint del clip (label) gana sobre el map', () => {
+    const ctx: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+        fullBodyImagePath: 'c/full.png',
+        outfits: [
+          { id: 'o1', label: 'deportivo', path: 'c/o1.png' },
+          { id: 'o2', label: 'formal', path: 'c/o2.png' },
+        ],
+      }]]),
+      language: 'es',
+      characterOutfitMap: { c1: 'o1' },
+    };
+    const it1 = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null, character_outfit_hint: 'formal' } as unknown as Parameters<typeof directorContextFor>[0];
+    const dc = directorContextFor(it1, null, ctx);
+    expect(dc.characters?.[0].fullBodyImagePath).toBe('c/o2.png');
+  });
+
+  it('hint huérfano (label inexistente) cae al map y luego al base', () => {
+    const ctxWithMap: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+        fullBodyImagePath: 'c/full.png',
+        outfits: [{ id: 'o1', label: 'deportivo', path: 'c/o1.png' }],
+      }]]),
+      language: 'es',
+      characterOutfitMap: { c1: 'o1' },
+    };
+    const orphanHint = { id: 'i1', character_ids: ['c1'], character_id: null, scene: null, character_state_hint: null, character_outfit_hint: 'no-existe' } as unknown as Parameters<typeof directorContextFor>[0];
+    expect(directorContextFor(orphanHint, null, ctxWithMap).characters?.[0].fullBodyImagePath).toBe('c/o1.png');
+
+    const ctxWithoutMap: CampaignContext = {
+      productName: 'Serum', productImagePaths: [], packagingImagePaths: [],
+      characters: new Map([['c1', {
+        name: 'Marcela', description: 'x', masterImagePath: 'ws/master.png', angleImagePaths: [],
+        fullBodyImagePath: 'c/full.png',
+        outfits: [{ id: 'o1', label: 'deportivo', path: 'c/o1.png' }],
+      }]]),
+      language: 'es',
+    };
+    expect(directorContextFor(orphanHint, null, ctxWithoutMap).characters?.[0].fullBodyImagePath).toBe('c/full.png');
+  });
+});
+
 describe('directorContextFor — perfil de estilo visual (051)', () => {
   it('propaga el perfil de estilo de la campaña al DirectorContext', () => {
     const dir = directorContextFor(item, null, {

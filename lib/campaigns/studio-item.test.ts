@@ -25,3 +25,22 @@ describe('toStudioItem — characterStateHint (P05)', () => {
     expect(item.characterStateHint).toBeNull();
   });
 });
+
+describe('toStudioItem — characterOutfitHint (specs/v2/16)', () => {
+  it('mapea character_outfit_hint de la fila', () => {
+    const { fn, fd, cn } = maps();
+    const item = toStudioItem(
+      { id: 'i1', format_id: 'f1', scene_prompt: 'x', status: 'planned', character_outfit_hint: 'formal' },
+      fn, fd, cn,
+    );
+    expect(item.characterOutfitHint).toBe('formal');
+  });
+  it('null cuando la columna falta o es null', () => {
+    const { fn, fd, cn } = maps();
+    const item = toStudioItem(
+      { id: 'i2', format_id: 'f1', scene_prompt: 'x', status: 'planned' },
+      fn, fd, cn,
+    );
+    expect(item.characterOutfitHint).toBeNull();
+  });
+});

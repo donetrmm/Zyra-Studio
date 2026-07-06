@@ -271,6 +271,7 @@ export async function generatePanelAction(
     sequence_id: item.sequence_id,
     scene_index: item.scene_index,
     character_state_hint: null,
+    character_outfit_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
   };
@@ -599,6 +600,7 @@ export async function refinePanelAction(
     location_id: item.location_id,
     storyboard_image_id: null,
     character_state_hint: null,
+    character_outfit_hint: null,
   };
 
   // La selección manual de referencias de la campaña (054) también filtra las
