@@ -158,7 +158,7 @@ const MatchSchema = z.object({
     .catch([])
     .default([])
     .transform((arr) =>
-      arr.slice(0, 8).flatMap((item) => {
+      arr.slice(0, 16).flatMap((item) => {
         const parsed = SceneSchema.safeParse(item);
         if (!parsed.success || parsed.data.scenePrompt === null) return [];
         return [{
@@ -534,7 +534,7 @@ async function requestMatch(input: {
     ? `\n\nImágenes adjuntas (en orden): ${images.map((img, i) => `${i + 1}=${img.label}`).join(', ')}.`
     : '';
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
-    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 6000)}${imageNote}` },
+    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 24000)}${imageNote}` },
     ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.dataBase64 } })),
   ];
 
@@ -548,7 +548,7 @@ async function requestMatch(input: {
         temperature: 0.2,
         // Timelines con diálogo por idea abultan el JSON: techo holgado para
         // que no se trunque (el saneo igual tolera truncados con retry).
-        maxOutputTokens: 4000,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },
@@ -585,7 +585,7 @@ async function requestMatch(input: {
     );
   }
   const matches = loose.data.matches
-    .slice(0, 8)
+    .slice(0, 16)
     .flatMap((m) => {
       const candidate = m && typeof m === 'object'
         ? {
