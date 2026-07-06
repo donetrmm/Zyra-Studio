@@ -156,7 +156,7 @@ const MatchSchema = z.object({
   sceneSummary: z.string().trim().min(1).max(300).nullable().catch(null).default(null),
   // Secuencia: cuando la idea es un anuncio multi-escena ya guionizado, el
   // modelo la parte en N escenas cortas. Vacio = idea normal (un solo clip).
-  // Una escena sin scenePrompt valido se descarta; max 8 escenas.
+  // Una escena sin scenePrompt valido se descarta; max 16 escenas.
   scenes: z
     .array(z.unknown())
     .catch([])
