@@ -387,7 +387,7 @@ Por cada idea distinta devuelve un match:
   está en un ESTADO FÍSICO listado entre paréntesis junto a su nombre
   (estados: sudado, mojado…), pon ese label EXACTO aquí; si no aplica o no hay
   estados listados, null"}.
-  Maximo 8 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
+  Maximo 16 escenas. Si NO es multi-escena, scenes = [] y usa scenePrompt normal.
 - sequenceLabel: titulo corto del anuncio cuando devuelves scenes (ej. "Cuadro
   familiar"); null si scenes = [].
 - sceneSummary: resumen de la acción para mostrar en la interfaz, __SUMMARY_LANG__,
