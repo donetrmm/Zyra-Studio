@@ -5,7 +5,7 @@ import { CreateCharacterOutfitSchema } from './character-outfits';
 // 1-8 y el nibble de variante 8/9/a/b). El literal '...000000000001' del
 // brief no matchea ese regex (solo el nil-UUID exacto o el max-UUID son
 // casos especiales), asi que se usa un UUID v4-valido para poder llegar a
-// GREEN real. Detalle en task-2-report.md.
+// GREEN real.
 const VALID_IMAGE_ID = '11111111-1111-1111-8111-111111111111';
 
 describe('CreateCharacterOutfitSchema', () => {

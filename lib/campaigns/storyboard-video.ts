@@ -43,6 +43,12 @@ export function beatNamesCast(scenePrompt: string, names: string[]): boolean {
 // del panel, referencia blanda, y derivaba), y el panel al FINAL. El producto y el panel
 // se citan aquí (el compiler no los cita: onlyCharacterRefs los quitó del contexto). El
 // número es interno; el orden no implica prioridad (doc Seedance). Helper puro.
+// OJO presupuesto (specs/v2/16): castRefs ya trae master+cuerpo-completo por personaje
+// (buildReferences en seedance.ts). Con 3 personajes (3x2=6) + 2 de producto + 1 panel
+// se llega EXACTO a 9 imágenes — el tope duro SEEDANCE_MAX_IMAGE_REFS de Atlas
+// (lib/providers/seedance.ts), que ante un excedente lanza invalid_input NO reintentable.
+// Cualquier referencia extra futura (ángulo, locación, mapa de escala) necesita su
+// propia estrategia de recorte antes de sumarse aquí: hoy no hay margen.
 export function buildCastR2VRefs(
   castRefs: string[],
   productRefs: string[],
