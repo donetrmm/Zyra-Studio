@@ -33,7 +33,13 @@ import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 import { CreationWizard } from '@/components/creation/CreationWizard';
 import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
-import { createCampaignStudioAction, generatePlanAction } from '@/server-actions/campaigns';
+import {
+  createCampaignStudioAction,
+  generatePlanAction,
+  ingestMasterPromptAction,
+} from '@/server-actions/campaigns';
+import type { IngestBriefOverrides } from '@/lib/schemas/ingest';
+import type { CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { usePreflight } from '@/components/ui/preflight-checklist';
 import { CAMPAIGN_CHECKLIST } from '@/lib/checklists';
@@ -83,6 +89,14 @@ const GOALS = [
   { value: 'conversion', label: 'Que la gente compre' },
 ] as const;
 
+// Etiquetas legibles del estilo visual sugerido por la ingesta del prompt maestro.
+const STYLE_LABELS: Record<string, string> = {
+  ultra_realista: 'Ultra realista',
+  casero: 'Casero (UGC/celular)',
+  fantasia: 'Fantasía',
+  animado: 'Animado',
+};
+
 // Wizard sin walls (specs/v2/06 §4.4): subir fotos del producto es el camino
 // primario — el Brand Kit se crea implícito en el server. Elegir un kit
 // existente es la alternativa, nunca un requisito previo.
@@ -117,6 +131,15 @@ export function CampaignStudioWizard({
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(initialBrandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
+  // Ingesta de prompt maestro (spec v2/15): el usuario pega un guion completo y
+  // lo repartimos en overrides de ficha, guías y estilo sugerido, editables antes
+  // de crear la campaña.
+  const [masterPrompt, setMasterPrompt] = useState('');
+  const [ingesting, setIngesting] = useState(false);
+  const [briefOverrides, setBriefOverrides] = useState<IngestBriefOverrides | null>(null);
+  const [guidelines, setGuidelines] = useState<CreativeGuidelines | null>(null);
+  const [ingestNotes, setIngestNotes] = useState<string[]>([]);
+  const [styleSuggestion, setStyleSuggestion] = useState<VisualStyle | null>(null);
   const [askIdeasOpen, setAskIdeasOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
@@ -136,6 +159,44 @@ export function CampaignStudioWizard({
   }
   function makePrincipal(id: string) {
     setSelectedCharacterIds((prev) => (prev.includes(id) ? [id, ...prev.filter((x) => x !== id)] : prev));
+  }
+
+  async function handleIngest() {
+    if (!masterPrompt.trim()) return;
+    setIngesting(true);
+    try {
+      const res = await ingestMasterPromptAction({ masterPrompt: masterPrompt.trim() });
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo analizar el prompt');
+        return;
+      }
+      const r = res.data;
+      if (r.narrative) setIdeas(r.narrative);
+      setBriefOverrides(
+        Object.keys(r.productFacts).length || r.productVisualDetails
+          ? {
+              ...(Object.keys(r.productFacts).length ? { productFacts: r.productFacts } : {}),
+              ...(r.productVisualDetails ? { productVisualDetails: r.productVisualDetails } : {}),
+            }
+          : null,
+      );
+      setGuidelines(
+        r.guidelines.safeCrop || r.guidelines.showFullProduct || r.guidelines.hookProductHero
+          ? r.guidelines
+          : null,
+      );
+      setStyleSuggestion(r.visualStyle);
+      setIngestNotes([
+        ...r.warnings,
+        ...r.castHints.filter((c) => !c.inCast).map((c) => `${c.name}: ${c.note}`),
+        ...(r.locationHints.length
+          ? [`Carga estas locaciones como base para consistencia: ${r.locationHints.join(', ')}.`]
+          : []),
+      ]);
+      toast.success('Prompt analizado: revisa el reparto y ajusta lo que quieras.');
+    } finally {
+      setIngesting(false);
+    }
   }
 
   async function handleMusicSelected(file: File | undefined) {
@@ -207,6 +268,8 @@ export function CampaignStudioWizard({
         : {}),
       ...(music ? { musicRefId: music.id } : {}),
       chainAudioSource,
+      ...(briefOverrides ? { briefOverrides } : {}),
+      ...(guidelines ? { guidelines } : {}),
     });
     if (!created.ok) {
       setSubmitting(false);
@@ -383,6 +446,68 @@ export function CampaignStudioWizard({
         </section>
 
         <section className="space-y-1.5">
+          <Label htmlFor="master-prompt" className="text-xs font-medium text-foreground/80">
+            ¿Tienes un prompt maestro? <span className="font-normal text-muted-foreground/50">(opcional)</span>
+          </Label>
+          <p className="text-2xs text-muted-foreground">
+            Pega un guion completo (estética, medidas, locaciones, clips) y lo repartimos en la
+            ficha, el estilo y las guías; el guion por clip llena el campo de abajo. Revisa todo
+            antes de generar.
+          </p>
+          <textarea
+            id="master-prompt"
+            value={masterPrompt}
+            onChange={(e) => setMasterPrompt(e.target.value)}
+            placeholder="Comercial UGC 30s... Estructura de 9 clips... Canvas 150x100cm..."
+            maxLength={24000}
+            rows={4}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!masterPrompt.trim() || ingesting}
+            onClick={() => void handleIngest()}
+          >
+            {ingesting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+            Analizar prompt
+          </Button>
+          {(briefOverrides || guidelines || styleSuggestion || ingestNotes.length > 0) && (
+            <div className="mt-2 space-y-2 rounded-lg border border-border bg-card/50 p-3 text-2xs">
+              {briefOverrides?.productFacts && (
+                <p className="text-muted-foreground">
+                  Ficha (de tu prompt):{' '}
+                  {[
+                    briefOverrides.productFacts.heightCm && `alto ${briefOverrides.productFacts.heightCm}cm`,
+                    briefOverrides.productFacts.widthCm && `ancho ${briefOverrides.productFacts.widthCm}cm`,
+                    briefOverrides.productFacts.weightKg && `${briefOverrides.productFacts.weightKg}kg`,
+                    briefOverrides.productFacts.medium,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              {styleSuggestion && styleSuggestion !== visualStyle && (
+                <button
+                  type="button"
+                  onClick={() => setVisualStyle(styleSuggestion)}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-1 text-primary transition-colors hover:bg-primary/10"
+                >
+                  Sugerido: {STYLE_LABELS[styleSuggestion] ?? styleSuggestion} · aplicar
+                </button>
+              )}
+              {guidelines?.safeCrop === '4:5' && (
+                <p className="text-muted-foreground">Guía aplicada: encuadre seguro 4:5.</p>
+              )}
+              {ingestNotes.map((note, i) => (
+                <p key={i} className="text-amber-400/80">
+                  {note}
+                </p>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-1.5">
           <Label htmlFor="campaign-ideas" className="text-xs font-medium text-foreground/80">
             Describe lo que imaginas
           </Label>
@@ -392,7 +517,7 @@ export function CampaignStudioWizard({
             value={ideas}
             onChange={(e) => setIdeas(e.target.value)}
             placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
-            maxLength={6000}
+            maxLength={24000}
             rows={3}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
