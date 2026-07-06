@@ -89,15 +89,18 @@ export function mergeBriefOverrides(
 }
 
 // Salida cruda de Gemini → IngestResult (computa castHints). JSON inválido → fallback.
-export function parseIngestResult(raw: string, opts: { castNames: string[] }): IngestResult {
+export function parseIngestResult(
+  raw: string,
+  opts: { castNames: string[]; masterPrompt?: string },
+): IngestResult {
   let json: unknown;
   try {
     json = JSON.parse(extractJson(raw));
   } catch {
-    return fallbackIngestResult('');
+    return fallbackIngestResult(opts.masterPrompt ?? '');
   }
   const parsed = IngestRawSchema.safeParse(json);
-  if (!parsed.success) return fallbackIngestResult('');
+  if (!parsed.success) return fallbackIngestResult(opts.masterPrompt ?? '');
   const d = parsed.data;
   const known = new Set(opts.castNames.map(norm));
   const productFacts: IngestResult['productFacts'] = {
@@ -174,5 +177,5 @@ export async function ingestMasterPrompt(input: {
     throw new ProviderError(`Gemini ingest ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
   }
   const raw = GeminiResponseSchema.parse(await res.json());
-  return parseIngestResult(raw, { castNames: input.castNames });
+  return parseIngestResult(raw, { castNames: input.castNames, masterPrompt: input.masterPrompt });
 }

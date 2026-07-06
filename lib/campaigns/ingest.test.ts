@@ -52,6 +52,12 @@ describe('parseIngestResult', () => {
     expect(r.narrative).toBe('');
     expect(r.warnings.length).toBeGreaterThan(0);
   });
+
+  it('JSON inválido con masterPrompt: narrative = el prompt crudo (promesa del spec)', () => {
+    const r = parseIngestResult('no soy json', { castNames: [], masterPrompt: 'Mi guion completo' });
+    expect(r.narrative).toBe('Mi guion completo');
+    expect(r.warnings.length).toBeGreaterThan(0);
+  });
 });
 
 describe('mergeVisualDetails', () => {
