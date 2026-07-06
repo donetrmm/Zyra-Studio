@@ -8,7 +8,9 @@ import { createClient } from '@/lib/supabase/server';
 import { downloadReferenceBuffer, REFERENCES_BUCKET } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { analyzeProductBrief, fetchProductPageText } from '@/lib/campaigns/brief';
-import { mergeBriefOverrides } from '@/lib/campaigns/ingest';
+import { fallbackIngestResult, ingestMasterPrompt, mergeBriefOverrides } from '@/lib/campaigns/ingest';
+import { IngestInputSchema } from '@/lib/schemas/ingest';
+import type { IngestResult } from '@/lib/schemas/ingest';
 import {
   buildDirectedPlan,
   buildPlan,
@@ -933,6 +935,28 @@ export async function generatePlanAction(input: unknown): Promise<
       ...(ideaBlockers.length ? { blockers: [...new Set(ideaBlockers)] } : {}),
     },
   };
+}
+
+// Ingesta de prompt maestro (spec v2/15): reparte un prompt monolítico en los
+// slots estructurados. Corre ANTES de crear la campaña; no persiste nada.
+export async function ingestMasterPromptAction(input: unknown): Promise<Result<IngestResult>> {
+  const parsed = IngestInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from('characters')
+    .select('name')
+    .eq('workspace_id', workspace.id);
+  const castNames = (rows ?? []).map((r) => r.name as string);
+  try {
+    const data = await ingestMasterPrompt({ masterPrompt: parsed.data.masterPrompt, castNames });
+    return { ok: true, data };
+  } catch (err) {
+    // Falla blanda: no bloquea el wizard (queda en logs; el usuario edita a mano).
+    console.error('[ingestMasterPromptAction] ingesta falló; fallback manual', err);
+    return { ok: true, data: fallbackIngestResult(parsed.data.masterPrompt) };
+  }
 }
 
 export async function updateCampaignItemAction(input: unknown): Promise<Result<{ updated: true; status: string }>> {
