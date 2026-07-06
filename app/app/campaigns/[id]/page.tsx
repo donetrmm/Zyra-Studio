@@ -45,7 +45,7 @@ export default async function CampaignDetailRoute({
   // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
   // las generaciones de la campaña, no el pipeline.
   if (brief?.productName && view !== 'assets') {
-    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }] =
+    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }, { data: outfitRows }] =
       await Promise.all([
         // Orden con desempates: los clips de una secuencia comparten scheduled_date
         // y sin tiebreaker Postgres los devuelve en orden arbitrario (Producción los
@@ -75,6 +75,12 @@ export default async function CampaignDetailRoute({
           .from('character_states')
           .select('character_id, label')
           .eq('workspace_id', workspace.id),
+        // Vestuario (specs/v2/16): labels para el override por clip, mismo
+        // canal que character_states.
+        supabase
+          .from('character_outfits')
+          .select('character_id, label')
+          .eq('workspace_id', workspace.id),
       ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
@@ -101,10 +107,18 @@ export default async function CampaignDetailRoute({
       arr.push(s.label as string);
       statesByCharacter.set(cid, arr);
     }
+    const outfitsByCharacter = new Map<string, string[]>();
+    for (const o of outfitRows ?? []) {
+      const cid = o.character_id as string;
+      const arr = outfitsByCharacter.get(cid) ?? [];
+      arr.push(o.label as string);
+      outfitsByCharacter.set(cid, arr);
+    }
     const characterOptions = (characterRows ?? []).map((c) => ({
       id: c.id as string,
       name: c.name as string,
       states: statesByCharacter.get(c.id as string) ?? [],
+      outfits: outfitsByCharacter.get(c.id as string) ?? [],
     }));
 
     const locationOptions: StudioLocationOption[] = (locationRows ?? []).map((l) => ({

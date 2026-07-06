@@ -83,7 +83,14 @@ export type StudioTemplate = {
   usesCount: number;
 };
 
-export type StudioCharacterOption = { id: string; name: string; states: string[] };
+export type StudioCharacterOption = {
+  id: string;
+  name: string;
+  states: string[];
+  // Vestuario (specs/v2/16): labels de character_outfits del personaje, para
+  // el override por clip en el editor (mismo canal que states).
+  outfits: string[];
+};
 export type StudioLocationOption = { id: string; name: string };
 
 export type StudioCampaign = {
@@ -2125,6 +2132,8 @@ function EditItemDialog({
   const [caption, setCaption] = useState(item.caption ?? '');
   const [scheduledDate, setScheduledDate] = useState(item.scheduledDate ?? '');
   const [characterStateHint, setCharacterStateHint] = useState<string | null>(item.characterStateHint);
+  // Vestuario (specs/v2/16): override por clip, mismo patrón que characterStateHint.
+  const [characterOutfitHint, setCharacterOutfitHint] = useState<string | null>(item.characterOutfitHint);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -2137,6 +2146,7 @@ function EditItemDialog({
       scene: scene.trim() || undefined,
       ...(characterId ? { characterId } : {}),
       ...(characterStateHint !== item.characterStateHint ? { characterStateHint } : {}),
+      ...(characterOutfitHint !== item.characterOutfitHint ? { characterOutfitHint } : {}),
       caption,
       ...(scheduledDate ? { scheduledDate: new Date(`${scheduledDate}T12:00:00`) } : {}),
     });
@@ -2161,6 +2171,7 @@ function EditItemDialog({
       caption: caption || null,
       scheduledDate: scheduledDate || item.scheduledDate,
       characterStateHint,
+      characterOutfitHint,
       // Estado autoritativo del server: 'planned' si se tocó producción, o el
       // estado real conservado para ediciones de solo caption/fecha.
       status: res.data.status,
@@ -2236,6 +2247,30 @@ function EditItemDialog({
                   {states.map((s) => (
                     <option key={s} value={s}>
                       {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })()}
+          {(() => {
+            const outfits = characterOptions.find((c) => c.id === characterId)?.outfits ?? [];
+            if (outfits.length === 0) return null;
+            return (
+              <div>
+                <label htmlFor="edit-outfit" className="block text-xs font-medium text-foreground/80">
+                  Vestuario
+                </label>
+                <select
+                  id="edit-outfit"
+                  value={characterOutfitHint ?? ''}
+                  onChange={(e) => setCharacterOutfitHint(e.target.value || null)}
+                  className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <option value="">El de campaña (o base)</option>
+                  {outfits.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
                     </option>
                   ))}
                 </select>

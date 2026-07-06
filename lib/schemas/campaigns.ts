@@ -123,6 +123,9 @@ export const CreateCampaignStudioSchema = z
       .optional(),
     // Guías creativas inferidas por la ingesta (safe 4:5, producto completo, hook).
     guidelines: CreativeGuidelinesSchema.optional(),
+    // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Solo
+    // personajes del pool; ownership del outfit se valida en la action.
+    characterOutfitMap: z.record(z.string().uuid(), z.string().uuid()).optional(),
   })
   .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
     message: 'Sube al menos una imagen de producto o elige un Brand Kit',
@@ -225,6 +228,8 @@ export const UpdateCampaignItemSchema = CampaignItemSchema.partial().extend({
   itemId: z.string().uuid(),
   // P05 clip único: fijar/limpiar el estado del item a mano. null = neutral.
   characterStateHint: z.string().trim().nullable().optional(),
+  // Vestuario: override por clip, por LABEL. null = el de campaña.
+  characterOutfitHint: z.string().trim().nullable().optional(),
 });
 
 export const MergeSequenceSchema = z.object({

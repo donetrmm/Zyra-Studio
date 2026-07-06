@@ -454,6 +454,34 @@ export async function createCampaignStudioAction(
   const dateEnd =
     parsed.data.dateEnd ?? new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+  // Vestuario por campaña (specs/v2/16): el map del cliente puede traer
+  // personajes fuera del pool o outfits forjados/de otro workspace — nunca
+  // se confía en él (regla 70-security). Se filtra a characterIds del pool y
+  // se valida ownership en una sola query; lo que no matchea se descarta en
+  // silencio (defensa, no error: el usuario ya vio la campaña crearse).
+  let characterOutfitMap: Record<string, string> | null = null;
+  if (parsed.data.characterOutfitMap) {
+    const candidateEntries = Object.entries(parsed.data.characterOutfitMap).filter(
+      ([charId]) => characterIds.includes(charId),
+    );
+    if (candidateEntries.length) {
+      const outfitIds = [...new Set(candidateEntries.map(([, outfitId]) => outfitId))];
+      const { data: outfitRows } = await supabase
+        .from('character_outfits')
+        .select('id, character_id, workspace_id')
+        .in('id', outfitIds);
+      const validOutfits = new Map(
+        (outfitRows ?? [])
+          .filter((o) => o.workspace_id === workspace.id)
+          .map((o) => [o.id as string, o.character_id as string]),
+      );
+      const filtered = Object.fromEntries(
+        candidateEntries.filter(([charId, outfitId]) => validOutfits.get(outfitId) === charId),
+      );
+      characterOutfitMap = Object.keys(filtered).length ? filtered : null;
+    }
+  }
+
   const { data: inserted, error } = await supabase
     .from('campaigns')
     .insert({
@@ -476,6 +504,7 @@ export async function createCampaignStudioAction(
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
       ...(parsed.data.guidelines ? { creative_guidelines: parsed.data.guidelines } : {}),
+      ...(characterOutfitMap ? { character_outfit_map: characterOutfitMap } : {}),
     })
     .select('id')
     .single();
@@ -983,7 +1012,8 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
     parsed.data.aspectRatio !== undefined ||
     parsed.data.characterId !== undefined ||
     parsed.data.characterIds !== undefined ||
-    parsed.data.characterStateHint !== undefined;
+    parsed.data.characterStateHint !== undefined ||
+    parsed.data.characterOutfitHint !== undefined;
   if (touchesProduction && !['planned', 'skipped', 'failed'].includes(item.status as string)) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
@@ -1026,6 +1056,9 @@ export async function updateCampaignItemAction(input: unknown): Promise<Result<{
   if (parsed.data.caption !== undefined) patch.caption = parsed.data.caption;
   if (parsed.data.characterStateHint !== undefined) {
     patch.character_state_hint = parsed.data.characterStateHint; // null limpia a neutral
+  }
+  if (parsed.data.characterOutfitHint !== undefined) {
+    patch.character_outfit_hint = parsed.data.characterOutfitHint; // null limpia al de campaña
   }
   if (touchesProduction) patch.status = 'planned'; // editar un item failed/skipped lo re-habilita
 

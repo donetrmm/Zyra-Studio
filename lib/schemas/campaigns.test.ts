@@ -56,3 +56,45 @@ describe('UpdateCampaignItemSchema — characterStateHint (P05)', () => {
     expect(r.success).toBe(false);
   });
 });
+
+describe('CreateCampaignStudioSchema — characterOutfitMap (specs/v2/16)', () => {
+  it('acepta un map characterId->outfitId con uuids válidos', () => {
+    const r = CreateCampaignStudioSchema.safeParse({
+      ...base,
+      characterOutfitMap: {
+        '11111111-1111-4111-a111-111111111111': '22222222-2222-4222-a222-222222222222',
+      },
+    });
+    expect(r.success).toBe(true);
+  });
+  it('rechaza claves o valores que no son uuid', () => {
+    expect(
+      CreateCampaignStudioSchema.safeParse({ ...base, characterOutfitMap: { 'no-uuid': '22222222-2222-4222-a222-222222222222' } }).success,
+    ).toBe(false);
+    expect(
+      CreateCampaignStudioSchema.safeParse({
+        ...base,
+        characterOutfitMap: { '11111111-1111-4111-a111-111111111111': 'no-uuid' },
+      }).success,
+    ).toBe(false);
+  });
+  it('es opcional (sin characterOutfitMap sigue siendo válido)', () => {
+    expect(CreateCampaignStudioSchema.safeParse(base).success).toBe(true);
+  });
+});
+
+describe('UpdateCampaignItemSchema — characterOutfitHint (specs/v2/16)', () => {
+  const id = '00000000-0000-4000-8000-000000000000';
+  it('acepta un label de outfit', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterOutfitHint: 'formal' });
+    expect(r.success).toBe(true);
+  });
+  it('acepta null (limpiar al de campaña)', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterOutfitHint: null });
+    expect(r.success).toBe(true);
+  });
+  it('rechaza un valor no string|null', () => {
+    const r = UpdateCampaignItemSchema.safeParse({ itemId: id, characterOutfitHint: 123 });
+    expect(r.success).toBe(false);
+  });
+});

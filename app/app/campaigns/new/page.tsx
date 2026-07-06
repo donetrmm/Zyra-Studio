@@ -9,7 +9,7 @@ export default async function NewCampaignPage() {
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const [{ data: kits }, { data: characterRows }] = await Promise.all([
+  const [{ data: kits }, { data: characterRows }, { data: outfitRows }] = await Promise.all([
     supabase
       .from('brand_kits')
       .select('id, name, product_image_ids, packaging_image_ids, reference_image_ids')
@@ -20,6 +20,12 @@ export default async function NewCampaignPage() {
       .select('id, name, master_image_id, angle_image_ids, reference_image_ids')
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false }),
+    // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
+    // por personaje seleccionado.
+    supabase
+      .from('character_outfits')
+      .select('id, label, character_id')
+      .eq('workspace_id', workspace.id),
   ]);
 
   const brandKits = (kits ?? [])
@@ -71,5 +77,11 @@ export default async function NewCampaignPage() {
     angleCount: c.angleCount,
   }));
 
-  return <CampaignStudioWizard brandKits={brandKits} characters={characters} />;
+  const outfits = (outfitRows ?? []).map((o) => ({
+    id: o.id as string,
+    label: o.label as string,
+    characterId: o.character_id as string,
+  }));
+
+  return <CampaignStudioWizard brandKits={brandKits} characters={characters} outfits={outfits} />;
 }

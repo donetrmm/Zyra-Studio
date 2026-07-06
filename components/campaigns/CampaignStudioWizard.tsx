@@ -106,9 +106,13 @@ const STYLE_LABELS: Record<string, string> = {
 export function CampaignStudioWizard({
   brandKits: initialBrandKits,
   characters,
+  outfits,
 }: {
   brandKits: BrandKitOption[];
   characters: Array<{ id: string; name: string; previewUrl: string | null; angleCount: number }>;
+  // Vestuario (specs/v2/16): opciones por personaje para el selector "Vestuario
+  // de {name}" bajo la grid del Cast.
+  outfits: Array<{ id: string; label: string; characterId: string }>;
 }) {
   const router = useRouter();
   // Estado local: el producto creado con IA inline se guarda como Brand Kit y se
@@ -144,6 +148,9 @@ export function CampaignStudioWizard({
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Sin entry
+  // para un personaje = usa su cuerpo completo base.
+  const [outfitMap, setOutfitMap] = useState<Record<string, string>>({});
   // Empaque del Brand Kit: el usuario decide si entra a la campaña (032).
   const [includePackaging, setIncludePackaging] = useState(true);
   const [music, setMusic] = useState<{ id: string; filename: string } | null>(null);
@@ -260,6 +267,7 @@ export function CampaignStudioWizard({
         : { brandKitId }),
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
+      ...(Object.keys(outfitMap).length ? { characterOutfitMap: outfitMap } : {}),
       includePackaging,
       aspectRatio,
       visualStyle,
@@ -625,6 +633,49 @@ export function CampaignStudioWizard({
                   degradarse; considera 1-2 por video.
                 </p>
               )}
+              {selectedCharacterIds.map((id) => {
+                // Vestuario (specs/v2/16): un selector por personaje seleccionado
+                // que tenga outfits cargados; sin outfits, se omite (usa el
+                // cuerpo completo base sin necesidad de elegir nada).
+                const c = characters.find((x) => x.id === id);
+                const charOutfits = outfits.filter((o) => o.characterId === id);
+                if (!c || charOutfits.length === 0) return null;
+                return (
+                  <div key={id} className="mt-2">
+                    <Label
+                      htmlFor={`outfit-${id}`}
+                      className="text-2xs font-medium text-foreground/80"
+                    >
+                      Vestuario de {c.name}
+                    </Label>
+                    <Select
+                      value={outfitMap[id] ?? 'base'}
+                      onValueChange={(v) =>
+                        setOutfitMap((prev) => {
+                          if (v === 'base') {
+                            const rest = { ...prev };
+                            delete rest[id];
+                            return rest;
+                          }
+                          return { ...prev, [id]: v };
+                        })
+                      }
+                    >
+                      <SelectTrigger id={`outfit-${id}`} className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="base">Base</SelectItem>
+                        {charOutfits.map((o) => (
+                          <SelectItem key={o.id} value={o.id}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                );
+              })}
             </>
           )}
           <ReferenceBudget
