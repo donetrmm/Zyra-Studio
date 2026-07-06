@@ -28,6 +28,76 @@ describe('compileFlux ancla al personaje', () => {
   });
 });
 
+// Vestuario por personaje (specs/v2/16): el compiler de Seedance ya empuja el
+// cuerpo completo tras la maestra con cita de vestuario (seedance-references.test.ts),
+// pero compileFlux lo ignoraba por completo — los PANELES del storyboard (FLUX)
+// nunca recibían el ancla de ropa, justo donde nace el drift. Mismo patrón que
+// Seedance, adaptado al mecanismo de cita de FLUX (sin numeración @imageN).
+describe('compileFlux ancla el vestuario (cuerpo completo, specs/v2/16)', () => {
+  it('empuja el cuerpo completo tras la maestra con la cita de vestuario en el prompt', () => {
+    const result = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product in a kitchen' },
+      {
+        characters: [
+          {
+            name: 'Pedro',
+            description: 'man with a thick mustache wearing a linen shirt',
+            masterImagePath: 'ws/pedro.png',
+            fullBodyImagePath: 'ws/pedro-full.png',
+          },
+        ],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const charRefs = result.compiled.references.filter((r) => r.role === 'character').map((r) => r.storagePath);
+    expect(charRefs).toEqual(['ws/pedro.png', 'ws/pedro-full.png']);
+    expect(result.compiled.prompt).toMatch(/Pedro's full-body wardrobe reference/i);
+    expect(result.compiled.prompt).toMatch(/exact same clothing, silhouette and body proportions/i);
+    expect(result.compiled.prompt).toMatch(/identity \(face and hair\) comes from the master reference/i);
+  });
+
+  it('el cuerpo completo entra como segunda referencia de personaje (FLUX no maneja ángulos)', () => {
+    const result = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product' },
+      {
+        characters: [
+          {
+            name: 'Pedro',
+            description: 'man with a mustache',
+            masterImagePath: 'ws/pedro.png',
+            fullBodyImagePath: 'ws/pedro-full.png',
+            angleImagePaths: ['ws/pedro-side.png'],
+          },
+        ],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const charRefs = result.compiled.references.filter((r) => r.role === 'character').map((r) => r.storagePath);
+    // FLUX ignora angleImagePaths (nunca los cita); el cuerpo completo debe ser la
+    // segunda Y ÚLTIMA referencia de personaje, justo tras la maestra.
+    expect(charRefs).toEqual(['ws/pedro.png', 'ws/pedro-full.png']);
+    expect(charRefs.indexOf('ws/pedro-full.png')).toBe(1);
+  });
+
+  it('sin fullBodyImagePath: cero cambio (regresión)', () => {
+    const result = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product' },
+      {
+        characters: [
+          { name: 'Pedro', description: 'man with a mustache', masterImagePath: 'ws/pedro.png' },
+        ],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const charRefs = result.compiled.references.filter((r) => r.role === 'character');
+    expect(charRefs).toHaveLength(1);
+    expect(result.compiled.prompt).not.toMatch(/wardrobe reference/i);
+  });
+});
+
 // Pivote storyboard→Nano Banana: el panel se genera con Nano (reference-grounded)
 // porque FLUX no mantenía fieles producto/personaje. El compiler Nano también debe
 // anclar la hoja maestra del personaje (antes solo metía el producto).

@@ -95,6 +95,24 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
         role: 'character',
         scope: 'rostro, peinado y complexión; no la ropa ni el fondo',
       });
+      // Vestuario (specs/v2/16): cuerpo completo INMEDIATAMENTE tras la maestra —
+      // mismo patrón que el compiler de Seedance (seedance.ts, bucle de characters:
+      // pushImage de la maestra seguido del cuerpo completo). FLUX no numera sus
+      // referencias (@imageN es un mecanismo exclusivo de Seedance), así que la
+      // cita nombra al personaje en el texto del prompt en vez de citar un índice.
+      // Sin presupuesto nuevo: la posición (antes de cualquier otra ref) es la
+      // prioridad y el tope references.slice(0, 8) de abajo sigue siendo la red.
+      if (character.fullBodyImagePath) {
+        references.push({
+          storagePath: character.fullBodyImagePath,
+          kind: 'image',
+          role: 'character',
+          scope: 'vestuario, silueta y proporciones de cuerpo completo',
+        });
+        sections.push(
+          `The image is ${character.name}'s full-body wardrobe reference — keep this exact same clothing, silhouette and body proportions; identity (face and hair) comes from the master reference.`,
+        );
+      }
     }
   }
   // Locación: imagen del lugar como referencia de escena (después de producto/personaje).
