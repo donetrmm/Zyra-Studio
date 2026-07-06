@@ -77,10 +77,14 @@ cláusula de beats de transición en el SYSTEM), `lib/schemas/campaigns.ts` (top
 
 ## Contrato (`lib/schemas/ingest.ts`)
 
+La ingesta corre **antes de crear la campaña** (el gate de revisión es previo a generar), así que
+no hay `campaignId` ni brief todavía. El `inCast` se resuelve contra el Cast del **workspace** (la
+action lo consulta, no confía en el cliente). El merge de `productVisualDetails`/`productFacts` con
+el brief auto-detectado ocurre en `createCampaignStudioAction` **al crear** (no en la ingesta).
+
 ```ts
-// Entrada: el prompt maestro crudo + el id de campaña (para leer ficha/Cast actuales).
+// Entrada: solo el prompt maestro crudo (la action añade el Cast del workspace).
 type IngestInput = {
-  campaignId: string;
   masterPrompt: string;   // libre, cap holgado (ver tarea 5): 24000
 };
 
@@ -143,17 +147,19 @@ laxo — un campo malformado no tira el resultado). El SYSTEM prompt instruye:
 - **`warnings`:** contar clips y avisar si son muchos; avisar de talento sin Cast, locaciones sin
   cargar, transiciones que requieren montaje.
 
-Recibe (además del `masterPrompt`) el Cast actual y el brief actual de la campaña para poder
-resolver `inCast` y para el merge de `visualDetails`. Sin `GEMINI_API_KEY` → `ProviderError` auth.
+Recibe (además del `masterPrompt`) los **nombres del Cast del workspace** para resolver `inCast`.
+NO hay brief aún (la ingesta es pre-creación): `productVisualDetails`/`productFacts` se devuelven tal
+cual y se **mergean** con el brief auto-detectado en `createCampaignStudioAction` (tarea 8). Sin
+`GEMINI_API_KEY` → `ProviderError` auth.
 
 ### 2. `server-actions/campaigns.ts` — `ingestMasterPromptAction` (1.5h)
 
 `ingestMasterPromptAction(input: unknown): Promise<Result<IngestResult>>`. Valida con el schema,
-`requireWorkspace()`, verifica ownership de la campaña, carga Cast + brief actuales, llama a
+`requireWorkspace()`, **carga los nombres del Cast del workspace** (para `inCast`), llama a
 `ingest.ts`. **Falla blanda:** si Gemini falla, devuelve un `IngestResult` con `narrative` = el
 prompt crudo saneado y el resto vacío, más un `warning` — el wizard sigue manual, no bloquea.
 **No persiste nada** aquí: solo devuelve la propuesta; el guardado ocurre cuando el usuario confirma
-(reusa las actions de ficha/campaña existentes + `generatePlanAction`).
+(reusa `createCampaignStudioAction` con los overrides + `generatePlanAction`).
 
 ### 3. UI del wizard — paso "Pegar prompt maestro" (4h)
 
