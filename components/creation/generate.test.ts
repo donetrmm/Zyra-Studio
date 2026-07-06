@@ -6,7 +6,7 @@ vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAc
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import type { SubmitGenerationInput } from '@/lib/schemas/generations';
-import { buildProductPrompt, generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster, refineCharacterMaster, refineLocationMaster, retouchUploaded, refineProductImage } from './generate';
+import { buildProductPrompt, generateProductAngle, generateCharacterState, isGenError, generateScaleMap, generateScaleMapFromMaster, refineCharacterMaster, refineLocationMaster, retouchUploaded, refineProductImage, generateFullBody, generateOutfit } from './generate';
 import { stripSlop } from '@/lib/prompt-director/antislop';
 
 describe('generateProductAngle', () => {
@@ -267,6 +267,69 @@ describe('generateProductAngle — profile', () => {
     expect(call.prompt).toMatch(/side profile view \(turned 90 degrees\)/i);
     expect(call.prompt).toMatch(/do NOT return the original/i);
     expect(call.prompt).toMatch(/Do not alter or invent any label text/i);
+  });
+});
+
+// Vestuario por personaje (specs/v2/16): cuerpo completo ancla el vestuario
+// desde la maestra head-and-shoulders; outfit varía SOLO la ropa desde ahí.
+describe('generateFullBody', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('pide cuerpo completo de la MISMA persona, pose neutra, vestuario visible', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+
+    const res = await generateFullBody({ id: 'r1', storagePath: 'c/master.png' });
+
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'nano-banana' }>).conversational).toBe(false);
+    expect(call.references).toEqual([{ id: 'r1', storagePath: 'c/master.png' }]);
+    expect(call.prompt).toMatch(/exact same person/i);
+    expect(call.prompt).toMatch(/full-body/i);
+    expect(call.prompt).toMatch(/head to shoes/i);
+    expect(call.prompt).toMatch(/wardrobe reference/i);
+  });
+
+  it('propaga el error de la generación', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: false, error: 'provider_error', message: 'boom' });
+    const res = await generateFullBody({ id: 'r1', storagePath: 'c/master.png' });
+    expect(isGenError(res)).toBe(true);
+    if (isGenError(res)) expect(res.message).toBe('boom');
+  });
+});
+
+describe('generateOutfit', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('cambia SOLO la ropa, conserva identidad y pose', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: true, data: { generationId: 'gen1' } });
+    vi.mocked(addGenerationAsReferenceAction).mockResolvedValue({
+      ok: true,
+      data: { id: 'ref1', previewUrl: 'p', storagePath: 's', filename: 'f.png' },
+    });
+
+    const res = await generateOutfit({ id: 'r2', storagePath: 'c/full.png' }, 'a red athletic tracksuit');
+
+    expect(isGenError(res)).toBe(false);
+    const call = vi.mocked(submitGenerationAction).mock.calls[0][0] as SubmitGenerationInput;
+    expect(call.provider).toBe('nano-banana');
+    expect((call as Extract<SubmitGenerationInput, { provider: 'nano-banana' }>).conversational).toBe(false);
+    expect(call.references).toEqual([{ id: 'r2', storagePath: 'c/full.png' }]);
+    expect(call.prompt).toMatch(/change only the clothing/i);
+    expect(call.prompt).toContain('a red athletic tracksuit');
+    expect(call.prompt).toMatch(/identical face, hairstyle, build/i);
+  });
+
+  it('propaga el error de la generación', async () => {
+    vi.mocked(submitGenerationAction).mockResolvedValue({ ok: false, error: 'provider_error', message: 'boom' });
+    const res = await generateOutfit({ id: 'r2', storagePath: 'c/full.png' }, 'a red athletic tracksuit');
+    expect(isGenError(res)).toBe(true);
+    if (isGenError(res)) expect(res.message).toBe('boom');
   });
 });
 

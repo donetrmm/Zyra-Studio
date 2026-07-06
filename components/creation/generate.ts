@@ -131,6 +131,31 @@ export async function generateCharacterState(
   return editUploaded(masterRef, prompt);
 }
 
+// Cuerpo completo base (specs/v2/16): ancla el vestuario — la maestra es
+// head-and-shoulders y no fija la ropa. Identidad EXACTA, pose neutra.
+export async function generateFullBody(
+  masterRef: { id: string; storagePath: string },
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    'Show the exact same person standing in a full-body shot from head to shoes, neutral relaxed pose, arms at the sides. ' +
+    'Identical face, hairstyle, build and skin; complete their wardrobe in the same style as the clothing visible in the reference. ' +
+    'Same soft even lighting and plain background. This is a wardrobe reference: the complete outfit must be clearly visible.';
+  return editUploaded(masterRef, prompt);
+}
+
+// Outfit (specs/v2/16): variante de vestuario del cuerpo completo base.
+// Cambia SOLO la ropa; identidad, pose y encuadre intactos.
+export async function generateOutfit(
+  fullBodyRef: { id: string; storagePath: string },
+  outfit: string,
+): Promise<GeneratedImage | GenError> {
+  const prompt =
+    'Keep the exact same person, pose, framing, lighting and background. ' +
+    `Change ONLY the clothing: they now wear ${outfit}. ` +
+    'Identical face, hairstyle, build and skin. The complete new outfit must be clearly visible from head to shoes.';
+  return editUploaded(fullBodyRef, prompt);
+}
+
 // Vistas de un PRODUCTO (P01 + feedback 2026-07-04): 3/4 y perfil 90°. El
 // producto suele ser una foto SUBIDA, así que va por editUploaded (la foto
 // entra como referencia de Nano Banana, no como parent conversacional). Rota
