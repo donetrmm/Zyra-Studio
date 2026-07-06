@@ -498,6 +498,12 @@ export function CampaignStudioWizard({
               {guidelines?.safeCrop === '4:5' && (
                 <p className="text-muted-foreground">Guía aplicada: encuadre seguro 4:5.</p>
               )}
+              {guidelines?.showFullProduct && (
+                <p className="text-muted-foreground">Guía aplicada: mostrar el producto completo.</p>
+              )}
+              {guidelines?.hookProductHero && (
+                <p className="text-muted-foreground">Guía aplicada: producto como héroe en el primer plano.</p>
+              )}
               {ingestNotes.map((note, i) => (
                 <p key={i} className="text-amber-400/80">
                   {note}
