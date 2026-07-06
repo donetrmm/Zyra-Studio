@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { downloadReferenceBuffer, REFERENCES_BUCKET } from '@/lib/supabase/storage';
 import { loadPricing } from '@/lib/credits/pricing';
 import { analyzeProductBrief, fetchProductPageText } from '@/lib/campaigns/brief';
+import { mergeBriefOverrides } from '@/lib/campaigns/ingest';
 import {
   buildDirectedPlan,
   buildPlan,
@@ -460,7 +461,7 @@ export async function createCampaignStudioAction(
       language: parsed.data.language,
       market: parsed.data.market ?? brief.market,
       brand_kit_id: kitId,
-      product_brief: brief,
+      product_brief: mergeBriefOverrides(brief, parsed.data.briefOverrides),
       character_ids: characterIds,
       include_packaging: parsed.data.includePackaging,
       aspect_ratio: parsed.data.aspectRatio,
@@ -472,6 +473,7 @@ export async function createCampaignStudioAction(
       date_start: dateStart.toISOString().slice(0, 10),
       date_end: dateEnd.toISOString().slice(0, 10),
       status: 'draft',
+      ...(parsed.data.guidelines ? { creative_guidelines: parsed.data.guidelines } : {}),
     })
     .select('id')
     .single();

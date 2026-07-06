@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CreativeGuidelinesSchema } from '@/lib/campaigns/guidelines';
 
 // Schemas de la capa de campañas V2 (specs/v2/01-fundacion-v2.md, tarea 9).
 // Las server actions de Fase C validan TODO input con estos schemas antes
@@ -104,6 +105,24 @@ export const CreateCampaignStudioSchema = z
     chainAudioSource: z.enum(['music', 'prev_clip']).default('music'),
     dateStart: z.coerce.date().optional(),
     dateEnd: z.coerce.date().optional(),
+    // Overrides de ficha propuestos por la ingesta de prompt maestro (spec v2/15):
+    // medidas del usuario + descripción fina. Se mergean con el brief auto-detectado.
+    briefOverrides: z
+      .object({
+        productFacts: z
+          .object({
+            heightCm: z.number().positive().max(2000).optional(),
+            widthCm: z.number().positive().max(2000).optional(),
+            weightKg: z.number().positive().max(1000).optional(),
+            thicknessMm: z.number().positive().max(500).optional(),
+            medium: z.string().trim().max(120).optional(),
+          })
+          .optional(),
+        productVisualDetails: z.string().trim().max(800).optional(),
+      })
+      .optional(),
+    // Guías creativas inferidas por la ingesta (safe 4:5, producto completo, hook).
+    guidelines: CreativeGuidelinesSchema.optional(),
   })
   .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
     message: 'Sube al menos una imagen de producto o elige un Brand Kit',
