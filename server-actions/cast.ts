@@ -24,6 +24,9 @@ const UpsertCharacterSchema = z.object({
   // hablante primario del clip la ancla como referencia de timbre (@audio1) en
   // generación. Ownership por workspace se valida en el action.
   voiceCloneId: z.string().uuid().nullish(),
+  // Hoja de cuerpo completo (vestuario). null/ausente = sin slot. Ownership por
+  // workspace se valida en el action con el mismo helper que masterImageId.
+  fullBodyImageId: z.string().uuid().nullish(),
 });
 
 // La voz debe pertenecer a la misma workspace (voice_clones.workspace_id). Se
@@ -96,6 +99,13 @@ export async function createCharacterAction(input: unknown): Promise<Result<{ id
     return { ok: false, error: 'forbidden', message: 'Voz no pertenece al workspace' };
   }
 
+  if (
+    parsed.data.fullBodyImageId &&
+    !(await validateImageOwnership(supabase, workspace.id, [parsed.data.fullBodyImageId]))
+  ) {
+    return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
+  }
+
   // Sin descripción tecleada → se infiere de la hoja maestra (el modelo la VE),
   // para que el Prompt Director nunca ancle al personaje sin apariencia.
   const description =
@@ -111,6 +121,7 @@ export async function createCharacterAction(input: unknown): Promise<Result<{ id
       angle_image_ids: parsed.data.angleImageIds,
       reference_image_ids: allIds, // compat V1: generación suelta usa este campo
       voice_clone_id: parsed.data.voiceCloneId ?? null,
+      full_body_image_id: parsed.data.fullBodyImageId ?? null,
     })
     .select('id')
     .single();
@@ -134,6 +145,13 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
     return { ok: false, error: 'forbidden', message: 'Voz no pertenece al workspace' };
   }
 
+  if (
+    parsed.data.fullBodyImageId &&
+    !(await validateImageOwnership(supabase, workspace.id, [parsed.data.fullBodyImageId]))
+  ) {
+    return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
+  }
+
   // Igual que en el alta: descripción vacía se infiere de la hoja maestra.
   const description =
     parsed.data.description ?? (await describeFromMaster(supabase, parsed.data.masterImageId));
@@ -150,6 +168,8 @@ export async function updateCharacterAction(id: string, input: unknown): Promise
         // null explícito = desasignar la voz. undefined no se manda (el schema
         // usa nullish: ausente y null son distinguibles aquí).
         voice_clone_id: parsed.data.voiceCloneId ?? null,
+        // Igual que voice_clone_id: null explícito desasigna el slot de cuerpo.
+        full_body_image_id: parsed.data.fullBodyImageId ?? null,
       },
       { count: 'exact' },
     )
