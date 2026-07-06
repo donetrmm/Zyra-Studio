@@ -17,7 +17,7 @@ export const STORYBOARD_EDIT_HANDLES =
 // para TODO el clip y prohíbe el fondo de la ficha, SIN prohibir el cross-cutting:
 // solo lo confina a la misma escena. Empieza con espacio (lista para concatenar).
 export const STORYBOARD_SCENE_CONTINUITY =
-  ' Keep this same location, set and lighting for the entire clip: if the pacing cross-cuts to another angle or a tighter shot, every cut stays inside this scene — never cut to a plain, studio or neutral backdrop, and never place the people on the background of their character reference. The character references supply identity only (face, hair and build), never their reference-sheet background or studio framing.';
+  ' Keep this same location, set and lighting for the entire clip: if the pacing cross-cuts to another angle or a tighter shot, every cut stays inside this scene — never cut to a plain, studio or neutral backdrop, and never place the people on the background of their character reference. The character references supply identity (face, hair and build) — and, when a full-body wardrobe reference is present, the exact clothing to keep — never their reference-sheet background or studio framing.';
 
 // Escapa metacaracteres de regex para construir un \b<token>\b seguro.
 function escapeRegExp(s: string): string {

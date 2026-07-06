@@ -141,7 +141,8 @@ describe('STORYBOARD_SCENE_CONTINUITY', () => {
     expect(STORYBOARD_SCENE_CONTINUITY).toContain(
       'never place the people on the background of their character reference',
     );
-    expect(STORYBOARD_SCENE_CONTINUITY).toContain('identity only');
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('supply identity (face, hair and build)');
+    expect(STORYBOARD_SCENE_CONTINUITY).toContain('full-body wardrobe reference is present');
     // No prohíbe el cross-cutting en sí (el usuario lo quiere); solo lo confina a la escena.
     expect(STORYBOARD_SCENE_CONTINUITY).not.toMatch(/no cross-cut|single continuous shot|one uninterrupted/i);
     expect(STORYBOARD_SCENE_CONTINUITY.startsWith(' ')).toBe(true);
