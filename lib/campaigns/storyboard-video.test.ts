@@ -49,25 +49,32 @@ describe('buildCastR2VRefs', () => {
   });
 
   it('con audioRef: referenceAudioPaths = [audioRef] y cita @audio1', () => {
-    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+    const { referenceAudioPaths, referenceAudioBucket, extraCitation } = buildCastR2VRefs(
       ['cast-a.png'],
       ['prod.png'],
       'panel.png',
       'music.mp3',
     );
     expect(referenceAudioPaths).toEqual(['music.mp3']);
+    // La música es un media_reference: vive en el bucket references.
+    expect(referenceAudioBucket).toBe('references');
     expect(extraCitation).toContain('@audio1');
     expect(extraCitation).toContain('sync scene energy to its beats');
   });
 
   it('sin audioRef: referenceAudioPaths vacío y sin cita @audio1', () => {
-    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(['cast-a.png'], [], 'panel.png');
+    const { referenceAudioPaths, referenceAudioBucket, extraCitation } = buildCastR2VRefs(
+      ['cast-a.png'],
+      [],
+      'panel.png',
+    );
     expect(referenceAudioPaths).toEqual([]);
+    expect(referenceAudioBucket).toBe('references');
     expect(extraCitation).not.toContain('@audio1');
   });
 
   it('con voiceRef: la voz ocupa @audio1 y cita timbre (no beat-sync)', () => {
-    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+    const { referenceAudioPaths, referenceAudioBucket, extraCitation } = buildCastR2VRefs(
       ['cast-a.png'],
       [],
       'panel.png',
@@ -75,13 +82,16 @@ describe('buildCastR2VRefs', () => {
       'voice.mp3',
     );
     expect(referenceAudioPaths).toEqual(['voice.mp3']);
+    // Regresión "Object not found": la voz vive en voice-samples, NO en references;
+    // el worker debe firmarla contra su bucket real.
+    expect(referenceAudioBucket).toBe('voice-samples');
     expect(extraCitation).toContain('@audio1');
     expect(extraCitation).toContain('voice reference for the speaking character');
     expect(extraCitation).not.toContain('sync scene energy to its beats');
   });
 
   it('voz gana sobre música cuando ambas están presentes', () => {
-    const { referenceAudioPaths, extraCitation } = buildCastR2VRefs(
+    const { referenceAudioPaths, referenceAudioBucket, extraCitation } = buildCastR2VRefs(
       ['cast-a.png'],
       [],
       'panel.png',
@@ -89,6 +99,7 @@ describe('buildCastR2VRefs', () => {
       'voice.mp3',
     );
     expect(referenceAudioPaths).toEqual(['voice.mp3']);
+    expect(referenceAudioBucket).toBe('voice-samples');
     expect(extraCitation).toContain('vocal timbre');
     expect(extraCitation).not.toContain('sync scene energy to its beats');
   });

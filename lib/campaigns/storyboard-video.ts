@@ -49,7 +49,14 @@ export function buildCastR2VRefs(
   panelPath: string,
   audioRef?: string,
   voiceRef?: string,
-): { referenceImagePaths: string[]; referenceAudioPaths: string[]; extraCitation: string } {
+): {
+  referenceImagePaths: string[];
+  referenceAudioPaths: string[];
+  // Bucket del slot @audio1: la música es un media_reference (references) pero la
+  // VOZ del personaje vive en voice-samples — el worker firma contra este bucket.
+  referenceAudioBucket: 'references' | 'voice-samples';
+  extraCitation: string;
+} {
   const referenceImagePaths = [...castRefs, ...productRefs, panelPath];
   let n = castRefs.length;
   let extraCitation = '';
@@ -78,5 +85,8 @@ export function buildCastR2VRefs(
   } else if (audioRef) {
     extraCitation += ` ${AUDIO_BEAT_SYNC_CITATION}`;
   }
-  return { referenceImagePaths, referenceAudioPaths, extraCitation };
+  // La voz gana el slot y arrastra su bucket (voice_clones.sample_storage_url
+  // vive en voice-samples). Firmarla contra references falla con Object not found.
+  const referenceAudioBucket = voiceRef ? ('voice-samples' as const) : ('references' as const);
+  return { referenceImagePaths, referenceAudioPaths, referenceAudioBucket, extraCitation };
 }

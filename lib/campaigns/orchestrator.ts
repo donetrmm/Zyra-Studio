@@ -1111,9 +1111,9 @@ export async function enqueueBatch(params: {
     // la quitó del compile). Gana sobre la música en el slot @audio1 (lo resuelve
     // buildCastR2VRefs). Solo en beats R2V, donde el cast actúa y habla.
     const storyboardVoiceRef = useR2V ? baseDirCtx.voiceRefPath : undefined;
-    const { referenceImagePaths: castR2VRefs, referenceAudioPaths: castR2VAudios, extraCitation } = useR2V
+    const { referenceImagePaths: castR2VRefs, referenceAudioPaths: castR2VAudios, referenceAudioBucket: castR2VAudioBucket, extraCitation } = useR2V
       ? buildCastR2VRefs(storyboardCastRefs, storyboardProductRefs, panelPath as string, storyboardAudioRef, storyboardVoiceRef)
-      : { referenceImagePaths: [] as string[], referenceAudioPaths: [] as string[], extraCitation: '' };
+      : { referenceImagePaths: [] as string[], referenceAudioPaths: [] as string[], referenceAudioBucket: 'references' as const, extraCitation: '' };
     // Manijas de entrada/salida solo en clips de storyboard (independientes): puntos
     // de corte limpios para montaje en post.
     const storyboardPrompt =
@@ -1126,6 +1126,14 @@ export async function enqueueBatch(params: {
       .map((r) => r.storagePath);
     const refVideos = compiled.compiled.references.filter((r) => r.kind === 'video').map((r) => r.storagePath);
     const refAudios = compiled.compiled.references.filter((r) => r.kind === 'audio').map((r) => r.storagePath);
+    // Bucket del slot @audio1 del compile normal: la voz (role voice_ref) vive en
+    // voice-samples; la música (audio_rhythm) en references. Sin esto, el worker
+    // firma la voz contra references y falla con Object not found.
+    const refAudioBucket = compiled.compiled.references.some(
+      (r) => r.kind === 'audio' && r.role === 'voice_ref',
+    )
+      ? ('voice-samples' as const)
+      : ('references' as const);
     // Hoja maestra de cada personaje del clip: se re-ancla en CADA clip de la
     // cadena (igual que el producto) para que la identidad no derive. Se toma de
     // ctx.characters (master explícita), no de las refs compiladas (que mezclan
@@ -1150,6 +1158,7 @@ export async function enqueueBatch(params: {
               operation: 'reference2video',
               referenceImagePaths: castR2VRefs,
               referenceAudioPaths: castR2VAudios,
+              referenceAudioBucket: castR2VAudioBucket,
               aspectRatio: p.aspectRatio,
               resolution,
               duration: durationS,
@@ -1177,6 +1186,7 @@ export async function enqueueBatch(params: {
               referenceImagePaths: refImages,
               referenceVideoPaths: refVideos,
               referenceAudioPaths: refAudios,
+              referenceAudioBucket: refAudioBucket,
               ...(role.isFirst
                 ? {
                     returnLastFrame: role.returnLastFrame,

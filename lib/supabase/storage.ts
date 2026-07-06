@@ -166,6 +166,17 @@ export async function signedVoiceSampleUrl(path: string): Promise<string> {
   return data.signedUrl;
 }
 
+// Para el worker (sin sesión de usuario): firma la voz de referencia del clip
+// (@audio1) contra su bucket real. Espejo de signedReferenceUrlAdmin.
+export async function signedVoiceSampleUrlAdmin(path: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from(VOICE_SAMPLES_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (error || !data) throw new Error(`sign voice sample (admin) failed: ${error?.message ?? 'unknown'}`);
+  return data.signedUrl;
+}
+
 export async function deleteVoiceSample(path: string): Promise<void> {
   const admin = createAdminClient();
   const { error } = await admin.storage.from(VOICE_SAMPLES_BUCKET).remove([path]);
