@@ -6,10 +6,18 @@ import { Loader2, Mic2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-rea
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, describeCharacterAction, updateCharacterAction } from '@/server-actions/cast';
 import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction, updateCharacterStateImageAction } from '@/server-actions/character-states';
+import { createCharacterOutfitAction, listCharacterOutfitsAction, deleteCharacterOutfitAction, updateCharacterOutfitImageAction } from '@/server-actions/character-outfits';
 import { getReferencePathsAction } from '@/server-actions/creation';
 import { submitGenerationAction } from '@/server-actions/generations';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
-import { generateCharacterState, refineCharacterState, refineCharacterMaster, isGenError } from '@/components/creation/generate';
+import {
+  generateCharacterState,
+  refineCharacterState,
+  refineCharacterMaster,
+  generateFullBody,
+  generateOutfit,
+  isGenError,
+} from '@/components/creation/generate';
 import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
@@ -26,6 +34,7 @@ export type CastCharacter = {
   master_image_id: string | null;
   angle_image_ids: string[];
   voice_clone_id: string | null;
+  full_body_image_id: string | null;
 };
 
 export type CastVoice = {
@@ -168,6 +177,7 @@ export function CastPage({
 }
 
 type CharacterState = { id: string; label: string; stateImageId: string | null; description: string | null; previewUrl: string | null };
+type CharacterOutfit = { id: string; label: string; outfitImageId: string | null; description: string | null; previewUrl: string | null };
 
 function CharacterEditor({
   character,
@@ -195,6 +205,13 @@ function CharacterEditor({
   const [angleImages, setAngleImages] = useState<RefImage[]>(
     (character?.angle_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
+  // Cuerpo completo (specs/v2/16): ancla el vestuario. null = sin slot — el
+  // personaje sigue funcionando como hoy (cero regresión).
+  const [fullBodyImageId, setFullBodyImageId] = useState<string | null>(character?.full_body_image_id ?? null);
+  const [fullBodyPreview, setFullBodyPreview] = useState<string | null>(
+    character?.full_body_image_id ? previews[character.full_body_image_id] ?? null : null,
+  );
+  const [generatingFullBody, setGeneratingFullBody] = useState(false);
   const [saving, startSave] = useTransition();
   const [generating, setGenerating] = useState(false);
   const [describing, setDescribing] = useState(false);
@@ -212,11 +229,29 @@ function CharacterEditor({
   const [refineInstruction, setRefineInstruction] = useState('');
   const [applyingRefine, setApplyingRefine] = useState(false);
 
+  // Outfits (specs/v2/16): espejo de estados, pero swapean el cuerpo completo
+  // en vez de la maestra. Alta por upload o generando desde fullBodyImageId.
+  const [outfits, setOutfits] = useState<CharacterOutfit[]>([]);
+  const [outfitsLoaded, setOutfitsLoaded] = useState(false);
+  const [outfitLabel, setOutfitLabel] = useState('');
+  const [outfitDesc, setOutfitDesc] = useState('');
+  const [outfitUploadImages, setOutfitUploadImages] = useState<RefImage[]>([]);
+  const [savingUploadedOutfit, setSavingUploadedOutfit] = useState(false);
+  const [bakingOutfit, setBakingOutfit] = useState(false);
+  // Refinado de un outfit existente: id en edición + instrucción + flag.
+  const [refiningOutfitId, setRefiningOutfitId] = useState<string | null>(null);
+  const [refineOutfitInstruction, setRefineOutfitInstruction] = useState('');
+  const [applyingOutfitRefine, setApplyingOutfitRefine] = useState(false);
+
   useEffect(() => {
     if (!character?.id) return;
     listCharacterStatesAction(character.id).then((res) => {
       if (res.ok) setStates(res.data);
       setStatesLoaded(true);
+    });
+    listCharacterOutfitsAction(character.id).then((res) => {
+      if (res.ok) setOutfits(res.data);
+      setOutfitsLoaded(true);
     });
   }, [character?.id]);
 
@@ -282,6 +317,115 @@ function CharacterEditor({
       setRefineInstruction('');
     } finally {
       setApplyingRefine(false);
+    }
+  }
+
+  // Genera el cuerpo completo desde la hoja maestra (Nano Banana, editUploaded):
+  // ancla el vestuario para que no cambie entre clips (specs/v2/16).
+  async function handleGenerateFullBody() {
+    if (masterImages.length !== 1) return;
+    setGeneratingFullBody(true);
+    try {
+      const pathsRes = await getReferencePathsAction([masterImages[0].id]);
+      if (!pathsRes.ok) { toast.error(pathsRes.message || 'No se pudo resolver la hoja maestra'); return; }
+      const storagePath = pathsRes.data[masterImages[0].id];
+      if (!storagePath) { toast.error('La hoja maestra no tiene ruta de almacenamiento'); return; }
+      const out = await generateFullBody({ id: masterImages[0].id, storagePath });
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el cuerpo completo'); return; }
+      setFullBodyImageId(out.refId);
+      setFullBodyPreview(out.previewUrl);
+      toast.success('Cuerpo completo generado; revisa el vestuario y guarda');
+    } finally {
+      setGeneratingFullBody(false);
+    }
+  }
+
+  // Alta de outfit subiendo una imagen ya lista (sin depender del cuerpo completo).
+  async function handleSaveUploadedOutfit() {
+    if (!character?.id || outfitUploadImages.length !== 1) return;
+    if (!outfitLabel.trim()) { toast.error('Escribe una etiqueta para el vestuario'); return; }
+    setSavingUploadedOutfit(true);
+    try {
+      const saveRes = await createCharacterOutfitAction({
+        characterId: character.id,
+        label: outfitLabel.trim(),
+        outfitImageId: outfitUploadImages[0].id,
+      });
+      if (!saveRes.ok) { toast.error(saveRes.message || 'No se pudo guardar el vestuario'); return; }
+      toast.success('Vestuario guardado');
+      setOutfitLabel('');
+      setOutfitUploadImages([]);
+      const refreshRes = await listCharacterOutfitsAction(character.id);
+      if (refreshRes.ok) setOutfits(refreshRes.data);
+    } finally {
+      setSavingUploadedOutfit(false);
+    }
+  }
+
+  // Alta de outfit generando desde el cuerpo completo base (Nano Banana: cambia
+  // solo la ropa, preserva identidad/pose/encuadre).
+  async function handleGenerateOutfit() {
+    if (!character?.id || !fullBodyImageId) return;
+    if (!outfitLabel.trim()) { toast.error('Escribe una etiqueta para el vestuario'); return; }
+    if (!outfitDesc.trim()) { toast.error('Describe el vestuario'); return; }
+    setBakingOutfit(true);
+    try {
+      const pathsRes = await getReferencePathsAction([fullBodyImageId]);
+      if (!pathsRes.ok) { toast.error(pathsRes.message || 'No se pudo resolver el cuerpo completo'); return; }
+      const storagePath = pathsRes.data[fullBodyImageId];
+      if (!storagePath) { toast.error('El cuerpo completo no tiene ruta de almacenamiento'); return; }
+      const out = await generateOutfit({ id: fullBodyImageId, storagePath }, outfitDesc.trim());
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo generar el vestuario'); return; }
+      const saveRes = await createCharacterOutfitAction({
+        characterId: character.id,
+        label: outfitLabel.trim(),
+        outfitImageId: out.refId,
+        description: outfitDesc.trim(),
+      });
+      if (!saveRes.ok) { toast.error(saveRes.message || 'No se pudo guardar el vestuario'); return; }
+      toast.success('Vestuario generado y guardado');
+      setOutfitLabel('');
+      setOutfitDesc('');
+      const refreshRes = await listCharacterOutfitsAction(character.id);
+      if (refreshRes.ok) setOutfits(refreshRes.data);
+    } finally {
+      setBakingOutfit(false);
+    }
+  }
+
+  async function handleDeleteOutfit(id: string) {
+    const res = await deleteCharacterOutfitAction(id);
+    if (!res.ok) { toast.error(res.message || 'No se pudo borrar el vestuario'); return; }
+    setOutfits((prev) => prev.filter((o) => o.id !== id));
+    if (refiningOutfitId === id) { setRefiningOutfitId(null); setRefineOutfitInstruction(''); }
+  }
+
+  // Re-edita la imagen del outfit con una instrucción libre (Nano Banana) y
+  // apunta el outfit a la nueva imagen, refrescando la miniatura.
+  async function handleRefineOutfit(outfit: CharacterOutfit) {
+    if (!outfit.outfitImageId) { toast.error('Este vestuario no tiene imagen para refinar'); return; }
+    const instruction = refineOutfitInstruction.trim();
+    if (!instruction) { toast.error('Describe el cambio a aplicar'); return; }
+    setApplyingOutfitRefine(true);
+    try {
+      const pathsRes = await getReferencePathsAction([outfit.outfitImageId]);
+      if (!pathsRes.ok) { toast.error(pathsRes.message || 'No se pudo resolver la imagen del vestuario'); return; }
+      const storagePath = pathsRes.data[outfit.outfitImageId];
+      if (!storagePath) { toast.error('La imagen del vestuario no tiene ruta de almacenamiento'); return; }
+      const out = await refineCharacterState({ id: outfit.outfitImageId, storagePath }, instruction);
+      if (isGenError(out)) { toast.error(out.message || 'No se pudo refinar el vestuario'); return; }
+      const upd = await updateCharacterOutfitImageAction({ outfitId: outfit.id, outfitImageId: out.refId });
+      if (!upd.ok) { toast.error(upd.message || 'No se pudo guardar el vestuario refinado'); return; }
+      setOutfits((prev) =>
+        prev.map((o) =>
+          o.id === outfit.id ? { ...o, outfitImageId: out.refId, previewUrl: upd.data.previewUrl ?? out.previewUrl } : o,
+        ),
+      );
+      toast.success('Vestuario refinado');
+      setRefiningOutfitId(null);
+      setRefineOutfitInstruction('');
+    } finally {
+      setApplyingOutfitRefine(false);
     }
   }
 
@@ -358,6 +502,10 @@ function CharacterEditor({
         angleImageIds: angleImages.map((i) => i.id),
         // '' = sin voz → null explícito (desasigna en update).
         voiceCloneId: voiceCloneId || null,
+        // Igual que voiceCloneId: SIEMPRE presente (valor o null explícito). Si se
+        // omitiera, el `?? null` de updateCharacterAction borraría el slot en
+        // cualquier guardado no relacionado con el cuerpo completo.
+        fullBodyImageId: fullBodyImageId || null,
       };
       const res = character
         ? await updateCharacterAction(character.id, payload)
@@ -507,6 +655,56 @@ function CharacterEditor({
           max={2}
         />
 
+        {/* Cuerpo completo (specs/v2/16): la maestra es un retrato de rostro y no
+            fija el vestuario — esta imagen ancla ropa y proporciones para que no
+            cambien entre clips. Se puede fijar aun en un personaje nuevo (viaja en
+            el mismo payload que masterImageId/voiceCloneId). */}
+        <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+          <div>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Cuerpo completo
+            </h3>
+            <p className="mt-0.5 text-[12px] text-muted-foreground/70">
+              Ancla el vestuario para que no cambie entre clips.
+            </p>
+          </div>
+
+          <ReferenceImagesUploader
+            label="Cuerpo completo"
+            hint="Foto de cuerpo completo, de pie, con el vestuario a fijar. Sin rostros de personas reales."
+            images={fullBodyImageId ? [{ id: fullBodyImageId, previewUrl: fullBodyPreview }] : []}
+            onChange={(imgs) => {
+              const last = imgs.slice(-1)[0] ?? null;
+              setFullBodyImageId(last?.id ?? null);
+              setFullBodyPreview(last?.previewUrl ?? null);
+            }}
+            max={1}
+          />
+
+          <div className="rounded-lg border border-dashed border-border bg-background/40 p-3">
+            <p className="text-[12px] leading-relaxed text-muted-foreground">
+              O genera el cuerpo completo desde la hoja maestra: misma persona, de pie, con el
+              vestuario completo visible de pies a cabeza.
+            </p>
+            <button
+              type="button"
+              onClick={handleGenerateFullBody}
+              disabled={masterImages.length !== 1 || generatingFullBody}
+              title={masterImages.length !== 1 ? 'Sube o genera primero la hoja maestra' : undefined}
+              className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {generatingFullBody ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="size-3.5 text-primary" aria-hidden />
+              )}
+              {generatingFullBody
+                ? 'Generando cuerpo completo…'
+                : `Generar desde la maestra${fluxCost > 0 ? ` · ${fluxCost} cr` : ''}`}
+            </button>
+          </div>
+        </div>
+
         {character?.master_image_id && (
           <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
             <div>
@@ -622,6 +820,157 @@ function CharacterEditor({
                 )}
                 {bakingState ? 'Generando estado…' : 'Generar estado'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Vestuarios (specs/v2/16): espejo de Estados, pero swapean el cuerpo
+            completo en vez de la maestra. Sin cuerpo completo base no se puede
+            generar (sí subir un outfit ya listo). */}
+        {character?.master_image_id && (
+          <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+            <div>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Vestuarios (opcional)
+              </h3>
+              <p className="mt-0.5 text-[12px] text-muted-foreground/70">
+                Variantes de vestuario intercambiables, elegidas por campaña con override por clip.
+              </p>
+            </div>
+
+            {outfitsLoaded && outfits.length > 0 && (
+              <ul className="space-y-1.5">
+                {outfits.map((o) => (
+                  <li key={o.id} className="rounded-md border border-border bg-background px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        {o.previewUrl ? (
+                          <ZoomableImage src={o.previewUrl} alt={o.label} className="size-11 shrink-0 rounded-md border border-border" />
+                        ) : (
+                          <div className="grid size-11 shrink-0 place-items-center rounded-md border border-border bg-muted/30">
+                            <Sparkles className="size-4 text-muted-foreground/40" aria-hidden />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="block truncate text-[12.5px] font-medium text-foreground">{o.label}</span>
+                          {o.description && (
+                            <span className="block truncate text-[11.5px] text-muted-foreground/70">{o.description}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRefiningOutfitId((cur) => (cur === o.id ? null : o.id));
+                            setRefineOutfitInstruction('');
+                          }}
+                          disabled={!o.outfitImageId}
+                          className="rounded-md border border-border px-2 py-1.5 text-[11.5px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Refinar vestuario"
+                        >
+                          {refiningOutfitId === o.id ? 'Cerrar' : 'Refinar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOutfit(o.id)}
+                          className="rounded-md border border-border p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                          title="Borrar vestuario"
+                        >
+                          <Trash2 className="size-3" aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                    {refiningOutfitId === o.id && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          value={refineOutfitInstruction}
+                          onChange={(e) => setRefineOutfitInstruction(e.target.value)}
+                          placeholder="Cambio a aplicar (ej. chaqueta azul en vez de negra)"
+                          maxLength={300}
+                          disabled={applyingOutfitRefine}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleRefineOutfit(o); } }}
+                          className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRefineOutfit(o)}
+                          disabled={applyingOutfitRefine || !refineOutfitInstruction.trim()}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {applyingOutfitRefine ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+                          {applyingOutfitRefine ? 'Refinando…' : 'Aplicar'}
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {outfitsLoaded && outfits.length === 0 && (
+              <p className="text-[12px] text-muted-foreground">Sin vestuarios guardados.</p>
+            )}
+
+            <div className="space-y-2">
+              <input
+                value={outfitLabel}
+                onChange={(e) => setOutfitLabel(e.target.value)}
+                placeholder="Etiqueta (ej. Look casual)"
+                maxLength={40}
+                disabled={bakingOutfit || savingUploadedOutfit}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+              />
+
+              <ReferenceImagesUploader
+                label="Subir imagen ya lista"
+                hint="Foto con el vestuario completo ya puesto — se guarda tal cual."
+                images={outfitUploadImages}
+                onChange={setOutfitUploadImages}
+                max={1}
+              />
+              {outfitUploadImages.length === 1 && (
+                <button
+                  type="button"
+                  onClick={handleSaveUploadedOutfit}
+                  disabled={savingUploadedOutfit || !outfitLabel.trim()}
+                  className="inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingUploadedOutfit ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
+                  {savingUploadedOutfit ? 'Guardando…' : 'Guardar vestuario subido'}
+                </button>
+              )}
+
+              <div className="border-t border-border/30 pt-2">
+                <p className="text-[11.5px] text-muted-foreground/70">O genera desde el cuerpo completo:</p>
+                <input
+                  value={outfitDesc}
+                  onChange={(e) => setOutfitDesc(e.target.value)}
+                  placeholder="Descripción del vestuario (ej. red leather jacket and black jeans)"
+                  maxLength={300}
+                  disabled={bakingOutfit || !fullBodyImageId}
+                  className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={handleGenerateOutfit}
+                  disabled={bakingOutfit || !fullBodyImageId || !outfitLabel.trim() || !outfitDesc.trim()}
+                  title={!fullBodyImageId ? 'Genera primero el cuerpo completo' : undefined}
+                  className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {bakingOutfit ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Sparkles className="size-3.5 text-primary" aria-hidden />
+                  )}
+                  {bakingOutfit
+                    ? 'Generando vestuario…'
+                    : `Generar vestuario${fluxCost > 0 ? ` · ${fluxCost} cr` : ''}`}
+                </button>
+                {!fullBodyImageId && (
+                  <p className="mt-1 text-[11px] text-muted-foreground/60">Genera primero el cuerpo completo.</p>
+                )}
+              </div>
             </div>
           </div>
         )}

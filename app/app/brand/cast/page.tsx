@@ -13,7 +13,7 @@ export default async function CastRoute() {
 
   const { data: rows } = await supabase
     .from('characters')
-    .select('id, name, description, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
+    .select('id, name, description, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id, full_body_image_id')
     .eq('workspace_id', workspace.id)
     .order('created_at', { ascending: false });
 
@@ -44,11 +44,14 @@ export default async function CastRoute() {
       (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0] ?? null,
     angle_image_ids: (c.angle_image_ids as string[]) ?? [],
     voice_clone_id: (c.voice_clone_id as string | null) ?? null,
+    full_body_image_id: (c.full_body_image_id as string | null) ?? null,
   }));
 
   const allImageIds = [
     ...new Set(
-      characters.flatMap((c) => [c.master_image_id, ...c.angle_image_ids]).filter((id): id is string => !!id),
+      characters
+        .flatMap((c) => [c.master_image_id, c.full_body_image_id, ...c.angle_image_ids])
+        .filter((id): id is string => !!id),
     ),
   ];
   const previews: Record<string, string> = {};
