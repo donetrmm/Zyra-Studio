@@ -76,3 +76,34 @@ describe('buildReferences — slot de audio (voz vs música)', () => {
     expect(lines.some((l) => l.includes('sync scene energy to its beats'))).toBe(false);
   });
 });
+
+describe('buildReferences — cuerpo completo (vestuario, specs/v2/16)', () => {
+  it('se empuja tras la maestra con cita de vestuario', () => {
+    const { references, lines } = buildReferences(ctxWith({
+      characters: [{ name: 'Ana', description: 'd', masterImagePath: 'c/m.jpg', fullBodyImagePath: 'c/full.jpg' }],
+    }));
+    const charRefs = references.filter((r) => r.role === 'character').map((r) => r.storagePath);
+    expect(charRefs).toEqual(['c/m.jpg', 'c/full.jpg']);
+    expect(lines.some((l) => l.includes('full-body wardrobe reference'))).toBe(true);
+    expect(lines.some((l) => l.includes('exact same clothing'))).toBe(true);
+  });
+
+  it('prioridad: el cuerpo completo entra antes que los ángulos', () => {
+    const { references } = buildReferences(ctxWith({
+      characters: [{
+        name: 'Ana', description: 'd', masterImagePath: 'c/m.jpg',
+        fullBodyImagePath: 'c/full.jpg', angleImagePaths: ['c/a1.jpg', 'c/a2.jpg'],
+      }],
+    }));
+    const charRefs = references.filter((r) => r.role === 'character').map((r) => r.storagePath);
+    expect(charRefs.indexOf('c/full.jpg')).toBeLessThan(charRefs.indexOf('c/a1.jpg'));
+  });
+
+  it('sin fullBodyImagePath: cero cambio (regresión)', () => {
+    const { references, lines } = buildReferences(ctxWith({
+      characters: [{ name: 'Ana', description: 'd', masterImagePath: 'c/m.jpg', angleImagePaths: ['c/a1.jpg'] }],
+    }));
+    expect(references.filter((r) => r.role === 'character')).toHaveLength(2);
+    expect(lines.some((l) => l.includes('wardrobe reference'))).toBe(false);
+  });
+});

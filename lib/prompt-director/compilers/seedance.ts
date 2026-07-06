@@ -247,6 +247,19 @@ export function buildReferences(ctx: DirectorContext): {
           : `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
       stateLabel ? `identidad exacta + vestuario/piel del estado ${stateLabel}` : 'rostro, peinado y complexión; no la ropa ni el fondo',
     );
+    // Vestuario (specs/v2/16): cuerpo completo INMEDIATAMENTE tras la maestra y
+    // ANTES de los ángulos — con el tope global de 9, la posición hace que sean
+    // los ángulos los que caigan primero si falta presupuesto (prioridad
+    // intencional, no lógica especial).
+    if (character.fullBodyImagePath) {
+      pushImage(
+        character.fullBodyImagePath,
+        'character',
+        (n) =>
+          `@image${n} is ${character.name}'s full-body wardrobe reference — keep this exact same clothing, silhouette and body proportions in every shot; identity (face and hair) comes from the previous reference.`,
+        'vestuario, silueta y proporciones de cuerpo completo',
+      );
+    }
     // Ángulos extra: se citan AGRUPADOS en una sola línea (no una por imagen,
     // que apilaba directivas redundantes y saturaba el prompt).
     const angleNums: number[] = [];
