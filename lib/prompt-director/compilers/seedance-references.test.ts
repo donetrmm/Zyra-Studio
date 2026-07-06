@@ -106,4 +106,25 @@ describe('buildReferences — cuerpo completo (vestuario, specs/v2/16)', () => {
     expect(references.filter((r) => r.role === 'character')).toHaveLength(2);
     expect(lines.some((l) => l.includes('wardrobe reference'))).toBe(false);
   });
+
+  it('stateLabel + fullBodyImagePath juntos: el estado solo reclama piel/condición física, el vestuario lo cita el cuerpo completo', () => {
+    const { lines } = buildReferences(ctxWith({
+      characters: [{
+        name: 'Ana', description: 'd', masterImagePath: 'c/sweaty.jpg',
+        stateLabel: 'sudada', fullBodyImagePath: 'c/full.jpg',
+      }],
+    }));
+    const masterLine = lines.find((l) => l.includes('sudada'));
+    expect(masterLine).toBeDefined();
+    expect(masterLine).not.toContain('wardrobe and skin condition');
+    expect(masterLine).toContain('skin and physical condition');
+    expect(lines.some((l) => l.includes('exact same clothing'))).toBe(true);
+  });
+
+  it('stateLabel SIN fullBodyImagePath: la cita conserva "wardrobe and skin condition" (regresión)', () => {
+    const { lines } = buildReferences(ctxWith({
+      characters: [{ name: 'Ana', description: 'd', masterImagePath: 'c/sweaty.jpg', stateLabel: 'sudada' }],
+    }));
+    expect(lines.some((l) => l.includes('wardrobe and skin condition'))).toBe(true);
+  });
 });

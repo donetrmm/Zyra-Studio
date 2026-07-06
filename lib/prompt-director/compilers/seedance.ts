@@ -243,7 +243,9 @@ export function buildReferences(ctx: DirectorContext): {
       'character',
       (n) =>
         stateLabel
-          ? `@image${n} is ${character.name} — keep the exact face, hair, build and identity, and the ${stateLabel} wardrobe and skin condition shown here; only the physical state may differ, never who they are.`
+          ? character.fullBodyImagePath
+            ? `@image${n} is ${character.name} — keep the exact face, hair, build and identity, and the ${stateLabel} skin and physical condition shown here; only the physical state may differ, never who they are.`
+            : `@image${n} is ${character.name} — keep the exact face, hair, build and identity, and the ${stateLabel} wardrobe and skin condition shown here; only the physical state may differ, never who they are.`
           : `@image${n} is ${character.name} — use only the face, hair and build from this reference (not its clothing or background), kept consistent.`,
       stateLabel ? `identidad exacta + vestuario/piel del estado ${stateLabel}` : 'rostro, peinado y complexión; no la ropa ni el fondo',
     );
