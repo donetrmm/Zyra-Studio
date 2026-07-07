@@ -423,7 +423,7 @@ describe('buildDirectedPlan', () => {
           count: 1, durationS: null, scenePrompt: null, sceneSummary: null,
           characterIds: [], invented: [],
           scenes: [{
-            // 15 palabras / 2.5 wps ≈ 6s necesarios en un clip de 4s → debe subir (clamp 8).
+            // 15 palabras / 1.4 wps ≈ 11s necesarios en un clip de 4s → sube al tope del beat (8).
             scenePrompt: 'medium shot — she speaks to camera. Dialogue: "Esto cambió por completo todas y cada una de mis mañanas desde el primer día."',
             durationS: 4, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null,
           }],

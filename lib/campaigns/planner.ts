@@ -322,9 +322,9 @@ export type DirectedPlanInput = {
 };
 
 // PD-12: ajusta la duración de un clip a su diálogo. El matcher a veces deja la
-// duración corta y la voz sale apresurada/robótica. Si el diálogo no cabe a ritmo
-// natural (~2.5 palabras/seg ES, speech-fit), sube la duración a la sugerida, con
-// tope maxS. No-op si no hay diálogo o ya cabe holgado.
+// duración corta y la voz sale apresurada/robótica. Si el diálogo no cabe al ritmo
+// de entrega de Seedance (~1.4 palabras/seg ES, speech-fit), sube la duración a la
+// sugerida, con tope maxS. No-op si no hay diálogo o ya cabe holgado.
 function fitDialogueDuration(scenePrompt: string, baseDurationS: number, lang: 'es' | 'en', maxS: number): number {
   const dialogo = extractDialogue(scenePrompt);
   if (!dialogo) return baseDurationS;

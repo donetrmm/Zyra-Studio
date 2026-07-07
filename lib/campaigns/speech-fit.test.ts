@@ -57,8 +57,34 @@ describe('countWords', () => {
 });
 
 describe('estimateSpeechSeconds', () => {
-  it('usa WPS por idioma (10 palabras es = 4s)', () => {
+  it('usa WPS por idioma', () => {
     expect(estimateSpeechSeconds('uno dos tres cuatro cinco seis siete ocho nueve diez', 'es')).toBeCloseTo(10 / WPS.es);
+  });
+});
+
+// Calibración al ritmo REAL de entrega de Seedance (guías de comunidad 2026:
+// ~12 palabras caben en 10s y ~20 en 15s — mucho más lento que la conversación
+// humana). Con el WPS viejo (2.5 es) el planner dejaba pasar el doble de
+// palabras y el habla salía atropellada.
+describe('calibración Seedance del ritmo de habla', () => {
+  it('12 palabras en inglés piden ~10s de clip (comunidad: 12 palabras/10s)', () => {
+    const needed = estimateSpeechSeconds(
+      'one two three four five six seven eight nine ten eleven twelve',
+      'en',
+    );
+    expect(fitVerdict(needed, 10).level).not.toBe('tight');
+    expect(fitVerdict(needed, 4).suggestedDurationS).toBeGreaterThanOrEqual(9);
+    expect(fitVerdict(needed, 4).suggestedDurationS).toBeLessThanOrEqual(11);
+  });
+  it('20 palabras en inglés llenan el clip máximo (comunidad: 20 palabras/15s)', () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => `word${i}`).join(' ');
+    const needed = estimateSpeechSeconds(twenty, 'en');
+    expect(fitVerdict(needed, 15).level).not.toBe('tight');
+    expect(fitVerdict(needed, 8).suggestedDurationS).toBeGreaterThanOrEqual(13);
+  });
+  it('8 palabras es-MX ya NO caben en un clip de 4s', () => {
+    const needed = estimateSpeechSeconds('Esto cambió por completo todas mis mañanas hoy', 'es');
+    expect(fitVerdict(needed, 4).level).toBe('tight');
   });
 });
 
@@ -67,14 +93,14 @@ describe('fitVerdict', () => {
     expect(fitVerdict(6, 5).level).toBe('tight');
   });
   it('ok cuando cabe sin holgura', () => {
-    expect(fitVerdict(4.5, 5).level).toBe('ok'); // 0.5 < HEADROOM_S(1)
+    expect(fitVerdict(4.5, 5).level).toBe('ok'); // 0.5 < HEADROOM_S(1.5)
   });
-  it('roomy cuando hay >= 1s de margen', () => {
-    expect(fitVerdict(3, 5).level).toBe('roomy');
+  it('roomy cuando el margen alcanza el headroom', () => {
+    expect(fitVerdict(3, 5).level).toBe('roomy'); // 2 >= HEADROOM_S(1.5)
   });
   it('sugiere duración con clamp al rango Seedance', () => {
-    expect(fitVerdict(20, 5).suggestedDurationS).toBe(DUR_MAX); // 20+1 clamp 15
-    expect(fitVerdict(0.5, 5).suggestedDurationS).toBe(DUR_MIN); // ceil(1.5)=2 clamp 4
+    expect(fitVerdict(20, 5).suggestedDurationS).toBe(DUR_MAX); // ceil(21.5) clamp 15
+    expect(fitVerdict(0.5, 5).suggestedDurationS).toBe(DUR_MIN); // ceil(2)=2 clamp 4
   });
 });
 

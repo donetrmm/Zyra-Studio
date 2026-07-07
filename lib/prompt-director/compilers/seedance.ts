@@ -131,20 +131,52 @@ function hasTimeline(text: string): boolean {
 // hacía al modelo cambiar de plano cada segundo → video TRABADO. Ahora se topa a
 // ~1 beat por 4s (guía: 1 idea ≈ 4s); si no encaja en pocos beats, se deja como
 // prosa y el modelo reparte el tiempo (como en los prompts que salen fluidos).
+// Los diálogos entrecomillados se protegen antes de partir: una frontera de
+// oración DENTRO de comillas no es un beat — partir ahí rompía las comillas y
+// dejaba un marcador de tiempo a media línea hablada.
 function toTimeline(action: string, duration: number): string {
   const maxBeats = Math.max(2, Math.floor(duration / 4));
-  const beats = action
+  const guards: string[] = [];
+  const guarded = action.replace(/["“][^"“”]*["”]/g, (m) => `\u0000${guards.push(m) - 1}\u0000`);
+  const restore = (s: string) => s.replace(/\u0000(\d+)\u0000/g, (_m, i) => guards[Number(i)]);
+  const beats = guarded
     .split(/(?<=[.;])\s+/)
     .map((b) => b.trim().replace(/[.;]+$/, ''))
-    .filter((b) => b.length > 3);
+    .filter((b) => restore(b).length > 3);
   if (beats.length < 2 || beats.length > maxBeats) return action.trim();
   return `${beats
     .map((beat, i) => {
       const start = Math.round((duration * i) / beats.length);
       const end = Math.round((duration * (i + 1)) / beats.length);
-      return `${start}-${end}s: ${beat}`;
+      return `${start}-${end}s: ${restore(beat)}`;
     })
     .join('. ')}.`;
+}
+
+// Fluidez del habla (2026-07-07): las guías de comunidad de Seedance 2.0 coinciden
+// en que las líneas de 5-10 palabras sincronizan bien y las largas salen masticadas
+// ("mushier mouth movements"). Un diálogo largo multi-frase se parte en segmentos
+// Dialogue: "..." cortos con un beat de pausa escrito entre ellos — el modelo usa
+// los beats escritos como ancla de resincronización. Solo en el prompt enviado; el
+// diálogo guardado no cambia (misma política que la normalización es-MX). Nunca se
+// parte a media frase: solo en fronteras de oración dentro de la línea.
+export const DIALOGUE_PAUSE_BEAT = ' The speaker pauses briefly, then continues. ';
+const DIALOGUE_SPLIT_MIN_WORDS = 11;
+
+export function splitLongDialogues(action: string): string {
+  return action.replace(
+    /(dialogue|di[aá]logo)(\s*:\s*)(["“])([^"“”]*)(["”])/gi,
+    (full, marker: string, sep: string, qOpen: string, inner: string, qClose: string) => {
+      const words = inner.trim().split(/\s+/).filter(Boolean).length;
+      if (words < DIALOGUE_SPLIT_MIN_WORDS) return full;
+      const sentences = inner
+        .split(/(?<=[.!?…])\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (sentences.length < 2) return full;
+      return sentences.map((s) => `${marker}${sep}${qOpen}${s}${qClose}`).join(DIALOGUE_PAUSE_BEAT);
+    },
+  );
 }
 
 // Tope de trabajo del prompt: ModelArk/Atlas no documentan límite de caracteres
@@ -523,10 +555,12 @@ export function compileSeedance(
       : req.scenePrompt.trim().replace(/\.?$/, '.');
   // Habla es-MX: primero se normalizan números/símbolos del DIÁLOGO ($499, 2x1,
   // 24/7, 3km, Dr.) a palabras —un token crudo se masca en la voz—, luego se
-  // aplica el respelling de tónica (mapa curado). Ambos pasos tocan SOLO el
-  // diálogo entrecomillado, nunca el andamiaje del prompt (9:16, 480p, 3-7s:,
-  // @imageN). Solo en el prompt enviado; el diálogo guardado no cambia.
-  const action = applyRespellings(normalizeSpokenInDialogue(rawAction));
+  // aplica el respelling de tónica (mapa curado), y al final los diálogos largos
+  // multi-frase se parten en segmentos cortos con beat de pausa (fluidez). Todos
+  // los pasos tocan SOLO el diálogo entrecomillado, nunca el andamiaje del prompt
+  // (9:16, 480p, 3-7s:, @imageN). Solo en el prompt enviado; el diálogo guardado
+  // no cambia.
+  const action = splitLongDialogues(applyRespellings(normalizeSpokenInDialogue(rawAction)));
   sections.push(action);
 
   // F — Encuadre, registro y ritmo del formato.

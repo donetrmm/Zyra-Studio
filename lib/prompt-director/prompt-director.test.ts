@@ -343,6 +343,47 @@ describe('compile seedance', () => {
     if (noSpeaker.ok) expect(noSpeaker.compiled.prompt).not.toContain('Synchronized on-camera speech');
   });
 
+  it('parte un diálogo largo multi-frase en segmentos cortos con pausa (fluidez, solo prompt enviado)', () => {
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt:
+          '0-6s: medium shot — she speaks to camera. Dialogue: "Esto cambió todas mis mañanas desde el primer día. Ahora no puedo empezar sin él." 6-12s: she smiles',
+        durationS: 12,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    expect(prompt.match(/Dialogue:/g)?.length).toBe(2);
+    expect(prompt).toContain('pauses briefly, then continues');
+    expect(prompt).toContain('Dialogue: "Esto cambió todas mis mañanas desde el primer día."');
+  });
+
+  it('el timeline automático no corta un diálogo entrecomillado por la mitad', () => {
+    // Sin timeline previo y ≥5s: toTimeline reparte la acción en tramos, pero las
+    // fronteras de oración DENTRO de comillas no deben generar un tramo que
+    // empiece a media línea (comillas rotas + habla partida por marcador).
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt:
+          'She lifts the can and smiles at the camera. Dialogue: "Esto cambió todas mis mañanas desde el primer día. Ahora no puedo empezar sin él." She winks.',
+        durationS: 12,
+      },
+      fullContext(),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt } = res.compiled;
+    // Ningún marcador de tiempo cae a media frase del diálogo.
+    expect(prompt).not.toMatch(/\d{1,2}-\d{1,2}s: Ahora/);
+    // El diálogo sobrevive completo (luego partido en segmentos por el split).
+    expect(prompt).toContain('Dialogue: "Esto cambió todas mis mañanas desde el primer día."');
+    expect(prompt).toContain('"Ahora no puedo empezar sin él."');
+  });
+
   it('respela palabras de pronunciación difícil en el diálogo compilado', () => {
     const res = compile(
       {

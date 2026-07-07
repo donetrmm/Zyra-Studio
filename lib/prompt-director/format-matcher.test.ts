@@ -673,6 +673,15 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('nunca flota');
   });
 
+  it('incluye el presupuesto de habla para calibrar durationS al diálogo', () => {
+    // El SYSTEM es un template con saltos de línea: se normaliza el whitespace
+    // para asertar contenido, no el reflow incidental.
+    const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
+    expect(s).toContain('PRESUPUESTO DE HABLA');
+    expect(s).toContain('~1.4 palabras por segundo');
+    expect(s).toContain('frases de 5-10 palabras');
+  });
+
   it('fantasía: bloque de estilo presente y física del mundo ausente', () => {
     const s = buildMatcherSystemPrompt({ visualStyle: 'fantasia' });
     expect(s).toContain('FANTASÍA');

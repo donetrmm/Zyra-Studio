@@ -3,10 +3,15 @@
 // compartidos cliente/servidor) leen/reescriben el diálogo dentro de scene_prompt
 // y estiman si cabe. NO 'server-only'.
 
-// Ritmo conversacional natural (palabras/segundo) por idioma. Tunable.
-export const WPS: Record<'es' | 'en', number> = { es: 2.5, en: 2.8 };
+// Ritmo de ENTREGA de Seedance (palabras/segundo) por idioma. OJO: no es el ritmo
+// de una conversación humana (~2.5 es) sino lo que el modelo entrega con habla
+// natural — calibrado a las guías de comunidad de Seedance 2.0 (2026-07): caben
+// ~12 palabras en 10s y ~20 en 15s. Con el valor viejo (2.5) pasaba el doble de
+// palabras y el modelo las embutía acelerando → habla atropellada. Tunable.
+export const WPS: Record<'es' | 'en', number> = { es: 1.4, en: 1.6 };
 // Margen mínimo (s) para considerar el diálogo "holgado" (pausado/natural).
-export const HEADROOM_S = 1.0;
+// Cubre también los edit handles del storyboard (frame quieto al abrir/cerrar).
+export const HEADROOM_S = 1.5;
 // Rango de duración de un clip Seedance.
 export const DUR_MIN = 4;
 export const DUR_MAX = 15;

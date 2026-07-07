@@ -282,8 +282,9 @@ Por cada idea distinta devuelve un match:
   = ese número. Invitación abierta ("varios", "los que se te ocurran",
   "puedes generar más de una") = 2 o 3, a tu criterio. Sin señal, count = 1.
 - durationS: los segundos que la acción NECESITA (entero 4-15; 1 acción ≈ 4s).
-  Una acción simple = 4-6s; varias acciones/beats = más. null para usar la
-  duración default del formato.
+  Una acción simple = 4-6s; varias acciones/beats = más. Si hay diálogo, manda
+  el PRESUPUESTO DE HABLA (abajo): la línea debe caber a ritmo natural. null
+  para usar la duración default del formato.
 - scenePrompt: la acción concreta de la idea, en INGLÉS, con el producto como
   ancla. REGLA CLAVE: un clip = UNA toma continua — misma escena, misma locación,
   mismo sujeto; la cámara se MUEVE (dolly, pan, rack focus) pero NUNCA corta a
@@ -352,7 +353,12 @@ Por cada idea distinta devuelve un match:
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
-  a un amigo, nunca como locutor. HABLANTE: si hay 2 o más personajes del Cast en
+  a un amigo, nunca como locutor. Escribe frases de 5-10 palabras: una línea
+  larga se parte en varias frases cortas (el modelo sincroniza mejor la boca y
+  respira entre frases). PRESUPUESTO DE HABLA: el video entrega ~1.4 palabras
+  por segundo con habla natural — en 5s caben ~5 palabras, en 8s ~9, en 12s ~15.
+  Si la línea no cabe en la duración, RECORTA la línea o parte en más escenas;
+  nunca cuentes con que el habla se acelere (sale atropellada y robótica). HABLANTE: si hay 2 o más personajes del Cast en
   cámara, nombra QUIÉN dice cada línea (ej. "Pedro, a cámara: ...") y deja claro
   que el otro NO habla en ese tramo (sonríe, asiente) — así el modelo sincroniza
   una sola boca, no las dos. Si el usuario NO pidió diálogo, no lo
@@ -379,10 +385,11 @@ Por cada idea distinta devuelve un match:
   tiempo del guion original (nada de '13-15s:'): cada escena empieza en 0 y, si
   es un solo beat, no necesita timeline",
   "durationS":"AJUSTA al tiempo que toma DECIR la linea de dialogo de ESA escena
-  (o la accion si no hay dialogo): una frase corta = 4-5s, una mas larga hasta 8;
-  un beat 'reveal' sostenido puede llegar a 12. entero 4-12. NUNCA infles una
-  linea corta — el modelo rellena el silencio repitiendo palabras y el clip se
-  traba","sceneSummary":"resumen __SUMMARY_LANG__,
+  (o la accion si no hay dialogo), con el PRESUPUESTO DE HABLA de arriba (~1.4
+  palabras/seg): ~5 palabras = 5s, ~9 = 8s, ~15 = 12 (tope de un beat 'reveal'
+  sostenido). entero 4-12. Si la linea pide mas segundos de los que su beat
+  admite, RECORTA la linea. NUNCA infles una linea corta — el modelo rellena el
+  silencio repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__,
   1 frase","beatRole":"el peso dramático de la escena: 'reveal' (una
   revelación, una confesión, un cambio emocional que aterriza — pídela como UN
   plano sostenido, sin cortes internos, con aire/silencio, y dale más segundos
