@@ -26,14 +26,28 @@ export function cleanAssetDescription(description: string): string {
 // La locación es el ESCENARIO de una escena: un lugar listo para que ocurra
 // algo, con espacio libre en primer plano para colocar sujetos y producto.
 // Sin personas ni texto. FLUX sirve aquí: se crea desde texto, sin una
-// referencia que preservar.
-export function buildLocationPrompt(description: string, style?: VisualStyle, customText?: string): string {
+// referencia que preservar. `hasInspiration` (spec v2/17): el usuario adjuntó
+// una imagen de inspiración — su rol es SUELTO (mood/paleta/composición),
+// nunca copia exacta; para "que SEA ese lugar" está el camino de subir la
+// maestra directamente.
+export function buildLocationPrompt(
+  description: string,
+  style?: VisualStyle,
+  customText?: string,
+  hasInspiration?: boolean,
+): string {
   const profile = getStyleProfile(style, customText);
-  return (
+  const base =
     `Establishing shot of a location, ready for a scene to take place in it: ${cleanAssetDescription(description)}. ` +
     'Eye-level camera, wide framing that leaves clear open foreground space where people and a ' +
     'product can be placed and act; the environment frames the action without crowding the center. ' +
-    `${profile.assetLocation} Empty of people, no text, no watermark.`
+    `${profile.assetLocation} Empty of people, no text, no watermark.`;
+  if (!hasInspiration) return base;
+  return (
+    base +
+    ' The attached reference image is loose inspiration only: take its mood, color palette, atmosphere ' +
+    'and general composition, but re-imagine a new location of your own — do not reproduce the same place, ' +
+    'and do not copy any people or text visible in it.'
   );
 }
 

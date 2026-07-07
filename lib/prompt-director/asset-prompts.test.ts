@@ -34,6 +34,27 @@ describe('buildCharacterMasterPrompt', () => {
   });
 });
 
+// Spec v2/17: imagen de inspiración opcional al generar la locación con IA.
+// La referencia es inspiración SUELTA (mood/paleta/composición), nunca copia.
+describe('buildLocationPrompt con inspiración', () => {
+  it('con hasInspiration declara el rol suelto de la referencia', () => {
+    const p = buildLocationPrompt('un jardín trasero', undefined, undefined, true);
+    expect(p).toMatch(/loose inspiration only/);
+    expect(p).toMatch(/re-imagine/i);
+    expect(p).toMatch(/do not reproduce the same place/);
+    // El contrato de escenario se conserva intacto.
+    expect(p).toMatch(/Establishing shot of a location/);
+    expect(p).toMatch(/Empty of people/);
+  });
+
+  it('sin hasInspiration el prompt es byte-idéntico al actual (regresión)', () => {
+    expect(buildLocationPrompt('un jardín trasero')).toBe(
+      buildLocationPrompt('un jardín trasero', undefined, undefined, false),
+    );
+    expect(buildLocationPrompt('un jardín trasero')).not.toMatch(/inspiration/i);
+  });
+});
+
 describe('asset prompts con perfil', () => {
   it('animado genera locación con look de animación, sin bloque fotográfico', () => {
     const p = buildLocationPrompt('una cocina soleada', 'animado');

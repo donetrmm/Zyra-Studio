@@ -218,6 +218,9 @@ function LocationEditor({
 
   // Master es opcional en locaciones — solo nombre requerido.
   const canSave = name.trim().length > 0;
+  // Inspiración opcional al generar con IA (spec v2/17): guía suelta de
+  // mood/paleta/composición — NO se persiste en la locación, solo viaja a FLUX.
+  const [inspirationImages, setInspirationImages] = useState<RefImage[]>([]);
   const canGenerate =
     description.trim().length >= 10 &&
     !generating &&
@@ -227,6 +230,18 @@ function LocationEditor({
     if (!canGenerate) return;
     setGenerating(true);
     try {
+      // Resolver el path de la inspiración (si la hay) para mandarla como image-ref.
+      let inspirationRef: { id: string; storagePath: string } | undefined;
+      const inspirationId = inspirationImages[0]?.id;
+      if (inspirationId) {
+        const pathsRes = await getReferencePathsAction([inspirationId]);
+        const storagePath = pathsRes.ok ? pathsRes.data[inspirationId] : undefined;
+        if (!storagePath) {
+          toast.error('No se pudo resolver la imagen de inspiración');
+          return;
+        }
+        inspirationRef = { id: inspirationId, storagePath };
+      }
       const res = await submitGenerationAction({
         provider: 'flux' as const,
         model: 'flux-2-pro-preview' as const,
@@ -235,13 +250,14 @@ function LocationEditor({
           description.trim(),
           visualStyle,
           visualStyle === 'custom' ? visualStyleCustom.trim() : undefined,
+          Boolean(inspirationRef),
         ),
         aspectRatio: '16:9' as const,
         megapixels: 2 as const,
         // Solo ultra_realista: la PHOTOREAL_DIRECTIVE de FLUX (cámara full-frame)
         // contradiría el bloque smartphone del estilo 'casero'.
         photoreal: visualStyle === 'ultra_realista',
-        references: [],
+        references: inspirationRef ? [inspirationRef] : [],
       });
       if (!res.ok) {
         toast.error(
@@ -352,6 +368,15 @@ function LocationEditor({
           <p className="text-[12px] leading-relaxed text-muted-foreground">
             ¿Sin foto del lugar? Genera la imagen de la locación con IA a partir de la descripción.
           </p>
+          <div className="mb-2 mt-2">
+            <ReferenceImagesUploader
+              label="Imagen de inspiración (opcional)"
+              hint="Guía el mood, la paleta y la composición; no se copia exacta. Para usar un lugar tal cual, súbelo como imagen maestra."
+              images={inspirationImages}
+              onChange={(imgs) => setInspirationImages(imgs.slice(-1))}
+              max={1}
+            />
+          </div>
           <div className="mb-2">
             <VisualStyleSelector
               compact
