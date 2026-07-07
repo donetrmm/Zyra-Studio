@@ -53,6 +53,23 @@ describe('parseIngestResult', () => {
     expect(r.warnings.length).toBeGreaterThan(0);
   });
 
+  // Bug 2026-07-06 (smoke real): Gemini devolvió JSON válido con el reparto pero
+  // narrative vacío/no-string → el campo de ideas quedaba vacío en silencio (el
+  // fallback solo cubría JSON inválido).
+  it('narrative como array de clips: se re-une en una sola cadena', () => {
+    const raw = JSON.stringify({ narrative: ['Clip 1: hook.', 'Clip 2: garden.'] });
+    const r = parseIngestResult(raw, { castNames: [] });
+    expect(r.narrative).toBe('Clip 1: hook.\n\nClip 2: garden.');
+  });
+
+  it('respuesta válida con narrative vacío: cae al prompt crudo con aviso y conserva el reparto', () => {
+    const raw = JSON.stringify({ productFacts: { heightCm: 150 }, narrative: '' });
+    const r = parseIngestResult(raw, { castNames: [], masterPrompt: 'Mi prompt maestro' });
+    expect(r.narrative).toBe('Mi prompt maestro');
+    expect(r.productFacts.heightCm).toBe(150);
+    expect(r.warnings.some((w) => w.includes('guion'))).toBe(true);
+  });
+
   it('JSON inválido con masterPrompt: narrative = el prompt crudo (promesa del spec)', () => {
     const r = parseIngestResult('no soy json', { castNames: [], masterPrompt: 'Mi guion completo' });
     expect(r.narrative).toBe('Mi guion completo');

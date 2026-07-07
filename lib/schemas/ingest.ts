@@ -11,6 +11,22 @@ export type IngestInput = z.infer<typeof IngestInputSchema>;
 const EMPTY_PRODUCT_FACTS = { heightCm: null, widthCm: null, weightKg: null, thicknessMm: null, medium: null };
 const EMPTY_GUIDELINES = { safeCrop: null, showFullProduct: false, hookProductHero: false };
 
+// El guion debe ser UNA cadena, pero el modelo a veces lo devuelve como array de
+// clips (bug 2026-07-06: el campo de ideas quedaba vacío en silencio). Array de
+// strings → se re-une; cualquier otra forma → '' (el parse pone el fallback al
+// prompt crudo).
+function coerceNarrative(v: unknown): string {
+  if (typeof v === 'string') return v.trim();
+  if (Array.isArray(v)) {
+    return v
+      .filter((x): x is string => typeof x === 'string')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+  return '';
+}
+
 // Salida CRUDA de Gemini: laxo, cada campo con catch/default para que un valor
 // malformado no tire el objeto (la salida del LLM es estocástica).
 export const IngestRawSchema = z.object({
@@ -40,7 +56,7 @@ export const IngestRawSchema = z.object({
     .default(EMPTY_GUIDELINES),
   castMentions: z.array(z.string().trim().min(1).max(60)).catch([]).default([]),
   locationHints: z.array(z.string().trim().min(1).max(200)).catch([]).default([]),
-  narrative: z.string().trim().catch('').default(''),
+  narrative: z.unknown().transform(coerceNarrative).default(''),
   warnings: z.array(z.string().trim().min(1).max(300)).catch([]).default([]),
 });
 export type IngestRaw = z.infer<typeof IngestRawSchema>;

@@ -18,7 +18,7 @@ Devuelve SOLO un JSON con esta forma exacta:
   "guidelines": {"safeCrop": "4:5"|null, "showFullProduct": boolean, "hookProductHero": boolean},
   "castMentions": ["nombres propios de personas que actúan o hablan"],
   "locationHints": ["locaciones/escenarios distintos descritos"],
-  "narrative": "el guion por clip, LIMPIO",
+  "narrative": "el guion por clip, LIMPIO, en UNA SOLA CADENA de texto",
   "warnings": ["avisos legibles para el usuario"]
 }
 
@@ -29,7 +29,7 @@ Reglas:
 - guidelines: safeCrop='4:5' si menciona área/zona segura 4:5 o encuadre 9:16 con el contenido clave al centro; showFullProduct si insiste en mostrar el producto completo; hookProductHero si el primer beat es el producto como héroe.
 - castMentions: nombres propios de personas que actúan o hablan (no figurantes de fondo, no personajes inventados que no actúan).
 - locationHints: locaciones/escenarios distintos descritos.
-- narrative: el guion CLIP POR CLIP, en el MISMO idioma del prompt, UNA escena por clip, conservando acciones, diálogo y orden. QUITA de aquí las medidas/material del producto y la estética global (YA van en sus campos) para no duplicar ni contradecir. NO escribas texto en pantalla ni emojis.
+- narrative: el guion CLIP POR CLIP, en el MISMO idioma del prompt, UNA escena por clip, conservando acciones, diálogo y orden. Es UNA SOLA CADENA de texto (NUNCA un array ni un objeto), con los clips separados por saltos de línea. QUITA de aquí las medidas/material del producto y la estética global (YA van en sus campos) para no duplicar ni contradecir. NO escribas texto en pantalla ni emojis.
 - warnings: cuenta los clips y avisa si son muchos (>12); avisa si nombra personas que quizá no estén en el Cast; avisa si las transiciones requieren montaje posterior.
 
 Cast disponible del workspace (para resolver menciones; NO lo repitas en la salida): __CAST__.
@@ -123,8 +123,16 @@ export function parseIngestResult(
       };
     }),
     locationHints: [...new Set(d.locationHints)],
-    narrative: d.narrative,
-    warnings: d.warnings,
+    // Garantía: el campo de ideas NUNCA queda vacío en silencio. Si el modelo no
+    // devolvió guion (o vino con forma no-string y la coerción lo dejó vacío),
+    // cae al prompt crudo con aviso — el reparto (ficha/estilo/guías) se conserva.
+    narrative: d.narrative || (opts.masterPrompt ?? '').trim(),
+    warnings: d.narrative
+      ? d.warnings
+      : [
+          ...d.warnings,
+          'No pude extraer el guion por clips; puse tu prompt tal cual — revísalo y edítalo.',
+        ],
   };
 }
 
