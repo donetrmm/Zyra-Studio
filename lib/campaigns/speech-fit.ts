@@ -3,15 +3,20 @@
 // compartidos cliente/servidor) leen/reescriben el diálogo dentro de scene_prompt
 // y estiman si cabe. NO 'server-only'.
 
-// Ritmo de ENTREGA de Seedance (palabras/segundo) por idioma. OJO: no es el ritmo
-// de una conversación humana (~2.5 es) sino lo que el modelo entrega con habla
-// natural — calibrado a las guías de comunidad de Seedance 2.0 (2026-07): caben
-// ~12 palabras en 10s y ~20 en 15s. Con el valor viejo (2.5) pasaba el doble de
-// palabras y el modelo las embutía acelerando → habla atropellada. Tunable.
-export const WPS: Record<'es' | 'en', number> = { es: 1.4, en: 1.6 };
-// Margen mínimo (s) para considerar el diálogo "holgado" (pausado/natural).
-// Cubre también los edit handles del storyboard (frame quieto al abrir/cerrar).
-export const HEADROOM_S = 1.5;
+// Ritmo SOSTENIDO de habla (palabras/segundo) por idioma. Calibrado con
+// mediciones reales del usuario (2026-07-07, es-MX): 36 palabras = 14s y
+// 3 palabras = 2.37s → ~2.8 wps de ritmo marginal + ~1.3s fijos de arranque.
+// La tasa se descuenta a entrega ACTUADA (~75%; las guías de Seedance graban la
+// referencia al ~80% de velocidad) y el arranque vive en HEADROOM_S, no aquí.
+// Historia: 2.5 (conversación humana, quedaba atropellado con el aire en 1.0) →
+// 1.4 (tasa única, inflaba líneas largas) → 2.0 + aire fijo 2.0. Tunable.
+export const WPS: Record<'es' | 'en', number> = { es: 2.0, en: 2.2 };
+// Aire FIJO por clip (s): arranque de la voz + edit handles del storyboard
+// (frame quieto al abrir/cerrar). Se suma al habla para sugerir duración.
+export const HEADROOM_S = 2.0;
+// Aire mínimo real (s): si el habla deja menos margen que esto, el clip está
+// apretado y el modelo acelera la entrega. Frontera del veredicto 'tight'.
+export const MIN_AIR_S = 1.0;
 // Rango de duración de un clip Seedance.
 export const DUR_MIN = 4;
 export const DUR_MAX = 15;
@@ -71,15 +76,18 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-// Veredicto de ajuste + duración sugerida (clamp al rango Seedance).
+// Veredicto de ajuste + duración sugerida (clamp al rango Seedance). 'tight' ya
+// no es solo "no cabe": habla que llena el clip sin el aire mínimo también es
+// apretada (el modelo la acelera igual) — antes ese caso pasaba como 'ok'.
 export function fitVerdict(
   neededS: number,
   durationS: number,
 ): { level: 'tight' | 'ok' | 'roomy'; suggestedDurationS: number } {
   const suggestedDurationS = clamp(Math.ceil(neededS + HEADROOM_S), DUR_MIN, DUR_MAX);
+  const margin = durationS - neededS;
   let level: 'tight' | 'ok' | 'roomy';
-  if (neededS > durationS) level = 'tight';
-  else if (durationS - neededS < HEADROOM_S) level = 'ok';
+  if (margin < MIN_AIR_S) level = 'tight';
+  else if (margin < HEADROOM_S) level = 'ok';
   else level = 'roomy';
   return { level, suggestedDurationS };
 }

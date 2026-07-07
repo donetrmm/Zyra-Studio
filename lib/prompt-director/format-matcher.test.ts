@@ -678,7 +678,7 @@ describe('buildMatcherSystemPrompt', () => {
     // para asertar contenido, no el reflow incidental.
     const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
     expect(s).toContain('PRESUPUESTO DE HABLA');
-    expect(s).toContain('~1.4 palabras por segundo');
+    expect(s).toContain('~2 palabras por segundo');
     expect(s).toContain('frases de 5-10 palabras');
   });
 

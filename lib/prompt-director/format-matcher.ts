@@ -355,10 +355,11 @@ Por cada idea distinta devuelve un match:
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
   a un amigo, nunca como locutor. Escribe frases de 5-10 palabras: una línea
   larga se parte en varias frases cortas (el modelo sincroniza mejor la boca y
-  respira entre frases). PRESUPUESTO DE HABLA: el video entrega ~1.4 palabras
-  por segundo con habla natural — en 5s caben ~5 palabras, en 8s ~9, en 12s ~15.
-  Si la línea no cabe en la duración, RECORTA la línea o parte en más escenas;
-  nunca cuentes con que el habla se acelere (sale atropellada y robótica). HABLANTE: si hay 2 o más personajes del Cast en
+  respira entre frases). PRESUPUESTO DE HABLA: la entrega actuada rinde ~2
+  palabras por segundo sostenidas y cada clip pierde ~2s en arranque y cierre —
+  en 5s caben ~6 palabras, en 8s ~12, en 12s ~20. Si la línea no cabe en la
+  duración, RECORTA la línea o parte en más escenas; nunca cuentes con que el
+  habla se acelere (sale atropellada y robótica). HABLANTE: si hay 2 o más personajes del Cast en
   cámara, nombra QUIÉN dice cada línea (ej. "Pedro, a cámara: ...") y deja claro
   que el otro NO habla en ese tramo (sonríe, asiente) — así el modelo sincroniza
   una sola boca, no las dos. Si el usuario NO pidió diálogo, no lo
@@ -385,11 +386,11 @@ Por cada idea distinta devuelve un match:
   tiempo del guion original (nada de '13-15s:'): cada escena empieza en 0 y, si
   es un solo beat, no necesita timeline",
   "durationS":"AJUSTA al tiempo que toma DECIR la linea de dialogo de ESA escena
-  (o la accion si no hay dialogo), con el PRESUPUESTO DE HABLA de arriba (~1.4
-  palabras/seg): ~5 palabras = 5s, ~9 = 8s, ~15 = 12 (tope de un beat 'reveal'
-  sostenido). entero 4-12. Si la linea pide mas segundos de los que su beat
-  admite, RECORTA la linea. NUNCA infles una linea corta — el modelo rellena el
-  silencio repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__,
+  (o la accion si no hay dialogo), con el PRESUPUESTO DE HABLA de arriba (~2
+  palabras/seg + 2s de aire): ~6 palabras = 5s, ~12 = 8s, ~20 = 12 (tope de un
+  beat 'reveal' sostenido). entero 4-12. Si la linea pide mas segundos de los
+  que su beat admite, RECORTA la linea. NUNCA infles una linea corta — el modelo
+  rellena el silencio repitiendo palabras y el clip se traba","sceneSummary":"resumen __SUMMARY_LANG__,
   1 frase","beatRole":"el peso dramático de la escena: 'reveal' (una
   revelación, una confesión, un cambio emocional que aterriza — pídela como UN
   plano sostenido, sin cortes internos, con aire/silencio, y dale más segundos
