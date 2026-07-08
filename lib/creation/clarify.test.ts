@@ -1,23 +1,28 @@
 // lib/creation/clarify.test.ts
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { clarifyCharacter } from './clarify';
+import { ProviderError } from '@/lib/providers/types';
 
-function geminiOk(payload: unknown) {
-  return {
-    ok: true, status: 200,
-    json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] }),
-  } as Response;
-}
+const gatewayTextMock = vi.fn();
+vi.mock('@/lib/providers/gateway', () => ({
+  gatewayText: gatewayTextMock,
+}));
 
-afterEach(() => vi.unstubAllGlobals());
+const { clarifyCharacter } = await import('./clarify');
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  gatewayTextMock.mockReset();
+});
 
 describe('clarifyCharacter', () => {
   it('devuelve preguntas y enrichedPrompt', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
-      questions: [{ id: 'wardrobe', question: '¿Vestuario?', suggestions: ['linen', 'denim'] }],
-      enrichedPrompt: 'a kitchen content creator with curly dark hair, relaxed delivery',
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockResolvedValue({
+      text: JSON.stringify({
+        questions: [{ id: 'wardrobe', question: '¿Vestuario?', suggestions: ['linen', 'denim'] }],
+        enrichedPrompt: 'a kitchen content creator with curly dark hair, relaxed delivery',
+      }),
+      finishReason: 'stop',
+    });
     const res = await clarifyCharacter({ text: 'una creadora de cocina', hasReference: false });
     expect(res.questions).toHaveLength(1);
     expect(res.questions[0].id).toBe('wardrobe');
@@ -25,23 +30,23 @@ describe('clarifyCharacter', () => {
   });
 
   it('limpia marcadores de edad del enrichedPrompt (red de seguridad)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
-      questions: [],
-      enrichedPrompt: 'a young woman with short hair',
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockResolvedValue({
+      text: JSON.stringify({
+        questions: [],
+        enrichedPrompt: 'a young woman with short hair',
+      }),
+      finishReason: 'stop',
+    });
     const res = await clarifyCharacter({ text: 'mujer de pelo corto', hasReference: false });
     expect(res.enrichedPrompt).not.toMatch(/young/i);
     expect(res.enrichedPrompt).toContain('woman with short hair');
   });
 
   it('reintenta una vez ante un 429 y luego propaga', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: false, status: 429, text: async () => 'rate' } as Response));
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockRejectedValue(new ProviderError('Rate limit Gemini', 'rate_limit', true));
     await expect(
       clarifyCharacter({ text: 'algo', hasReference: false, retryDelayMs: 0 }),
     ).rejects.toThrow();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(gatewayTextMock).toHaveBeenCalledTimes(2);
   });
 });

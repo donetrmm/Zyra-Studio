@@ -1,10 +1,8 @@
 import 'server-only';
-import { z } from 'zod';
 import { IngestRawSchema, MASTER_PROMPT_MAX, type IngestBriefOverrides, type IngestResult } from '@/lib/schemas/ingest';
 import type { ProductBrief } from './brief';
-import { ProviderError } from '@/lib/providers/types';
+import { gatewayText } from '@/lib/providers/gateway';
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 const VISUAL_DETAILS_MAX = 800;
 
@@ -34,12 +32,6 @@ Reglas:
 
 Cast disponible del workspace (para resolver menciones; NO lo repitas en la salida): __CAST__.
 Devuelve SOLO el JSON válido, sin markdown.`;
-
-const GeminiResponseSchema = z.object({
-  candidates: z
-    .array(z.object({ content: z.object({ parts: z.array(z.object({ text: z.string() })).optional() }).optional() }))
-    .min(1),
-});
 
 function extractJson(raw: string): string {
   const trimmed = raw.trim();
@@ -153,40 +145,23 @@ export async function ingestMasterPrompt(input: {
   masterPrompt: string;
   castNames: string[];
 }): Promise<IngestResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
-
   const system = INGEST_SYSTEM.replace(
     '__CAST__',
     input.castNames.length ? input.castNames.join(', ') : '(ninguno)',
   );
 
-  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: input.masterPrompt.slice(0, MASTER_PROMPT_MAX) }] }],
-      generationConfig: {
-        temperature: 0.2,
-        // El narrative devuelve el guion casi íntegro: con prompts cerca del cap
-        // (60k chars ≈ 17k tokens) 8192 truncaba el JSON y todo caía al fallback.
-        maxOutputTokens: 32768,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
+  const { text: raw } = await gatewayText({
+    model: MODEL,
+    label: 'ingest',
+    system,
+    contents: [
+      { role: 'user', parts: [{ text: input.masterPrompt.slice(0, MASTER_PROMPT_MAX) }] },
+    ],
+    temperature: 0.2,
+    // El narrative devuelve el guion casi íntegro: con prompts cerca del cap
+    // (60k chars ≈ 17k tokens) 8192 truncaba el JSON y todo caía al fallback.
+    maxOutputTokens: 32768,
+    json: true,
   });
-  if (res.status === 429) throw new ProviderError('Rate limit Gemini', 'rate_limit', true);
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Gemini ingest ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
-  }
-  const parsed = GeminiResponseSchema.safeParse(await res.json());
-  if (!parsed.success) throw new ProviderError('Respuesta inesperada de Gemini en ingesta', 'unknown', false);
-  const raw = (parsed.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   return parseIngestResult(raw, { castNames: input.castNames, masterPrompt: input.masterPrompt });
 }
