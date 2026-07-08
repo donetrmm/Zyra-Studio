@@ -33,6 +33,10 @@ describe('matchIdeas', () => {
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');
     expect(res.matches[0].customFormat).toBeNull();
+    // Regresión: el cap de maxOutputTokens (32768) protege contra el JSON
+    // truncado que caía en mix/sin_match cuando el guion se acercaba al límite.
+    expect(gatewayTextMock.mock.calls[0][0].maxOutputTokens).toBe(32768);
+    expect(gatewayTextMock.mock.calls[0][0].temperature).toBe(0.2);
   });
 
   it('propone formato custom cuando no encaja', async () => {

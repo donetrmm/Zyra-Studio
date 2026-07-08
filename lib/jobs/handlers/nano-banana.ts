@@ -41,7 +41,7 @@ function toFail(err: unknown): JobResult {
 // max_record_bytes 1MB y el SELECT del worker no debe cargar filas gigantes):
 // el payload referencia la gen padre y aqui se lee provider_payload.thought_signature
 // (columna fuera de la publicacion, migracion 050) con service role. Si falta la
-// firma, buildBody degrada a single-turn — mismo fallback de siempre. El campo
+// firma, buildRequest degrada a single-turn — mismo fallback de siempre. El campo
 // inline thoughtSignature solo se honra para drenar jobs encolados antes del cambio.
 export async function resolvePrevTurnSignature(prev: StoryboardPrevTurnRef): Promise<string | undefined> {
   if (prev.thoughtSignature) return prev.thoughtSignature;
@@ -62,7 +62,7 @@ export async function resolvePrevTurnSignature(prev: StoryboardPrevTurnRef): Pro
       const { buffer } = await downloadOutputBuffer(pp.thought_signature_path);
       return buffer.toString('utf8');
     } catch (err) {
-      // Sin firma se degrada a single-turn (fallback de buildBody) — mejor que
+      // Sin firma se degrada a single-turn (fallback de buildRequest) — mejor que
       // tirar el refinado por un objeto de storage faltante.
       console.error('[nano-banana] no se pudo leer thought_signature de storage', {
         path: pp.thought_signature_path,

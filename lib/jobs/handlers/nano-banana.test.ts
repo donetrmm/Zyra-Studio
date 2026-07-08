@@ -134,7 +134,7 @@ describe('resolvePrevTurnSignature', () => {
     const sig = await resolvePrevTurnSignature({ imagePath: 'p', prompt: 'x', thoughtSignature: 'legacy-sig' });
     expect(sig).toBe('legacy-sig');
   });
-  it('sin firma ni referencia -> undefined (buildBody degrada a single-turn)', async () => {
+  it('sin firma ni referencia -> undefined (buildRequest degrada a single-turn)', async () => {
     const { resolvePrevTurnSignature } = await import('./nano-banana');
     const sig = await resolvePrevTurnSignature({ imagePath: 'p', prompt: 'x' });
     expect(sig).toBeUndefined();

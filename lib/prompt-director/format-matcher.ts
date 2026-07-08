@@ -2,7 +2,7 @@
 // Format matcher (specs/v2/07): texto libre del usuario → formato existente
 // o propuesta de formato custom. Lo consumen el wizard (sembrar el plan) y
 // el refinado (cuando la conversación se sale del catálogo).
-// Patrón Gemini: fetch directo + responseMimeType JSON (como lib/campaigns/brief.ts).
+// Patrón Gemini: gatewayText (Vercel AI Gateway) con salida JSON.
 
 import 'server-only';
 import { z } from 'zod';
