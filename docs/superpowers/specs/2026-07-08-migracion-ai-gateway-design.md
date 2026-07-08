@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-07-08
 **Estado:** aprobado (diseño); pendiente de plan de implementación
-**Rama prevista:** `feat/ai-gateway-providers` (desde `main`)
+**Rama prevista:** `feat/ai-gateway-providers` (desde `feat/ingesta-prompt-maestro`)
 
 ## Objetivo
 
