@@ -41,6 +41,7 @@ import {
 import { MASTER_PROMPT_MAX, type IngestBriefOverrides } from '@/lib/schemas/ingest';
 import type { CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
+import { recommendedAudioSource } from '@/lib/campaigns/sequence-chain';
 import { usePreflight } from '@/components/ui/preflight-checklist';
 import { CAMPAIGN_CHECKLIST } from '@/lib/checklists';
 import { uploadMediaReferenceFile } from '@/lib/media-references/upload-client';
@@ -109,7 +110,13 @@ export function CampaignStudioWizard({
   outfits,
 }: {
   brandKits: BrandKitOption[];
-  characters: Array<{ id: string; name: string; previewUrl: string | null; angleCount: number }>;
+  characters: Array<{
+    id: string;
+    name: string;
+    previewUrl: string | null;
+    angleCount: number;
+    hasVoice: boolean;
+  }>;
   // Vestuario (specs/v2/16): opciones por personaje para el selector "Vestuario
   // de {name}" bajo la grid del Cast.
   outfits: Array<{ id: string; label: string; characterId: string }>;
@@ -129,6 +136,9 @@ export function CampaignStudioWizard({
   // Fuente de audio de los clips encadenados (055): pista musical (default) o
   // el audio del clip anterior. Excluyentes (límite Seedance: 15s combinados).
   const [chainAudioSource, setChainAudioSource] = useState<'music' | 'prev_clip'>('music');
+  // El usuario tocó el toggle manualmente: si no, el valor sigue la recomendación
+  // (según si el personaje seleccionado tiene voz). Evita pisar una elección explícita.
+  const [audioSourceTouched, setAudioSourceTouched] = useState(false);
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
@@ -243,6 +253,20 @@ export function CampaignStudioWizard({
 
   const preflight = usePreflight();
 
+  // Recomendación de fuente de audio según si el personaje seleccionado tiene voz
+  // (spec docs/superpowers/specs/2026-07-08-wizard-audio-voz-inteligente-design.md).
+  const recommendedSource = recommendedAudioSource(selectedCharacterIds, characters);
+  const effectiveAudioSource = audioSourceTouched ? chainAudioSource : recommendedSource;
+  const anySelectedHasVoice = selectedCharacterIds.some(
+    (id) => characters.find((c) => c.id === id)?.hasVoice,
+  );
+  const audioHint =
+    selectedCharacterIds.length === 0
+      ? 'Sin personaje que hable; la pista marca el ritmo.'
+      : anySelectedHasVoice
+        ? "Tu personaje tiene voz asignada. En una secuencia encadenada, 'Voz del clip anterior' mantiene ese timbre en los clips siguientes; con 'Pista musical' la voz podría cambiar."
+        : "Ningún personaje seleccionado tiene voz asignada. 'Pista musical' marca el ritmo y el modelo genera la voz.";
+
   async function handleCreate() {
     if (!canSubmit) return;
     // Checklist informativo de restricciones/buenas prácticas (siempre en campañas).
@@ -275,7 +299,7 @@ export function CampaignStudioWizard({
         ? { visualStyleCustom: visualStyleCustom.trim() }
         : {}),
       ...(music ? { musicRefId: music.id } : {}),
-      chainAudioSource,
+      chainAudioSource: effectiveAudioSource,
       ...(briefOverrides ? { briefOverrides } : {}),
       ...(guidelines ? { guidelines } : {}),
     });
@@ -856,13 +880,14 @@ export function CampaignStudioWizard({
                   Audio de referencia en anuncios de varias escenas
                 </span>
                 <p className="text-2xs text-muted-foreground">
-                  Solo puede viajar una referencia de audio por clip (límite de 15s). Elige qué
-                  guía a los clips encadenados de una secuencia.
+                  Solo puede viajar una referencia de audio por clip (15s máx), y esto solo aplica
+                  a secuencias de varias escenas encadenadas. En modo Locación o en un solo clip,
+                  la voz del personaje ya se usa en cada clip.
                 </p>
                 <div className="flex gap-2" role="radiogroup" aria-label="Audio de los clips encadenados">
                   {(
                     [
-                      { value: 'music', label: 'Pista musical', hint: 'El ritmo de la pista guía cada clip (como hasta ahora)' },
+                      { value: 'music', label: 'Pista musical', hint: 'El ritmo de la pista guía cada clip' },
                       { value: 'prev_clip', label: 'Voz del clip anterior', hint: 'Cada clip hereda el audio del anterior: misma voz y ambiente' },
                     ] as const
                   ).map((o) => (
@@ -870,24 +895,26 @@ export function CampaignStudioWizard({
                       key={o.value}
                       type="button"
                       role="radio"
-                      aria-checked={chainAudioSource === o.value}
+                      aria-checked={effectiveAudioSource === o.value}
                       title={o.hint}
-                      onClick={() => setChainAudioSource(o.value)}
+                      onClick={() => {
+                        setAudioSourceTouched(true);
+                        setChainAudioSource(o.value);
+                      }}
                       className={`flex-1 rounded-lg border px-3 py-2 text-2sm transition-colors ${
-                        chainAudioSource === o.value
+                        effectiveAudioSource === o.value
                           ? 'border-primary/60 bg-primary/10 text-foreground'
                           : 'border-border bg-card text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       {o.label}
+                      {recommendedSource === o.value && (
+                        <span className="ml-1.5 text-2xs text-primary">Recomendado</span>
+                      )}
                     </button>
                   ))}
                 </div>
-                <p className="text-2xs text-muted-foreground">
-                  {chainAudioSource === 'prev_clip'
-                    ? 'La voz y el ambiente se mantienen consistentes entre clips; la pista musical solo guía el primer clip.'
-                    : 'La pista musical (si la subes) guía el ritmo de todos los clips.'}
-                </p>
+                <p className="text-2xs text-muted-foreground">{audioHint}</p>
               </section>
             </div>
           )}
