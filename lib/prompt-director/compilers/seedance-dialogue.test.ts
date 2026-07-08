@@ -50,4 +50,27 @@ describe('splitLongDialogues', () => {
     const action = 'Wide shot. The can spins on marble and stops label-forward.';
     expect(splitLongDialogues(action)).toBe(action);
   });
+
+  // Caso real (Anuncio #12 clip 1, 2026-07-07): 17 palabras en UNA sola oración
+  // — el modelo la mastica y "se equivoca" al decirla. La coma es una pausa de
+  // respiración real: se parte ahí, nunca en frontera arbitraria de palabra.
+  it('parte una frase única larga en sus comas (pausas naturales)', () => {
+    const action =
+      'She speaks. Dialogue: "Uno de mis grandes errores como mamá, es no haber decorado usando las fotos con mi hijo."';
+    const out = splitLongDialogues(action);
+    expect(out.match(/Dialogue:/g)?.length).toBe(2);
+    expect(out).toContain('Dialogue: "Uno de mis grandes errores como mamá"');
+    expect(out).toContain('Dialogue: "es no haber decorado usando las fotos con mi hijo."');
+    expect(out).toContain(DIALOGUE_PAUSE_BEAT);
+  });
+
+  it('fusiona tramos cortos entre comas para no dejar segmentos diminutos', () => {
+    const action =
+      'She speaks. Dialogue: "Esto cambió mis mañanas, mis tardes, mis noches y mi vida entera desde el primer día"';
+    const out = splitLongDialogues(action);
+    // 4+2 palabras se fusionan en un tramo; el resto (10) va aparte.
+    expect(out.match(/Dialogue:/g)?.length).toBe(2);
+    expect(out).toContain('Dialogue: "Esto cambió mis mañanas, mis tardes"');
+    expect(out).toContain('Dialogue: "mis noches y mi vida entera desde el primer día"');
+  });
 });

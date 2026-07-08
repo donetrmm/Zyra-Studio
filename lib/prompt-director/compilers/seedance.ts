@@ -158,10 +158,46 @@ function toTimeline(action: string, duration: number): string {
 // ("mushier mouth movements"). Un diálogo largo multi-frase se parte en segmentos
 // Dialogue: "..." cortos con un beat de pausa escrito entre ellos — el modelo usa
 // los beats escritos como ancla de resincronización. Solo en el prompt enviado; el
-// diálogo guardado no cambia (misma política que la normalización es-MX). Nunca se
-// parte a media frase: solo en fronteras de oración dentro de la línea.
+// diálogo guardado no cambia (misma política que la normalización es-MX). Se parte
+// en fronteras de oración y, si la frase única es larga, en sus pausas internas
+// (coma/punto y coma) — nunca en frontera arbitraria de palabra.
 export const DIALOGUE_PAUSE_BEAT = ' The speaker pauses briefly, then continues. ';
 const DIALOGUE_SPLIT_MIN_WORDS = 11;
+// Techo de palabras por segmento hablado (guía 5-10): al partir una frase única
+// por sus pausas internas, los tramos se fusionan greedy sin rebasarlo.
+const DIALOGUE_SEGMENT_MAX_WORDS = 10;
+
+function countWords(s: string): number {
+  return s.trim().split(/\s+/).filter(Boolean).length;
+}
+
+// Una frase única larga se parte en sus PAUSAS naturales (coma, punto y coma,
+// dos puntos, raya): son puntos de respiración reales del habla, no cortes a
+// media cláusula (caso 2026-07-07: 17 palabras sin punto salían masticadas y el
+// modelo "se equivocaba" al decirlas). Sin pausas internas, la línea queda
+// entera (conservador: nunca partir en frontera arbitraria de palabra).
+function splitAtPauses(inner: string): string[] {
+  const chunks = inner
+    .split(/(?<=[,;:—])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (chunks.length < 2) return [inner];
+  const segments: string[] = [];
+  let current = '';
+  for (const chunk of chunks) {
+    const candidate = current ? `${current} ${chunk}` : chunk;
+    if (current && countWords(candidate) > DIALOGUE_SEGMENT_MAX_WORDS) {
+      segments.push(current);
+      current = chunk;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) segments.push(current);
+  // La puntuación de pausa al final del tramo sobra: el beat escrito entre
+  // segmentos ya marca la respiración (se conservan . ! ? …).
+  return segments.map((s) => s.replace(/[,;:—]$/, ''));
+}
 
 export function splitLongDialogues(action: string): string {
   return action.replace(
@@ -173,8 +209,9 @@ export function splitLongDialogues(action: string): string {
         .split(/(?<=[.!?…])\s+/)
         .map((s) => s.trim())
         .filter(Boolean);
-      if (sentences.length < 2) return full;
-      return sentences.map((s) => `${marker}${sep}${qOpen}${s}${qClose}`).join(DIALOGUE_PAUSE_BEAT);
+      const segments = sentences.length >= 2 ? sentences : splitAtPauses(inner.trim());
+      if (segments.length < 2) return full;
+      return segments.map((s) => `${marker}${sep}${qOpen}${s}${qClose}`).join(DIALOGUE_PAUSE_BEAT);
     },
   );
 }
