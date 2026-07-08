@@ -17,7 +17,7 @@ export default async function NewCampaignPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('characters')
-      .select('id, name, master_image_id, angle_image_ids, reference_image_ids')
+      .select('id, name, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false }),
     // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
@@ -48,6 +48,7 @@ export default async function NewCampaignPage() {
       name: c.name as string,
       masterId: (c.master_image_id as string | null) ?? ((c.reference_image_ids as string[]) ?? [])[0] ?? null,
       angleCount: ((c.angle_image_ids as string[]) ?? []).length,
+      voiceCloneId: (c.voice_clone_id as string | null) ?? null,
     }))
     .filter((c) => c.masterId);
 
@@ -70,11 +71,29 @@ export default async function NewCampaignPage() {
     );
   }
 
+  // Voz utilizable en video: la ficha tiene voice_clone_id Y ese clon tiene muestra
+  // (sample_storage_url) — solo entonces sirve como @audio1 de timbre. Alimenta la
+  // recomendación del toggle de audio del wizard.
+  const voiceCloneIds = [
+    ...new Set(usable.map((c) => c.voiceCloneId).filter((v): v is string => !!v)),
+  ];
+  const voicesWithSample = new Set<string>();
+  if (voiceCloneIds.length) {
+    const { data: clones } = await supabase
+      .from('voice_clones')
+      .select('id, sample_storage_url')
+      .in('id', voiceCloneIds);
+    for (const v of clones ?? []) {
+      if (v.sample_storage_url) voicesWithSample.add(v.id as string);
+    }
+  }
+
   const characters = usable.map((c) => ({
     id: c.id,
     name: c.name,
     previewUrl: c.masterId ? (previews[c.masterId] ?? null) : null,
     angleCount: c.angleCount,
+    hasVoice: c.voiceCloneId ? voicesWithSample.has(c.voiceCloneId) : false,
   }));
 
   const outfits = (outfitRows ?? []).map((o) => ({
