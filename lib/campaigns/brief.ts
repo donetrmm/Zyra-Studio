@@ -2,13 +2,13 @@ import 'server-only';
 import { lookup } from 'node:dns/promises';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
+import { gatewayText, type GatewayPart } from '@/lib/providers/gateway';
 
 // Auto-detección del brief (specs/v2/03 tarea 2): con la imagen del producto
 // inferir categoría, variantes, paleta y demográfico. Principio del doc V2:
 // nunca preguntar lo que se puede inferir. Usa el mismo Gemini Flash del
 // prompt-enhancer (rápido, <10s, permitido en server action).
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 
 export const PRODUCT_CATEGORIES = [
@@ -56,17 +56,6 @@ export const BRIEF_SYSTEM = `Eres un estratega de marketing. Analiza la imagen d
 
 Si el producto es un OBJETO con una imagen impresa encima (un canvas/cuadro, una taza, una playera, un poster, etc.), identifica el OBJETO y descríbelo aparte del contenido impreso: "productName" debe ser el objeto (por ejemplo "Canvas print"), NO la escena impresa; en "visualDetails" describe primero el objeto (material, forma, acabado, borde) y luego lo que muestra impreso. No declares el arte impreso como si fuera el producto. Si solo ves el arte plano y no puedes determinar el objeto, descríbelo como imagen impresa sin inventar el tipo de objeto.
 Reglas: describe SOLO lo visible — no inventes claims, ingredientes ni atributos. Si no hay variantes visibles, variants=[]. JSON válido, sin markdown.`;
-
-const GeminiResponseSchema = z.object({
-  candidates: z
-    .array(
-      z.object({
-        content: z.object({ parts: z.array(z.object({ text: z.string() })).optional() }).optional(),
-        finishReason: z.string().optional(),
-      }),
-    )
-    .min(1),
-});
 
 // Fetch server-side de la URL del producto (specs/v2/03 tarea 2): el texto de
 // la página (título, descripción, claims, tono) se pasa como extraContext al
@@ -221,10 +210,7 @@ export async function analyzeProductBrief(input: {
   // Texto extra opcional (ej. contenido de la URL de la tienda).
   extraContext?: string;
 }): Promise<ProductBrief> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
-
-  const parts: Array<Record<string, unknown>> = [
+  const parts: GatewayPart[] = [
     { inline_data: { mime_type: input.mimeType, data: input.imageBuffer.toString('base64') } },
   ];
   if (input.extraContext) {
@@ -232,35 +218,15 @@ export async function analyzeProductBrief(input: {
   }
   parts.push({ text: 'Analiza el producto y devuelve el JSON.' });
 
-  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: BRIEF_SYSTEM }] },
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 1000,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
+  const { text: raw } = await gatewayText({
+    model: MODEL,
+    label: 'brief',
+    system: BRIEF_SYSTEM,
+    contents: [{ role: 'user', parts }],
+    temperature: 0.2,
+    maxOutputTokens: 1000,
+    json: true,
   });
-
-  if (res.status === 429) throw new ProviderError('Rate limit Gemini', 'rate_limit', true);
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Gemini brief ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
-  }
-
-  const parsed = GeminiResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new ProviderError('Respuesta inesperada de Gemini en brief', 'unknown', false);
-  }
-  const raw = (parsed.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   let json: unknown;
   try {
     json = JSON.parse(raw);

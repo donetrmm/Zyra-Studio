@@ -1,6 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
+import { gatewayText, type GatewayPart } from '@/lib/providers/gateway';
 import { stripAgeWords } from '@/lib/prompt-director/inventory';
 
 // Descripción de personaje desde su hoja maestra (doc V2 §4.4): el LLM VE la
@@ -10,7 +11,6 @@ import { stripAgeWords } from '@/lib/prompt-director/inventory';
 // inventario: SOLO lo visible, sin marcadores de edad (el stripAgeWords es la
 // red de seguridad final) ni claims inventados.
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 
 const SYSTEM = `Eres director de casting. Observa el retrato y describe la apariencia del personaje para usarla en un prompt de video. Devuelve SOLO un JSON con esta forma exacta:
@@ -21,58 +21,24 @@ const ReplySchema = z.object({
   description: z.string().trim().min(1).max(600),
 });
 
-const GeminiResponseSchema = z.object({
-  candidates: z
-    .array(
-      z.object({
-        content: z.object({ parts: z.array(z.object({ text: z.string() })).optional() }).optional(),
-        finishReason: z.string().optional(),
-      }),
-    )
-    .min(1),
-});
-
 export async function describeCharacterImage(input: {
   imageBuffer: Buffer;
   mimeType: string;
 }): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
-
-  const parts: Array<Record<string, unknown>> = [
+  const parts: GatewayPart[] = [
     { inline_data: { mime_type: input.mimeType, data: input.imageBuffer.toString('base64') } },
     { text: 'Describe al personaje del retrato y devuelve el JSON.' },
   ];
 
-  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM }] },
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 400,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
+  const { text: raw } = await gatewayText({
+    model: MODEL,
+    label: 'cast',
+    system: SYSTEM,
+    contents: [{ role: 'user', parts }],
+    temperature: 0.2,
+    maxOutputTokens: 400,
+    json: true,
   });
-
-  if (res.status === 429) throw new ProviderError('Rate limit Gemini', 'rate_limit', true);
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Gemini cast ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
-  }
-
-  const parsed = GeminiResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    throw new ProviderError('Respuesta inesperada de Gemini al describir personaje', 'unknown', false);
-  }
-  const raw = (parsed.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   let json: unknown;
   try {
     json = JSON.parse(raw);
