@@ -1,13 +1,12 @@
 import 'server-only';
-import { z } from 'zod';
+import { APICallError, generateText, type ModelMessage } from 'ai';
 import {
   type GenerationResult,
   NANO_BANANA_MAX_REFS,
   type NanoBananaParams,
   ProviderError,
 } from './types';
-
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
+import { toGatewayModel } from './gateway';
 
 // Slug del modelo Nano por defecto (Gemini 3 Pro). Fuente única de verdad:
 // tanto el server action del storyboard como el worker lo importan de aquí.
@@ -29,64 +28,6 @@ export function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | 
   }
 }
 
-// Gemini REST puede devolver thoughtSignature (camelCase) o thought_signature.
-const PartSchema = z.union([
-  z.object({
-    text: z.string(),
-    thoughtSignature: z.string().optional(),
-    thought_signature: z.string().optional(),
-  }),
-  z.object({
-    inlineData: z.object({ mimeType: z.string(), data: z.string() }),
-    thoughtSignature: z.string().optional(),
-    thought_signature: z.string().optional(),
-  }),
-  z.object({
-    inline_data: z.object({ mime_type: z.string(), data: z.string() }),
-    thoughtSignature: z.string().optional(),
-    thought_signature: z.string().optional(),
-  }),
-]);
-
-// Gemini devuelve HTTP 200 sin `parts` (a veces sin `content`) cuando bloquea
-// o no produce salida: el motivo viaja en `finishReason`/`promptFeedback`. Por
-// eso content y parts son opcionales aquí; interpretResponse clasifica el caso
-// sin imagen en un error accionable en vez de un fallo de schema.
-const ResponseSchema = z.object({
-  candidates: z
-    .array(
-      z.object({
-        content: z.object({ parts: z.array(PartSchema).optional() }).optional(),
-        finishReason: z.string().optional(),
-      }),
-    )
-    .min(1),
-  promptFeedback: z
-    .object({
-      blockReason: z.string().optional(),
-      safetyRatings: z.array(z.unknown()).optional(),
-    })
-    .optional(),
-});
-
-// finishReasons de Gemini que significan "bloqueado por políticas".
-const SAFETY_FINISH_REASONS = new Set([
-  'SAFETY',
-  'IMAGE_SAFETY',
-  'PROHIBITED_CONTENT',
-  'BLOCKLIST',
-  'SPII',
-  'RECITATION',
-]);
-
-const ErrorSchema = z.object({
-  error: z.object({
-    code: z.number(),
-    message: z.string(),
-    status: z.string().optional(),
-  }),
-});
-
 const TEXT_IN_IMAGE_DIRECTIVE =
   'Render any embedded text exactly as written, preserve spelling, kerning and legible typography; align text crisply within the composition.';
 
@@ -104,16 +45,23 @@ function buildPrompt(params: NanoBananaParams): string {
   return prompt;
 }
 
-type Part =
-  | { text: string; thoughtSignature?: string }
-  | {
-      inline_data: { mime_type: string; data: string };
-      thoughtSignature?: string;
-    };
+type NanoRequest = {
+  messages: ModelMessage[];
+  providerOptions: { google: Record<string, unknown> };
+};
 
-// Exportada para test determinista (no llama a red): verifica el armado de contents,
-// el descarte de refs en chat y la inclusión de chatReferences.
-export function buildBody(params: NanoBananaParams) {
+type NanoFilePart = {
+  type: 'file';
+  mediaType: string;
+  data: Buffer;
+  providerOptions?: { google: { thoughtSignature: string } };
+};
+type NanoTextPart = { type: 'text'; text: string };
+type NanoPart = NanoFilePart | NanoTextPart;
+
+// Exportada para test determinista (no llama a red): verifica el armado de
+// messages, el descarte de refs en chat y la inclusión de chatReferences.
+export function buildRequest(params: NanoBananaParams): NanoRequest {
   const maxRefs = NANO_BANANA_MAX_REFS[params.model];
 
   // Chat multi-turn solo es válido si tenemos la firma del razonamiento del
@@ -139,164 +87,91 @@ export function buildBody(params: NanoBananaParams) {
       ? `Edit the previous image (attached) based on: ${buildPrompt(params)}`
       : buildPrompt(params);
 
-  const newUserParts: Part[] = [{ text: promptText }];
+  const newUserParts: NanoPart[] = [{ type: 'text', text: promptText }];
   for (const ref of refs) {
-    newUserParts.push({
-      inline_data: {
-        mime_type: ref.mimeType,
-        data: ref.buffer.toString('base64'),
-      },
-    });
+    newUserParts.push({ type: 'file', mediaType: ref.mimeType, data: ref.buffer });
   }
   // EXPERIMENTAL (smoke): en chat real (refs normales descartadas) se permite
   // re-anclar referencias elegidas (el producto) en el turno actual. Fuera de chat
   // no aplica: ahí ya van por `references`.
   if (wantsChat) {
     for (const ref of params.chatReferences ?? []) {
-      newUserParts.push({
-        inline_data: {
-          mime_type: ref.mimeType,
-          data: ref.buffer.toString('base64'),
-        },
-      });
+      newUserParts.push({ type: 'file', mediaType: ref.mimeType, data: ref.buffer });
     }
   }
   if (params.previousTurn && !wantsChat) {
     newUserParts.push({
-      inline_data: {
-        mime_type: params.previousTurn.mimeType,
-        data: params.previousTurn.imageBuffer.toString('base64'),
-      },
+      type: 'file',
+      mediaType: params.previousTurn.mimeType,
+      data: params.previousTurn.imageBuffer,
     });
   }
 
-  const contents: Array<{
-    role?: 'user' | 'model';
-    parts: Part[];
-  }> = [];
+  const messages: ModelMessage[] = [];
   if (wantsChat && params.previousTurn) {
-    contents.push({
+    messages.push({
       role: 'user',
-      parts: [{ text: params.previousTurn.prompt }],
+      content: [{ type: 'text', text: params.previousTurn.prompt }],
     });
-    const modelPart: Part = {
-      inline_data: {
-        mime_type: params.previousTurn.mimeType,
-        data: params.previousTurn.imageBuffer.toString('base64'),
-      },
-      thoughtSignature: params.previousTurn.thoughtSignature,
-    };
-    contents.push({ role: 'model', parts: [modelPart] });
-    contents.push({ role: 'user', parts: newUserParts });
+    messages.push({
+      role: 'assistant',
+      content: [
+        {
+          type: 'file',
+          mediaType: params.previousTurn.mimeType,
+          data: params.previousTurn.imageBuffer,
+          providerOptions: {
+            google: { thoughtSignature: params.previousTurn.thoughtSignature as string },
+          },
+        },
+      ],
+    } as ModelMessage);
+    messages.push({ role: 'user', content: newUserParts } as ModelMessage);
   } else {
-    contents.push({ parts: newUserParts });
+    messages.push({ role: 'user', content: newUserParts } as ModelMessage);
   }
 
-  type GenConfig = {
-    responseModalities: string[];
-    imageConfig?: { aspectRatio?: string; imageSize?: string };
-  };
-  const generationConfig: GenConfig = { responseModalities: ['IMAGE'] };
-  if (params.aspectRatio || params.resolution) {
-    generationConfig.imageConfig = {};
-    if (params.aspectRatio) generationConfig.imageConfig.aspectRatio = params.aspectRatio;
-    if (params.resolution) generationConfig.imageConfig.imageSize = params.resolution;
-  }
+  const imageConfig: { aspectRatio?: string; imageSize?: string } = {};
+  if (params.aspectRatio) imageConfig.aspectRatio = params.aspectRatio;
+  if (params.resolution) imageConfig.imageSize = params.resolution;
 
-  const body: Record<string, unknown> = {
-    contents,
-    generationConfig,
-  };
-
-  if (params.useGrounding) {
-    body.tools = [{ google_search: {} }];
-  }
-
-  return body;
-}
-
-function decodeImagePart(parts: Array<unknown>): GenerationResult | null {
-  // Gemini 3 puede devolver el thoughtSignature en el image part o en un
-  // text/thought part adyacente (los docs dicen "MAY contain", final part).
-  // Recorremos todo y nos quedamos con el primer sig en image part; si no
-  // hay, usamos cualquier sig presente como fallback. Si el replay de ese sig
-  // falla en request (404 NOT_FOUND), generate() reintenta en single-turn
-  // (ver isChatSignatureRejection); si el sig falta de entrada, el fallback
-  // single-turn lo decide buildBody.
-  let image: { buffer: Buffer; mimeType: string; sig?: string } | null = null;
-  let fallbackSig: string | undefined;
-  for (const part of parts) {
-    if (typeof part !== 'object' || part === null) continue;
-    const sig =
-      (part as { thoughtSignature?: string }).thoughtSignature ??
-      (part as { thought_signature?: string }).thought_signature;
-    if ('inlineData' in part) {
-      const p = part as { inlineData: { mimeType: string; data: string } };
-      if (!image) {
-        image = {
-          buffer: Buffer.from(p.inlineData.data, 'base64'),
-          mimeType: p.inlineData.mimeType,
-          sig,
-        };
-      }
-    } else if ('inline_data' in part) {
-      const p = part as { inline_data: { mime_type: string; data: string } };
-      if (!image) {
-        image = {
-          buffer: Buffer.from(p.inline_data.data, 'base64'),
-          mimeType: p.inline_data.mime_type,
-          sig,
-        };
-      }
-    } else if (sig && !fallbackSig) {
-      fallbackSig = sig;
-    }
-  }
-  if (!image) return null;
   return {
-    buffer: image.buffer,
-    mimeType: image.mimeType,
-    thoughtSignature: image.sig ?? fallbackSig,
+    messages,
+    providerOptions: {
+      google: {
+        responseModalities: ['IMAGE'],
+        ...(params.aspectRatio || params.resolution ? { imageConfig } : {}),
+        ...(params.useGrounding ? { tools: [{ google_search: {} }] } : {}),
+      },
+    },
   };
 }
 
-// Interpreta la respuesta JSON de Gemini. Exportada para test determinista (no
-// llama a red). Devuelve la imagen decodificada, o lanza un ProviderError con
-// motivo accionable cuando Gemini bloquea o responde 200 sin imagen.
-export function interpretResponse(json: unknown): GenerationResult {
-  const parsed = ResponseSchema.safeParse(json);
-  if (!parsed.success) {
-    throw new ProviderError(
-      `Respuesta inesperada de Gemini: ${parsed.error.message}`,
-      'unknown',
-      false,
-    );
+// Interpreta el resultado normalizado del AI SDK. Exportada para test
+// determinista (no llama a red). Devuelve la imagen decodificada, o lanza un
+// ProviderError con motivo accionable cuando el modelo no produce imagen.
+export function interpretResult(result: {
+  files: Array<{ uint8Array: Uint8Array; mediaType: string }>;
+  finishReason: string;
+  providerMetadata?: Record<string, Record<string, unknown>>;
+}): GenerationResult {
+  const image = result.files.find((f) => f.mediaType.startsWith('image/'));
+  if (image) {
+    const sig = result.providerMetadata?.google?.thoughtSignature;
+    return {
+      buffer: Buffer.from(image.uint8Array),
+      mimeType: image.mediaType,
+      thoughtSignature: typeof sig === 'string' ? sig : undefined,
+    };
   }
-
-  const data = parsed.data;
-  if (data.promptFeedback?.blockReason) {
+  if (result.finishReason === 'content-filter') {
     throw new ProviderError(
-      `El proveedor rechazó el contenido por políticas de seguridad (${data.promptFeedback.blockReason}).`,
+      'El proveedor rechazó el contenido por políticas de seguridad (content-filter).',
       'safety',
       false,
     );
   }
-
-  const candidate = data.candidates[0];
-  const result = decodeImagePart(candidate.content?.parts ?? []);
-  if (result) return result;
-
-  // HTTP 200 sin imagen: el motivo viaja en finishReason. Lo surfaceamos en vez
-  // de fallar el schema con un error críptico.
-  const reason = candidate.finishReason ?? 'UNKNOWN';
-  if (SAFETY_FINISH_REASONS.has(reason)) {
-    throw new ProviderError(
-      `El proveedor rechazó el contenido por políticas de seguridad (${reason}).`,
-      'safety',
-      false,
-    );
-  }
-  if (reason === 'MAX_TOKENS') {
+  if (result.finishReason === 'length') {
     throw new ProviderError(
       'Gemini agotó el presupuesto de tokens antes de emitir la imagen. Reintenta o simplifica el prompt.',
       'server',
@@ -304,33 +179,27 @@ export function interpretResponse(json: unknown): GenerationResult {
     );
   }
   throw new ProviderError(
-    `La respuesta no incluyó imagen (finishReason: ${reason}). Reintenta o ajusta el prompt.`,
+    `La respuesta no incluyó imagen (finishReason: ${result.finishReason}). Reintenta o ajusta el prompt.`,
     'unknown',
     false,
   );
 }
 
 // ¿El fallo es Gemini rechazando el thought_signature replayado del turno previo?
-// Devuelve 404 NOT_FOUND ("Requested entity was not found") cuando el sig ya no es
-// válido: expiró, o la 'exact part' rule del replay no calza (el turno previo se
-// reconstruye como solo-texto, sin las imágenes que lo originaron). En ese caso el
+// Vía gateway el 404 NOT_FOUND del provider llega como APICallError con
+// statusCode 404 (o el texto NOT_FOUND en el mensaje). Cubre lo mismo que antes:
+// firma expirada, o la 'exact part' rule del replay que no calza. En ese caso el
 // adapter reintenta en single-turn (editando la imagen previa como referencia normal).
-export function isChatSignatureRejection(status: number, errorStatus?: string): boolean {
-  return status === 404 || errorStatus === 'NOT_FOUND';
+export function isChatSignatureRejection(status: number | undefined, message: string): boolean {
+  return status === 404 || message.includes('NOT_FOUND');
 }
 
-async function callOnce(
-  params: NanoBananaParams,
-  apiKey: string,
-): Promise<Response> {
-  const url = `${ENDPOINT}/${params.model}:generateContent`;
-  return fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify(buildBody(params)),
+async function callOnce(params: NanoBananaParams) {
+  const req = buildRequest(params);
+  return generateText({
+    model: toGatewayModel(params.model),
+    messages: req.messages,
+    providerOptions: req.providerOptions as Parameters<typeof generateText>[0]['providerOptions'],
   });
 }
 
@@ -338,95 +207,75 @@ export async function generate(
   params: NanoBananaParams,
   _opts?: { noChatFallback?: boolean },
 ): Promise<GenerationResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
+  if (!process.env.AI_GATEWAY_API_KEY) {
+    throw new ProviderError('AI_GATEWAY_API_KEY no configurada', 'auth', false);
   }
-
-  let res = await callOnce(params, apiKey);
-
   const RETRY_DELAYS = [2000, 5000, 10000];
-  for (const delay of RETRY_DELAYS) {
-    if (res.status !== 429) break;
-    await res.body?.cancel().catch(() => {});
-    await new Promise((r) => setTimeout(r, delay));
-    res = await callOnce(params, apiKey);
-  }
-  if (res.status === 429) {
-    throw new ProviderError(
-      'Rate limit del proveedor. Intenta de nuevo en unos segundos.',
-      'rate_limit',
-      true,
-    );
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
-  }
-
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
-    let errorStatus: string | undefined;
+  let attempt = 0;
+  for (;;) {
     try {
-      const errJson = await res.json();
-      const parsedErr = ErrorSchema.safeParse(errJson);
-      if (parsedErr.success) {
-        detail = parsedErr.data.error.message;
-        errorStatus = parsedErr.data.error.status;
-        if (
-          parsedErr.data.error.status === 'INVALID_ARGUMENT' ||
-          parsedErr.data.error.code === 400
-        ) {
-          throw new ProviderError(detail, 'invalid_input', false);
-        }
-      }
-    } catch (e) {
-      if (e instanceof ProviderError) throw e;
-    }
+      const result = await callOnce(params);
+      const generation = interpretResult(result);
 
-    // Fallback de chat conversacional: si Gemini rechaza el thought_signature del
-    // turno previo (404 NOT_FOUND), reintentamos UNA vez en single-turn — al quitar
-    // el sig, buildBody edita la imagen previa como referencia normal (sin chat). Es
-    // el fallback que el adapter siempre pretendió tener para la 'exact part' rule,
-    // ahora también para el rechazo en request. Cubre refinePanelAction y la
-    // generación encadenada (ambas replayean el sig del panel anterior).
-    if (
-      !_opts?.noChatFallback &&
-      params.previousTurn?.thoughtSignature &&
-      isChatSignatureRejection(res.status, errorStatus)
-    ) {
-      return generate(
-        { ...params, previousTurn: { ...params.previousTurn, thoughtSignature: undefined } },
-        { noChatFallback: true },
+      if (params.noBackground) {
+        const sharp = (await import('sharp')).default;
+        const { data, info } = await sharp(generation.buffer)
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+        const threshold = 250;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] > threshold && data[i + 1] > threshold && data[i + 2] > threshold) {
+            data[i + 3] = 0;
+          }
+        }
+        generation.buffer = await sharp(data, {
+          raw: { width: info.width, height: info.height, channels: 4 },
+        }).png().toBuffer();
+        generation.mimeType = 'image/png';
+      }
+
+      return generation;
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      if (APICallError.isInstance(err)) {
+        const status = err.statusCode;
+        if (status === 429 && attempt < RETRY_DELAYS.length) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+          attempt += 1;
+          continue;
+        }
+        if (status === 429) {
+          throw new ProviderError('Rate limit del proveedor. Intenta de nuevo en unos segundos.', 'rate_limit', true);
+        }
+        if (status === 401 || status === 403) {
+          throw new ProviderError('Auth inválida con AI Gateway', 'auth', false);
+        }
+        // Fallback de chat conversacional: si el provider rechaza el
+        // thought_signature replayado, reintentar UNA vez en single-turn.
+        if (
+          !_opts?.noChatFallback &&
+          params.previousTurn?.thoughtSignature &&
+          isChatSignatureRejection(status, err.message)
+        ) {
+          return generate(
+            { ...params, previousTurn: { ...params.previousTurn, thoughtSignature: undefined } },
+            { noChatFallback: true },
+          );
+        }
+        if (status === 400) {
+          throw new ProviderError(err.message.slice(0, 300), 'invalid_input', false);
+        }
+        if (status !== undefined && status >= 500) {
+          throw new ProviderError(err.message.slice(0, 300), 'server', true);
+        }
+        throw new ProviderError(err.message.slice(0, 300), 'unknown', false);
+      }
+      throw new ProviderError(
+        err instanceof Error ? err.message : 'error desconocido',
+        'unknown',
+        false,
       );
     }
-
-    if (res.status >= 500) {
-      throw new ProviderError(detail, 'server', true);
-    }
-    throw new ProviderError(detail, 'unknown', false);
   }
-
-  const json = await res.json();
-  const result = interpretResponse(json);
-
-  if (params.noBackground) {
-    const sharp = (await import('sharp')).default;
-    const { data, info } = await sharp(result.buffer)
-      .ensureAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-    const threshold = 250;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] > threshold && data[i + 1] > threshold && data[i + 2] > threshold) {
-        data[i + 3] = 0;
-      }
-    }
-    result.buffer = await sharp(data, {
-      raw: { width: info.width, height: info.height, channels: 4 },
-    }).png().toBuffer();
-    result.mimeType = 'image/png';
-  }
-
-  return result;
 }
