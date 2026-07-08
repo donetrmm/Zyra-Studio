@@ -91,3 +91,16 @@ export function chainAudioPaths(
   }
   return musicPath ? { paths: [musicPath], kind: 'music' } : { paths: [], kind: null };
 }
+
+// Recomendación de fuente de audio para el toggle del wizard: si algún personaje
+// seleccionado tiene voz asignada (utilizable en video), 'prev_clip' propaga ese
+// timbre a los clips 2..N de una secuencia encadenada (el clip 1 usa la voz, pero
+// los siguientes no la re-citan). Si ninguno tiene voz, la pista marca el ritmo.
+// Pura (sin DB): la consume el wizard para el default sugerido y el badge.
+export function recommendedAudioSource(
+  selectedIds: string[],
+  chars: Array<{ id: string; hasVoice: boolean }>,
+): ChainAudioSource {
+  const voiced = new Set(chars.filter((c) => c.hasVoice).map((c) => c.id));
+  return selectedIds.some((id) => voiced.has(id)) ? 'prev_clip' : 'music';
+}

@@ -5,7 +5,30 @@ import {
   nextSceneItem,
   shouldReturnLastFrame,
   chainAudioPaths,
+  recommendedAudioSource,
 } from './sequence-chain';
+
+describe('recommendedAudioSource', () => {
+  const chars = [
+    { id: 'a', hasVoice: true },
+    { id: 'b', hasVoice: false },
+  ];
+  it('sin selección → music', () => {
+    expect(recommendedAudioSource([], chars)).toBe('music');
+  });
+  it('seleccionado sin voz → music', () => {
+    expect(recommendedAudioSource(['b'], chars)).toBe('music');
+  });
+  it('seleccionado con voz → prev_clip', () => {
+    expect(recommendedAudioSource(['a'], chars)).toBe('prev_clip');
+  });
+  it('mezcla (uno con voz) → prev_clip', () => {
+    expect(recommendedAudioSource(['a', 'b'], chars)).toBe('prev_clip');
+  });
+  it('id seleccionado que no está en chars → music (no crashea)', () => {
+    expect(recommendedAudioSource(['zzz'], chars)).toBe('music');
+  });
+});
 
 const items = [
   { id: 'c', sceneIndex: 2 },
