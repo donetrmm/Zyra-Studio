@@ -297,6 +297,110 @@ describe('buildDirectedPlan', () => {
     expect(items.map((i) => i.sceneIndex)).toEqual([0, 1]);
   });
 
+  // Bug Anuncio #12 V2 (2026-07-08): el matcher metió a un personaje del Cast en
+  // inventedCharacters con una apariencia alucinada; anexarla contradice su imagen de
+  // referencia y la ropa deriva entre clips. Un personaje del Cast no lleva texto de
+  // apariencia: su nombre se rescata como id de referencia.
+  it('inventado que colisiona con un nombre del Cast: no anexa texto, rescata el id (secuencia)', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('voz-cercana'),
+            count: 1,
+            durationS: null,
+            scenePrompt: null,
+            sceneSummary: null,
+            characterIds: ['char-1'], // Maya, en el Cast
+            invented: [{ name: 'Maya', description: 'A woman with long dark hair, wearing a brown patterned shirt' }],
+            scenes: [
+              { scenePrompt: 'Maya sits on a sofa and speaks to camera', durationS: 6, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+            ],
+            sequenceLabel: 'Testimonio',
+          },
+        ],
+      }),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0].scenePrompt).not.toContain('brown patterned shirt');
+    expect(items[0].scenePrompt).not.toContain('Maya is');
+    expect(items[0].characterIds).toContain('char-1');
+  });
+
+  it('inventado con nombre del Cast pero SIN id en characterIds: igual se rescata el id (secuencia)', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('voz-cercana'),
+            count: 1,
+            durationS: null,
+            scenePrompt: null,
+            sceneSummary: null,
+            characterIds: [], // el matcher olvidó el id
+            invented: [{ name: 'maya', description: 'a woman in a green dress' }], // nombre igual (case-insensitive)
+            scenes: [
+              { scenePrompt: 'Maya walks in and smiles', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+            ],
+            sequenceLabel: 'Reveal',
+          },
+        ],
+      }),
+    );
+    expect(items[0].scenePrompt).not.toContain('maya is');
+    expect(items[0].scenePrompt).not.toContain('green dress');
+    expect(items[0].characterIds).toContain('char-1');
+  });
+
+  it('inventado GENUINO (no está en el Cast): sigue anexándose como texto', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('voz-cercana'),
+            count: 1,
+            durationS: null,
+            scenePrompt: null,
+            sceneSummary: null,
+            characterIds: [],
+            invented: [{ name: 'Bruno', description: 'a tall man in a red cap' }],
+            scenes: [
+              { scenePrompt: 'Bruno opens the box', durationS: 5, sceneSummary: null, beatRole: 'beat' as const, characterStateHint: null, transitionHint: null },
+            ],
+            sequenceLabel: 'Unboxing',
+          },
+        ],
+      }),
+    );
+    expect(items[0].scenePrompt).toContain('Bruno is a tall man in a red cap.');
+    // Bruno no está en el Cast: no se rescata ningún id por él.
+    expect(items[0].characterIds).not.toContain('char-1');
+    expect(items[0].characterIds).not.toContain('char-2');
+  });
+
+  it('rama normal (clip único): inventado que colisiona con el Cast no anexa texto y rescata el id', () => {
+    const items = buildDirectedPlan(
+      directedInput({
+        ideas: [
+          {
+            format: fmt('voz-cercana'),
+            count: 1,
+            durationS: null,
+            scenePrompt: 'Leo raises the product to camera',
+            sceneSummary: null,
+            characterIds: ['char-2'], // Leo
+            invented: [{ name: 'Leo', description: 'a bald man in a suit' }],
+            scenes: [],
+            sequenceLabel: null,
+          },
+        ],
+      }),
+    );
+    expect(items[0].scenePrompt).not.toContain('Leo is');
+    expect(items[0].scenePrompt).not.toContain('bald man');
+    expect(items[0].characterIds).toContain('char-2');
+  });
+
   it('clampa la duración de la escena a 8s aunque venga del default del formato (custom 15s)', () => {
     // Formato custom con default 15s (pensado para clip único); al partirse en
     // secuencia, cada escena es un beat ≤8s aunque la escena no traiga durationS.

@@ -80,6 +80,41 @@ export type PlanItemDraft = {
 export const DEFAULT_PRESENTER =
   'a presenter with shoulder-length dark hair, neutral casual wardrobe and a warm confident delivery';
 
+// Normaliza un nombre para comparar Cast vs inventados: sin acentos, minúsculas,
+// espacios colapsados.
+function normName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Red determinista (bug Anuncio #12 V2): el matcher a veces devuelve a un personaje
+// del Cast dentro de inventedCharacters con una apariencia ALUCINADA — describió a Luz
+// con "brown patterned shirt" (tomándolo de la foto impresa del producto) cuando su
+// Cast es un top crema. Anexar esa descripción al scenePrompt contradice su imagen de
+// referencia viva y la ropa/identidad deriva entre clips (el panel 6 salió con otra
+// blusa). Un personaje del Cast toma su apariencia de la referencia, NUNCA de texto:
+// un inventado cuyo nombre colisiona con un nombre del Cast NO genera línea de texto;
+// en su lugar se rescata su id para asegurar la referencia viva. Los inventados
+// genuinos (nombre que no está en el Cast) sí van como texto descriptivo.
+function reconcileInvented(
+  invented: Array<{ name: string; description: string }>,
+  cast: PlannerCharacter[],
+): { lines: string[]; castIds: string[] } {
+  const idByName = new Map(cast.map((c) => [normName(c.name), c.id]));
+  const lines: string[] = [];
+  const castIds: string[] = [];
+  for (const p of invented) {
+    const hit = idByName.get(normName(p.name));
+    if (hit) castIds.push(hit);
+    else lines.push(`${p.name} is ${p.description}.`);
+  }
+  return { lines, castIds };
+}
+
 // Mix de formatos por categoría — mapa PROPIO (doc V2: no copiar relevance
 // maps de terceros). El núcleo universal funciona para casi todo; cada
 // categoría suma los formatos que su producto soporta de verdad.
@@ -350,8 +385,19 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
       // escenario y personaje en cada scenePrompt). Imponerles un fragmento
       // genérico de scene_library (p. ej. "cocina") contradice la acción
       // (una pared, una sala) → se deja vacío y manda el scenePrompt.
-      const fromIdea = idea.characterIds.filter((id) => input.characters.some((c) => c.id === id)).slice(0, 3);
-      const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
+      // Inventados reconciliados contra el Cast: un nombre que SÍ está en el Cast
+      // se rescata como id de referencia (no como texto inventado que contradice su
+      // imagen) — ver reconcileInvented (bug Anuncio #12 V2).
+      const { lines: inventedLines, castIds: rescuedIds } = reconcileInvented(
+        idea.invented,
+        input.characters,
+      );
+      const fromIdea = [
+        ...new Set([
+          ...idea.characterIds.filter((id) => input.characters.some((c) => c.id === id)),
+          ...rescuedIds,
+        ]),
+      ].slice(0, 3);
       const needsCharacter = format.requiredRefs.includes('character');
       if (needsCharacter && fromIdea.length === 0 && inventedLines.length === 0) {
         inventedLines.push(`The presenter is ${DEFAULT_PRESENTER}.`);
@@ -403,10 +449,19 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
         fragment: 'a clean minimal studio setting with controlled soft light',
       };
 
-      // Personajes mencionados por el matcher, validados contra el pool.
-      const fromIdea = idea.characterIds
-        .filter((id) => input.characters.some((c) => c.id === id))
-        .slice(0, 3);
+      // Personajes mencionados por el matcher, validados contra el pool. Los
+      // inventados que colisionan con un nombre del Cast se rescatan como id de
+      // referencia (no como texto) — ver reconcileInvented (bug Anuncio #12 V2).
+      const { lines: inventedLines, castIds: rescuedIds } = reconcileInvented(
+        idea.invented,
+        input.characters,
+      );
+      const fromIdea = [
+        ...new Set([
+          ...idea.characterIds.filter((id) => input.characters.some((c) => c.id === id)),
+          ...rescuedIds,
+        ]),
+      ].slice(0, 3);
       // Rotación del pool cuando no hay mención explícita.
       const rotated =
         needsCharacter && input.characters.length
@@ -421,9 +476,8 @@ export function buildDirectedPlan(input: DirectedPlanInput): PlanItemDraft[] {
       const sceneSummary =
         idea.sceneSummary ?? (usedSeed ? seedSummary(format.slug, i, input.language) : null);
 
-      // Personajes inventados → frases descriptivas en el scenePrompt.
-      const inventedLines = idea.invented.map((p) => `${p.name} is ${p.description}.`);
       // Sin pool, sin inventados y el formato pide personaje → presentador genérico.
+      // (inventedLines ya viene reconciliado contra el Cast, arriba.)
       if (needsCharacter && characterIds.length === 0 && inventedLines.length === 0) {
         inventedLines.push(`The presenter is ${DEFAULT_PRESENTER}.`);
       }

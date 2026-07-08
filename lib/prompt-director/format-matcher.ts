@@ -421,7 +421,12 @@ Por cada idea distinta devuelve un match:
 - inventedCharacters: si la idea nombra a una persona que NO está en el Cast,
   inventa su apariencia: {"name":"...","description":"apariencia concreta en
   INGLÉS, 1-2 frases, sin mencionar edad"}. No inventes personajes que la idea
-  no menciona. Si no aplica, [].
+  no menciona. NUNCA inventes la apariencia de alguien que YA está en el Cast
+  (esos van SOLO en characterIds; su apariencia viene de su referencia viva, no
+  de texto — describirla contradice la referencia y su ropa/rostro deriva entre
+  clips). Tampoco describas la ropa de un personaje del Cast a partir de lo que
+  veas en la foto IMPRESA del producto: esa persona del cuadro no es el talento.
+  Si no aplica, [].
 - blocker: SOLO si una idea es demasiado vaga o ambigua para convertirla en una
   toma concreta (y ni siquiera nombra un formato), pon UNA línea __SUMMARY_LANG__
   diciendo qué falta (ej. "no dice qué pasa en pantalla ni qué formato quieres");
