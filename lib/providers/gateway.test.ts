@@ -28,6 +28,12 @@ describe('toGatewayModel', () => {
   it('prefija el slug interno con google/', () => {
     expect(toGatewayModel('gemini-2.5-flash')).toBe('google/gemini-2.5-flash');
   });
+
+  it('mapea gemini-3-pro-image-preview al slug real del gateway (sin -preview)', () => {
+    // El catálogo del gateway no tiene el slug -preview para Nano Banana Pro;
+    // ver MODEL_MAP en gateway.ts.
+    expect(toGatewayModel('gemini-3-pro-image-preview')).toBe('google/gemini-3-pro-image');
+  });
 });
 
 describe('stripFences', () => {

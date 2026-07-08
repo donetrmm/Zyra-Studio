@@ -33,8 +33,18 @@ export type GatewayTextResult = {
   finishReason: string;
 };
 
+// El catálogo del gateway (GET https://ai-gateway.vercel.sh/v1/models,
+// verificado 2026-07-08) NO expone `google/gemini-3-pro-image-preview`: el
+// slug real es `google/gemini-3-pro-image` (sin sufijo -preview). El slug
+// interno de Nano Banana Pro ('gemini-3-pro-image-preview') NO cambia — vive
+// en DB, schemas, estimator y UI — solo este mapeo hacia el gateway. Ver
+// docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md.
+const MODEL_MAP: Record<string, string> = {
+  'gemini-3-pro-image-preview': 'google/gemini-3-pro-image',
+};
+
 export function toGatewayModel(slug: string): string {
-  return `google/${slug}`;
+  return MODEL_MAP[slug] ?? `google/${slug}`;
 }
 
 // El gateway no garantiza responseMimeType:'application/json' como la API

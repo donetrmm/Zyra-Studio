@@ -2,6 +2,10 @@ import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from './types';
 
+// Veo es el ÚNICO consumidor de GEMINI_API_KEY: queda en la API nativa porque
+// AI Gateway solo ofrece video bloqueante sin operation name (incompatible con
+// el polling re-encolado por QStash). Ver docs/superpowers/specs/2026-07-08-
+// migracion-ai-gateway-design.md.
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 export type VeoModel =
