@@ -1,11 +1,13 @@
 # Google Nano Banana Pro — API Documentation
 
 > **Transporte:** el repo llama a Nano Banana vía Vercel AI Gateway
-> (`AI_GATEWAY_API_KEY`, model string `google/gemini-3-pro-image-preview` vía
+> (`AI_GATEWAY_API_KEY`, model string `google/gemini-3-pro-image` vía
 > AI SDK `generateText`), no vía la API nativa que documenta este archivo. Los
 > detalles de request/response nativos (endpoint REST, `x-goog-api-key`,
 > shape de `generationConfig`) siguen aplicando solo a Veo, que no migró. Ver
-> `docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md`.
+> `docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md`. El slug
+> interno `gemini-3-pro-image-preview` se traduce a este wire slug vía el
+> MODEL_MAP de `lib/providers/gateway.ts`.
 
 **Caso de uso:** Generación y edición de imágenes con consistencia de personajes (hasta 14 referencias), texto en imagen de alta fidelidad, infografías inteligentes con datos en tiempo real, razonamiento espacial complejo.
 

@@ -39,17 +39,19 @@ Deploy:      Vercel — plan Hobby
 | Video premium | Gemini API (nativa) | `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `veo-3.1-lite-generate-preview` |
 | Video volumen | klingapi.com | `kling-video-o1`, `kling-3-0-omni`, `kling-v2.6-pro`, `kling-v2.6-std`, `kling-v2.5-turbo` |
 | Texto (Gemini) | Vercel AI Gateway | `google/gemini-2.5-flash` y variantes — ingest, matcher, refine, brief, clarify, analyze-kit, describe-character, reference-analysis, light-profile, storyboard-expand-check, prompt-enhancer |
-| Imagen general | Vercel AI Gateway | `google/gemini-3-pro-image-preview` (Nano Banana Pro), `google/gemini-3.1-flash-image-preview` |
+| Imagen general | Vercel AI Gateway | `google/gemini-3-pro-image` (Nano Banana Pro), `google/gemini-3.1-flash-image-preview` |
 | Imagen fotorrealista | api.bfl.ai | `flux-2-pro-preview` |
 | Audio (todo) | api.elevenlabs.io | `eleven_v3`, `eleven_multilingual_v2`, `eleven_flash_v2_5` |
 
 **Transporte Gemini:** texto y Nano Banana pasan por Vercel AI Gateway con una
 sola `AI_GATEWAY_API_KEY` (model strings `google/...` vía AI SDK
-`generateText`, mapeo en `lib/providers/gateway.ts`). Veo es la única
-excepción y sigue con requests nativas a `generativelanguage.googleapis.com`
-usando `GEMINI_API_KEY`, porque el gateway solo ofrece video bloqueante sin
-operation name (incompatible con el polling re-encolado por QStash). Detalle
-en `docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md`.
+`generateText`, mapeo en `lib/providers/gateway.ts`). Los slugs internos se
+traducen a `google/<slug>` salvo excepciones registradas en el MODEL_MAP de
+`lib/providers/gateway.ts`. Veo es la única excepción y sigue con requests
+nativas a `generativelanguage.googleapis.com` usando `GEMINI_API_KEY`, porque
+el gateway solo ofrece video bloqueante sin operation name (incompatible con el
+polling re-encolado por QStash). Detalle en
+`docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md`.
 
 ---
 
