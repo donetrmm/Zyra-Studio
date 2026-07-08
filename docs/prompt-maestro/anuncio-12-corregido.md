@@ -40,10 +40,10 @@ Plano de pecho para arriba, **rostro a la lente**, cabeza estable. Luz sostiene 
 **Diálogo:** "Mi error como mamá fue no llenar la casa con recuerdos de mi hijo."
 *(~14 palabras ≈ 7 s de habla; cabe aunque el sistema recorte el clip a ~8 s.)*
 
-### Clip 2 · ~6 s — El cambio · Sala · Luz a cámara (lip-sync)
-Plano medio, **rostro a la lente**. Luz sostiene el canvas de frente y habla a cámara. **Termina la frase** y recién entonces gira el canvas 180° sobre su eje para mostrar el frente plano a cámara (la acción del volteo va después de hablar, en silencio).
+### Clip 2 · ~5 s — El cambio · Sala · Luz a cámara (lip-sync)
+Plano medio, **rostro a la lente**, cabeza estable. Luz sostiene el canvas **a la altura del pecho** (sin taparse la cara con él) y habla directo a cámara. **Nada de voltear ni manipular el cuadro mientras habla:** la cara despejada todo el clip.
 **Diálogo:** "Pero ahora, con Proliénzo, por fin pude hacerlo."
-*(~9 palabras ≈ 4.5 s; el resto del clip es el volteo, sin diálogo.)*
+*(~9 palabras ≈ 4.5 s. El **volteo/reveal del cuadro NO va aquí**: una acción que tapa o gira la cara mata el lip-sync aunque la pongas "al final". Si quieres el reveal, va en su **propio clip**, en silencio.)*
 
 ### Clip 3 · ~7 s — Colgando el cuadro · Sala · producto/acción · VOZ EN OFF
 Plano medio. Luz, arrodillada junto al sofá y **de perfil/espaldas a cámara** (no da la cara), cuelga el canvas en la pared: baja el colgador dentado sobre el clavo, los hombros ceden con alivio. Como no mira a cámara, **no hay lip-sync**: la línea es narración en off, dicha una sola vez.
@@ -74,7 +74,7 @@ Close-up, **rostro a la lente**, energía cálida y confiada. Gestos abiertos de
 ## 7. Reglas transversales (todos los clips)
 
 - **Una sola escena por clip** y **una sola línea hablada por clip**, dicha una vez, entre comillas. Jamás fragmentar una frase en varios entrecomillados ni re-citar pedazos.
-- **Rostro a cámara y cabeza estable** en los clips con lip-sync (1, 2, 6, 7). Nada de voltear el cuadro, agacharse o mirar hacia abajo **mientras** se habla: primero habla a la lente, luego la acción.
+- **Rostro a cámara y cabeza estable** en los clips con lip-sync (1, 2, 6, 7). Nada de voltear el cuadro, agacharse o mirar hacia abajo **mientras** se habla; y si esa acción tapa o gira la cara (voltear/rotar el cuadro), va en **otro clip** en silencio, no más adelante en el mismo (el modelo la prioriza y pierde el lip-sync).
 - **Producto puro / no-a-cámara** (3, 4, 5): sin lip-sync. O sin diálogo, o **voz en off** con una línea completa. Marca la narración como "Voz en off:".
 - **Diálogo dimensionado a la duración:** ~2 palabras por segundo en es-MX. Si la línea es corta y el clip largo, acorta el clip (no dejes tiempo muerto: el modelo lo rellena repitiendo). Si es larga, parte en más clips.
 - **Techo efectivo de habla:** el sistema recorta la duración efectiva de cada clip según su rol; fuera del clip de apertura, no cuentes con más de ~8 s de habla por clip (por eso el CTA lleva una línea corta). No escribas monólogos de 10–12 s esperando que sobrevivan.

@@ -357,7 +357,17 @@ Por cada idea distinta devuelve un match:
   intentaría sincronizar una boca ausente y la voz sale rara/robótica. El
   presupuesto de habla y el idioma aplican igual a Voice-over. Escribe frases de
   5-10 palabras: una línea larga se parte en varias frases cortas (el modelo
-  sincroniza mejor la boca y respira entre frases). PRESUPUESTO DE HABLA: la entrega actuada rinde ~2
+  sincroniza mejor la boca y respira entre frases).
+  LIP-SYNC LIMPIO: en un beat con Dialogue (habla en cámara, hay lip-sync) el hablante
+  MANTIENE la cara y la boca visibles y de frente durante TODA la línea. NO metas en ESE
+  MISMO beat una acción que tape o gire la cara: levantar/sostener un objeto frente al
+  rostro, voltear o rotar un objeto que sostiene, darse la vuelta, agacharse o mirar hacia
+  abajo. Si el guion dice que el personaje habla y LUEGO hace esa acción, PÁRTELO en
+  escenas: la línea va en su propio beat (cara a cámara, cualquier objeto a la altura del
+  pecho o a un lado, sin taparle la boca) y la acción va en la SIGUIENTE escena, en
+  silencio. NUNCA escribas "termina de hablar y entonces [acción]" ni "sostiene X frente a
+  ella y habla" en un mismo beat: el modelo prioriza la acción visible y pierde el lip-sync.
+  PRESUPUESTO DE HABLA: la entrega actuada rinde ~2
   palabras por segundo sostenidas y cada clip pierde ~2s en arranque y cierre —
   en 5s caben ~6 palabras, en 8s ~12, en 12s ~20. Si la línea no cabe en la
   duración, RECORTA la línea o parte en más escenas; nunca cuentes con que el

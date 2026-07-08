@@ -22,7 +22,7 @@ Escribes **un solo texto** (el prompt maestro, como para un render tipo Veo/Sora
 La frase entre comillas es **lo único que Seedance pronuncia**. Escríbela **completa y una sola vez**. **Nunca** partas una frase en varios entrecomillados dentro del mismo clip, ni re-cites fragmentos ("…pude hacerlo…" después de haber dicho "pude hacerlo"). Cada entrecomillado se pronuncia como una locución nueva → el modelo **repite palabras**. Todo lo que no va entre comillas (gestos, cámara, acción) es dirección: no se pronuncia.
 
 - Mal: `"Ahora con Prolienzo…"` [volteo] `"…pude hacerlo…"`
-- Bien: Luz mira a cámara y dice: `"Ahora con Prolienzo por fin pude hacerlo."` Luego voltea el cuadro (en silencio).
+- Bien: Luz mira a cámara y dice: `"Ahora con Prolienzo por fin pude hacerlo."` El volteo del cuadro va en **otro clip** (en silencio), no en el mismo (ver regla 3).
 
 ### 2. Rostro a cámara = lip-sync; no dar la cara = voz en off o silencio
 Seedance solo sincroniza labios bien si la **cara está de frente, grande y estable**. Decide por clip:
@@ -31,8 +31,10 @@ Seedance solo sincroniza labios bien si la **cara está de frente, grande y esta
 
 Regla práctica (la que hizo bueno al anuncio #11): *si el talento aparece y habla, su rostro va a cámara; toda toma sin rostro es producto puro sin lip-sync.*
 
-### 3. No cargues la cara con acción pesada mientras habla
+### 3. No cargues la cara con acción pesada mientras habla — y si la acción tapa/gira la cara, va en OTRO clip
 Voltear el producto, agacharse, mirar hacia abajo o girar la cabeza **mientras** se dice la línea desincroniza los labios y empuja a que salga como voz en off. Orden correcto: **habla a la lente** primero, **luego** la acción. Quita instrucciones de "asiente / gira la cabeza" en el tramo hablado.
+
+Ojo con el matiz que rompió el clip 2 del Anuncio #12 V2: no basta con poner la acción "después" **dentro del mismo clip**. Si la acción **tapa o gira la cara** (voltear/rotar el cuadro, alzarlo frente al rostro, darse la vuelta), el modelo la prioriza y **pierde el lip-sync** aunque la hayas puesto al final. Pártelo en **dos clips**: uno habla (cara despejada, el cuadro a la altura del pecho o a un lado, sin taparle la boca) y el **siguiente** hace el volteo, en silencio. Un clip hablado no debe cargar además una acción que oculte la boca.
 
 ### 4. Dimensiona el diálogo a la duración (~2 palabras/segundo en es-MX)
 El modelo **rellena toda la duración con audio**. Si la línea es más corta que el clip, rellena repitiendo; si es más larga, atropella y la boca se emborrona (sobre todo pasados ~8 s).
@@ -130,7 +132,7 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 ## 4. Checklist antes de generar
 
 - [ ] ¿Cada clip tiene **una sola** frase entre comillas (o ninguna)? ¿Ningún fragmento re-citado?
-- [ ] ¿Los clips con diálogo tienen al personaje **de frente a la lente** y **sin acción pesada de cara** durante el habla?
+- [ ] ¿Los clips con diálogo tienen al personaje **de frente a la lente** y **sin acción pesada de cara** durante el habla? ¿Ninguna acción que **tape o gire la cara** (voltear el cuadro) comparte clip con la línea? (Va en otro clip.)
 - [ ] ¿Las tomas sin rostro a cámara están marcadas como `Voz en off:` (una línea) o `Sin diálogo`?
 - [ ] ¿Cada línea **cabe** en la duración (~2 palabras/seg)? ¿Ninguna línea corta en un clip largo?
 - [ ] ¿Rostro y producto dentro del 4:5? ¿Cero pedidos de texto/subtítulos/logos?
@@ -149,6 +151,7 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 |---|---|
 | Frase partida en varios entrecomillados / fragmentos re-citados | **Repite palabras** al terminar/empezar la frase; audio desincronizado |
 | Habla puesta sobre una toma donde el personaje no mira a cámara o manipula el producto | Sale como **voz en off** (sin lip-sync) o boca desincronizada |
+| Habla + acción que tapa/gira la cara (voltear el cuadro) en el **mismo** clip, aunque sea "después" | El modelo hace la acción y **pierde el lip-sync**; parte en dos clips (uno habla, otro voltea) |
 | Línea corta en un clip largo | El modelo **rellena repitiendo** la cola de la frase |
 | Línea muy larga para la duración (o clip >8 s con monólogo) | Habla **atropellada**, boca "mushy", deriva del sync |
 | Marcar "Voiceover/narración/voz en off" cuando querías lip-sync | El sistema apaga el lip-sync **a propósito** |

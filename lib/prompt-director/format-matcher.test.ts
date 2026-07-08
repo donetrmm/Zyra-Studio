@@ -641,6 +641,16 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('Voice-over:');
   });
 
+  it('incluye la regla de lip-sync limpio: un beat con diálogo no lleva acción que tape/gire la cara', () => {
+    // Bug Anuncio #12 V2 clip 2: "holds the canvas in front of her... She finishes
+    // speaking, then rotates the canvas 180 degrees" -> el modelo priorizó el volteo y
+    // perdió el lip-sync pese a la dirección de habla correcta. La regla pide partir
+    // "habla y luego [acción que tapa la cara]" en dos escenas.
+    const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
+    expect(s).toContain('LIP-SYNC LIMPIO');
+    expect(s).toContain('pierde el lip-sync');
+  });
+
   it('fantasía: bloque de estilo presente y física del mundo ausente', () => {
     const s = buildMatcherSystemPrompt({ visualStyle: 'fantasia' });
     expect(s).toContain('FANTASÍA');
