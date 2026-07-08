@@ -28,7 +28,9 @@ export const NanoBananaInputSchema = z.object({
   provider: z.literal('nano-banana'),
   model: z.enum(['gemini-3-pro-image-preview', 'gemini-3.1-flash-image-preview']),
   variant: ResolutionEnum,
-  prompt: z.string().min(1).max(8000),
+  // 12000: los paneles de storyboard con andamiaje completo ya superan 8000
+  // (8151 en prod 2026-07-07); techo nuestro, Gemini acepta mucho más.
+  prompt: z.string().min(1).max(12000),
   aspectRatio: z.enum(NanoBananaAspectRatios).default('1:1'),
   references: z.array(ReferenceItem).max(14).default([]),
   hasTextInImage: z.boolean().default(false),
@@ -45,7 +47,9 @@ export const FluxInputSchema = z.object({
   provider: z.literal('flux'),
   model: z.literal('flux-2-pro-preview'),
   variant: z.literal('default'),
-  prompt: z.string().min(1).max(8000),
+  // 12000: mismo techo que Nano/Seedance — los compilados de campaña con
+  // andamiaje completo rebasan 8000 y el recorte mutila contenido.
+  prompt: z.string().min(1).max(12000),
   aspectRatio: z.enum(['1:1', '3:2', '2:3', '16:9', '9:16', '4:3', '3:4']).default('1:1'),
   megapixels: z.union([z.literal(1), z.literal(2), z.literal(4)]).default(1),
   references: z.array(ReferenceItem).max(8).default([]),

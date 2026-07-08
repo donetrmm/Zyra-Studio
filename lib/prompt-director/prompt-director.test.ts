@@ -442,7 +442,7 @@ describe('compile seedance', () => {
   });
 
   it('recorta solo la acción para el techo, preservando cláusulas finales Y el diálogo', () => {
-    const huge = '0-3s: Brenda stares into the camera as the LED wall scrolls endless family photographs. '.repeat(80);
+    const huge = '0-3s: Brenda stares into the camera as the LED wall scrolls endless family photographs. '.repeat(160);
     const res = compile(
       {
         modelSlug: 'bytedance/seedance-2.0/reference-to-video',
@@ -465,8 +465,9 @@ describe('compile seedance', () => {
   });
 
   it('desborde mayor que la acción: el guion sobrevive aunque el prompt exceda el budget', () => {
-    // Andamiaje gigante (visualDetails ~6500 chars) + acción corta con diálogo:
-    // el recorte ingenuo dejaba la acción en CERO y el modelo inventaba el audio.
+    // Andamiaje gigante (visualDetails ~10500 chars, por encima del budget él
+    // solo) + acción corta con diálogo: el recorte ingenuo dejaba la acción en
+    // CERO y el modelo inventaba el audio.
     const ctx = fullContext();
     const res = compile(
       {
@@ -475,7 +476,7 @@ describe('compile seedance', () => {
         durationS: 4,
         aspectRatio: '9:16',
       },
-      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(440) } },
+      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(700) } },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -483,6 +484,31 @@ describe('compile seedance', () => {
     expect(prompt).toContain('Mira esto');
     expect(prompt).toContain('Ana leans forward');
     expect(warnings.some((w) => w.includes('techo'))).toBe(true);
+  });
+
+  it('andamiaje real (~8-9k) + acción corta: la acción sobrevive INTACTA, sin recorte', () => {
+    // Bug 2026-07-07 (Anuncio #12): el andamiaje fijo de una campaña completa
+    // (locación+producto+personaje+vestuario+escala+voz) superaba el budget de
+    // 6000 él solo, el salvamento gancho+diálogo se disparaba en TODOS los
+    // clips y la acción (el volteo, el colgado) nunca llegaba al modelo.
+    const ctx = fullContext();
+    const res = compile(
+      {
+        modelSlug: 'bytedance/seedance-2.0/reference-to-video',
+        scenePrompt:
+          'Luz rotates the canvas 180 degrees on its vertical axis, the thin edge briefly visible, then readjusts her grip and looks up at the lens with a full smile. Dialogue: "Ahora con Prolienzo, pude hacerlo."',
+        durationS: 5,
+        aspectRatio: '9:16',
+      },
+      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(400) } },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const { prompt, warnings } = res.compiled;
+    // La acción COMPLETA sobrevive (no solo el gancho) y no hay warning de techo.
+    expect(prompt).toContain('rotates the canvas 180 degrees');
+    expect(prompt).toContain('looks up at the lens');
+    expect(warnings.some((w) => w.includes('techo') || w.includes('recort'))).toBe(false);
   });
 
   it('el diálogo hablado va en español por default y en inglés si la campaña lo pide', () => {

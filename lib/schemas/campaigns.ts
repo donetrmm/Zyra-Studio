@@ -29,11 +29,12 @@ export const SubmitSeedanceSchema = z
   .object({
     kind: z.literal('seedance'),
     model: z.enum(SEEDANCE_MODELS),
-    // 8000 alineado con el schema de generación (generations.ts): el proveedor
-    // acepta prompts >6000 (probado en prod) y el compiler presupuesta 6000 +
-    // apéndices del storyboard. El 4000 anterior era autoimpuesto y provocaba
-    // el recorte que se comía el guion (bug 2026-07-02).
-    prompt: z.string().trim().min(1).max(8000),
+    // Alineado con el schema de generación (generations.ts): el proveedor
+    // acepta prompts de 8347 (probado en prod 2026-07-07) y el compiler
+    // presupuesta 10000 (PROMPT_CHAR_BUDGET) + apéndices del storyboard. Los
+    // techos autoimpuestos anteriores (4000, luego 8000 con budget 6000)
+    // provocaban el recorte que se comía el guion (bugs 2026-07-02 y 2026-07-07).
+    prompt: z.string().trim().min(1).max(12000),
     aspectRatio: z.enum(SEEDANCE_ASPECT_RATIOS).default('auto'),
     resolution: z.enum(SEEDANCE_RESOLUTIONS).default('720p'),
     duration: z.number().int().min(4).max(15).optional(), // undefined → auto

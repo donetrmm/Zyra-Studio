@@ -144,10 +144,15 @@ Reglas operativas: una acción y un movimiento de cámara por toma; complejidad 
 
 ## Longitud del prompt
 
-ModelArk no documenta un límite de caracteres del campo de texto. El techo de 4000
-caracteres es NUESTRO (`SubmitSeedanceSchema`), conservador y alineado con la guía de
-longitud útil (2-4 frases por toma, 4-8 multi-toma); el compiler avisa con warning si lo
-supera.
+ModelArk no documenta un límite de caracteres del campo de texto; en producción Atlas
+aceptó y completó prompts de 8347 chars (2026-07-07). El techo es NUESTRO:
+`SubmitSeedanceSchema` acepta 12000 y el compiler presupuesta 10000
+(`PROMPT_CHAR_BUDGET`) dejando margen a las citas que el path storyboard apende después
+del compile. El budget debe superar el ANDAMIAJE fijo del prompt (locación + producto +
+personaje + vestuario + escala + voz + es-MX ≈ 7-8k en campañas completas): si el
+andamiaje solo rebasa el budget, el recorte se come la acción entera y el clip queda en
+lip-sync sin guion (bugs 2026-07-02 y 2026-07-07). El compiler avisa con warning si aún
+así lo supera.
 
 ## Límites y qué falla (validar antes de encolar)
 

@@ -180,12 +180,17 @@ export function splitLongDialogues(action: string): string {
 }
 
 // Tope de trabajo del prompt: ModelArk/Atlas no documentan límite de caracteres
-// y prompts de ~6200 ya pasaron en producción (path storyboard, que además
+// y prompts de 8347 ya pasaron en producción (path storyboard, que además
 // apende citas DESPUÉS del compile). El techo duro del sistema es el schema de
-// generación (8000); este budget deja margen para esos apéndices. Antes era
-// 4000 (espejo viejo de SubmitSeedanceSchema) y el desborde podía comerse la
-// acción COMPLETA (bug 2026-07-02: lip-sync sin guion → audio inventado).
-const PROMPT_CHAR_BUDGET = 6000;
+// generación (12000); este budget deja margen para esos apéndices. Historial:
+// 4000 y luego 6000 se comían la acción COMPLETA cuando el ANDAMIAJE fijo
+// (locación+producto+personaje+vestuario+escala+voz+es-MX) superaba solo el
+// budget — el recorte solo sabe recortar la acción, así que el salvamento
+// "gancho+diálogo" se disparaba en TODOS los clips y el modelo recibía
+// lip-sync sin guion (bugs 2026-07-02 audio inventado y 2026-07-07 Anuncio
+// #12 sin acciones). El budget debe superar el andamiaje real (~7-8k) con
+// margen para la acción.
+const PROMPT_CHAR_BUDGET = 10000;
 
 // Recorta la acción en frontera de frase/palabra para no cortar a media palabra
 // cuando el prompt compilado excede el techo duro.
@@ -626,7 +631,7 @@ export function compileSeedance(
     // cuando el desborde supera su largo — el modelo recibe SPEECH_DIRECTION sin
     // guion y INVENTA el audio. En ese caso se reconstruye la acción como gancho
     // (primera frase) + segmentos de diálogo completos, aunque el prompt quede
-    // por encima del budget: el techo real del sistema es 8000 y un prompt largo
+    // por encima del budget: el techo real del sistema es 12000 y un prompt largo
     // es infinitamente mejor que un lip-sync improvisado.
     const overflow = prompt.length - PROMPT_CHAR_BUDGET;
     const action = sections[actionIndex];
