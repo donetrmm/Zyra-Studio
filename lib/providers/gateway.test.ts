@@ -5,9 +5,9 @@ const generateTextMock = vi.fn();
 vi.mock('ai', () => {
   class APICallError extends Error {
     statusCode: number | undefined;
-    constructor(message: string, statusCode?: number) {
-      super(message);
-      this.statusCode = statusCode;
+    constructor(options: { message: string; url: string; requestBodyValues: unknown; statusCode?: number }) {
+      super(options.message);
+      this.statusCode = options.statusCode;
     }
     static isInstance(err: unknown): err is APICallError {
       return err instanceof APICallError;
@@ -111,7 +111,9 @@ describe('gatewayText', () => {
   });
 
   it('429 -> ProviderError rate_limit retryable (sin reintento interno)', async () => {
-    generateTextMock.mockRejectedValue(new APICallError('too many', 429));
+    generateTextMock.mockRejectedValue(
+      new APICallError({ message: 'too many', url: '', requestBodyValues: {}, statusCode: 429 }),
+    );
     await expect(
       gatewayText({
         model: 'gemini-2.5-flash', label: 'test', json: true,
@@ -123,7 +125,9 @@ describe('gatewayText', () => {
   });
 
   it('401/403 -> auth no retryable', async () => {
-    generateTextMock.mockRejectedValue(new APICallError('forbidden', 403));
+    generateTextMock.mockRejectedValue(
+      new APICallError({ message: 'forbidden', url: '', requestBodyValues: {}, statusCode: 403 }),
+    );
     await expect(
       gatewayText({
         model: 'gemini-2.5-flash', label: 'test', json: true,
@@ -134,7 +138,9 @@ describe('gatewayText', () => {
   });
 
   it('5xx -> server retryable con el label en el mensaje', async () => {
-    generateTextMock.mockRejectedValue(new APICallError('boom', 503));
+    generateTextMock.mockRejectedValue(
+      new APICallError({ message: 'boom', url: '', requestBodyValues: {}, statusCode: 503 }),
+    );
     await expect(
       gatewayText({
         model: 'gemini-2.5-flash', label: 'matcher', json: true,
@@ -142,6 +148,19 @@ describe('gatewayText', () => {
         temperature: 0.2, maxOutputTokens: 100,
       }),
     ).rejects.toMatchObject({ code: 'server', retryable: true, message: expect.stringContaining('matcher') });
+  });
+
+  it('4xx no-especial (400) -> server no retryable con el label en el mensaje', async () => {
+    generateTextMock.mockRejectedValue(
+      new APICallError({ message: 'bad request', url: '', requestBodyValues: {}, statusCode: 400 }),
+    );
+    await expect(
+      gatewayText({
+        model: 'gemini-2.5-flash', label: 'matcher', json: true,
+        contents: [{ role: 'user', parts: [{ text: 'x' }] }],
+        temperature: 0.2, maxOutputTokens: 100,
+      }),
+    ).rejects.toMatchObject({ code: 'server', retryable: false, message: expect.stringContaining('matcher') });
   });
 
   it('error no-API -> unknown no retryable', async () => {
