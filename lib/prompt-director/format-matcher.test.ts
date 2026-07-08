@@ -632,6 +632,15 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('frases de 5-10 palabras');
   });
 
+  it('incluye la regla de voz en off (Voice-over vs Dialogue) para no forzar lip-sync', () => {
+    // Sin esta regla el matcher normalizaba una narración en off a Dialogue: "..."
+    // y aguas abajo isVoiceover no disparaba → lip-sync forzado sobre un sujeto de
+    // espaldas (bug clip 3/5 del Anuncio #12).
+    const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
+    expect(s).toContain('VOZ EN OFF');
+    expect(s).toContain('Voice-over:');
+  });
+
   it('fantasía: bloque de estilo presente y física del mundo ausente', () => {
     const s = buildMatcherSystemPrompt({ visualStyle: 'fantasia' });
     expect(s).toContain('FANTASÍA');

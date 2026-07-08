@@ -50,6 +50,43 @@ describe('buildContinuationPrompt', () => {
     expect(out).toContain('must be in English');
   });
 
+  it('voz en off (Voice-over:): sin lip-sync, con idioma y con guard anti-rostros', () => {
+    // Clip de puro producto con narración en off: el sujeto no da la cara.
+    const out = buildContinuationPrompt(
+      'The framed print hangs on the wall, shot from behind. Voice-over: "Por fin se siente como un hogar."',
+      1,
+      0,
+      { language: 'es', generateAudio: true },
+    );
+    // Frase distintiva de VOICEOVER_DIRECTION (SPEECH_DIRECTION también contiene
+    // el substring "voice-over narration" en su cola, por eso no sirve para asertar).
+    expect(out).toContain('do NOT lip-sync any face'); // VOICEOVER_DIRECTION
+    expect(out).not.toContain('Synchronized on-camera speech'); // NO lip-sync
+    expect(out).toContain('natural Mexican accent'); // idioma re-anclado
+    expect(out).toContain('No real, identifiable human faces'); // producto puro, sin cara
+  });
+
+  it('voz en off con personaje en cuadro: sin lip-sync pero sin guard (hay personaje)', () => {
+    const out = buildContinuationPrompt(
+      'Luz stands with her back to the camera looking at the wall. Voice-over: "Cada rincón cobra vida."',
+      1,
+      1,
+      { language: 'es', generateAudio: true },
+    );
+    expect(out).toContain('do NOT lip-sync any face');
+    expect(out).not.toContain('Synchronized on-camera speech');
+    expect(out).not.toContain('No real, identifiable human faces'); // hay personaje anclado
+  });
+
+  it('habla EN cámara: mantiene lip-sync y no añade dirección de voz en off', () => {
+    const out = buildContinuationPrompt('Luz looks to camera. Dialogue: "Pruébalo hoy mismo."', 1, 1, {
+      language: 'es',
+      generateAudio: true,
+    });
+    expect(out).toContain('Synchronized on-camera speech');
+    expect(out).not.toContain('do NOT lip-sync any face');
+  });
+
   it('sin audio no añade dirección de voz (#3)', () => {
     const out = buildContinuationPrompt('Dialogue: "Hola"', 1, 0, { generateAudio: false });
     expect(out).not.toContain('Synchronized on-camera speech');

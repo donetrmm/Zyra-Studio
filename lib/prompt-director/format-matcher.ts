@@ -346,9 +346,18 @@ Por cada idea distinta devuelve un match:
   escribas "agrega música". Diálogo: SOLO si el usuario pide que alguien hable o
   da las líneas — en ese caso guionízalo dentro de cada tramo entre comillas
   (Dialogue: "...") __SUMMARY_LANG__, corto y conversacional, como se le habla
-  a un amigo, nunca como locutor. Escribe frases de 5-10 palabras: una línea
-  larga se parte en varias frases cortas (el modelo sincroniza mejor la boca y
-  respira entre frases). PRESUPUESTO DE HABLA: la entrega actuada rinde ~2
+  a un amigo, nunca como locutor. VOZ EN OFF vs HABLA EN CÁMARA: distingue quién
+  habla y cómo. Si el hablante está EN cámara y de frente (se le ve la cara),
+  guionízalo como Dialogue: "..." (habrá lip-sync). Pero si la voz es NARRACIÓN
+  EN OFF —el guion la marca como "voz en off"/"narración", o no se le ve la boca
+  al hablante (de espaldas, mirando hacia abajo, manipulando el producto) o es
+  una toma de puro producto/inserto— escríbela como Voice-over: "..." con ESE
+  marcador literal en inglés (no "Dialogue:"). Es voz, pero sin hablante a cuadro:
+  NUNCA la marques como Dialogue si nadie habla de frente, porque el modelo
+  intentaría sincronizar una boca ausente y la voz sale rara/robótica. El
+  presupuesto de habla y el idioma aplican igual a Voice-over. Escribe frases de
+  5-10 palabras: una línea larga se parte en varias frases cortas (el modelo
+  sincroniza mejor la boca y respira entre frases). PRESUPUESTO DE HABLA: la entrega actuada rinde ~2
   palabras por segundo sostenidas y cada clip pierde ~2s en arranque y cierre —
   en 5s caben ~6 palabras, en 8s ~12, en 12s ~20. Si la línea no cabe en la
   duración, RECORTA la línea o parte en más escenas; nunca cuentes con que el

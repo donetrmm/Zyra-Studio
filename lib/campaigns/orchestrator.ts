@@ -10,7 +10,9 @@ import {
   NEGATIVE_CLAUSE,
   NO_REAL_FACES_CLAUSE,
   SPEECH_DIRECTION,
+  VOICEOVER_DIRECTION,
   hasSpokenDialogue,
+  isVoiceover,
   resolveVideoLook,
   sceneHasVoice,
 } from '@/lib/prompt-director/compilers/seedance';
@@ -665,16 +667,24 @@ export function buildContinuationPrompt(
   // clip, y podían aparecer overlays/logos inventados o rostros reales espurios.
   // Mismos gates y constantes que compileSeedance.
   const directives: string[] = [];
-  // Actuación: solo con rostro intencional (personaje anclado o hablante) y sin
-  // emoción alta declarada; contenida por defecto, enérgica en registros bold.
-  const faces = characterCount > 0 || hasSpokenDialogue(scenePrompt);
+  const generateAudio = opts?.generateAudio ?? true;
+  // Voz en off vs habla EN cámara (paridad con compileSeedance): un voiceover es voz
+  // pero SIN hablante de frente → no debe recibir SPEECH_DIRECTION (lip-sync). En
+  // cadena este gate nunca corría (solo se miraba hasSpokenDialogue), así que un VO
+  // sobre un sujeto de espaldas recibía lip-sync forzado y salía como voz robótica.
+  const voiceover = isVoiceover(scenePrompt);
+  const speaker = generateAudio && hasSpokenDialogue(scenePrompt) && !voiceover;
+  // Rostro intencional = personaje anclado o hablante EN cámara. Un VO de puro
+  // producto (sin personaje) ya NO cuenta como rostro: antes hasSpokenDialogue lo
+  // marcaba true y suprimía indebidamente el guard anti-rostros.
+  const faces = characterCount > 0 || speaker;
   const acting = faces ? actingDirectionFor(opts?.register ?? '', declaresHighEmotion(scenePrompt)) : null;
   if (acting) directives.push(acting);
-  // Re-anclar la voz en CADA clip (#3): sin esto el clip 1 habla es-MX con
-  // lip-sync pero los siguientes pierden la directiva y Seedance puede derivar a
-  // inglés/acento neutro o narración a mitad de la toma continua. Gateado por audio.
-  const generateAudio = opts?.generateAudio ?? true;
-  if (generateAudio && hasSpokenDialogue(scenePrompt)) directives.push(SPEECH_DIRECTION);
+  // Habla EN cámara → lip-sync; narración en off → VOICEOVER_DIRECTION (sin lip-sync).
+  // El idioma/acento (es-MX) se re-ancla en CADA clip mientras haya voz (habla o VO):
+  // sin esto los clips 2..N derivaban a inglés/acento neutro a mitad de la toma.
+  if (speaker) directives.push(SPEECH_DIRECTION);
+  else if (generateAudio && sceneHasVoice(scenePrompt) && voiceover) directives.push(VOICEOVER_DIRECTION);
   if (generateAudio && sceneHasVoice(scenePrompt)) directives.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
   // Cláusula negativa (siempre) y guard anti-rostros (solo tomas sin cara
   // intencional), al final como en el compiler.
