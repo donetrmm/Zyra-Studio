@@ -15,6 +15,17 @@ import { declaresHighEmotion, NATURAL_EXPRESSION_CLAUSE } from '@/lib/prompt-dir
 export const NO_TEXT_CLAUSE =
   ' Do not render any text, captions, speech bubbles, subtitles, labels or watermark in the image.';
 
+// Guard de FRAME ÚNICO del panel (SIEMPRE, ambas ramas de generación): el
+// scene_prompt del beat es guion de VIDEO y narra varias acciones en secuencia
+// ("she then rotates… once the front faces…"); sin esta guarda el modelo de
+// imagen resuelve la secuencia dibujando VARIAS viñetas/tomas dentro del mismo
+// panel (bug 2026-07-07, beat del volteo en Anuncio #12). El panel es el
+// FOTOGRAMA DE APERTURA del clip (buildCastR2VRefs lo cita como "the exact
+// opening frame"), así que se congela el PRIMER instante de la acción; el resto
+// de la descripción es lo que el video hará después, no contenido del panel.
+export const SINGLE_FRAME_CLAUSE =
+  ' Render exactly ONE single still frame — one instant frozen in time: the OPENING moment of the action described, its starting state before the action unfolds. Any later moments in the description happen NEXT in the video and must not appear in this image. Never compose a collage, grid, film strip, comic strip, storyboard sheet, split screen or multiple panels or frames inside one image.';
+
 export type PanelBeat = {
   id: string;
   scene_prompt: string;
