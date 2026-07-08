@@ -32,7 +32,8 @@ Gemini (texto) y Nano Banana (imagen) pasan por Vercel AI Gateway con una sola
 2. **Alcance:** 11 módulos de texto + Nano Banana. Veo queda directo a Google.
 3. **Auth:** `AI_GATEWAY_API_KEY` estática (no OIDC: expira cada ~24h en local y
    el CLI de Vercel no está instalado).
-4. **Transporte:** AI SDK v6 (`ai@^6`, única dependencia nueva) con model
+4. **Transporte:** AI SDK (`ai@^7`, única dependencia nueva; el diseño decía
+   v6 pero el major vigente al implementar es 7 y la API usada es idéntica) con model
    strings `google/...` que rutean solos por el gateway.
 
 ## Arquitectura

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Todas las llamadas a Gemini texto (11 módulos) y Nano Banana pasan por Vercel AI Gateway (AI SDK v6, `AI_GATEWAY_API_KEY`); Veo queda nativo.
+**Goal:** Todas las llamadas a Gemini texto (11 módulos) y Nano Banana pasan por Vercel AI Gateway (AI SDK, `AI_GATEWAY_API_KEY`); Veo queda nativo.
 
 **Architecture:** Un helper compartido `lib/providers/gateway.ts` (`gatewayText()` sobre `generateText`) reemplaza el fetch nativo de los 11 módulos de texto conservando prompts, schemas zod, fallbacks y caps intactos. Nano Banana migra su transporte a `generateText` con model string `google/...` conservando su lógica pura (chat multi-turn, fallback single-turn, clasificación de errores). Los slugs internos en DB/schemas/UI no cambian; el mapeo a slug de gateway vive solo en la capa de transporte.
 
-**Tech Stack:** Next.js 16, TypeScript estricto (sin `any`), `ai@^6` (nueva), zod 4, vitest, pnpm.
+**Tech Stack:** Next.js 16, TypeScript estricto (sin `any`), `ai@^7` (nueva; instalado 7.0.18), zod 4, vitest, pnpm.
 
 **Spec:** `docs/superpowers/specs/2026-07-08-migracion-ai-gateway-design.md`
 
