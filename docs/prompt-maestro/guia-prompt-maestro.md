@@ -12,7 +12,7 @@ Escribes **un solo texto** (el prompt maestro, como para un render tipo Veo/Sora
 2. **Matcher** convierte cada escena en el prompt de un clip (reparte la acción en el tiempo, detecta el diálogo).
 3. **Compiler Seedance** arma el prompt final y decide, **leyendo tu texto**, si el clip lleva **lip-sync** (habla en cámara) o **voz en off**, y sincroniza la voz.
 
-**Lo que TÚ controlas** (y esta guía cubre): qué se dice, quién lo dice, si mira o no a cámara, cuánto dura cada clip, y cómo se reparte el diálogo. **Lo que el sistema hace solo** (no lo dupliques): normaliza la voz a es-MX, parte líneas largas con pausas, reparte el tiempo en clips con varias acciones y prohíbe el texto en pantalla (esto último, siempre). El encuadre seguro 4:5 es distinto: es opt-in y una guía de encuadre (mantener rostro y producto centrados), no un recorte automático del video — ver §5.
+**Lo que TÚ controlas** (y esta guía cubre): qué se dice, quién lo dice, si mira o no a cámara, cuánto dura cada clip, y cómo se reparte el diálogo. **Lo que el sistema hace solo** (no lo dupliques): normaliza la voz a es-MX, parte líneas largas con pausas, reparte el tiempo en clips con varias acciones y prohíbe el texto en pantalla (esto último, siempre). El encuadre seguro 4:5 es distinto: es opt-in y una guía de encuadre (mantener rostro y producto centrados), no un recorte automático del video — ver §6.
 
 ---
 
@@ -114,7 +114,20 @@ Sin diálogo.   (para producto puro / b-roll)
 
 ---
 
-## 3. Checklist antes de generar
+## 3. Después de «Analizar prompt»: convierte las referencias en activos
+
+Cuando pegas el maestro y das **Analizar prompt**, el sistema reparte tu texto: el guion por clip cae en el campo de "describe", y el resto se extrae a **fichas y notas** (producto, estilo, guías, cast, locaciones). Varias de esas cosas son **referencias que debes convertir en activos** para que el detalle no se adelgace y el set/persona no deriven entre clips. Hazlo **antes** de armar el plan:
+
+- **Locación (lo más importante):** el ingest condensa tu locación a una etiqueta corta (p. ej. "Sala de estar cálida y luminosa"). El detalle fino (colores de pared, muebles, cortinas, luz) **no viaja en el "describe"**. Crea o genera la **Locación** con la descripción completa y adjúntala como base → mantiene el mismo set en todos los clips. Sin el activo, la sala puede cambiar de un clip a otro.
+- **Producto:** verifica que la ficha del producto tenga los **detalles visuales finos** (material, acabado, medidas, contenido impreso) y sube imágenes de referencia (frontal, perfil, detalle). El chip resumido solo muestra peso y medio; el resto vive en la ficha, no en el chip.
+- **Cast (personaje):** la apariencia del personaje viene de **su ficha en el Cast**, no del texto del maestro. Asegúrate de que exista en el Cast con una referencia que **coincida** con cómo lo describiste (rostro, peinado, vestuario). Si no está, su identidad cambiará entre clips.
+- **Voz del cast:** asígnale al personaje su **referencia de voz** (timbre/acento). El sistema la usa como molde de voz (@audio1) para el diálogo hablado; sin ella, la voz sale genérica.
+
+Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálogo) se queda en el "describe".** El maestro siembra ambos, pero la consistencia entre clips la dan los activos.
+
+---
+
+## 4. Checklist antes de generar
 
 - [ ] ¿Cada clip tiene **una sola** frase entre comillas (o ninguna)? ¿Ningún fragmento re-citado?
 - [ ] ¿Los clips con diálogo tienen al personaje **de frente a la lente** y **sin acción pesada de cara** durante el habla?
@@ -124,10 +137,13 @@ Sin diálogo.   (para producto puro / b-roll)
 - [ ] ¿Medidas/peso/material en la sección de producto, no en el diálogo?
 - [ ] ¿Un solo personaje habla por clip? ¿Mismo look en toda la pieza?
 - [ ] ¿≤ 12 clips?
+- [ ] Tras analizar: ¿creaste el **activo de Locación** con la descripción completa (no solo la etiqueta)?
+- [ ] ¿La ficha del **producto** tiene los detalles visuales finos y sus imágenes de referencia?
+- [ ] ¿El **personaje** está en el Cast con una referencia que coincide, y con su **voz** asignada?
 
 ---
 
-## 4. Errores comunes (y cómo se ven al generar)
+## 5. Errores comunes (y cómo se ven al generar)
 
 | Error en el maestro | Qué sale en el video |
 |---|---|
@@ -141,7 +157,7 @@ Sin diálogo.   (para producto puro / b-roll)
 
 ---
 
-## 5. Qué hace el sistema por ti (no lo dupliques)
+## 6. Qué hace el sistema por ti (no lo dupliques)
 
 - Normaliza la voz a **es-MX** con cadencia natural (no escribas "acento mexicano" en cada clip).
 - Parte automáticamente una **línea larga** (a partir de ~11 palabras) en segmentos con un beat de pausa para re-sincronizar.
