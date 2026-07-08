@@ -38,7 +38,7 @@ import {
   generatePlanAction,
   ingestMasterPromptAction,
 } from '@/server-actions/campaigns';
-import type { IngestBriefOverrides } from '@/lib/schemas/ingest';
+import { MASTER_PROMPT_MAX, type IngestBriefOverrides } from '@/lib/schemas/ingest';
 import type { CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
 import { usePreflight } from '@/components/ui/preflight-checklist';
@@ -467,7 +467,7 @@ export function CampaignStudioWizard({
             value={masterPrompt}
             onChange={(e) => setMasterPrompt(e.target.value)}
             placeholder="Comercial UGC 30s... Estructura de 9 clips... Canvas 150x100cm..."
-            maxLength={24000}
+            maxLength={MASTER_PROMPT_MAX}
             rows={4}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />
@@ -531,7 +531,7 @@ export function CampaignStudioWizard({
             value={ideas}
             onChange={(e) => setIdeas(e.target.value)}
             placeholder="Ej. quiero 3 unboxings, algo ASMR, y un video donde mi perro usa el producto"
-            maxLength={24000}
+            maxLength={MASTER_PROMPT_MAX}
             rows={3}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-2sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
           />

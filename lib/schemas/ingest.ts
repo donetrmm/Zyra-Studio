@@ -1,10 +1,15 @@
 import { z } from 'zod';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
 
-// Input: solo el prompt maestro crudo. Cap holgado (Gemini 2.5 Flash tiene
-// contexto de sobra); el tope solo atrapa pegados patológicos.
+// Cap holgado (Gemini 2.5 Flash tiene contexto de sobra); el tope solo atrapa
+// pegados patológicos. 60000 admite briefs multi-archivo (p. ej. un guion de
+// 7 clips en 2 archivos ronda los 50k). Única fuente de verdad del límite:
+// lo consumen el slice pre-Gemini, el matcher, userIdeas y los textareas.
+export const MASTER_PROMPT_MAX = 60000;
+
+// Input: solo el prompt maestro crudo.
 export const IngestInputSchema = z.object({
-  masterPrompt: z.string().trim().min(1).max(24000),
+  masterPrompt: z.string().trim().min(1).max(MASTER_PROMPT_MAX),
 });
 export type IngestInput = z.infer<typeof IngestInputSchema>;
 

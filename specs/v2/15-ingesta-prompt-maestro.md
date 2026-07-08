@@ -85,7 +85,7 @@ el brief auto-detectado ocurre en `createCampaignStudioAction` **al crear** (no 
 ```ts
 // Entrada: solo el prompt maestro crudo (la action añade el Cast del workspace).
 type IngestInput = {
-  masterPrompt: string;   // libre, cap holgado (ver tarea 5): 24000
+  masterPrompt: string;   // libre, cap holgado (ver tarea 5): MASTER_PROMPT_MAX = 60000
 };
 
 // Salida estructurada de Gemini Flash (una sola ronda, zod laxo).
@@ -195,8 +195,15 @@ Sin datos de proveedor en tests (regla del repo): validar los nuevos topes con f
 
 ### 5. Cap del `masterPrompt` (0.5h)
 
-El input de la ingesta es su propio campo (no `userIdeas`): cap holgado **24000** en el schema y en
-la textarea. Gemini 2.5 Flash tiene contexto de sobra; el cap solo atrapa pegados patológicos.
+El input de la ingesta es su propio campo (no `userIdeas`): cap holgado en el schema y en la
+textarea. Gemini 2.5 Flash tiene contexto de sobra; el cap solo atrapa pegados patológicos.
+
+> **Actualización 2026-07-07:** el cap subió de 24000 a **60000** (`MASTER_PROMPT_MAX`, exportado
+> desde `lib/schemas/ingest.ts` como única fuente de verdad) porque los briefs reales llegan en
+> varios archivos (~50k chars juntos). Consumen la constante: el schema de input, el slice
+> pre-Gemini de `lib/campaigns/ingest.ts`, el slice del matcher, `userIdeas` y las dos textareas
+> del wizard. `maxOutputTokens` de la ingesta subió de 8192 a 32768: el narrative devuelve el
+> guion casi íntegro y con prompts cerca del cap el JSON se truncaba y todo caía al fallback.
 
 ### 6. Beats de transición en el matcher + `transition_hint` (2h)
 
@@ -216,7 +223,7 @@ Unit con fixtures, **sin APIs reales**:
 
 - `ingest.ts`: parseo/saneo (fences markdown, campos faltantes, no-string), reparto correcto
   (medidas → `productFacts`, no al `narrative`), `inCast` contra el pool, fallback best-effort.
-- schemas zod de `ingest.ts` (input cap 24000, salida laxa).
+- schemas zod de `ingest.ts` (input cap `MASTER_PROMPT_MAX`, salida laxa).
 - Topes nuevos del matcher (8→16 escenas; input no se rechaza a 6000).
 - `transition_hint` opcional no tira el match.
 

@@ -1,6 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
-import { IngestRawSchema, type IngestBriefOverrides, type IngestResult } from '@/lib/schemas/ingest';
+import { IngestRawSchema, MASTER_PROMPT_MAX, type IngestBriefOverrides, type IngestResult } from '@/lib/schemas/ingest';
 import type { ProductBrief } from './brief';
 import { ProviderError } from '@/lib/providers/types';
 
@@ -166,10 +166,12 @@ export async function ingestMasterPrompt(input: {
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: input.masterPrompt.slice(0, 24000) }] }],
+      contents: [{ role: 'user', parts: [{ text: input.masterPrompt.slice(0, MASTER_PROMPT_MAX) }] }],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        // El narrative devuelve el guion casi íntegro: con prompts cerca del cap
+        // (60k chars ≈ 17k tokens) 8192 truncaba el JSON y todo caía al fallback.
+        maxOutputTokens: 32768,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },

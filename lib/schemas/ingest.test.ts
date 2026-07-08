@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { IngestInputSchema, IngestRawSchema } from './ingest';
+import { IngestInputSchema, IngestRawSchema, MASTER_PROMPT_MAX } from './ingest';
 
 describe('IngestInputSchema', () => {
-  it('acepta un prompt largo (>6000) hasta 24000', () => {
-    const big = 'a'.repeat(20000);
+  it('acepta un prompt largo (>24000) hasta el cap', () => {
+    const big = 'a'.repeat(MASTER_PROMPT_MAX - 1);
     const parsed = IngestInputSchema.safeParse({ masterPrompt: big });
     expect(parsed.success).toBe(true);
   });
   it('rechaza vacío', () => {
     expect(IngestInputSchema.safeParse({ masterPrompt: '   ' }).success).toBe(false);
   });
-  it('recorta a 24000 por el trim + max', () => {
-    const parsed = IngestInputSchema.safeParse({ masterPrompt: 'a'.repeat(24001) });
+  it('rechaza por encima del cap (trim + max)', () => {
+    const parsed = IngestInputSchema.safeParse({ masterPrompt: 'a'.repeat(MASTER_PROMPT_MAX + 1) });
     expect(parsed.success).toBe(false);
   });
 });

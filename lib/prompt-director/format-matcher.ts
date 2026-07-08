@@ -7,6 +7,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
+import { MASTER_PROMPT_MAX } from '@/lib/schemas/ingest';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
 import { plannerStyleBlocks, type VisualStyle } from './style-profiles';
@@ -551,7 +552,7 @@ async function requestMatch(input: {
     ? `\n\nImágenes adjuntas (en orden): ${images.map((img, i) => `${i + 1}=${img.label}`).join(', ')}.`
     : '';
   const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
-    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, 24000)}${imageNote}` },
+    { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, MASTER_PROMPT_MAX)}${imageNote}` },
     ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.dataBase64 } })),
   ];
 

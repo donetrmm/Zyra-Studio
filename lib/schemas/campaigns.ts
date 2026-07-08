@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CreativeGuidelinesSchema } from '@/lib/campaigns/guidelines';
+import { MASTER_PROMPT_MAX } from '@/lib/schemas/ingest';
 
 // Schemas de la capa de campañas V2 (specs/v2/01-fundacion-v2.md, tarea 9).
 // Las server actions de Fase C validan TODO input con estos schemas antes
@@ -142,7 +143,9 @@ export const GeneratePlanSchema = z.object({
   totalItems: z.number().int().min(2).max(30).default(6),
   // Ideas en lenguaje natural (specs/v2/07): el plan se construye de ellas —
   // un creativo por idea (más si pide cantidad), formato custom si no encaja.
-  userIdeas: z.string().trim().max(24000).optional(),
+  // Mismo cap que el prompt maestro: la ingesta vuelca el narrative (que en el
+  // fallback es el prompt crudo entero) en este campo.
+  userIdeas: z.string().trim().max(MASTER_PROMPT_MAX).optional(),
 });
 
 export const ApproveBatchSchema = z.object({
