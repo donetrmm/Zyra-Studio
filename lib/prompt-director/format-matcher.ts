@@ -426,6 +426,9 @@ Por cada idea distinta devuelve un match:
   diciendo qué falta (ej. "no dice qué pasa en pantalla ni qué formato quieres");
   deja formatId, customFormat y scenePrompt en null. Si la idea SÍ es trabajable,
   blocker = null. No lo uses como excusa para saltarte ideas que sí puedes resolver.
+- ideaText: NO copies la idea completa — un extracto corto que la identifique
+  (máximo ~15 palabras). Con guiones largos, copiar la idea desperdicia el
+  presupuesto de salida que necesitan las escenas.
 NUNCA escribas texto en pantalla (subtítulos, carteles, "Text on screen", copy
 escrito) ni emojis dentro de scenePrompt ni en scenes: el modelo de video los
 renderiza deforme y la marca no usa emojis. La acción describe lo que se VE y
@@ -564,9 +567,11 @@ async function requestMatch(input: {
       contents: [{ role: 'user', parts }],
       generationConfig: {
         temperature: 0.2,
-        // Timelines con diálogo por idea abultan el JSON: techo holgado para
-        // que no se trunque (el saneo igual tolera truncados con retry).
-        maxOutputTokens: 8192,
+        // Timelines con diálogo por idea abultan el JSON. Con guiones cerca del
+        // cap (MASTER_PROMPT_MAX) un anuncio de 7+ escenas auto-contenidas más
+        // el eco de ideaText superaba 8192 y el JSON llegaba truncado SIEMPRE
+        // (el retry no ayuda: el tamaño requerido no baja) → plan al mix.
+        maxOutputTokens: 32768,
         responseMimeType: 'application/json',
         thinkingConfig: { thinkingBudget: 0 },
       },

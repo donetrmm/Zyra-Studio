@@ -805,6 +805,19 @@ export async function generatePlanAction(input: unknown): Promise<
                 : `No pude crear un formato para una de tus ideas ("${m.ideaText.slice(0, 60)}")`,
             );
           }
+        } else {
+          // PD-04: match sin formatId NI customFormat (el modelo omitió ambos,
+          // visto con guiones largos). Antes caía aquí en silencio y el plan
+          // terminaba en sin_match sin explicación; se reporta como blocker.
+          console.error('[generatePlanAction] match sin formatId ni customFormat; idea descartada', {
+            ideaText: m.ideaText.slice(0, 120),
+            scenes: m.scenes.length,
+          });
+          ideaBlockers.push(
+            campaignLanguage === 'en'
+              ? `I could not map one of your ideas to a format ("${m.ideaText.slice(0, 60)}")`
+              : `No pude asignar un formato a una de tus ideas ("${m.ideaText.slice(0, 60)}")`,
+          );
         }
       }
       if (createdCustom) revalidatePath('/app/formats');

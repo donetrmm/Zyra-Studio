@@ -204,6 +204,13 @@ textarea. Gemini 2.5 Flash tiene contexto de sobra; el cap solo atrapa pegados p
 > pre-Gemini de `lib/campaigns/ingest.ts`, el slice del matcher, `userIdeas` y las dos textareas
 > del wizard. `maxOutputTokens` de la ingesta subió de 8192 a 32768: el narrative devuelve el
 > guion casi íntegro y con prompts cerca del cap el JSON se truncaba y todo caía al fallback.
+>
+> **Actualización 2026-07-07 (bis, Anuncio #12):** el mismo techo aplicaba al MATCHER — con un
+> guion de ~25k chars el output (eco de ideaText + 7 escenas auto-contenidas) superaba 8192 y el
+> JSON llegaba truncado siempre (el retry no ayuda) → plan al mix / sin_match. Fix triple:
+> `maxOutputTokens` del matcher 8192 → 32768; el SYSTEM instruye eco corto de `ideaText` (≤15
+> palabras); y el match sin `formatId` ni `customFormat` ya no se descarta en silencio en
+> `generatePlanAction` — se reporta como blocker y a consola.
 
 ### 6. Beats de transición en el matcher + `transition_hint` (2h)
 
