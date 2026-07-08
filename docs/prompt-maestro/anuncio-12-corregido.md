@@ -27,7 +27,7 @@ Luz — mujer joven, cabello castaño ondulado con fleco, aretes de aro dorados 
 
 ## 5. Coherencia física del producto
 
-Canvas print **sin marco**, acabado **mate**, canto **ultradelgado (~0.7 cm)** con la imagen envolviendo el borde, respaldo MDF con colgador dentado. Peso ≈ 3.5 kg: se manipula **siempre con las dos manos**, con peso visible, nunca como un prop ligero. Reproduce la foto impresa exactamente como en la referencia; no inventar ni recolorear el contenido. El perfil ultradelgado solo se aprecia en el clip de producto puro.
+Canvas print **sin marco**, **60 cm de alto × 90 cm de ancho** (horizontal), acabado **mate**, canto **ultradelgado (~0.7 cm)** con la imagen envolviendo el borde, respaldo MDF con colgador dentado. Peso ≈ 3.5 kg: se manipula **siempre con las dos manos**, con peso visible, nunca como un prop ligero. A ese tamaño (lado largo 90 cm) el cuadro llega de la cintura al pecho cuando alguien lo sostiene; nunca se ve como una foto de mano. Reproduce la foto impresa exactamente como en la referencia; no inventar ni recolorear el contenido. El perfil ultradelgado solo se aprecia en el clip de producto puro.
 
 ---
 

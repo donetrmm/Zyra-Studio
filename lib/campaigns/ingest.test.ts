@@ -75,6 +75,45 @@ describe('parseIngestResult', () => {
     expect(r.narrative).toBe('Mi guion completo');
     expect(r.warnings.length).toBeGreaterThan(0);
   });
+
+  // Falla silenciosa (Anuncio #12 V2, 2026-07-08): un producto físico (medium
+  // seteado) sin medidas deja a describeProductScale sin ancla → el canvas sale
+  // muy chico en el storyboard, sin ningún aviso. El ingest debe marcarlo.
+  it('producto físico (medium) sin medidas: avisa que la escala no queda fijada', () => {
+    const raw = JSON.stringify({
+      productFacts: { medium: 'canvas', weightKg: 3.5, thicknessMm: 7 },
+      narrative: 'Clip 1: sostiene el canvas.',
+    });
+    const r = parseIngestResult(raw, { castNames: [] });
+    expect(r.productFacts.heightCm).toBeUndefined();
+    const w = r.warnings.find((x) => x.includes('no indica medidas'));
+    expect(w).toBeDefined();
+    expect(w).toContain('canvas');
+  });
+
+  it('producto físico CON medidas: no genera el aviso de medidas', () => {
+    const raw = JSON.stringify({
+      productFacts: { medium: 'canvas', heightCm: 60, widthCm: 90 },
+      narrative: 'Clip 1: sostiene el canvas.',
+    });
+    const r = parseIngestResult(raw, { castNames: [] });
+    expect(r.warnings.some((x) => x.includes('no indica medidas'))).toBe(false);
+  });
+
+  it('solo ancho (una dimensión basta): no genera el aviso de medidas', () => {
+    const raw = JSON.stringify({
+      productFacts: { medium: 'banner', widthCm: 200 },
+      narrative: 'Clip 1: ...',
+    });
+    const r = parseIngestResult(raw, { castNames: [] });
+    expect(r.warnings.some((x) => x.includes('no indica medidas'))).toBe(false);
+  });
+
+  it('sin medium (servicio o producto sin objeto físico): no avisa aunque falten medidas', () => {
+    const raw = JSON.stringify({ productFacts: { weightKg: 2 }, narrative: 'Clip 1: ...' });
+    const r = parseIngestResult(raw, { castNames: [] });
+    expect(r.warnings.some((x) => x.includes('no indica medidas'))).toBe(false);
+  });
 });
 
 describe('mergeVisualDetails', () => {

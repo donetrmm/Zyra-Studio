@@ -101,6 +101,27 @@ export function parseIngestResult(
     ...(d.productFacts.thicknessMm != null ? { thicknessMm: d.productFacts.thicknessMm } : {}),
     ...(d.productFacts.medium ? { medium: d.productFacts.medium } : {}),
   };
+  // Aviso de escala (falla silenciosa Anuncio #12 V2): un producto físico
+  // (medium seteado, p. ej. canvas/taza/playera) sin medidas deja a
+  // describeProductScale sin ancla — el storyboard lo renderiza a un tamaño
+  // arbitrario (suele salir muy chico) sin señal alguna. Basta una dimensión
+  // (heightCm ?? widthCm), igual que el ancla de escala.
+  const pf = d.productFacts;
+  const missingDims = !!pf.medium && pf.heightCm == null && pf.widthCm == null;
+  const warnings = [
+    ...d.warnings,
+    // Garantía: el campo de ideas NUNCA queda vacío en silencio. Si el modelo no
+    // devolvió guion (o vino con forma no-string y la coerción lo dejó vacío),
+    // cae al prompt crudo con aviso — el reparto (ficha/estilo/guías) se conserva.
+    ...(d.narrative
+      ? []
+      : ['No pude extraer el guion por clips; puse tu prompt tal cual — revísalo y edítalo.']),
+    ...(missingDims
+      ? [
+          `Tu producto es un objeto físico (${pf.medium}) pero no indica medidas: el storyboard no podrá fijar su escala y puede salir de tamaño equivocado. Añade alto y ancho (cm) en la ficha.`,
+        ]
+      : []),
+  ];
   return {
     productFacts,
     productVisualDetails: d.productVisualDetails,
@@ -115,16 +136,8 @@ export function parseIngestResult(
       };
     }),
     locationHints: [...new Set(d.locationHints)],
-    // Garantía: el campo de ideas NUNCA queda vacío en silencio. Si el modelo no
-    // devolvió guion (o vino con forma no-string y la coerción lo dejó vacío),
-    // cae al prompt crudo con aviso — el reparto (ficha/estilo/guías) se conserva.
     narrative: d.narrative || (opts.masterPrompt ?? '').trim(),
-    warnings: d.narrative
-      ? d.warnings
-      : [
-          ...d.warnings,
-          'No pude extraer el guion por clips; puse tu prompt tal cual — revísalo y edítalo.',
-        ],
+    warnings,
   };
 }
 
