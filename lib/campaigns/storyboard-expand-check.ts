@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { z } from 'zod';
+import { gatewayText } from '@/lib/providers/gateway';
 
 // Verificador anti-texto de las bandas del expand 9:16. FLUX outpaint ignora el
 // "no text" del prompt con frecuencia (rellena la banda con title cards de texto
@@ -9,7 +10,6 @@ import { z } from 'zod';
 // mismo falla (API caida, respuesta rara) NO bloquea el panel — el gate es un
 // filtro de calidad, no un punto unico de fallo.
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const CHECK_MODEL = 'gemini-2.5-flash';
 
 const CHECK_PROMPT =
@@ -31,11 +31,9 @@ const BASE_CHECK_PROMPT =
 
 const CheckSchema = z.object({ hasText: z.boolean() });
 
-// Extrae el veredicto del JSON crudo de Gemini. Puro (testeable): devuelve null
-// cuando la respuesta no trae un veredicto parseable.
-export function parseTextCheck(json: unknown): boolean | null {
-  const text = (json as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> })
-    ?.candidates?.[0]?.content?.parts?.find((p) => typeof p?.text === 'string')?.text;
+// Extrae el veredicto del texto ya extraído por el transporte. Puro
+// (testeable): devuelve null cuando el texto no trae un veredicto parseable.
+export function parseTextCheck(text: string | null | undefined): boolean | null {
   if (!text) return null;
   try {
     const parsed = CheckSchema.safeParse(JSON.parse(text));
@@ -51,34 +49,25 @@ export function parseTextCheck(json: unknown): boolean | null {
 // de fallo.
 async function stripsHaveText(prompt: string, strips: Buffer[]): Promise<boolean> {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return false;
-    const res = await fetch(`${ENDPOINT}/${CHECK_MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              ...strips.map((s) => ({ inline_data: { mime_type: 'image/jpeg', data: s.toString('base64') } })),
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 60,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
+    const { text } = await gatewayText({
+      model: CHECK_MODEL,
+      label: 'expand-check',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            ...strips.map((s) => ({
+              inline_data: { mime_type: 'image/jpeg', data: s.toString('base64') },
+            })),
+          ],
         },
-      }),
+      ],
+      temperature: 0,
+      maxOutputTokens: 60,
+      json: true,
     });
-    if (!res.ok) {
-      console.error('[storyboard-expand-check] verificador no disponible', { status: res.status });
-      return false;
-    }
-    const verdict = parseTextCheck(await res.json());
+    const verdict = parseTextCheck(text);
     if (verdict === null) {
       console.error('[storyboard-expand-check] veredicto no parseable');
       return false;
