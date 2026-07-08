@@ -1,29 +1,34 @@
 // lib/prompt-director/format-matcher.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildMatcherSystemPrompt, matchIdeas, type MatcherFormat } from './format-matcher';
+import { ProviderError } from '@/lib/providers/types';
+import type { MatcherFormat } from './format-matcher';
+
+const gatewayTextMock = vi.fn();
+vi.mock('@/lib/providers/gateway', () => ({
+  gatewayText: gatewayTextMock,
+}));
+
+const { buildMatcherSystemPrompt, matchIdeas } = await import('./format-matcher');
 
 const FORMATS: MatcherFormat[] = [
   { id: 'f1', slug: 'el-descubrimiento', name: 'El Descubrimiento', description: 'Unboxing / revelación' },
   { id: 'f2', slug: 'voz-cercana', name: 'Voz Cercana', description: 'Testimonio de creador' },
 ];
 
-function geminiOk(payload: unknown) {
-  return {
-    ok: true, status: 200,
-    json: async () => ({
-      candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }],
-    }),
-  } as Response;
+function gatewayOk(payload: unknown) {
+  return { text: JSON.stringify(payload), finishReason: 'stop' };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  gatewayTextMock.mockReset();
+});
 
 describe('matchIdeas', () => {
   it('mapea una idea a un formato existente', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing del producto', formatId: 'f1', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing del producto', formats: FORMATS });
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');
@@ -31,7 +36,7 @@ describe('matchIdeas', () => {
   });
 
   it('propone formato custom cuando no encaja', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'mi perro usa el producto',
         formatId: null,
@@ -43,25 +48,22 @@ describe('matchIdeas', () => {
           defaultDurationS: 8, defaultAudio: true,
         },
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'mi perro usa el producto', formats: FORMATS });
     expect(res.matches[0].formatId).toBeNull();
     expect(res.matches[0].customFormat?.slug).toBe('mascota-protagonista');
   });
 
   it('rechaza la respuesta si ningún match es válido (con reintento)', async () => {
-    const fetchMock = vi.fn(async () => geminiOk({ matches: [{ bogus: true }] }));
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockResolvedValue(gatewayOk({ matches: [{ bogus: true }] }));
     await expect(
       matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
     ).rejects.toThrow(/matches válidos/i);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(gatewayTextMock).toHaveBeenCalledTimes(2);
   });
 
   it('normaliza customFormat con claves en español y campos faltantes (caso real de Vercel)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'una escena majestuosa como de deidad del refresco',
         formatId: null,
@@ -74,8 +76,7 @@ describe('matchIdeas', () => {
         count: 1,
         scenePrompt: 'A majestic deity-like scene of the soft drink appears',
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'deidad del refresco', formats: FORMATS });
     const cf = res.matches[0].customFormat;
     expect(cf).not.toBeNull();
@@ -90,14 +91,13 @@ describe('matchIdeas', () => {
   });
 
   it('normaliza slug con acentos y clampa la duración', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'algo épico',
         formatId: null,
         customFormat: { name: 'Visión Épica', defaultDurationS: 30 },
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'algo épico', formats: FORMATS });
     const cf = res.matches[0].customFormat;
     expect(cf?.slug).toBe('vision-epica');
@@ -106,22 +106,20 @@ describe('matchIdeas', () => {
   });
 
   it('customFormat null se conserva como null', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].customFormat).toBeNull();
   });
 
   it('descarta el match malformado pero conserva los válidos', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [
         { bogus: true },
         { ideaText: 'un unboxing', formatId: 'f1', customFormat: null },
       ],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');
@@ -131,63 +129,49 @@ describe('matchIdeas', () => {
     const payload = JSON.stringify({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
     });
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true, status: 200,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: '```json\n' + payload + '\n```' }] } }],
-      }),
-    }) as Response));
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockResolvedValue({ text: '```json\n' + payload + '\n```', finishReason: 'stop' });
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].formatId).toBe('f1');
   });
 
   it('reintenta una vez ante rate limit y falla si persiste', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: false, status: 429 }) as Response);
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockRejectedValue(new ProviderError('Rate limit Gemini', 'rate_limit', true));
     await expect(
       matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
     ).rejects.toMatchObject({ code: 'rate_limit', retryable: true });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(gatewayTextMock).toHaveBeenCalledTimes(2);
   });
 
   it('se recupera si el reintento tras 429 responde bien', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({ ok: false, status: 429 } as Response)
-      .mockResolvedValueOnce(geminiOk({
+    gatewayTextMock
+      .mockRejectedValueOnce(new ProviderError('Rate limit Gemini', 'rate_limit', true))
+      .mockResolvedValueOnce(gatewayOk({
         matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
       }));
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS, retryDelayMs: 0 });
     expect(res.matches[0].formatId).toBe('f1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(gatewayTextMock).toHaveBeenCalledTimes(2);
   });
 
   it('no reintenta errores no recuperables (auth)', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: false, status: 403 }) as Response);
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockRejectedValue(new ProviderError('Auth inválida con AI Gateway', 'auth', false));
     await expect(
       matchIdeas({ ideasText: 'algo', formats: FORMATS, retryDelayMs: 0 }),
     ).rejects.toMatchObject({ code: 'auth' });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(gatewayTextMock).toHaveBeenCalledTimes(1);
   });
 
   it('sin count ni scenePrompt aplica defaults (1 y null)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].count).toBe(1);
     expect(res.matches[0].scenePrompt).toBeNull();
   });
 
   it('conserva count y scenePrompt cuando la idea los trae', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: '3 unboxings donde se ve el sello al abrir',
         formatId: 'f1',
@@ -195,27 +179,24 @@ describe('matchIdeas', () => {
         count: 3,
         scenePrompt: 'Hands break the seal slowly and lift the product into soft light',
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: '3 unboxings...', formats: FORMATS });
     expect(res.matches[0].count).toBe(3);
     expect(res.matches[0].scenePrompt).toContain('seal');
   });
 
   it('count fuera de rango cae al default sin tirar el match', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'muchos unboxings', formatId: 'f1', customFormat: null, count: 99 }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'muchos unboxings', formats: FORMATS });
     expect(res.matches[0].count).toBe(1);
   });
 
   it('descarta formatId que no existe en la lista', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'x', formatId: 'inventado', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].formatId).toBeNull(); // saneado a custom pendiente o null
   });
@@ -224,22 +205,20 @@ describe('matchIdeas', () => {
     // El modelo reproduce mal los UUID (sobre todo en ideas multi-escena) y a
     // veces devuelve el slug. Resolver por slug evita el descarte silencioso que
     // dejaba el plan en sin_match.
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'una revelación', formatId: 'el-descubrimiento', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'una revelación', formats: FORMATS });
     expect(res.matches[0].formatId).toBe('f1'); // 'el-descubrimiento' es el slug de f1
   });
 
   it('devuelve characterIds saneados contra el pool', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'María hace un unboxing', formatId: 'f1', customFormat: null,
         characterIds: ['c1', 'c-falso', 'c2'],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({
       ideasText: 'María hace un unboxing', formats: FORMATS,
       characters: [{ id: 'c1', name: 'María' }, { id: 'c2', name: 'Juan' }],
@@ -248,10 +227,9 @@ describe('matchIdeas', () => {
   });
 
   it('characterIds vacío y sin crash cuando el modelo no manda el campo', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].characterIds).toEqual([]);
     expect(res.matches[0].inventedCharacters).toEqual([]);
@@ -262,13 +240,12 @@ describe('matchIdeas', () => {
     const timeline =
       '0-3s: wide shot, the can rests on wet stone. 3-7s: dolly in as condensation runs down the label. ' +
       '7-9s: the can is lifted and tilted toward camera, label forward, soft light catching the rim.';
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'un video del producto en piedra mojada', formatId: 'f1', customFormat: null,
         scenePrompt: timeline, sceneSummary: 'La lata sobre piedra mojada, revelada con un dolly in',
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un video del producto en piedra mojada', formats: FORMATS });
     expect(res.matches[0].scenePrompt).toBe(timeline);
     expect(res.matches[0].sceneSummary).toBe('La lata sobre piedra mojada, revelada con un dolly in');
@@ -279,13 +256,12 @@ describe('matchIdeas', () => {
       '0-3s: Brenda looks straight into the camera while a giant LED wall behind her scrolls thousands of family photographs. ' +
       'Dialogue: "You are going to lose them if you do nothing with the photos on your phone." '.repeat(18);
     expect(longTimeline.length).toBeGreaterThan(1500);
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'anuncio cuadro familiar', formatId: 'f1', customFormat: null,
         scenePrompt: longTimeline,
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'anuncio cuadro familiar', formats: FORMATS });
     expect(res.matches[0].scenePrompt).not.toBeNull();
     expect(res.matches[0].scenePrompt!.length).toBeGreaterThan(1500);
@@ -294,10 +270,9 @@ describe('matchIdeas', () => {
   it('scenePrompt descomunal se recorta en frontera de palabra, nunca a null', async () => {
     const huge = 'Brenda walks around the floating family photo in a dark museum room. '.repeat(80);
     expect(huge.length).toBeGreaterThan(3000);
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'museo de recuerdos', formatId: 'f1', customFormat: null, scenePrompt: huge }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'museo', formats: FORMATS });
     expect(res.matches[0].scenePrompt).not.toBeNull();
     expect(res.matches[0].scenePrompt!.length).toBeLessThanOrEqual(3000);
@@ -305,22 +280,20 @@ describe('matchIdeas', () => {
   });
 
   it('scenePrompt no string (number) sigue cayendo a null sin tirar el match', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'x', formatId: 'f1', customFormat: null, scenePrompt: 12345 }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].scenePrompt).toBeNull();
   });
 
   it('characterIds dedupe y recorta a 3', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'todos presentan', formatId: 'f1', customFormat: null,
         characterIds: ['c1', 'c1', 'c2', 'c3', 'c4'],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({
       ideasText: 'todos presentan', formats: FORMATS,
       characters: [
@@ -332,11 +305,9 @@ describe('matchIdeas', () => {
   });
 
   it('las imágenes adjuntas viajan como inline_data con su rol declarado en el texto', async () => {
-    const fetchMock = vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null }],
     }));
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
     await matchIdeas({
       ideasText: 'un unboxing',
       formats: FORMATS,
@@ -345,11 +316,7 @@ describe('matchIdeas', () => {
         { mimeType: 'image/jpeg', dataBase64: 'BBBB', label: 'personaje María' },
       ],
     });
-    const init = (fetchMock.mock.calls[0] as unknown[])[1] as { body: string };
-    const body = JSON.parse(init.body) as {
-      contents: Array<{ parts: Array<Record<string, unknown>> }>;
-    };
-    const parts = body.contents[0].parts;
+    const parts = gatewayTextMock.mock.calls[0][0].contents[0].parts;
     expect(parts).toHaveLength(3);
     expect(String(parts[0].text)).toContain('1=producto, 2=personaje María');
     expect(parts[1]).toEqual({ inline_data: { mime_type: 'image/png', data: 'AAAA' } });
@@ -357,7 +324,7 @@ describe('matchIdeas', () => {
   });
 
   it('inventedCharacters se parsea y los malformados se descartan sin tirar el match', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'Lucía presenta', formatId: 'f2', customFormat: null,
         inventedCharacters: [
@@ -365,8 +332,7 @@ describe('matchIdeas', () => {
           { bogus: true },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'Lucía presenta', formats: FORMATS, characters: [] });
     expect(res.matches[0].inventedCharacters).toEqual([
       { name: 'Lucía', description: 'a presenter with short auburn hair and a denim jacket' },
@@ -374,7 +340,7 @@ describe('matchIdeas', () => {
   });
 
   it('parsea una secuencia con scenes[] ordenadas y sequenceLabel', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'anuncio cuadro familiar de 15s con 4 actos', formatId: 'f1', customFormat: null,
         sequenceLabel: 'Cuadro familiar',
@@ -384,8 +350,7 @@ describe('matchIdeas', () => {
           { scenePrompt: 'The family photo becomes a premium framed print in a warm living room', durationS: 5, sceneSummary: 'Revelacion del cuadro' },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'anuncio cuadro familiar', formats: FORMATS });
     const m = res.matches[0];
     expect(m.sequenceLabel).toBe('Cuadro familiar');
@@ -395,7 +360,7 @@ describe('matchIdeas', () => {
   });
 
   it('clampa la duración de una escena de secuencia a 12s (techo del schema)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'anuncio de 4 actos', formatId: 'f1', customFormat: null, sequenceLabel: 'Reveal',
         scenes: [
@@ -403,15 +368,14 @@ describe('matchIdeas', () => {
           { scenePrompt: 'The camera pans across the artwork details', durationS: 6 },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'anuncio', formats: FORMATS });
     expect(res.matches[0].scenes[0].durationS).toBe(12); // 15 → 12 (techo del schema subio)
     expect(res.matches[0].scenes[1].durationS).toBe(6); // intacta
   });
 
   it('parsea beatRole reveal/action en las escenas', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia con reveal', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [
@@ -419,15 +383,14 @@ describe('matchIdeas', () => {
           { scenePrompt: 'she snaps the cap and turns fast', durationS: 5, beatRole: 'action' },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].scenes[0].beatRole).toBe('reveal');
     expect(res.matches[0].scenes[1].beatRole).toBe('action');
   });
 
   it('beatRole ausente o inválido cae a beat (catch)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [
@@ -435,15 +398,14 @@ describe('matchIdeas', () => {
           { scenePrompt: 'another normal beat', durationS: 6, beatRole: 'nonsense' },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].scenes[0].beatRole).toBe('beat');
     expect(res.matches[0].scenes[1].beatRole).toBe('beat');
   });
 
   it('rebasea/quita marcadores de tiempo acumulativos de las escenas de secuencia (PD-11)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [
@@ -452,8 +414,7 @@ describe('matchIdeas', () => {
           { scenePrompt: '9-13s: she smiles to camera', durationS: 4 },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
     const prompts = res.matches[0].scenes.map((s) => s.scenePrompt);
     // Beat único por escena → se quita el marcador (cada clip empieza en 0).
@@ -464,25 +425,23 @@ describe('matchIdeas', () => {
   });
 
   it('rebasea un timeline multi-beat de escena para que empiece en 0 (PD-11)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [{ scenePrompt: '13-15s: a wall ignites. 15-17s: the artwork appears', durationS: 4 }],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
     expect(res.matches[0].scenes[0].scenePrompt).toBe('0-2s: a wall ignites. 2-4s: the artwork appears');
   });
 
   it('quita emojis del scenePrompt (no van dentro del video) y conserva el texto', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'cierre con fuego', formatId: 'f1', customFormat: null,
         scenePrompt: 'The logo glows over the artwork 🔥🔥 and the brand name appears ✨',
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'cierre', formats: FORMATS });
     expect(res.matches[0].scenePrompt).not.toMatch(/\p{Extended_Pictographic}/u);
     expect(res.matches[0].scenePrompt).toContain('The logo glows over the artwork');
@@ -490,20 +449,19 @@ describe('matchIdeas', () => {
   });
 
   it('quita emojis también en las escenas de una secuencia', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia con emoji', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [{ scenePrompt: 'Hands open the box 🎁 and lift the product', durationS: 5 }],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
     expect(res.matches[0].scenes[0].scenePrompt).not.toMatch(/\p{Extended_Pictographic}/u);
     expect(res.matches[0].scenes[0].scenePrompt).toContain('Hands open the box');
   });
 
   it('descarta una escena malformada sin tirar la secuencia', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'secuencia', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [
@@ -512,102 +470,91 @@ describe('matchIdeas', () => {
           { scenePrompt: 'Scene three is also valid', durationS: 6 },
         ],
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'secuencia', formats: FORMATS });
     expect(res.matches[0].scenes).toHaveLength(2);
     expect(res.matches[0].scenes[1].scenePrompt).toContain('three');
   });
 
   it('expone el blocker legible cuando el matcher marca una idea no trabajable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'algo padre', formatId: null, customFormat: null,
         blocker: 'la idea no dice qué pasa en pantalla',
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'algo padre', formats: FORMATS });
     expect(res.matches[0].blocker).toBe('la idea no dice qué pasa en pantalla');
   });
 
   it('blocker ausente o vacío cae a null', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [
         { ideaText: 'un unboxing', formatId: 'f1', customFormat: null },
         { ideaText: 'x', formatId: 'f1', customFormat: null, blocker: '   ' },
       ],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].blocker).toBeNull();
     expect(res.matches[1].blocker).toBeNull();
   });
 
   it('idea normal trae scenes vacio (no es secuencia)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'un unboxing', formatId: 'f1', customFormat: null, scenePrompt: 'Hands open the box slowly' }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].scenes).toEqual([]);
     expect(res.matches[0].sequenceLabel).toBeNull();
   });
 
   it('parsea characterStateHint de una escena (P05)', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'corre y suda', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [{ scenePrompt: 'she runs in the heat', durationS: 5, characterStateHint: 'sudado' }] }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].scenes[0].characterStateHint).toBe('sudado');
   });
 
   it('characterStateHint ausente cae a null', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{ ideaText: 'normal', formatId: 'f1', customFormat: null, sequenceLabel: 'X',
         scenes: [{ scenePrompt: 'she smiles', durationS: 5 }] }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'x', formats: FORMATS });
     expect(res.matches[0].scenes[0].characterStateHint).toBeNull();
   });
 
   it('pasa los labels de estado del personaje en el pool del prompt', async () => {
-    const fetchMock = vi.fn(async () => geminiOk({ matches: [{ ideaText: 'x', formatId: 'f1', customFormat: null }] }));
-    vi.stubGlobal('fetch', fetchMock);
-    process.env.GEMINI_API_KEY = 'test';
+    gatewayTextMock.mockResolvedValue(gatewayOk({ matches: [{ ideaText: 'x', formatId: 'f1', customFormat: null }] }));
     await matchIdeas({ ideasText: 'x', formats: FORMATS, characters: [{ id: 'c1', name: 'Marcela', states: ['sudado', 'mojado'] }] });
-    // mismo patrón de parseo del body que el test existente "las imágenes adjuntas viajan…"
-    const init = (fetchMock.mock.calls[0] as unknown[])[1] as { body: string };
-    const body = JSON.parse(init.body) as { contents: Array<{ parts: Array<Record<string, unknown>> }> };
-    expect(String(body.contents[0].parts[0].text)).toContain('estados: sudado, mojado');
+    // mismo patrón de assert sobre el argumento del mock que el test existente "las imágenes adjuntas viajan…"
+    const parts = gatewayTextMock.mock.calls[0][0].contents[0].parts;
+    expect(String(parts[0].text)).toContain('estados: sudado, mojado');
   });
 
   it('clip único: parsea characterStateHint a nivel idea', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'Marco sudado mostrando el producto', formatId: 'f1', customFormat: null,
         scenePrompt: 'Marco shows the product, sweating',
         characterStateHint: 'sudado',
         scenes: [], count: 1,
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'Marco sudado mostrando el producto', formats: FORMATS });
     expect(res.matches[0].characterStateHint).toBe('sudado');
   });
 
   it('clip único: characterStateHint ausente → null', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: 'un unboxing', formatId: 'f1', customFormat: null,
         scenePrompt: 'Hands open the box slowly',
         scenes: [], count: 1,
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: 'un unboxing', formats: FORMATS });
     expect(res.matches[0].characterStateHint).toBeNull();
   });
@@ -620,13 +567,12 @@ describe('matchIdeas', () => {
     // debe recortarse, nunca descartar la idea.
     const hugeIdea = 'Plantilla de Campaña: UGC estructurado, cuarto lowkey y jardín. '.repeat(60);
     expect(hugeIdea.length).toBeGreaterThan(2000);
-    vi.stubGlobal('fetch', vi.fn(async () => geminiOk({
+    gatewayTextMock.mockResolvedValue(gatewayOk({
       matches: [{
         ideaText: hugeIdea, formatId: 'f1', customFormat: null,
         scenePrompt: 'Hands open the box slowly', count: 1,
       }],
-    })));
-    process.env.GEMINI_API_KEY = 'test';
+    }));
     const res = await matchIdeas({ ideasText: hugeIdea, formats: FORMATS });
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');

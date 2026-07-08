@@ -7,6 +7,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { ProviderError } from '@/lib/providers/types';
+import { gatewayText, type GatewayPart } from '@/lib/providers/gateway';
 import { MASTER_PROMPT_MAX } from '@/lib/schemas/ingest';
 import { CustomFormatSchema, type CustomFormat } from './custom-format-schema';
 import { type CreativeGuidelines } from '@/lib/campaigns/guidelines';
@@ -15,7 +16,6 @@ import { PLANNER_ACTING_BLOCK } from './acting';
 import { stagingPlannerBlock, type PlannerProductFacts } from './inventory';
 export { CustomFormatSchema, type CustomFormat };
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL = 'gemini-2.5-flash';
 
 export type MatcherFormat = {
@@ -252,14 +252,6 @@ function normalizeCustomFormat(value: unknown): unknown {
     defaultAudio: typeof o.defaultAudio === 'boolean' ? o.defaultAudio : true,
   };
 }
-
-const GeminiResponseSchema = z.object({
-  candidates: z
-    .array(z.object({
-      content: z.object({ parts: z.array(z.object({ text: z.string() })).optional() }).optional(),
-    }))
-    .min(1),
-});
 
 // El idioma del resumen sigue al de la campaña; el scenePrompt va en inglés siempre.
 const SUMMARY_LANGUAGE: Record<'es' | 'en', string> = {
@@ -527,9 +519,6 @@ async function requestMatch(input: {
   visualStyleCustom?: string;
   product?: PlannerProductFacts;
 }): Promise<MatcherResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new ProviderError('GEMINI_API_KEY no configurada', 'auth', false);
-
   const catalog = input.formats
     .map((f) =>
       `- id=${f.id} slug=${f.slug} "${f.name}"${f.defaultDurationS ? ` (${f.defaultDurationS}s)` : ''}: ${f.description ?? ''}`,
@@ -554,47 +543,29 @@ async function requestMatch(input: {
   const imageNote = images.length
     ? `\n\nImágenes adjuntas (en orden): ${images.map((img, i) => `${i + 1}=${img.label}`).join(', ')}.`
     : '';
-  const parts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [
+  const parts: GatewayPart[] = [
     { text: `Catálogo:\n${catalog}\n\nCast de la campaña:\n${cast}\n\nIdeas del usuario:\n${input.ideasText.slice(0, MASTER_PROMPT_MAX)}${imageNote}` },
     ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.dataBase64 } })),
   ];
 
-  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts }],
-      generationConfig: {
-        temperature: 0.2,
-        // Timelines con diálogo por idea abultan el JSON. Con guiones cerca del
-        // cap (MASTER_PROMPT_MAX) un anuncio de 7+ escenas auto-contenidas más
-        // el eco de ideaText superaba 8192 y el JSON llegaba truncado SIEMPRE
-        // (el retry no ayuda: el tamaño requerido no baja) → plan al mix.
-        maxOutputTokens: 32768,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    }),
+  const { text: raw } = await gatewayText({
+    model: MODEL,
+    label: 'matcher',
+    system,
+    contents: [{ role: 'user', parts }],
+    temperature: 0.2,
+    // Timelines con diálogo por idea abultan el JSON. Con guiones cerca del
+    // cap (MASTER_PROMPT_MAX) un anuncio de 7+ escenas auto-contenidas más
+    // el eco de ideaText superaba 8192 y el JSON llegaba truncado SIEMPRE
+    // (el retry no ayuda: el tamaño requerido no baja) → plan al mix.
+    maxOutputTokens: 32768,
+    json: true,
   });
-  if (res.status === 429) throw new ProviderError('Rate limit Gemini', 'rate_limit', true);
-  if (res.status === 401 || res.status === 403) {
-    throw new ProviderError('Auth inválida con Gemini API', 'auth', false);
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ProviderError(`Gemini matcher ${res.status}: ${text.slice(0, 200)}`, 'server', res.status >= 500);
-  }
 
   // De aquí en adelante los fallos son de la GENERACIÓN (truncada, fences,
   // campos malos): estocásticos, así que retryable=true — el reintento de
   // matchIdeas suele resolverlos. El detalle va al mensaje para que el log
   // del server muestre qué llegó.
-  const envelope = GeminiResponseSchema.safeParse(await res.json());
-  if (!envelope.success) {
-    throw new ProviderError('Respuesta inesperada de Gemini en matcher', 'unknown', true);
-  }
-  const raw = (envelope.data.candidates[0].content?.parts ?? []).map((p) => p.text).join('');
   let json: unknown;
   try { json = JSON.parse(extractJson(raw)); } catch {
     throw new ProviderError(
