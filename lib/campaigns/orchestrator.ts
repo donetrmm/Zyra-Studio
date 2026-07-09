@@ -27,6 +27,7 @@ import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/
 import { applyReferenceSelection, normalizeReferenceSelection } from './reference-selection';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from './guidelines';
 import { getStyleProfile, type VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { productInventoryFromRow, type ProductRow } from './products';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -63,6 +64,8 @@ export type ItemRow = {
   // Vestuario (specs/v2/16): override de outfit para ESTE clip, por label. null =
   // usa el outfit de campaña (character_outfit_map) o el cuerpo completo base.
   character_outfit_hint: string | null;
+  // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (product_brief) como fallback.
+  product_id: string | null;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -184,6 +187,43 @@ export async function resolvePaths(
     }
   }
   return map;
+}
+
+// Resuelve el producto de UN clip (campaign_items.product_id) a ProductInventory,
+// con sus imágenes y usages resueltos. Devuelve null si no existe o no es del
+// workspace (el caller cae al producto de campaña). Espeja el bloque de producto
+// de loadCampaignContext.
+export async function resolveItemProduct(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  productId: string,
+  includePackaging: boolean,
+): Promise<import('@/lib/prompt-director/types').ProductInventory | null> {
+  const { data: row } = await supabase
+    .from('products')
+    .select(
+      'id, workspace_id, brand_id, name, slug, medium, height_cm, width_cm, thickness_mm, weight_kg, visual_details, palette, product_image_ids, packaging_image_ids',
+    )
+    .eq('id', productId)
+    .single();
+  if (!row || (row as { workspace_id: string }).workspace_id !== workspaceId) return null;
+  const productIds = ((row as ProductRow).product_image_ids ?? []) as string[];
+  const packagingIds = includePackaging ? (((row as ProductRow).packaging_image_ids ?? []) as string[]) : [];
+  const paths = await resolvePaths(supabase, workspaceId, [...productIds, ...packagingIds]);
+  const imagePaths = productIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+  const packagingImagePaths = packagingIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+  const usages = await resolveUsages(supabase, workspaceId, productIds);
+  const imageUsages: Record<string, string> = {};
+  for (const id of productIds) {
+    const path = paths.get(id);
+    const usage = usages.get(id);
+    if (path && usage) imageUsages[path] = usage;
+  }
+  return productInventoryFromRow(row as ProductRow, {
+    imagePaths,
+    packagingImagePaths,
+    ...(Object.keys(imageUsages).length ? { imageUsages } : {}),
+  });
 }
 
 // AM: resuelve usage_description por media_reference id (validando workspace).
@@ -470,6 +510,7 @@ export function directorContextFor(
   templateVideoPath?: string,
   extraImagePaths?: string[],
   location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
+  productOverride?: import('@/lib/prompt-director/types').ProductInventory,
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
   // Vestuario (specs/v2/16): override de outfit de ESTE clip, por label.
@@ -501,21 +542,28 @@ export function directorContextFor(
     });
   return {
     format: format ? fromFormatRow(format) : undefined,
-    product: {
-      name: ctx.productName,
-      visualDetails: ctx.visualDetails,
-      palette: ctx.palette,
-      imagePaths: ctx.productImagePaths,
-      imageUsages: ctx.productImageUsages,
-      heightCm: ctx.productHeightCm,
-      widthCm: ctx.productWidthCm,
-      medium: ctx.productMedium,
-      thicknessMm: ctx.productThicknessMm,
-      weightKg: ctx.productWeightKg,
-      packagingImagePaths: format?.required_refs.includes('packaging')
-        ? ctx.packagingImagePaths
-        : undefined,
-    },
+    product: productOverride
+      ? {
+          ...productOverride,
+          packagingImagePaths: format?.required_refs.includes('packaging')
+            ? productOverride.packagingImagePaths
+            : undefined,
+        }
+      : {
+          name: ctx.productName,
+          visualDetails: ctx.visualDetails,
+          palette: ctx.palette,
+          imagePaths: ctx.productImagePaths,
+          imageUsages: ctx.productImageUsages,
+          heightCm: ctx.productHeightCm,
+          widthCm: ctx.productWidthCm,
+          medium: ctx.productMedium,
+          thicknessMm: ctx.productThicknessMm,
+          weightKg: ctx.productWeightKg,
+          packagingImagePaths: format?.required_refs.includes('packaging')
+            ? ctx.packagingImagePaths
+            : undefined,
+        },
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
     location: (location?.imagePaths.length || location?.description?.trim() || location?.scaleMap) ? location : undefined,

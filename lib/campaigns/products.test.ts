@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { productInventoryFromRow, type ProductRow } from './products';
+import { directorContextFor, type ItemRow, type CampaignContext } from './orchestrator';
+import type { ProductInventory } from '@/lib/prompt-director/types';
 
 const baseRow: ProductRow = {
   id: 'p1', workspace_id: 'w1', brand_id: 'b1', name: 'Canvas Familiar', slug: 'canvas-familiar',
@@ -40,5 +42,40 @@ describe('productInventoryFromRow', () => {
 
   it('name vacío → "the product" (paridad con directorContextFor)', () => {
     expect(productInventoryFromRow({ ...baseRow, name: '' }, { imagePaths: [] }).name).toBe('the product');
+  });
+});
+
+function makeCtx(): CampaignContext {
+  return {
+    productName: 'Producto de Campaña', visualDetails: 'campaign details', palette: ['navy'],
+    productImagePaths: ['url/campaign'], packagingImagePaths: [], productImageUsages: {},
+    productHeightCm: 10, productWidthCm: 10, productMedium: 'mug', productThicknessMm: 2, productWeightKg: 0.3,
+    characters: new Map(), language: 'es',
+  };
+}
+function makeItem(): ItemRow {
+  return {
+    id: 'it1', campaign_id: 'c1', format_id: null, template_id: null, model_slug: 'seedance',
+    duration_s: 8, aspect_ratio: '9:16', scene: null, audio: true, character_id: null, character_ids: null,
+    reference_ids: null, scene_prompt: 'x', status: 'draft', sequence_id: null, scene_index: 0,
+    location_id: null, storyboard_image_id: null, character_state_hint: null, character_outfit_hint: null,
+    product_id: 'p1',
+  };
+}
+
+describe('directorContextFor — productOverride', () => {
+  const override: ProductInventory = { name: 'Producto del Clip', imagePaths: ['url/clip'], medium: 'canvas print' };
+
+  it('sin override → usa el producto de campaña (comportamiento actual)', () => {
+    const dc = directorContextFor(makeItem(), null, makeCtx());
+    expect(dc.product?.name).toBe('Producto de Campaña');
+    expect(dc.product?.imagePaths).toEqual(['url/campaign']);
+  });
+
+  it('con override → el producto del clip pisa al de campaña', () => {
+    const dc = directorContextFor(makeItem(), null, makeCtx(), undefined, undefined, undefined, override);
+    expect(dc.product?.name).toBe('Producto del Clip');
+    expect(dc.product?.imagePaths).toEqual(['url/clip']);
+    expect(dc.product?.medium).toBe('canvas print');
   });
 });

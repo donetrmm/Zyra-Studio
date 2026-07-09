@@ -277,6 +277,7 @@ export async function generatePanelAction(
     character_outfit_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
+    product_id: null,
   };
 
   // La selección manual de referencias de la campaña (054) también filtra las
@@ -604,6 +605,7 @@ export async function refinePanelAction(
     storyboard_image_id: null,
     character_state_hint: null,
     character_outfit_hint: null,
+    product_id: null,
   };
 
   // La selección manual de referencias de la campaña (054) también filtra las
