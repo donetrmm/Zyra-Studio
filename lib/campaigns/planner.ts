@@ -5,6 +5,7 @@
 import type { ProductCategory } from './brief';
 import { buildCaption, type CaptionGoal } from './captions';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, DUR_MAX } from './speech-fit';
+import { normalizeText } from './text-normalize';
 
 export type PlannerFormat = {
   id: string;
@@ -83,12 +84,7 @@ export const DEFAULT_PRESENTER =
 // Normaliza un nombre para comparar Cast vs inventados: sin acentos, minúsculas,
 // espacios colapsados.
 function normName(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeText(s).replace(/\s+/g, ' ');
 }
 
 // Red determinista (bug Anuncio #12 V2): el matcher a veces devuelve a un personaje
