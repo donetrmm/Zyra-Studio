@@ -148,10 +148,9 @@ function ProductCard({
         <button
           type="button"
           onClick={onDelete}
-          aria-label="Eliminar producto"
           className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
-          <Trash2 className="size-3" aria-hidden />
+          <Trash2 className="size-3" aria-hidden /> Eliminar
         </button>
       </div>
     </div>

@@ -46,8 +46,11 @@ export function BrandKitsPage({
     setKits(initial);
   }
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
-  // Un kit expandido a la vez (muestra sus productos anidados).
+  // Un kit expandido a la vez: sus productos se muestran en un panel a lo ancho
+  // debajo de la grilla. Antes iban DENTRO de la tarjeta de ~1/3 de ancho y el
+  // editor y las tarjetas de producto quedaban apretados e ilegibles.
   const [expandedKitId, setExpandedKitId] = useState<string | null>(null);
+  const expandedKit = kits.find((k) => k.id === expandedKitId) ?? null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -87,17 +90,13 @@ export function BrandKitsPage({
           <p className="max-w-xs text-[12.5px]">Crea tu primer kit para inyectar identidad de marca en tus generaciones</p>
         </div>
       ) : (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {kits.map((kit) => {
-            const kitProducts = products.filter((p) => p.brand_id === kit.id);
-            return (
+        <>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {kits.map((kit) => (
               <BrandKitCard
                 key={kit.id}
                 kit={kit}
-                products={kitProducts}
-                previews={productPreviews}
-                usages={productUsages}
-                angleCost={angleCost}
+                productCount={products.filter((p) => p.brand_id === kit.id).length}
                 expanded={expandedKitId === kit.id}
                 onToggleProducts={() => setExpandedKitId((cur) => (cur === kit.id ? null : kit.id))}
                 onEdit={() => setEditing(kit)}
@@ -107,14 +106,45 @@ export function BrandKitsPage({
                   deleteBrandKitAction(kit.id).then((res) => {
                     if (res.ok) {
                       setKits((k) => k.filter((x) => x.id !== kit.id));
+                      if (expandedKitId === kit.id) setExpandedKitId(null);
                       toast.success('Kit eliminado');
                     } else toast.error(res.message || 'Error');
                   });
                 }}
               />
-            );
-          })}
-        </div>
+            ))}
+          </div>
+
+          {expandedKit && (
+            <div className="mt-4 overflow-hidden rounded-xl border border-primary/30 bg-card/40">
+              <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-muted/20 px-5 py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Package className="size-4 shrink-0 text-primary" aria-hidden />
+                  <h2 className="truncate text-[14px] font-medium text-foreground">
+                    Productos · {expandedKit.name}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpandedKitId(null)}
+                  aria-label="Cerrar productos"
+                  className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <X className="size-4" aria-hidden />
+                </button>
+              </div>
+              <div className="p-5">
+                <ProductsSection
+                  brandKitId={expandedKit.id}
+                  products={products.filter((p) => p.brand_id === expandedKit.id)}
+                  previews={productPreviews}
+                  usages={productUsages}
+                  angleCost={angleCost}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -122,27 +152,25 @@ export function BrandKitsPage({
 
 function BrandKitCard({
   kit,
-  products,
-  previews,
-  usages,
-  angleCost,
+  productCount,
   expanded,
   onToggleProducts,
   onEdit,
   onDelete,
 }: {
   kit: BrandKit;
-  products: ProductView[];
-  previews: Record<string, string>;
-  usages: Record<string, string>;
-  angleCost: number | null;
+  productCount: number;
   expanded: boolean;
   onToggleProducts: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
+    <div
+      className={`overflow-hidden rounded-xl border bg-card/50 transition-colors ${
+        expanded ? 'border-primary/50' : 'border-border hover:border-muted-foreground/20'
+      }`}
+    >
       <div className="p-4">
       <h3 className="truncate text-[14px] font-medium text-foreground">{kit.name}</h3>
       {kit.colors.length > 0 && (
@@ -171,31 +199,29 @@ function BrandKitCard({
         <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
       )}
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {products.length} {products.length === 1 ? 'producto' : 'productos'}
+        {productCount} {productCount === 1 ? 'producto' : 'productos'}
       </p>
       </div>
       <div className="flex gap-2 border-t border-border/30 p-3">
         <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
-        <button type="button" onClick={onToggleProducts} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <Package className="size-3" aria-hidden /> {expanded ? 'Ocultar productos' : `Productos (${products.length})`}
+        <button
+          type="button"
+          onClick={onToggleProducts}
+          aria-expanded={expanded}
+          className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+            expanded
+              ? 'border-primary/50 bg-primary/10 text-foreground'
+              : 'border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Package className="size-3" aria-hidden /> {expanded ? 'Ocultar productos' : `Productos (${productCount})`}
         </button>
         <button type="button" onClick={onDelete} aria-label="Eliminar kit" className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Trash2 className="size-3" aria-hidden />
         </button>
       </div>
-      {expanded && (
-        <div className="border-t border-border/30 p-4">
-          <ProductsSection
-            brandKitId={kit.id}
-            products={products}
-            previews={previews}
-            usages={usages}
-            angleCost={angleCost}
-          />
-        </div>
-      )}
     </div>
   );
 }
