@@ -36,6 +36,8 @@ Voltear el producto, agacharse, mirar hacia abajo o girar la cabeza **mientras**
 
 Ojo con el matiz que rompió el clip 2 del Anuncio #12 V2: no basta con poner la acción "después" **dentro del mismo clip**. Si la acción **tapa o gira la cara** (voltear/rotar el cuadro, alzarlo frente al rostro, darse la vuelta), el modelo la prioriza y **pierde el lip-sync** aunque la hayas puesto al final. Pártelo en **dos clips**: uno habla (cara despejada, el cuadro a la altura del pecho o a un lado, sin taparle la boca) y el **siguiente** hace el volteo, en silencio. Un clip hablado no debe cargar además una acción que oculte la boca.
 
+**Y el volteo en sí tampoco funciona como movimiento continuo.** Si el guion quiere el **antes/después de las dos caras** de un objeto plano (el reverso del cuadro y luego el frente impreso), no lo pidas como "gira el cuadro 180°": el modelo **no gira el objeto físicamente**, la otra cara **aparece mágicamente** a mitad del giro (morph). Hazlo con un **corte entre dos clips** —un clip muestra el reverso, el **siguiente** muestra el frente— o muestra el frente desde el inicio si no necesitas el suspenso. El corte entre clips es gratis y limpio; el volteo animado, no. (Fue el problema real del clip 2 del Anuncio #12 V2.)
+
 ### 4. Dimensiona el diálogo a la duración (~2 palabras/segundo en es-MX)
 El modelo **rellena toda la duración con audio**. Si la línea es más corta que el clip, rellena repitiendo; si es más larga, atropella y la boca se emborrona (sobre todo pasados ~8 s).
 
@@ -152,6 +154,7 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 | Frase partida en varios entrecomillados / fragmentos re-citados | **Repite palabras** al terminar/empezar la frase; audio desincronizado |
 | Habla puesta sobre una toma donde el personaje no mira a cámara o manipula el producto | Sale como **voz en off** (sin lip-sync) o boca desincronizada |
 | Habla + acción que tapa/gira la cara (voltear el cuadro) en el **mismo** clip, aunque sea "después" | El modelo hace la acción y **pierde el lip-sync**; parte en dos clips (uno habla, otro voltea) |
+| Voltear/rotar ~180° un objeto plano (cuadro, teléfono) para revelar su otra cara dentro de un clip | El modelo no lo gira; la otra cara **aparece mágicamente** a mitad (morph). Revela con un **corte** entre dos clips (reverso / frente) |
 | Línea corta en un clip largo | El modelo **rellena repitiendo** la cola de la frase |
 | Línea muy larga para la duración (o clip >8 s con monólogo) | Habla **atropellada**, boca "mushy", deriva del sync |
 | Marcar "Voiceover/narración/voz en off" cuando querías lip-sync | El sistema apaga el lip-sync **a propósito** |

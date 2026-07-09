@@ -651,6 +651,15 @@ describe('buildMatcherSystemPrompt', () => {
     expect(s).toContain('pierde el lip-sync');
   });
 
+  it('incluye la regla de revelado de objeto plano: no voltear 180 grados, usar un corte', () => {
+    // Bug Anuncio #12 V2 clip 2: el panel muestra el reverso del cuadro y el video pedia
+    // "rotate 180 to show the front" -> Seedance no gira el objeto plano, la cara opuesta
+    // aparece magicamente (morph). El antes/despues se hace con un corte entre dos clips.
+    const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
+    expect(s).toContain('REVELADO DE OBJETO PLANO');
+    expect(s).toContain('CORTE');
+  });
+
   it('fantasía: bloque de estilo presente y física del mundo ausente', () => {
     const s = buildMatcherSystemPrompt({ visualStyle: 'fantasia' });
     expect(s).toContain('FANTASÍA');

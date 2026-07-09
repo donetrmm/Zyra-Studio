@@ -40,10 +40,10 @@ Plano de pecho para arriba, **rostro a la lente**, cabeza estable. Luz sostiene 
 **Diálogo:** "Mi error como mamá fue no llenar la casa con recuerdos de mi hijo."
 *(~14 palabras ≈ 7 s de habla; cabe aunque el sistema recorte el clip a ~8 s.)*
 
-### Clip 2 · ~5 s — El cambio · Sala · Luz a cámara (lip-sync)
-Plano medio, **rostro a la lente**, cabeza estable. Luz sostiene el canvas **a la altura del pecho** (sin taparse la cara con él) y habla directo a cámara. **Nada de voltear ni manipular el cuadro mientras habla:** la cara despejada todo el clip.
+### Clip 2 · ~6 s — El cambio · Sala · Luz a cámara (lip-sync)
+Plano medio, **rostro a la lente**, cabeza estable, **push-in lento**. Luz sostiene el canvas **de frente** (el print hacia cámara) a la altura del pecho, sin taparse la cara. Mientras habla a la lente, **su pulgar acaricia despacio el borde del lienzo y roza la foto impresa** con ternura; la luz cálida resbala sobre el acabado mate y la cámara se acerca lento hacia el cuadro y su rostro. Cara despejada todo el clip; **sin voltear ni girar el cuadro**.
 **Diálogo:** "Pero ahora, con Proliénzo, por fin pude hacerlo."
-*(~9 palabras ≈ 4.5 s. El **volteo/reveal del cuadro NO va aquí**: una acción que tapa o gira la cara mata el lip-sync aunque la pongas "al final". Si quieres el reveal, va en su **propio clip**, en silencio.)*
+*(~9 palabras ≈ 4.5 s. El cuadro se muestra **de frente desde el inicio** —nada de volteo animado, que morphea—; la vida del clip viene de la **caricia al lienzo + el push-in**, no de girar el objeto. La caricia es con las manos, nunca tapa la boca. Si en algún momento quieres el antes/después reverso→frente, va con un **corte entre dos clips**, nunca con una rotación de 180°.)*
 
 ### Clip 3 · ~7 s — Colgando el cuadro · Sala · producto/acción · VOZ EN OFF
 Plano medio. Luz, arrodillada junto al sofá y **de perfil/espaldas a cámara** (no da la cara), cuelga el canvas en la pared: baja el colgador dentado sobre el clavo, los hombros ceden con alivio. Como no mira a cámara, **no hay lip-sync**: la línea es narración en off, dicha una sola vez.
