@@ -160,6 +160,12 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 | Marcar "Voiceover/narración/voz en off" cuando querías lip-sync | El sistema apaga el lip-sync **a propósito** |
 | Números/símbolos crudos en el diálogo ($499, 24/7, 3km) | Se mascan en la voz (mételos en la sección de producto o escríbelos con palabras) |
 | Pedir subtítulos/logo/CTA en el video | Se ignoran / ensucian el cuadro (van en post) |
+| Movimiento rápido o "mucho movimiento" | Cuerpos deformados, miembros que se estiran a media acción (baja el ritmo, evita "rápido") |
+| Manos en primer plano extremo | Dedos rotos, de más o doblados (encuádralas a media distancia) |
+| 5+ personajes o escena recargada | Caras de fondo genéricas, conteo erróneo, detalle fino que colapsa (composición despejada, un sujeto) |
+| Espejos/reflejos en cuadro | El reflejo no coincide con el sujeto (evita encuadrarlos) |
+| Adjetivos-piropo ("épico", "hermoso", "cinematográfico") en vez de verbos concretos | Resultado promedio/genérico |
+| Apilar 3+ movimientos de cámara o modificadores contradictorios | El modelo se rinde y hace algo genérico |
 
 ---
 
@@ -174,3 +180,56 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 - Asigna la **voz por personaje** (referencia de timbre en @audio1) si el personaje tiene voz configurada.
 
 > Referencia viva: el anuncio **#11 V3** es un buen ejemplo del patrón (una línea por clip, rostro a cámara, producto puro sin diálogo). El ejemplo corregido de **#12** está en `docs/prompt-maestro/anuncio-12-corregido.md`.
+
+---
+
+## 7. Cómo lee Seedance un clip: vocabulario y límites (referencia general)
+
+Las 8 reglas de arriba son sobre **diálogo y lip-sync** (donde más nos ha dolido). Esta sección es lo **general**: cómo describir la imagen y el movimiento para que Seedance obedezca, y qué cosas el modelo simplemente no hace bien (aparte del audio). El matcher **traduce tu coreografía** al prompt del clip, así que lo que escribas aquí llega al modelo.
+
+### Anatomía de un clip (el orden que el modelo lee mejor)
+Describe cada clip como un **brief de una toma**, en este orden: **sujeto → acción → entorno → luz → cámara** (el diálogo aparte, entre comillas). Pon lo más importante primero: ancla la atención del modelo.
+
+- **Concreto, no evocativo.** "Una mujer" no dice nada; "una mujer de cabello castaño con un abrigo largo gris camina cruzando un puente de piedra mojada" da sujeto, postura y un vector de movimiento.
+- **Nada de adjetivos-piropo** ("hermoso", "impresionante", "cinematográfico épico"): dan resultados **promedio**. Gasta las palabras en **verbos y sustantivos concretos**, no en calificativos.
+- **Una acción principal + un movimiento de cámara por clip.** Si necesitas complejidad, escálala en **fases** ("primero… luego… al final…"), nunca varias acciones simultáneas. (Es la misma "un clip = una toma": no metas dos cosas en una sola.)
+
+### Vocabulario de cámara y movimiento que Seedance obedece
+Usa términos de cine reales como instrucciones literales; el modelo los entiende mejor que las descripciones casuales.
+
+| Quieres… | Escribe (términos que el modelo obedece) |
+|---|---|
+| Tamaño de plano | close-up, plano medio (medium), plano abierto (wide), two-shot, plano de pecho, contrapicado (low angle) |
+| Acercarte físicamente | **push-in / dolly in** (mueve la cámara, perspectiva natural) — **no** es zoom (cambio de lente, se ve "de post") |
+| Alejarte | pull-out / dolly out |
+| Barrer / inclinar | pan (horizontal), tilt (vertical) |
+| Rodear al sujeto | orbit / arc / 360° |
+| Seguir al sujeto | tracking / follow shot |
+| Cámara quieta | static / locked-off |
+| Look casero/UGC | **handheld** ("handcam"): vaivén orgánico sutil. Para forzar suavidad: gimbal / steadicam / stabilized |
+| Punto de vista | POV / first-person |
+| Enfoque que cambia de plano | rack focus |
+
+Reglas de la cámara:
+- **Di la dirección y la velocidad.** "push-in lento de 3 s sobre los ojos", "pan rápido a la izquierda", "órbita completa 360°". Velocidades que entiende: lento/gradual/sutil/suave vs rápido/súbito.
+- **No apiles más de 2–3 instrucciones de cámara** ni pongas modificadores contradictorios ("dolly suave rápido agresivo"): el modelo se rinde y hace algo genérico.
+- **Separa lo que hace el sujeto de lo que hace la cámara** (dos frases distintas); no lo mezcles en la misma cláusula.
+
+### Límites del modelo (diseña alrededor de ellos)
+Además de los de diálogo (reglas 1–5), Seedance tropieza con esto — vale para **cualquier** producto/escena:
+
+- **Movimiento rápido o complejo deforma cuerpos** (miembros que se estiran, torso que se dobla a media acción). Evita "rápido" y "mucho movimiento"; **baja el ritmo**. Un gesto tranquilo sale limpio; una carrera o un truco, no.
+- **Transformaciones y volteos "mágicos".** Rotar/voltear un objeto ~180°, o cualquier antes/después dentro de un clip, morphea. Va con un **corte entre clips** (regla 3).
+- **Texto legible en cuadro = garabatos.** El modelo no escribe letras de verdad: nada de letreros, etiquetas ni pantallas con texto. Va en post (el sistema ya lo prohíbe).
+- **Manos en primerísimo plano se rompen** (dedos de más, doblados). Encuadra las manos a **distancia media**, no en extreme close-up.
+- **Multitudes y detalle fino se simplifican** (caras de fondo genéricas, elementos pequeños que colapsan). **Composición despejada, un sujeto en primer plano.** Con 5+ personajes o muchos elementos la calidad cae; el conteo exacto tampoco es fiable.
+- **Espejos y reflejos no coinciden** con el sujeto: evita encuadrarlos.
+- **La física se guía con la consecuencia**, no solo el movimiento: "las hojas se dispersan al impacto" rinde mejor que describir el golpe solo.
+- **La consistencia entre clips es imperfecta:** cuenta con **2–3 generaciones** para clavar un clip exacto; por eso las **referencias (activos) son carga real**, no un adorno (ver §3).
+
+### Lip-sync: encuadre y matices (complementa las reglas 1–5)
+- **Plano medio / medium close-up, cara de frente o 3/4 leve** (los perfiles no sincronizan). El plano abierto **baja la resolución de la cara** y emborrona la boca → en piezas habladas, vertical + cara razonablemente grande ayuda.
+- **La cámara estable ayuda, pero handheld está bien** para el look casero **si la cabeza del personaje se mantiene estable**: lo que rompe el sync no es el vaivén de la cámara, es que **el sujeto** mueva o gire la cara mientras habla. (Así se resolvió el clip 6 del Anuncio #12 V2: handcam con deriva suave + mirada estable a la lente.)
+- **El español no es el idioma más fuerte del modelo para el sync** (rinde mejor en inglés/mandarín): razón de más para **líneas cortas, dicción limpia y ~2 palabras/seg** (regla 4). El sistema ya normaliza a es-MX; no lo pelees con líneas largas.
+
+> Basado en investigación de buenas prácticas de Seedance (fal.ai, Higgsfield, Volcengine y guías especializadas, jul-2026) + lo aprendido en producción. Los detalles de resolución/duración varían por versión y endpoint; el pipeline los fija por su cuenta.
