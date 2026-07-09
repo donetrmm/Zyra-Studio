@@ -110,6 +110,14 @@ Estado por campo: default pre-llenado si la inferencia tuvo confianza; si no, "c
 - Se guarda en `campaign_items.reference_selection`; `applyReferenceSelection` corre **por ítem** al construir su contexto.
 - **Default = automático** (comportamiento actual); la selección manual es opt-in por clip.
 
+## Decisiones de UX (2026-07-09, tras Fase 1)
+
+Cerradas antes de arrancar Fase 2 (aterrizan el spec contra el código real):
+
+1. **Los productos se gestionan anidados dentro de cada Brand Kit**, no en una pestaña propia. La página de Brand Kits muestra, por kit, la marca (colores/tono/logo/fuentes) **y** su lista de productos (crear/editar/borrar). `products.brand_id → brand_kits` (ya existe). Un producto **sin marca** (brand_id null) es un caso menor; la UI principal cuelga productos de un kit.
+2. **El Brand Kit queda como marca pura.** La sección de imágenes/ficha de producto **sale del editor de kit** (una sola fuente de verdad): las `product_image_ids`/`packaging_image_ids` del kit y el `product_brief` de la campaña dejan de ser el hogar del producto; el hogar es la entidad `products`. La herramienta de ángulos IA (P01) y el auto-relleno por imagen se mueven al editor de producto. Backfill de Fase 1 ya migró las imágenes del kit a un product.
+3. **La creación de campaña gana un paso "elige productos"** (multi-select de la biblioteca de la marca) → escribe `campaign_products`. Ese subconjunto es el universo de candidatos de la asignación por clip. El filtro actual del wizard (`brand_kit.product_image_ids > 0`) se reconecta a "la marca tiene ≥1 producto".
+
 ## Fases (cada una su spec → plan → implementación)
 
 1. **Fundación de datos:** `products`, `campaign_products`, `campaign_items.product_id`, migración, orchestrator resuelve producto del ítem, ingest escribe products. *Entrega: campañas actuales igual, respaldadas por `products`.*
