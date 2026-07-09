@@ -79,7 +79,8 @@ declare r record; pid uuid;
 begin
   for r in
     select c.id as campaign_id, c.workspace_id, c.brand_kit_id, c.product_brief,
-           bk.product_image_ids as bk_product_ids, bk.packaging_image_ids as bk_pkg_ids
+           bk.product_image_ids as bk_product_ids, bk.reference_image_ids as bk_ref_ids,
+           bk.packaging_image_ids as bk_pkg_ids
     from campaigns c
     left join brand_kits bk on bk.id = c.brand_kit_id
     where c.product_brief is not null
@@ -100,7 +101,11 @@ begin
       (r.product_brief->>'weightKg')::numeric,
       r.product_brief->>'visualDetails',
       case when r.product_brief ? 'palette' then r.product_brief->'palette' else null end,
-      coalesce(r.bk_product_ids, '{}'), coalesce(r.bk_pkg_ids, '{}'))
+      case
+        when coalesce(array_length(r.bk_product_ids, 1), 0) > 0 then r.bk_product_ids
+        else coalesce(r.bk_ref_ids, '{}')
+      end,
+      coalesce(r.bk_pkg_ids, '{}'))
     returning id into pid;
 
     insert into campaign_products (campaign_id, product_id) values (r.campaign_id, pid);

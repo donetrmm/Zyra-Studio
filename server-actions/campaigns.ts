@@ -532,7 +532,7 @@ export async function createCampaignStudioAction(
       }
     }
     const name = b.productName?.trim() || 'Producto';
-    const { data: product } = await supabase
+    const { data: product, error: productError } = await supabase
       .from('products')
       .insert({
         workspace_id: workspace.id,
@@ -551,8 +551,15 @@ export async function createCampaignStudioAction(
       })
       .select('id')
       .single();
-    if (product) {
-      await supabase.from('campaign_products').insert({ campaign_id: inserted.id, product_id: product.id });
+    if (productError) {
+      console.warn('[createCampaignStudioAction] no se pudo materializar el product', productError);
+    } else if (product) {
+      const { error: linkError } = await supabase
+        .from('campaign_products')
+        .insert({ campaign_id: inserted.id, product_id: product.id });
+      if (linkError) {
+        console.warn('[createCampaignStudioAction] no se pudo enlazar campaign_products', linkError);
+      }
     }
   }
 
