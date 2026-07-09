@@ -510,6 +510,52 @@ export async function createCampaignStudioAction(
     .single();
   if (error || !inserted) return { ok: false, error: 'internal_error', message: error?.message };
 
+  // V3 fase 1: además del product_brief (compat/fallback), materializar el
+  // producto como entidad y enlazarlo al pool de la campaña.
+  {
+    const b = mergeBriefOverrides(brief, parsed.data.briefOverrides) as {
+      productName?: string; medium?: string; visualDetails?: string; palette?: string[];
+      heightCm?: number; widthCm?: number; thicknessMm?: number; weightKg?: number;
+    };
+    let productImageIds: string[] = [];
+    let packagingImageIds: string[] = [];
+    if (kitId) {
+      const { data: kit } = await supabase
+        .from('brand_kits')
+        .select('product_image_ids, packaging_image_ids, reference_image_ids')
+        .eq('id', kitId)
+        .single();
+      if (kit) {
+        const raw = (kit.product_image_ids ?? []) as string[];
+        productImageIds = raw.length ? raw : ((kit.reference_image_ids ?? []) as string[]);
+        packagingImageIds = (kit.packaging_image_ids ?? []) as string[];
+      }
+    }
+    const name = b.productName?.trim() || 'Producto';
+    const { data: product } = await supabase
+      .from('products')
+      .insert({
+        workspace_id: workspace.id,
+        brand_id: kitId,
+        name,
+        slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        medium: b.medium ?? null,
+        height_cm: b.heightCm ?? null,
+        width_cm: b.widthCm ?? null,
+        thickness_mm: b.thicknessMm ?? null,
+        weight_kg: b.weightKg ?? null,
+        visual_details: b.visualDetails ?? null,
+        palette: b.palette ?? null,
+        product_image_ids: productImageIds,
+        packaging_image_ids: packagingImageIds,
+      })
+      .select('id')
+      .single();
+    if (product) {
+      await supabase.from('campaign_products').insert({ campaign_id: inserted.id, product_id: product.id });
+    }
+  }
+
   revalidatePath('/app/campaigns');
   return { ok: true, data: { id: inserted.id as string } };
 }
