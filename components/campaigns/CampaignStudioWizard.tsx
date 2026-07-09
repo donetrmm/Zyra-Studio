@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
@@ -174,7 +174,9 @@ export function CampaignStudioWizard({
   // Productos de la marca elegida (V3 multi-producto): default = todos los de
   // la marca al seleccionarla; el usuario puede des-marcar los que no aplican
   // a esta campaña.
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
+    () => (productsByKit[brandKitId] ?? []).map((p) => p.id),
+  );
   // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Sin entry
   // para un personaje = usa su cuerpo completo base.
   const [outfitMap, setOutfitMap] = useState<Record<string, string>>({});
@@ -186,10 +188,14 @@ export function CampaignStudioWizard({
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
   // Al elegir o cambiar de marca, todos sus productos entran por default; el
-  // usuario puede desmarcar los que no apliquen a esta campaña.
-  useEffect(() => {
+  // usuario puede desmarcar los que no apliquen a esta campaña. Se ajusta
+  // durante el render (patrón React de "estado derivado de un cambio de prop")
+  // en vez de un useEffect con setState, que dispara renders en cascada.
+  const [prevBrandKitId, setPrevBrandKitId] = useState(brandKitId);
+  if (brandKitId !== prevBrandKitId) {
+    setPrevBrandKitId(brandKitId);
     setSelectedProductIds((productsByKit[brandKitId] ?? []).map((p) => p.id));
-  }, [brandKitId, productsByKit]);
+  }
 
   // El orden de selección importa: [0] es el personaje principal.
   function toggleCharacter(id: string) {
