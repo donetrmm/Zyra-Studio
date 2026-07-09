@@ -7,6 +7,7 @@ import {
   CampaignStudioView,
   type StudioItem,
   type StudioLocationOption,
+  type StudioProductPoolEntry,
   type StudioTemplate,
 } from '@/components/campaigns/CampaignStudioView';
 import { toStudioItem } from '@/lib/campaigns/studio-item';
@@ -32,7 +33,7 @@ export default async function CampaignDetailRoute({
 
   const { data: campaign } = await supabase
     .from('campaigns')
-    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text, creative_guidelines, aspect_ratio')
+    .select('id, name, description, color, created_at, status, goal, product_brief, credits_estimated, total_items, idea_text, creative_guidelines, aspect_ratio, brand_kit_id')
     .eq('id', id)
     .eq('workspace_id', workspace.id)
     .single();
@@ -45,7 +46,7 @@ export default async function CampaignDetailRoute({
   // Excepción: `?view=assets` (entrada desde Biblioteca › Colecciones) muestra
   // las generaciones de la campaña, no el pipeline.
   if (brief?.productName && view !== 'assets') {
-    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }, { data: outfitRows }] =
+    const [{ data: itemRows }, { data: formatRows }, { data: characterRows }, { data: templateRows }, { data: locationRows }, { data: stateRows }, { data: outfitRows }, { data: poolRows }] =
       await Promise.all([
         // Orden con desempates: los clips de una secuencia comparten scheduled_date
         // y sin tiebreaker Postgres los devuelve en orden arbitrario (Producción los
@@ -53,7 +54,7 @@ export default async function CampaignDetailRoute({
         // scene_index las pone en su número, created_at estabiliza los sueltos.
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint, character_outfit_hint')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint, character_outfit_hint, product_id')
           .eq('campaign_id', id)
           .order('scheduled_date')
           .order('sequence_id')
@@ -81,6 +82,13 @@ export default async function CampaignDetailRoute({
           .from('character_outfits')
           .select('character_id, label')
           .eq('workspace_id', workspace.id),
+        // V3 multi-producto (Fase 3): pool de productos de la campaña, para el
+        // selector por clip. Mismo patrón de embed que generatePlanAction
+        // (campaign_products.product_id → products.id, belongs-to).
+        supabase
+          .from('campaign_products')
+          .select('products(id, name, product_image_ids)')
+          .eq('campaign_id', id),
       ]);
 
     const formatNames = new Map((formatRows ?? []).map((f) => [f.id as string, f.name as string]));
@@ -126,6 +134,16 @@ export default async function CampaignDetailRoute({
       name: l.name as string,
     }));
 
+    // V3 multi-producto (Fase 3): pool de productos disponibles en esta campaña.
+    // El embed es un belongs-to (campaign_products.product_id → products.id);
+    // sin Database genérico en el cliente, TS lo infiere (mal) como array — se
+    // corrige con el cast por unknown, mismo patrón que generatePlanAction.
+    type ProductPoolEmbed = { id: string; name: string; product_image_ids: string[] | null };
+    const productPool: StudioProductPoolEntry[] = (poolRows ?? [])
+      .map((r) => (r as unknown as { products: ProductPoolEmbed | null }).products)
+      .filter((p): p is ProductPoolEmbed => !!p)
+      .map((p) => ({ id: p.id, name: p.name, imageCount: (p.product_image_ids ?? []).length }));
+
     // R12: pricing para estimar costos en cliente (finales de video, pack). [] si falla
     // -> los controles caen a su etiqueta sin costo (no rompe la generación).
     const pricing = await loadPricing().catch(() => []);
@@ -148,6 +166,8 @@ export default async function CampaignDetailRoute({
           productWeightKg: brief.weightKg,
           guidelines: CreativeGuidelinesSchema.catch({}).parse(campaign.creative_guidelines ?? {}),
           aspectRatio: campaign.aspect_ratio ?? null,
+          brandKitId: (campaign.brand_kit_id as string | null) ?? null,
+          productPool,
         }}
         initialItems={items}
         templates={templates}

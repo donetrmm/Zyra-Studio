@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { cancelGenerationAction } from '@/server-actions/generations';
 import {
@@ -41,6 +42,7 @@ import {
   redoSamplesAction,
   requestFinalAction,
   setCampaignStatusAction,
+  setItemProductAction,
   toggleWinnerAction,
   updateCampaignItemAction,
   updateCampaignStudioAction,
@@ -63,6 +65,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -93,6 +96,10 @@ export type StudioCharacterOption = {
 };
 export type StudioLocationOption = { id: string; name: string };
 
+// V3 multi-producto (Fase 3): entrada del pool de productos de la campaña,
+// para el selector por clip en PlanTable.
+export type StudioProductPoolEntry = { id: string; name: string; imageCount: number };
+
 export type StudioCampaign = {
   id: string;
   name: string;
@@ -110,6 +117,10 @@ export type StudioCampaign = {
   productWeightKg?: number;
   guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null; safeAreaExtend?: boolean };
   aspectRatio?: string | null;
+  // V3 multi-producto (Fase 3): marca de la campaña (gating de Task 5) y el
+  // pool de productos disponibles para asignar por clip.
+  brandKitId: string | null;
+  productPool: StudioProductPoolEntry[];
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -473,6 +484,8 @@ export function CampaignStudioView({
             campaignId={campaign.id}
             items={items}
             locationOptions={locationOptions}
+            productPool={campaign.productPool}
+            brandKitId={campaign.brandKitId}
             onEdit={setEditing}
             onPreview={handlePreviewPrompt}
             onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
@@ -483,6 +496,9 @@ export function CampaignStudioView({
               setItems((p) =>
                 p.map((i) => (i.sequenceId === sequenceId ? { ...i, locationId } : i)),
               )
+            }
+            onProductChanged={(itemId, productId) =>
+              setItems((p) => p.map((i) => (i.id === itemId ? { ...i, productId } : i)))
             }
           />
         </>
@@ -771,20 +787,28 @@ function PlanTable({
   campaignId,
   items,
   locationOptions,
+  productPool,
+  brandKitId,
   onEdit,
   onPreview,
   onDeleted,
   onSequenceMerged,
   onSequenceLocationChanged,
+  onProductChanged,
 }: {
   campaignId: string;
   items: StudioItem[];
   locationOptions: StudioLocationOption[];
+  // V3 multi-producto (Fase 3): pool de la campaña y marca, para el selector
+  // de producto por fila y su resalte cuando falta asignar.
+  productPool: StudioProductPoolEntry[];
+  brandKitId: string | null;
   onEdit: (item: StudioItem) => void;
   onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
   onSequenceMerged: (sequenceId: string, merged: StudioItem) => void;
   onSequenceLocationChanged: (sequenceId: string, locationId: string | null) => void;
+  onProductChanged: (itemId: string, productId: string | null) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
@@ -828,6 +852,23 @@ function PlanTable({
   }
 
   const [assigningLocation, setAssigningLocation] = useState<string | null>(null);
+  const [assigningProduct, setAssigningProduct] = useState<string | null>(null);
+
+  // V3 multi-producto (Fase 3): fija/limpia el producto de un clip. Actualiza el
+  // estado local vía onProductChanged (no router.refresh — items vive en un
+  // useState del padre sembrado una vez con initialItems, así que un refresh de
+  // servidor no lo re-sincroniza; mismo motivo por el que assignSequenceLocationAction
+  // usa un callback en vez de refrescar).
+  async function handleAssignProduct(itemId: string, productId: string | null) {
+    setAssigningProduct(itemId);
+    const res = await setItemProductAction({ itemId, productId });
+    setAssigningProduct(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo asignar el producto');
+      return;
+    }
+    onProductChanged(itemId, productId);
+  }
 
   async function handleAssignLocation(sequenceId: string, locationId: string | null) {
     setAssigningLocation(sequenceId);
@@ -840,9 +881,54 @@ function PlanTable({
     onSequenceLocationChanged(sequenceId, locationId);
   }
 
-  function renderPlanRow(item: StudioItem) {
+  // V3 multi-producto (Fase 3): selector de producto por clip, compartido entre
+  // renderPlanRow (clips sueltos) y las filas de escena de una secuencia. Solo
+  // se muestra si la campaña tiene pool; sin pool no hay nada que asignar.
+  const NO_PRODUCT = '__none__';
+  function renderProductSelector(item: StudioItem) {
+    if (productPool.length === 0) return null;
+    const unassigned = !item.productId && !!brandKitId;
     return (
-      <tr key={item.id} className="border-b border-border/50 last:border-0">
+      <div className="mt-1 whitespace-normal">
+        <Select
+          value={item.productId ?? NO_PRODUCT}
+          onValueChange={(v) => handleAssignProduct(item.id, v === NO_PRODUCT ? null : v)}
+          disabled={assigningProduct === item.id}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Producto del clip"
+            className={cn(
+              'h-6 w-full max-w-[10rem] px-2 text-2xs',
+              unassigned && 'border-amber-500/50 text-amber-500',
+            )}
+          >
+            <SelectValue placeholder="Sin asignar" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_PRODUCT}>Sin asignar</SelectItem>
+            {productPool.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {unassigned && <p className="mt-0.5 text-2xs text-amber-500">Sin asignar</p>}
+      </div>
+    );
+  }
+
+  function renderPlanRow(item: StudioItem) {
+    const unassigned = productPool.length > 0 && !item.productId && !!brandKitId;
+    return (
+      <tr
+        key={item.id}
+        className={cn(
+          'border-b border-border/50 last:border-0',
+          unassigned && 'bg-amber-500/[0.05]',
+        )}
+      >
         <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
@@ -866,6 +952,7 @@ function PlanTable({
               · {item.characterNames.join(' + ')}
             </span>
           )}
+          {renderProductSelector(item)}
         </td>
         <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
           {item.scene && (
@@ -1057,8 +1144,16 @@ function PlanTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {group.scenes.map((scene, i) => (
-                    <tr key={scene.id} className="border-b border-border/50 last:border-0">
+                  {group.scenes.map((scene, i) => {
+                    const sceneUnassigned = productPool.length > 0 && !scene.productId && !!brandKitId;
+                    return (
+                    <tr
+                      key={scene.id}
+                      className={cn(
+                        'border-b border-border/50 last:border-0',
+                        sceneUnassigned && 'bg-amber-500/[0.05]',
+                      )}
+                    >
                       <td className="whitespace-nowrap px-3 py-2.5 text-2xs text-muted-foreground">{i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5">
@@ -1083,6 +1178,7 @@ function PlanTable({
                             · {scene.characterNames.join(' + ')}
                           </span>
                         )}
+                        {renderProductSelector(scene)}
                       </td>
                       <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
                         {scene.scene && (
@@ -1157,7 +1253,8 @@ function PlanTable({
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

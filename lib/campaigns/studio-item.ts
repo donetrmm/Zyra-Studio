@@ -35,6 +35,10 @@ export type StudioItem = {
   // (labels de character_outfits del/de los personaje(s)). null = usa el
   // outfit de campaña (character_outfit_map) o el cuerpo completo base.
   characterOutfitHint: string | null;
+  // V3 multi-producto (Fase 3): producto del pool de la campaña asignado a este
+  // clip. null = sin asignar (el orchestrator cae a product_brief; el tablero
+  // pide asignación cuando la campaña tiene marca+pool).
+  productId: string | null;
 };
 
 // Proyecta una fila cruda de campaign_items a StudioItem. Los nombres de formato
@@ -76,5 +80,6 @@ export function toStudioItem(
     locationId: (row.location_id as string | null) ?? null,
     characterStateHint: (row.character_state_hint as string | null) ?? null,
     characterOutfitHint: (row.character_outfit_hint as string | null) ?? null,
+    productId: (row.product_id as string | null) ?? null,
   };
 }
