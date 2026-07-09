@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CreateProductSchema, SetProductImagesSchema } from './products';
+import { CreateProductSchema, UpdateProductSchema, SetProductImagesSchema } from './products';
 
 describe('CreateProductSchema', () => {
   it('acepta nombre solo', () => {
@@ -14,6 +14,18 @@ describe('CreateProductSchema', () => {
       medium: 'canvas', heightCm: 60, widthCm: 90, palette: ['#112233'],
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe('UpdateProductSchema', () => {
+  it('acepta patch vacío (todo opcional)', () => {
+    expect(UpdateProductSchema.safeParse({}).success).toBe(true);
+  });
+  it('acepta patch parcial de un campo', () => {
+    expect(UpdateProductSchema.safeParse({ heightCm: 42 }).success).toBe(true);
+  });
+  it('si name viene, sigue siendo no vacío', () => {
+    expect(UpdateProductSchema.safeParse({ name: '   ' }).success).toBe(false);
   });
 });
 
