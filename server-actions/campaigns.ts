@@ -371,8 +371,35 @@ export async function createCampaignStudioAction(
     productImageIds = ((kit.product_image_ids as string[]) ?? []).length
       ? (kit.product_image_ids as string[])
       : ((kit.reference_image_ids as string[]) ?? []);
+    if (productImageIds.length === 0 && parsed.data.productIds?.length) {
+      // Fase 2: los kits nuevos nacen con product_image_ids vacío (las
+      // imágenes de producto ahora viven en `products`). Deriva la imagen
+      // del primer producto del pool preseleccionado que tenga imágenes,
+      // respetando el orden elegido en el wizard.
+      const { data: poolProducts } = await supabase
+        .from('products')
+        .select('id, product_image_ids')
+        .in('id', parsed.data.productIds)
+        .eq('workspace_id', workspace.id);
+      const imagesByProductId = new Map(
+        (poolProducts ?? []).map((p) => [p.id as string, (p.product_image_ids ?? []) as string[]]),
+      );
+      for (const productId of parsed.data.productIds) {
+        const imgs = imagesByProductId.get(productId);
+        if (imgs && imgs.length) {
+          productImageIds = imgs;
+          break;
+        }
+      }
+    }
     if (productImageIds.length === 0) {
-      return { ok: false, error: 'validation_error', message: 'El Brand Kit necesita al menos una imagen de producto' };
+      return {
+        ok: false,
+        error: 'validation_error',
+        message: parsed.data.productIds?.length
+          ? 'El producto seleccionado necesita al menos una imagen'
+          : 'El Brand Kit necesita al menos una imagen de producto',
+      };
     }
     kitId = kit.id as string;
   } else {
