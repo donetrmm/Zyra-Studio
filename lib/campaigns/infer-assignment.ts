@@ -2,12 +2,16 @@
 //
 // CLAVE: la inferencia depende de que el master (Gemini) nombre los productos
 // de forma DISTINTA en cada clip — si nombra el producto por su nombre de
-// producto o slug, inferimos el candidato. Si menciona dos o ninguno, la UI
-// pide desempate manual.
+// producto, slug o detalle visual, inferimos el candidato. Si menciona dos o
+// ninguno, la UI pide desempate manual.
 //
 // Lógica: dados candidatos con (id, name, slug, visualDetails), tokenizamos
-// el texto del clip y buscamos coincidencias por nombre normalizado, slug o
-// palabras significativas del detalle visual. Determinista, sin IO.
+// el texto del clip en PALABRAS completas (no substrings crudos) y buscamos:
+//   (a) el nombre completo como frase con bordes de palabra, o
+//   (b) ≥2 tokens significativos (>3 chars, de name+slug+visualDetails)
+//       presentes como palabra completa en el clip.
+// Esto evita falsos positivos como "arte" dentro de "cuartel", o contar
+// stopwords ("de", "la") como si fueran señal de match. Determinista, sin IO.
 
 import { normalizeText } from './text-normalize';
 
@@ -23,6 +27,56 @@ export type InferResult = {
   confidence: 'high' | 'low' | 'none';
 };
 
+// Separador de palabras: cualquier corrida de caracteres que no sean letra o
+// número (Unicode-aware; normalizeText ya quitó diacríticos, pero el texto
+// puede seguir teniendo ñ, guiones, puntuación, etc.).
+const WORD_SPLIT_REGEX = /[^\p{L}\p{N}]+/u;
+
+// Umbral de longitud para considerar un token "significativo" (descarta
+// stopwords cortas como "de", "la", "el", "y").
+const MIN_SIGNIFICANT_TOKEN_LENGTH = 3;
+
+function tokenize(text: string): string[] {
+  return text.split(WORD_SPLIT_REGEX).filter((t) => t.length > 0);
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Verifica que `phrase` aparezca en `haystack` como frase completa, con
+ * bordes de palabra (no como substring embebido en otra palabra).
+ */
+function containsWholePhrase(haystack: string, phrase: string): boolean {
+  if (phrase.length === 0) {
+    return false;
+  }
+  const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegExp(phrase)}(?:$|[^\\p{L}\\p{N}])`, 'u');
+  return pattern.test(haystack);
+}
+
+/**
+ * Tokens significativos (>3 chars) de name + slug + visualDetails,
+ * deduplicados. Sirven como señal de match cuando el nombre completo no
+ * aparece literal en el clip, pero varias palabras propias del producto sí.
+ */
+function significantTokens(candidate: ProductCandidate): Set<string> {
+  const tokens = new Set<string>();
+  const addFrom = (text: string | null) => {
+    if (!text) return;
+    for (const token of tokenize(normalizeText(text))) {
+      if (token.length > MIN_SIGNIFICANT_TOKEN_LENGTH) {
+        tokens.add(token);
+      }
+    }
+  };
+  addFrom(candidate.name);
+  addFrom(candidate.slug);
+  addFrom(candidate.visualDetails);
+  return tokens;
+}
+
 /**
  * Infiere el producto asignado a un clip basándose en su descripción de texto.
  *
@@ -30,11 +84,8 @@ export type InferResult = {
  * - Pool vacío: `{ productId: null, confidence: 'none' }`
  * - Exactamente 1 candidato: `{ productId: ese.id, confidence: 'high' }`
  * - Múltiples candidatos:
- *   - Normaliza el texto del clip
- *   - Para cada candidato, verifica si "matchea":
- *     - Su nombre normalizado aparece como substring en el texto normalizado
- *     - Su slug aparece como substring en el texto normalizado
- *     - O ≥2 tokens distintos de su nombre aparecen en el texto normalizado
+ *   - Normaliza y tokeniza el texto del clip
+ *   - Para cada candidato, verifica si "matchea" (ver `candidateMatches`)
  *   - Si exactamente 1 matchea: `{ productId: ese.id, confidence: 'high' }`
  *   - Si ninguno matchea: `{ productId: null, confidence: 'none' }`
  *   - Si ≥2 matchean (ambiguo): `{ productId: null, confidence: 'low' }`
@@ -52,8 +103,9 @@ export function inferProductForClip(clipText: string, pool: ProductCandidate[]):
 
   // Múltiples candidatos: buscar matches
   const normalizedClip = normalizeText(clipText);
+  const clipTokens = new Set(tokenize(normalizedClip));
 
-  const matches = pool.filter((candidate) => candidateMatches(candidate, normalizedClip));
+  const matches = pool.filter((candidate) => candidateMatches(candidate, normalizedClip, clipTokens));
 
   if (matches.length === 0) {
     return { productId: null, confidence: 'none' };
@@ -68,32 +120,32 @@ export function inferProductForClip(clipText: string, pool: ProductCandidate[]):
 }
 
 /**
- * Verifica si un candidato matchea con el texto normalizado.
- *
- * Matchea si:
- * - Su nombre normalizado aparece como substring en el texto
- * - Su slug aparece como substring en el texto
- * - O ≥2 tokens distintos de su nombre aparecen en el texto
+ * Verifica si un candidato matchea con el clip. Matchea si:
+ * - (a) su nombre normalizado aparece completo, como frase con bordes de
+ *   palabra (no embebido dentro de otra palabra), o
+ * - (b) ≥2 de sus tokens significativos (name+slug+visualDetails, >3 chars)
+ *   aparecen como palabra completa en el clip.
  */
-function candidateMatches(candidate: ProductCandidate, normalizedClip: string): boolean {
+function candidateMatches(
+  candidate: ProductCandidate,
+  normalizedClip: string,
+  clipTokens: Set<string>,
+): boolean {
   const normalizedName = normalizeText(candidate.name);
 
-  // Regla 1: nombre normalizado como substring
-  if (normalizedClip.includes(normalizedName)) {
+  // Regla (a): nombre completo como frase con bordes de palabra
+  if (containsWholePhrase(normalizedClip, normalizedName)) {
     return true;
   }
 
-  // Regla 2: slug como substring
-  if (candidate.slug && normalizedClip.includes(candidate.slug)) {
-    return true;
-  }
-
-  // Regla 3: ≥2 tokens distintos del nombre
-  const nameTokens = normalizedName.split(/\s+/).filter((t) => t.length > 0);
-  if (nameTokens.length >= 2) {
-    const distinctTokensFound = nameTokens.filter((token) => normalizedClip.includes(token)).length;
-    if (distinctTokensFound >= 2) {
-      return true;
+  // Regla (b): ≥2 tokens significativos presentes como palabra completa
+  let significantMatchCount = 0;
+  for (const token of significantTokens(candidate)) {
+    if (clipTokens.has(token)) {
+      significantMatchCount += 1;
+      if (significantMatchCount >= 2) {
+        return true;
+      }
     }
   }
 
