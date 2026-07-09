@@ -48,11 +48,12 @@ import {
   MergeSequenceSchema,
   RequestFinalSchema,
   SetItemProductSchema,
+  SetItemReferenceSelectionSchema,
   SetReferenceSelectionSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
 import { inferProductForClip, type ProductCandidate } from '@/lib/campaigns/infer-assignment';
-import { loadReferencePool } from '@/lib/campaigns/reference-pool';
+import { loadItemReferencePool, loadReferencePool } from '@/lib/campaigns/reference-pool';
 import { analyzeProductImages, type ReferenceAnalysisProposal } from '@/lib/campaigns/reference-analysis';
 import {
   normalizeReferenceSelection,
@@ -3250,6 +3251,160 @@ export async function setReferenceSelectionAction(input: unknown): Promise<Resul
     .eq('workspace_id', workspace.id);
   if (error) return { ok: false, error: 'internal_error' };
   revalidatePath(`/app/campaigns/${campaignId}`);
+  return { ok: true, data: { savedCount: value ? value.include.length : null } };
+}
+
+// V3 multi-producto (Fase 4): espeja getReferencePoolAction pero el pool está
+// SCOPEADO AL CLIP (loadItemReferencePool: solo el producto/cast/locación/
+// extras de ESTE ítem), no un agregado de toda la campaña. Ownership por join
+// item→campaña→workspace, igual que setItemProductAction.
+export async function getItemReferencePoolAction(itemId: string): Promise<
+  Result<{
+    entries: (ReferencePoolEntry & { thumbUrl: string | null })[];
+    texts: ReferencePoolTexts;
+    include: string[] | null;
+  }>
+> {
+  if (typeof itemId !== 'string' || !itemId) return { ok: false, error: 'validation_error' };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select(
+      'id, campaign_id, product_id, location_id, character_ids, reference_ids, reference_selection, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
+    )
+    .eq('id', itemId)
+    .single();
+  const camp = (
+    item as {
+      campaigns?: {
+        workspace_id?: string;
+        brand_kit_id?: string | null;
+        product_brief?: Record<string, unknown> | null;
+        language?: string | null;
+        include_packaging?: boolean | null;
+        music_ref_id?: string | null;
+        character_outfit_map?: Record<string, unknown> | null;
+      };
+    } | null
+  )?.campaigns;
+  if (!item || !camp || camp.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+
+  const pool = await loadItemReferencePool(
+    workspace.id,
+    {
+      id: item.campaign_id as string,
+      brand_kit_id: camp.brand_kit_id ?? null,
+      product_brief: camp.product_brief ?? null,
+      language: camp.language ?? null,
+      include_packaging: camp.include_packaging ?? null,
+      music_ref_id: camp.music_ref_id ?? null,
+      character_outfit_map: camp.character_outfit_map ?? null,
+    },
+    {
+      product_id: item.product_id as string | null,
+      location_id: item.location_id as string | null,
+      character_ids: item.character_ids as string[] | null,
+      reference_ids: item.reference_ids as string[] | null,
+    },
+  );
+  const entries = await Promise.all(
+    pool.entries.map(async (e) => ({
+      ...e,
+      thumbUrl: await signedReferenceUrl(e.path).catch(() => null),
+    })),
+  );
+  const selection = normalizeReferenceSelection(item.reference_selection ?? null);
+  return { ok: true, data: { entries, texts: pool.texts, include: selection?.include ?? null } };
+}
+
+// Guarda la selección manual de referencias DEL CLIP (o null = automático).
+// Espeja setReferenceSelectionAction (intersección contra el pool real antes de
+// persistir) + el patrón de setItemProductAction (gate de status editable,
+// anti-TOCTOU en el propio UPDATE).
+export async function setItemReferenceSelectionAction(
+  input: unknown,
+): Promise<Result<{ savedCount: number | null }>> {
+  const parsed = SetItemReferenceSelectionSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { itemId, include } = parsed.data;
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select(
+      'id, campaign_id, status, product_id, location_id, character_ids, reference_ids, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
+    )
+    .eq('id', itemId)
+    .single();
+  const camp = (
+    item as {
+      campaigns?: {
+        workspace_id?: string;
+        brand_kit_id?: string | null;
+        product_brief?: Record<string, unknown> | null;
+        language?: string | null;
+        include_packaging?: boolean | null;
+        music_ref_id?: string | null;
+        character_outfit_map?: Record<string, unknown> | null;
+      };
+    } | null
+  )?.campaigns;
+  if (!item || !camp || camp.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+
+  if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
+    return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
+
+  let value: { include: string[] } | null = null;
+  if (include !== null) {
+    const pool = await loadItemReferencePool(
+      workspace.id,
+      {
+        id: item.campaign_id as string,
+        brand_kit_id: camp.brand_kit_id ?? null,
+        product_brief: camp.product_brief ?? null,
+        language: camp.language ?? null,
+        include_packaging: camp.include_packaging ?? null,
+        music_ref_id: camp.music_ref_id ?? null,
+        character_outfit_map: camp.character_outfit_map ?? null,
+      },
+      {
+        product_id: item.product_id as string | null,
+        location_id: item.location_id as string | null,
+        character_ids: item.character_ids as string[] | null,
+        reference_ids: item.reference_ids as string[] | null,
+      },
+    );
+    const valid = new Set(pool.entries.map((e) => e.path));
+    const kept = [...new Set(include)].filter((p) => valid.has(p));
+    if (kept.length === 0) {
+      return {
+        ok: false,
+        error: 'validation_error',
+        message: 'La selección no coincide con ninguna referencia del clip',
+      };
+    }
+    value = { include: kept };
+  }
+
+  // Anti-TOCTOU: repite el filtro de status en el propio UPDATE (el item pudo
+  // entrar a producción entre el SELECT y aquí). 0 filas afectadas = ya no es
+  // editable. Mismo guard que setItemProductAction.
+  const { data: updated, error: updateErr } = await supabase
+    .from('campaign_items')
+    .update({ reference_selection: value })
+    .eq('id', itemId)
+    .in('status', ['planned', 'skipped', 'failed'])
+    .select('id');
+  if (updateErr) return { ok: false, error: 'internal_error', message: updateErr.message };
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
+
+  revalidatePath(`/app/campaigns/${item.campaign_id}`);
   return { ok: true, data: { savedCount: value ? value.include.length : null } };
 }
 

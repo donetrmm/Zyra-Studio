@@ -261,6 +261,15 @@ export const SetReferenceSelectionSchema = z.object({
   include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
 });
 
+// Selección manual de referencias de video POR CLIP (V3 fase 4). Espeja
+// SetReferenceSelectionSchema pero a nivel campaign_items.reference_selection;
+// include = storage paths del pool DEL ÍTEM (no de toda la campaña). El server
+// intersecta con ese pool antes de persistir (paths forjados no se guardan).
+export const SetItemReferenceSelectionSchema = z.object({
+  itemId: z.string().uuid(),
+  include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
+});
+
 // Análisis por visión de las imágenes de producto (botón "Analizar con IA").
 export const AnalyzeReferencesSchema = z.object({
   campaignId: z.string().uuid(),
@@ -331,3 +340,4 @@ export type CampaignItemInput = z.infer<typeof CampaignItemSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
 export type CreateFormatInput = z.infer<typeof CreateFormatSchema>;
 export type SetItemProductInput = z.infer<typeof SetItemProductSchema>;
+export type SetItemReferenceSelectionInput = z.infer<typeof SetItemReferenceSelectionSchema>;
