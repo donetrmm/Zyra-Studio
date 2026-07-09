@@ -2,18 +2,13 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Palette, Plus, Sparkles, Trash2, Pencil, X } from 'lucide-react';
+import { Loader2, Package, Palette, Plus, Trash2, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
-import { getReferencePathsAction, analyzeKitFromImageAction, compareReferencesAction } from '@/server-actions/creation';
-import { setReferenceUsageAction } from '@/server-actions/media-references';
+import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction } from '@/server-actions/brand-kits';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
-import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
-import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { CreationWizard, type ImgRef, type SaveResult } from '@/components/creation/CreationWizard';
-import { generateProductAngle, refineProductImage, isGenError, type ProductAngleView } from '@/components/creation/generate';
-import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
+import { ProductsSection } from '@/components/products/ProductsSection';
+import type { ProductView } from '@/components/products/ProductEditor';
 
 type ColorEntry = { name: string; hex: string };
 type BrandKit = {
@@ -24,16 +19,22 @@ type BrandKit = {
   logo_url: string | null;
   tone_description: string | null;
   style_guidelines: string | null;
-  product_image_ids: string[];
-  packaging_image_ids: string[];
   created_at: string;
 };
 
-type AiState =
-  | { mode: 'create' }
-  | { mode: 'improve'; kit: BrandKit; existing: { product?: ImgRef; packaging?: ImgRef } };
-
-export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { kits: BrandKit[]; previews: Record<string, string>; usages: Record<string, string>; angleCost: number | null }) {
+export function BrandKitsPage({
+  kits: initial,
+  angleCost,
+  products,
+  productPreviews,
+  productUsages,
+}: {
+  kits: BrandKit[];
+  angleCost: number | null;
+  products: ProductView[];
+  productPreviews: Record<string, string>;
+  productUsages: Record<string, string>;
+}) {
   const router = useRouter();
   const confirm = useConfirm();
   const [kits, setKits] = useState(initial);
@@ -45,52 +46,8 @@ export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { 
     setKits(initial);
   }
   const [editing, setEditing] = useState<BrandKit | 'new' | null>(null);
-  const [ai, setAi] = useState<AiState | null>(null);
-
-  // "Mejorar con IA": lee las imágenes que el kit ya tiene (producto y empaque),
-  // resolviendo su storagePath para que Nano Banana pueda editarlas.
-  async function openImprove(kit: BrandKit) {
-    const ids = [kit.product_image_ids[0], kit.packaging_image_ids[0]].filter(Boolean) as string[];
-    const res = await getReferencePathsAction(ids);
-    const paths = res.ok ? res.data : {};
-    const mk = (id?: string): ImgRef | undefined =>
-      id && paths[id] ? { id, storagePath: paths[id], previewUrl: previews[id] ?? '' } : undefined;
-    setAi({
-      mode: 'improve',
-      kit,
-      existing: { product: mk(kit.product_image_ids[0]), packaging: mk(kit.packaging_image_ids[0]) },
-    });
-  }
-
-  async function handleAiSave(result: SaveResult) {
-    if (result.kind === 'product-create') {
-      const created = await createBrandKitAction({
-        name: result.name,
-        colors: result.colors,
-        toneDescription: result.tone,
-      });
-      if (!created.ok) { toast.error(created.message || 'No se pudo crear el kit'); return; }
-      const img = await setBrandKitImagesAction(created.data.id, {
-        productImageIds: [result.productRefId],
-        packagingImageIds: result.packagingRefId ? [result.packagingRefId] : [],
-      });
-      if (!img.ok) { toast.error(img.message || 'Kit creado, pero no se guardaron las imágenes'); return; }
-      router.refresh();
-    } else if (result.kind === 'product-improve' && ai?.mode === 'improve') {
-      const kit = ai.kit;
-      const baseId = ai.existing[result.target]?.id;
-      const without = (arr: string[]) => arr.filter((id) => id !== baseId);
-      const productImageIds = result.target === 'product'
-        ? [result.refId, ...without(kit.product_image_ids)].slice(0, 4)
-        : kit.product_image_ids;
-      const packagingImageIds = result.target === 'packaging'
-        ? [result.refId, ...without(kit.packaging_image_ids)].slice(0, 2)
-        : kit.packaging_image_ids;
-      const img = await setBrandKitImagesAction(kit.id, { productImageIds, packagingImageIds });
-      if (!img.ok) { toast.error(img.message || 'No se pudo guardar'); return; }
-      router.refresh();
-    }
-  }
+  // Un kit expandido a la vez (muestra sus productos anidados).
+  const [expandedKitId, setExpandedKitId] = useState<string | null>(null);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -102,14 +59,6 @@ export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { 
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAi({ mode: 'create' })}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <Sparkles className="size-4" aria-hidden />
-            Crear con IA
-          </button>
           <button
             type="button"
             onClick={() => setEditing('new')}
@@ -124,21 +73,8 @@ export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { 
       {editing && (
         <BrandKitEditor
           kit={editing === 'new' ? null : editing}
-          previews={previews}
-          usages={usages}
-          angleCost={angleCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
-        />
-      )}
-
-      {ai && (
-        <CreationWizard
-          kind="product"
-          productFlow={ai.mode === 'create' ? 'create' : 'improve'}
-          existing={ai.mode === 'improve' ? ai.existing : undefined}
-          onSave={handleAiSave}
-          onClose={() => setAi(null)}
         />
       )}
 
@@ -152,31 +88,59 @@ export function BrandKitsPage({ kits: initial, previews, usages, angleCost }: { 
         </div>
       ) : (
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {kits.map((kit) => (
-            <BrandKitCard
-              key={kit.id}
-              kit={kit}
-              onEdit={() => setEditing(kit)}
-              onImprove={() => void openImprove(kit)}
-              onDelete={async () => {
-                const ok = await confirm({ title: `¿Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
-                if (!ok) return;
-                deleteBrandKitAction(kit.id).then((res) => {
-                  if (res.ok) {
-                    setKits((k) => k.filter((x) => x.id !== kit.id));
-                    toast.success('Kit eliminado');
-                  } else toast.error(res.message || 'Error');
-                });
-              }}
-            />
-          ))}
+          {kits.map((kit) => {
+            const kitProducts = products.filter((p) => p.brand_id === kit.id);
+            return (
+              <BrandKitCard
+                key={kit.id}
+                kit={kit}
+                products={kitProducts}
+                previews={productPreviews}
+                usages={productUsages}
+                angleCost={angleCost}
+                expanded={expandedKitId === kit.id}
+                onToggleProducts={() => setExpandedKitId((cur) => (cur === kit.id ? null : kit.id))}
+                onEdit={() => setEditing(kit)}
+                onDelete={async () => {
+                  const ok = await confirm({ title: `¿Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
+                  if (!ok) return;
+                  deleteBrandKitAction(kit.id).then((res) => {
+                    if (res.ok) {
+                      setKits((k) => k.filter((x) => x.id !== kit.id));
+                      toast.success('Kit eliminado');
+                    } else toast.error(res.message || 'Error');
+                  });
+                }}
+              />
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onEdit: () => void; onImprove: () => void; onDelete: () => void }) {
+function BrandKitCard({
+  kit,
+  products,
+  previews,
+  usages,
+  angleCost,
+  expanded,
+  onToggleProducts,
+  onEdit,
+  onDelete,
+}: {
+  kit: BrandKit;
+  products: ProductView[];
+  previews: Record<string, string>;
+  usages: Record<string, string>;
+  angleCost: number | null;
+  expanded: boolean;
+  onToggleProducts: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
       <div className="p-4">
@@ -207,111 +171,42 @@ function BrandKitCard({ kit, onEdit, onImprove, onDelete }: { kit: BrandKit; onE
         <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
       )}
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {kit.product_image_ids.length} img producto · {kit.packaging_image_ids.length} empaque
+        {products.length} {products.length === 1 ? 'producto' : 'productos'}
       </p>
       </div>
       <div className="flex gap-2 border-t border-border/30 p-3">
         <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Pencil className="size-3" aria-hidden /> Editar
         </button>
-        <button type="button" onClick={onImprove} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] text-foreground hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <Sparkles className="size-3" aria-hidden /> Mejorar con IA
+        <button type="button" onClick={onToggleProducts} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+          <Package className="size-3" aria-hidden /> {expanded ? 'Ocultar productos' : `Productos (${products.length})`}
         </button>
         <button type="button" onClick={onDelete} aria-label="Eliminar kit" className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
           <Trash2 className="size-3" aria-hidden />
         </button>
       </div>
+      {expanded && (
+        <div className="border-t border-border/30 p-4">
+          <ProductsSection
+            brandKitId={kit.id}
+            products={products}
+            previews={previews}
+            usages={usages}
+            angleCost={angleCost}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: { kit: BrandKit | null; previews: Record<string, string>; usages: Record<string, string>; angleCost: number | null; onClose: () => void; onSaved: () => void }) {
+function BrandKitEditor({ kit, onClose, onSaved }: { kit: BrandKit | null; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(kit?.name ?? '');
   const [colors, setColors] = useState<ColorEntry[]>(kit?.colors ?? [{ name: 'Primary', hex: '#009fff' }]);
   const [fonts, setFonts] = useState(kit?.fonts?.join(', ') ?? '');
   const [tone, setTone] = useState(kit?.tone_description ?? '');
   const [guidelines, setGuidelines] = useState(kit?.style_guidelines ?? '');
-  const [productImages, setProductImages] = useState<RefImage[]>(
-    (kit?.product_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
-  );
-  const [packagingImages, setPackagingImages] = useState<RefImage[]>(
-    (kit?.packaging_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
-  );
-  const [productUsages, setProductUsages] = useState<Record<string, string>>(
-    Object.fromEntries(productImages.map((i) => [i.id, usages[i.id] ?? ''])),
-  );
   const [saving, startSave] = useTransition();
-  const [detecting, setDetecting] = useState(false);
-  // Vista en generación ('three-quarter' | 'profile') o null.
-  const [angling, setAngling] = useState<ProductAngleView | null>(null);
-  // Vista con el retoque IA abierto (feedback 2026-07-04).
-  const [refiningId, setRefiningId] = useState<string | null>(null);
-
-  async function saveUsage(refId: string, value: string) {
-    setProductUsages((prev) => ({ ...prev, [refId]: value }));
-    const res = await setReferenceUsageAction({ refId, usage: value });
-    if (!res.ok) toast.error(res.message || 'No se pudo guardar el uso');
-  }
-
-  // Auto-rellena nombre, paleta y tono leyendo la imagen de producto subida
-  // (cuando el usuario sube imágenes pero no llena los campos).
-  async function detectFromImage() {
-    if (productImages.length === 0 || detecting) return;
-    setDetecting(true);
-    try {
-      const res = await analyzeKitFromImageAction(productImages[0].id);
-      if (!res.ok) { toast.error(res.message || 'No se pudo detectar'); return; }
-      if (res.data.name) setName(res.data.name);
-      if (res.data.colors.length) setColors(res.data.colors);
-      if (res.data.tone) setTone(res.data.tone);
-      toast.success('Campos detectados desde la imagen; ajústalos si quieres');
-    } finally { setDetecting(false); }
-  }
-
-  // Genera una vista del producto (3/4 o perfil 90°, P01 + feedback 2026-07-04)
-  // desde la PRIMERA imagen subida y la antepone a la lista (tope 4). Se
-  // conserva al Guardar (setBrandKitImagesAction).
-  const ANGLE_LABEL: Record<ProductAngleView, { name: string; usage: string }> = {
-    'three-quarter': { name: 'vista 3/4', usage: 'three-quarter view' },
-    profile: { name: 'vista 90° (perfil)', usage: 'side profile view' },
-  };
-  async function generateAngleView(view: ProductAngleView) {
-    if (productImages.length === 0 || productImages.length >= 4 || angling) return;
-    setAngling(view);
-    try {
-      const src = productImages[0];
-      const pathRes = await getReferencePathsAction([src.id]);
-      const storagePath = pathRes.ok ? pathRes.data[src.id] : undefined;
-      if (!storagePath) { toast.error('No se pudo resolver la imagen de producto'); return; }
-      const out = await generateProductAngle({ id: src.id, storagePath }, view);
-      if (isGenError(out)) { toast.error(out.message || `No se pudo generar la ${ANGLE_LABEL[view].name}`); return; }
-      setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
-      await setReferenceUsageAction({ refId: out.refId, usage: ANGLE_LABEL[view].usage });
-      // El modelo a veces devuelve la imagen casi intacta (no rota). Lo detectamos
-      // por hash perceptual y avisamos para que el usuario regenere.
-      const cmp = await compareReferencesAction({ a: src.id, b: out.refId });
-      if (cmp.ok && cmp.data.nearlyIdentical) {
-        toast.warning('La vista salió casi idéntica a la original: el modelo no rotó esta vez. Bórrala y genera de nuevo.');
-      } else {
-        toast.success(`${ANGLE_LABEL[view].name} generada; guarda el kit para conservarla`);
-      }
-    } finally {
-      setAngling(null);
-    }
-  }
-
-  // Retoque IA de una vista concreta (feedback 2026-07-04): corrige la vista
-  // generada (o subida) sin borrarla y regenerar. El resultado reemplaza la
-  // vista en su posición y hereda su descripción de uso.
-  function adoptRefinedView(oldId: string, r: { id: string; previewUrl: string | null }) {
-    setProductImages((prev) => prev.map((img) => (img.id === oldId ? { id: r.id, previewUrl: r.previewUrl } : img)));
-    const usage = productUsages[oldId] ?? '';
-    if (usage && r.id !== oldId) {
-      setProductUsages((prev) => ({ ...prev, [r.id]: usage }));
-      void setReferenceUsageAction({ refId: r.id, usage });
-    }
-    setRefiningId(r.id);
-  }
 
   function handleSave() {
     const payload = {
@@ -326,12 +221,6 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
         ? await updateBrandKitAction(kit.id, payload)
         : await createBrandKitAction(payload);
       if (!res.ok) { toast.error(res.message || 'Error'); return; }
-      const kitId = kit ? kit.id : (res as { ok: true; data: { id: string } }).data.id;
-      const imgRes = await setBrandKitImagesAction(kitId, {
-        productImageIds: productImages.map((i) => i.id),
-        packagingImageIds: packagingImages.map((i) => i.id),
-      });
-      if (!imgRes.ok) { toast.error(imgRes.message || 'No se pudieron guardar las imágenes'); return; }
       toast.success(kit ? 'Kit actualizado' : 'Kit creado');
       onClose();
       onSaved();
@@ -348,106 +237,6 @@ function BrandKitEditor({ kit, previews, usages, angleCost, onClose, onSaved }: 
           <label htmlFor="kit-name" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Nombre del kit</label>
           <input id="kit-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre del kit" className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50" />
         </div>
-
-        <ReferenceImagesUploader
-          label="Imágenes de producto"
-          hint="2-4 ángulos (frontal, perfil, detalle, logo) con fondo simple. Son la base de la fidelidad en campañas."
-          images={productImages}
-          onChange={setProductImages}
-          max={4}
-        />
-
-        {productImages.length > 0 ? (
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
-            {productImages.map((img) => (
-              <div key={img.id}>
-                <div className="flex items-center gap-2">
-                  {img.previewUrl ? (
-                    <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
-                  ) : (
-                    <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
-                  )}
-                  <input
-                    type="text"
-                    aria-label="Uso de esta vista de producto"
-                    defaultValue={productUsages[img.id] ?? ''}
-                    placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
-                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
-                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRefiningId((cur) => (cur === img.id ? null : img.id))}
-                    title="Retocar esta vista con IA"
-                    aria-label="Retocar esta vista con IA"
-                    className={`grid size-8 shrink-0 place-items-center rounded-md border transition-colors ${
-                      refiningId === img.id
-                        ? 'border-primary/60 bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Sparkles className="size-3.5" aria-hidden />
-                  </button>
-                </div>
-                {refiningId === img.id && (
-                  <div className="ml-12 mt-1.5">
-                    <MasterImageRefiner
-                      image={img}
-                      refine={refineProductImage}
-                      onResult={(r) => adoptRefinedView(img.id, r)}
-                      placeholder="ej. fondo blanco puro, centra el producto"
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={detectFromImage}
-          disabled={detecting || productImages.length === 0}
-          title={productImages.length === 0 ? 'Sube primero una imagen de producto' : undefined}
-          className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {detecting ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
-          Detectar nombre, paleta y tono desde la imagen
-        </button>
-
-        <div className="flex flex-wrap gap-2">
-          {(['three-quarter', 'profile'] as const).map((view) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => void generateAngleView(view)}
-              disabled={angling !== null || productImages.length === 0 || productImages.length >= 4}
-              title={
-                productImages.length === 0
-                  ? 'Sube primero una imagen de producto'
-                  : productImages.length >= 4
-                    ? 'Ya tienes el máximo de vistas (4)'
-                    : view === 'three-quarter'
-                      ? 'Genera una vista 3/4 para reducir la deriva geométrica en video'
-                      : 'Genera la vista lateral (90°) del producto'
-              }
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {angling === view ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
-              {view === 'three-quarter' ? 'Generar vista 3/4' : 'Generar vista 90°'}
-              {angleCost != null && <span className="text-muted-foreground">· −{angleCost} cr</span>}
-            </button>
-          ))}
-        </div>
-
-        <ReferenceImagesUploader
-          label="Empaque"
-          hint="Para el formato de unboxing (El Descubrimiento). Opcional."
-          images={packagingImages}
-          onChange={setPackagingImages}
-          max={2}
-        />
 
         <div>
           <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paleta de colores</label>

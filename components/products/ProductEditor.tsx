@@ -5,6 +5,7 @@ import { Loader2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createProductAction, updateProductAction, setProductImagesAction } from '@/server-actions/products';
 import { getReferencePathsAction } from '@/server-actions/creation';
+import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { Button } from '@/components/ui/button';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
@@ -48,6 +49,7 @@ export function ProductEditor({
   brandKitId,
   product,
   previews,
+  usages,
   angleCost,
   onClose,
   onSaved,
@@ -55,6 +57,7 @@ export function ProductEditor({
   brandKitId: string;
   product: ProductView | null;
   previews: Record<string, string>;
+  usages: Record<string, string>;
   angleCost: number | null;
   onClose: () => void;
   onSaved: () => void;
@@ -73,11 +76,27 @@ export function ProductEditor({
   const [packagingImages, setPackagingImages] = useState<RefImage[]>(
     (product?.packaging_image_ids ?? []).map((id) => ({ id, previewUrl: previews[id] ?? null })),
   );
+  // Uso de cada vista/imagen (frontal, 3/4, perfil, caja cerrada...): paridad
+  // con BrandKitEditor — alimenta resolveUsages -> imageUsages del orchestrator.
+  const [imageUsages, setImageUsages] = useState<Record<string, string>>(
+    Object.fromEntries(
+      [...(product?.product_image_ids ?? []), ...(product?.packaging_image_ids ?? [])].map((id) => [
+        id,
+        usages[id] ?? '',
+      ]),
+    ),
+  );
   const [saving, startSave] = useTransition();
   // Vista en generación ('three-quarter' | 'profile') o null.
   const [angling, setAngling] = useState<ProductAngleView | null>(null);
   // Vista con el retoque IA abierto (mismo patrón que BrandKitEditor).
   const [refiningId, setRefiningId] = useState<string | null>(null);
+
+  async function saveUsage(refId: string, value: string) {
+    setImageUsages((prev) => ({ ...prev, [refId]: value }));
+    const res = await setReferenceUsageAction({ refId, usage: value });
+    if (!res.ok) toast.error(res.message || 'No se pudo guardar el uso');
+  }
 
   // Genera una vista del producto (3/4 o perfil 90°) desde la PRIMERA imagen
   // subida y la antepone a la lista (tope 4). Se conserva al Guardar.
@@ -102,6 +121,11 @@ export function ProductEditor({
   // borrarla y regenerar. El resultado reemplaza la vista en su posición.
   function adoptRefinedView(oldId: string, r: { id: string; previewUrl: string | null }) {
     setProductImages((prev) => prev.map((img) => (img.id === oldId ? { id: r.id, previewUrl: r.previewUrl } : img)));
+    const usage = imageUsages[oldId] ?? '';
+    if (usage && r.id !== oldId) {
+      setImageUsages((prev) => ({ ...prev, [r.id]: usage }));
+      void setReferenceUsageAction({ refId: r.id, usage });
+    }
     setRefiningId(r.id);
   }
 
@@ -160,16 +184,23 @@ export function ProductEditor({
 
         {productImages.length > 0 ? (
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Vistas del producto</label>
-            {productImages.map((img, i) => (
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
+            {productImages.map((img) => (
               <div key={img.id}>
                 <div className="flex items-center gap-2">
                   {img.previewUrl ? (
-                    <ZoomableImage src={img.previewUrl} alt={`Vista de producto ${i + 1}`} className="size-10 shrink-0 rounded-md border border-border" />
+                    <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
                   ) : (
                     <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
                   )}
-                  <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">Vista {i + 1}</span>
+                  <input
+                    type="text"
+                    aria-label="Uso de esta vista de producto"
+                    defaultValue={imageUsages[img.id] ?? ''}
+                    placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
+                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                  />
                   <button
                     type="button"
                     onClick={() => setRefiningId((cur) => (cur === img.id ? null : img.id))}
@@ -231,6 +262,29 @@ export function ProductEditor({
           onChange={setPackagingImages}
           max={2}
         />
+
+        {packagingImages.length > 0 ? (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada imagen de empaque (opcional)</label>
+            {packagingImages.map((img) => (
+              <div key={img.id} className="flex items-center gap-2">
+                {img.previewUrl ? (
+                  <ZoomableImage src={img.previewUrl} alt="Vista de empaque" className="size-10 shrink-0 rounded-md border border-border" />
+                ) : (
+                  <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
+                )}
+                <input
+                  type="text"
+                  aria-label="Uso de esta imagen de empaque"
+                  defaultValue={imageUsages[img.id] ?? ''}
+                  placeholder="¿Qué muestra? p.ej. caja cerrada, caja abierta con producto"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
