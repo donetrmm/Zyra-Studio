@@ -3016,11 +3016,19 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
     }
   }
 
-  const { error: updateErr } = await supabase
+  // Anti-TOCTOU: repite el filtro de status en el propio UPDATE (el item pudo
+  // entrar a producción entre el SELECT y aquí). 0 filas afectadas = ya no es
+  // editable. Mismo guard que updateCampaignItemAction.
+  const { data: updated, error: updateErr } = await supabase
     .from('campaign_items')
     .update({ product_id: parsed.data.productId })
-    .eq('id', parsed.data.itemId);
+    .eq('id', parsed.data.itemId)
+    .in('status', ['planned', 'skipped', 'failed'])
+    .select('id');
   if (updateErr) return { ok: false, error: 'internal_error', message: updateErr.message };
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
 
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
   return { ok: true, data: { updated: true } };
