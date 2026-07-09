@@ -510,9 +510,53 @@ export async function createCampaignStudioAction(
     .single();
   if (error || !inserted) return { ok: false, error: 'internal_error', message: error?.message };
 
-  // V3 fase 1: además del product_brief (compat/fallback), materializar el
-  // producto como entidad y enlazarlo al pool de la campaña.
-  {
+  // V3 multi-producto: pool de productos de la campaña (campaign_products).
+  if (parsed.data.productIds?.length) {
+    // Fase 2: el wizard preseleccionó productos existentes de la marca — se
+    // enlazan tal cual. NO se auto-materializa un producto nuevo desde el
+    // brief en este caso (el brief sigue guardándose en campaigns.product_brief
+    // como fallback/compat para items sin product_id — Fase 3).
+    const { data: candidates, error: productsError } = await supabase
+      .from('products')
+      .select('id, brand_id')
+      .in('id', parsed.data.productIds)
+      .eq('workspace_id', workspace.id);
+    if (productsError) {
+      console.warn('[createCampaignStudioAction] no se pudo validar productIds', productsError);
+    } else {
+      const found = new Map(
+        (candidates ?? []).map((p) => [p.id as string, (p.brand_id as string | null) ?? null]),
+      );
+      const rows: { campaign_id: string; product_id: string }[] = [];
+      for (const productId of parsed.data.productIds) {
+        const brandId = found.get(productId);
+        if (brandId === undefined) {
+          console.warn(
+            `[createCampaignStudioAction] productId ${productId} no encontrado en el workspace, omitido`,
+          );
+          continue;
+        }
+        // Defensivo: si la campaña tiene un kit fijado, no mezclar marcas.
+        // brand_id null (sin marca) siempre se permite.
+        if (kitId && brandId && brandId !== kitId) {
+          console.warn(
+            `[createCampaignStudioAction] productId ${productId} pertenece a otra marca, omitido`,
+          );
+          continue;
+        }
+        rows.push({ campaign_id: inserted.id as string, product_id: productId });
+      }
+      if (rows.length) {
+        const { error: linkError } = await supabase.from('campaign_products').insert(rows);
+        if (linkError) {
+          console.warn('[createCampaignStudioAction] no se pudo enlazar campaign_products (productIds)', linkError);
+        }
+      }
+    }
+  } else {
+    // V3 fase 1: además del product_brief (compat/fallback), materializar el
+    // producto como entidad y enlazarlo al pool de la campaña. Solo cuando no
+    // hay productIds preseleccionados (flujo upload / marcas sin productos).
     const b = mergeBriefOverrides(brief, parsed.data.briefOverrides) as {
       productName?: string; medium?: string; visualDetails?: string; palette?: string[];
       heightCm?: number; widthCm?: number; thicknessMm?: number; weightKg?: number;

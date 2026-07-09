@@ -128,6 +128,10 @@ export const CreateCampaignStudioSchema = z
     // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Solo
     // personajes del pool; ownership del outfit se valida en la action.
     characterOutfitMap: z.record(z.string().uuid(), z.string().uuid()).optional(),
+    // V3 multi-producto (Fase 2): pool de productos pre-seleccionados de la
+    // marca. Si viene con elementos, la action enlaza estos products en vez
+    // de auto-materializar uno nuevo desde el brief; ownership se valida ahí.
+    productIds: z.array(z.string().uuid()).max(50).optional(),
   })
   .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
     message: 'Sube al menos una imagen de producto o elige un Brand Kit',

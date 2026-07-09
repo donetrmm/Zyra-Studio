@@ -83,6 +83,29 @@ describe('CreateCampaignStudioSchema — characterOutfitMap (specs/v2/16)', () =
   });
 });
 
+describe('CreateCampaignStudioSchema — productIds (V3 multi-producto, Fase 2)', () => {
+  it('acepta un array de uuids válidos', () => {
+    const r = CreateCampaignStudioSchema.safeParse({
+      ...base,
+      productIds: [
+        '11111111-1111-4111-a111-111111111111',
+        '22222222-2222-4222-a222-222222222222',
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+  it('rechaza un elemento que no es uuid', () => {
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, productIds: ['no-uuid'] }).success).toBe(false);
+  });
+  it('rechaza más de 50 elementos', () => {
+    const many = Array.from({ length: 51 }, (_, i) => `11111111-1111-4111-a111-${String(i).padStart(12, '0')}`);
+    expect(CreateCampaignStudioSchema.safeParse({ ...base, productIds: many }).success).toBe(false);
+  });
+  it('es opcional (sin productIds sigue siendo válido)', () => {
+    expect(CreateCampaignStudioSchema.safeParse(base).success).toBe(true);
+  });
+});
+
 describe('UpdateCampaignItemSchema — characterOutfitHint (specs/v2/16)', () => {
   const id = '00000000-0000-4000-8000-000000000000';
   it('acepta un label de outfit', () => {
