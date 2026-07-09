@@ -1485,8 +1485,15 @@ function ProductionView({
         // V3 multi-producto (Fase 3, Task 5): mismo cálculo que el resalte "Sin
         // asignar" de PlanTable, a nivel de grupo — si algún clip del formato no
         // tiene producto (campaña con marca+pool), no se puede encolar el lote.
+        // Solo cuentan los items PENDIENTES (mismo recorte que approveBatchAction
+        // en el servidor: planned/failed) — un item ya generado o legacy con
+        // product_id null no es editable y no debe bloquear el lote para siempre.
         const groupUnassigned =
-          !!brandKitId && productPool.length > 0 && group.items.some((i) => !i.productId);
+          !!brandKitId &&
+          productPool.length > 0 &&
+          group.items
+            .filter((i) => ['planned', 'failed'].includes(i.status))
+            .some((i) => !i.productId);
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

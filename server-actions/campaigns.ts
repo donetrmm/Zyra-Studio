@@ -1084,7 +1084,7 @@ export async function generatePlanAction(input: unknown): Promise<
         transition_hint: i.transitionHint ?? null,
       })),
     )
-    .select('id, scene_prompt, scene_summary');
+    .select('id, scene_prompt, scene_summary, sequence_id, scene_index');
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
 
   // V3 multi-producto (Fase 3): pre-llena product_id de los items recién
@@ -1107,6 +1107,13 @@ export async function generatePlanAction(input: unknown): Promise<
       .filter((p): p is ProductEmbed => !!p)
       .map((p) => ({ id: p.id, name: p.name, slug: p.slug, visualDetails: p.visual_details }));
     if (pool.length > 0) {
+      // product_id de cada item recién insertado, tal como queda tras la
+      // inferencia por-clip (arranca en null: los items nuevos no traen
+      // product_id en el insert de arriba).
+      const itemProductMap = new Map<string, string | null>();
+      for (const row of insertedItems ?? []) {
+        itemProductMap.set(row.id as string, null);
+      }
       for (const row of insertedItems ?? []) {
         const clipText = `${(row.scene_prompt as string | null) ?? ''} ${(row.scene_summary as string | null) ?? ''}`;
         const inferred = inferProductForClip(clipText, pool);
@@ -1120,6 +1127,51 @@ export async function generatePlanAction(input: unknown): Promise<
               itemId: row.id,
               message: prodErr.message,
             });
+          } else {
+            itemProductMap.set(row.id as string, inferred.productId);
+          }
+        }
+      }
+
+      // El producto es propiedad de la SECUENCIA (ver orchestrator: en cadenas
+      // Atlas solo la cabecera —menor scene_index— resuelve product_id; las
+      // continuaciones heredan el chain.productImagePaths del head y nunca
+      // narran el producto de nuevo). Sin este pre-llenado, las continuaciones
+      // quedan con product_id null y el gating del lote las bloquea para
+      // siempre. Se propaga el product_id del head a sus escenas sin asignar;
+      // si el head quedó ambiguo (sin producto inferido), se usa el primer
+      // product_id no-null del grupo. Solo rellena nulls, nunca sobrescribe.
+      const bySequence = new Map<string, { id: string; sceneIndex: number }[]>();
+      for (const row of insertedItems ?? []) {
+        const sequenceId = row.sequence_id as string | null;
+        if (!sequenceId) continue;
+        const list = bySequence.get(sequenceId) ?? [];
+        list.push({ id: row.id as string, sceneIndex: (row.scene_index as number | null) ?? 0 });
+        bySequence.set(sequenceId, list);
+      }
+      for (const sceneList of bySequence.values()) {
+        const sorted = [...sceneList].sort((a, b) => a.sceneIndex - b.sceneIndex);
+        const head = sorted[0];
+        let headProductId = itemProductMap.get(head.id) ?? null;
+        if (!headProductId) {
+          const firstWithProduct = sorted.find((s) => itemProductMap.get(s.id));
+          headProductId = firstWithProduct ? (itemProductMap.get(firstWithProduct.id) ?? null) : null;
+        }
+        if (!headProductId) continue;
+        for (const scene of sorted) {
+          if (itemProductMap.get(scene.id)) continue;
+          const { error: fillErr } = await supabase
+            .from('campaign_items')
+            .update({ product_id: headProductId })
+            .eq('id', scene.id)
+            .is('product_id', null);
+          if (fillErr) {
+            console.warn('[generatePlanAction] no se pudo propagar product_id del head de la secuencia', {
+              itemId: scene.id,
+              message: fillErr.message,
+            });
+          } else {
+            itemProductMap.set(scene.id, headProductId);
           }
         }
       }
@@ -3034,7 +3086,7 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
   // Ownership vía join item→campaña→workspace (RLS también lo cubre; defensa doble).
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, status, campaigns!inner(workspace_id)')
+    .select('id, campaign_id, status, sequence_id, campaigns!inner(workspace_id)')
     .eq('id', parsed.data.itemId)
     .single();
   const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
@@ -3068,6 +3120,32 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
   if (updateErr) return { ok: false, error: 'internal_error', message: updateErr.message };
   if (!updated || updated.length === 0) {
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
+
+  // El producto es propiedad de la SECUENCIA: si esta escena pertenece a una
+  // (sequence_id no null) y se le asignó un producto, propágalo a las escenas
+  // hermanas (mismo campaign_id+sequence_id) que sigan sin producto y todavía
+  // sean editables. En cadenas Atlas esto es lo que rellena las continuaciones
+  // que el orchestrator nunca vuelve a resolver por sí mismas; asignar la
+  // cabecera a mano alcanza para que el gating del lote pase. Best-effort:
+  // no sobrescribe hermanas que ya tengan su propio producto (respeta
+  // customización por escena en secuencias no encadenadas).
+  const sequenceId = item.sequence_id as string | null;
+  if (parsed.data.productId !== null && sequenceId) {
+    const { error: siblingErr } = await supabase
+      .from('campaign_items')
+      .update({ product_id: parsed.data.productId })
+      .eq('campaign_id', item.campaign_id as string)
+      .eq('sequence_id', sequenceId)
+      .is('product_id', null)
+      .in('status', ['planned', 'skipped', 'failed']);
+    if (siblingErr) {
+      console.warn('[setItemProductAction] no se pudo propagar product_id a escenas hermanas', {
+        itemId: parsed.data.itemId,
+        sequenceId,
+        message: siblingErr.message,
+      });
+    }
   }
 
   revalidatePath(`/app/campaigns/${item.campaign_id}`);
