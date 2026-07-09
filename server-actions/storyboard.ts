@@ -19,6 +19,7 @@ import {
   loadCampaignContext,
   directorContextFor,
   resolveLocations,
+  resolveItemProduct,
   type ItemRow,
 } from '@/lib/campaigns/orchestrator';
 import { applyReferenceSelection, normalizeReferenceSelection } from '@/lib/campaigns/reference-selection';
@@ -80,6 +81,8 @@ type CampaignItemRow = {
   scene_index: number | null;
   location_id: string | null;
   status: string;
+  // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (fallback).
+  product_id: string | null;
 };
 
 type CampaignRow = {
@@ -107,7 +110,7 @@ async function loadItemAndCampaign(
   // Literal estático para que el tipo generado por Supabase sea correcto.
   const { data: rawItem, error: itemErr } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status')
+    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status, product_id')
     .eq('id', itemId)
     .single();
   if (itemErr || !rawItem) return null;
@@ -277,13 +280,18 @@ export async function generatePanelAction(
     character_outfit_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
-    product_id: null,
+    product_id: item.product_id,
   };
+
+  // V3 fase 1: producto de ESTE clip (fallback a ctx si no hay product_id o no resuelve).
+  const itemProduct = item.product_id
+    ? await resolveItemProduct(supabase, workspace.id, item.product_id, true)
+    : null;
 
   // La selección manual de referencias de la campaña (054) también filtra las
   // refs del panel (producto/locación; los masters del cast nunca se filtran).
   const dirCtx = applyReferenceSelection(
-    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation),
+    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProduct ?? undefined),
     normalizeReferenceSelection(campaign.reference_selection),
   );
 
@@ -605,13 +613,18 @@ export async function refinePanelAction(
     storyboard_image_id: null,
     character_state_hint: null,
     character_outfit_hint: null,
-    product_id: null,
+    product_id: item.product_id,
   };
+
+  // V3 fase 1: producto de ESTE clip (fallback a ctx si no hay product_id o no resuelve).
+  const itemProduct = item.product_id
+    ? await resolveItemProduct(supabase, workspace.id, item.product_id, true)
+    : null;
 
   // La selección manual de referencias de la campaña (054) también filtra las
   // refs del panel (producto/locación; los masters del cast nunca se filtran).
   const dirCtx = applyReferenceSelection(
-    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation),
+    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProduct ?? undefined),
     normalizeReferenceSelection(campaign.reference_selection),
   );
 

@@ -1142,6 +1142,10 @@ export async function enqueueBatch(params: {
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
 
+  // V3 fase 1: producto por clip (campaign_items.product_id), cacheado por id
+  // para no re-resolver el mismo producto en cada item del lote.
+  const itemProductCache = new Map<string, import('@/lib/prompt-director/types').ProductInventory | null>();
+
   for (let idx = 0; idx < selected.length; idx++) {
     const item = selected[idx];
     const role = chainRole(item);
@@ -1164,6 +1168,17 @@ export async function enqueueBatch(params: {
     const panelPath = item.storyboard_image_id ? storyboardPanels.get(item.storyboard_image_id) : undefined;
     const storyboardMode = !!panelPath;
 
+    let itemProduct: import('@/lib/prompt-director/types').ProductInventory | null = null;
+    if (item.product_id) {
+      if (!itemProductCache.has(item.product_id)) {
+        itemProductCache.set(
+          item.product_id,
+          await resolveItemProduct(supabase, workspaceId, item.product_id, campaign.include_packaging !== false),
+        );
+      }
+      itemProduct = itemProductCache.get(item.product_id) ?? null;
+    }
+
     const baseDirCtx = applyReferenceSelection(
       directorContextFor(
         item,
@@ -1176,6 +1191,7 @@ export async function enqueueBatch(params: {
           if (!loc) return undefined;
           return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
         })(),
+        itemProduct ?? undefined,
       ),
       refSelection,
     );
