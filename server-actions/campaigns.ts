@@ -21,6 +21,7 @@ import {
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
 import { buildClosingFrameRef } from '@/lib/campaigns/closing-frame';
+import { productSlug } from '@/lib/campaigns/product-slug';
 import { chainAudioPaths, nextSceneItem, type ChainAudioSource } from '@/lib/campaigns/sequence-chain';
 import {
   buildContinuationPrompt,
@@ -613,7 +614,7 @@ export async function createCampaignStudioAction(
         workspace_id: workspace.id,
         brand_id: kitId,
         name,
-        slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        slug: productSlug(name),
         medium: b.medium ?? null,
         height_cm: b.heightCm ?? null,
         width_cm: b.widthCm ?? null,
