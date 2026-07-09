@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
@@ -79,6 +79,15 @@ type BrandKitOption = {
   packagingImages: number;
 };
 
+// Productos de la marca elegida (V3 multi-producto): el multi-select bajo "Tu
+// producto" decide cuáles viajan al pool de la campaña (server-actions/campaigns
+// aún los ignora hasta que la Task 6 los consuma; se envían igual).
+export type ProductOption = {
+  id: string;
+  name: string;
+  imageCount: number;
+};
+
 // Motivos legibles del fallback del plan dirigido (codes de ProviderError
 // más 'sin_match' del saneo de la action).
 // Etiquetas en lenguaje simple (el usuario no es del medio): los valores
@@ -108,6 +117,7 @@ export function CampaignStudioWizard({
   brandKits: initialBrandKits,
   characters,
   outfits,
+  productsByKit,
 }: {
   brandKits: BrandKitOption[];
   characters: Array<{
@@ -120,6 +130,9 @@ export function CampaignStudioWizard({
   // Vestuario (specs/v2/16): opciones por personaje para el selector "Vestuario
   // de {name}" bajo la grid del Cast.
   outfits: Array<{ id: string; label: string; characterId: string }>;
+  // Productos por marca (V3 multi-producto): alimenta el multi-select "Productos
+  // de esta campaña" cuando mode==='kit'.
+  productsByKit: Record<string, ProductOption[]>;
 }) {
   const router = useRouter();
   // Estado local: el producto creado con IA inline se guarda como Brand Kit y se
@@ -158,6 +171,10 @@ export function CampaignStudioWizard({
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  // Productos de la marca elegida (V3 multi-producto): default = todos los de
+  // la marca al seleccionarla; el usuario puede des-marcar los que no aplican
+  // a esta campaña.
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Sin entry
   // para un personaje = usa su cuerpo completo base.
   const [outfitMap, setOutfitMap] = useState<Record<string, string>>({});
@@ -168,6 +185,12 @@ export function CampaignStudioWizard({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
+  // Al elegir o cambiar de marca, todos sus productos entran por default; el
+  // usuario puede desmarcar los que no apliquen a esta campaña.
+  useEffect(() => {
+    setSelectedProductIds((productsByKit[brandKitId] ?? []).map((p) => p.id));
+  }, [brandKitId, productsByKit]);
+
   // El orden de selección importa: [0] es el personaje principal.
   function toggleCharacter(id: string) {
     setSelectedCharacterIds((prev) =>
@@ -176,6 +199,11 @@ export function CampaignStudioWizard({
   }
   function makePrincipal(id: string) {
     setSelectedCharacterIds((prev) => (prev.includes(id) ? [id, ...prev.filter((x) => x !== id)] : prev));
+  }
+  function toggleProduct(id: string) {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   async function handleIngest() {
@@ -292,6 +320,9 @@ export function CampaignStudioWizard({
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       ...(Object.keys(outfitMap).length ? { characterOutfitMap: outfitMap } : {}),
+      // V3 multi-producto (Task 6 la consumirá): pool de productos elegidos de
+      // la marca. El server hoy la ignora (safeParse descarta claves extra).
+      productIds: selectedProductIds,
       includePackaging,
       aspectRatio,
       visualStyle,
@@ -463,6 +494,51 @@ export function CampaignStudioWizard({
             </div>
           )}
         </section>
+
+        {mode === 'kit' && brandKitId && (
+          <section>
+            <Label className="text-xs font-medium text-foreground/80">Productos de esta campaña</Label>
+            {(productsByKit[brandKitId]?.length ?? 0) > 0 ? (
+              <>
+                <p className="mt-0.5 text-2xs text-muted-foreground">
+                  Por default entran todos los productos de la marca; desmarca los que no
+                  apliquen a esta campaña.
+                </p>
+                <div className="mt-1.5 space-y-1.5">
+                  {productsByKit[brandKitId].map((p) => {
+                    const selected = selectedProductIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => toggleProduct(p.id)}
+                        aria-pressed={selected}
+                        className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-2sm transition-colors ${
+                          selected
+                            ? 'border-primary/60 bg-primary/5 text-foreground'
+                            : 'border-border bg-card/50 text-muted-foreground hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <span className="truncate">{p.name}</span>
+                        <span className="ml-2 shrink-0 text-2xs text-muted-foreground/70">
+                          {p.imageCount} img{p.imageCount !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Esta marca todavía no tiene productos propios.{' '}
+                <Link href="/app/brand/kits" className="text-primary underline-offset-2 hover:underline">
+                  Crea productos en Brand Kits
+                </Link>
+                , o continúa: el análisis usará las imágenes generales del kit.
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-1.5">
           <Label htmlFor="campaign-name" className="text-xs font-medium text-foreground/80">

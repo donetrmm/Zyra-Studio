@@ -9,24 +9,43 @@ export default async function NewCampaignPage() {
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const [{ data: kits }, { data: characterRows }, { data: outfitRows }] = await Promise.all([
-    supabase
-      .from('brand_kits')
-      .select('id, name, product_image_ids, packaging_image_ids, reference_image_ids')
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('characters')
-      .select('id, name, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false }),
-    // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
-    // por personaje seleccionado.
-    supabase
-      .from('character_outfits')
-      .select('id, label, character_id')
-      .eq('workspace_id', workspace.id),
-  ]);
+  const [{ data: kits }, { data: characterRows }, { data: outfitRows }, { data: productRows }] =
+    await Promise.all([
+      supabase
+        .from('brand_kits')
+        .select('id, name, product_image_ids, packaging_image_ids, reference_image_ids')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('characters')
+        .select('id, name, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+      // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
+      // por personaje seleccionado.
+      supabase
+        .from('character_outfits')
+        .select('id, label, character_id')
+        .eq('workspace_id', workspace.id),
+      // Productos (V3 multi-producto): opciones del multi-select "Productos de esta
+      // campaña" agrupadas por marca (brand_id).
+      supabase
+        .from('products')
+        .select('id, name, brand_id, product_image_ids')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+    ]);
+
+  const productsByKit: Record<string, Array<{ id: string; name: string; imageCount: number }>> = {};
+  for (const p of productRows ?? []) {
+    const brandId = p.brand_id as string | null;
+    if (!brandId) continue;
+    (productsByKit[brandId] ??= []).push({
+      id: p.id as string,
+      name: p.name as string,
+      imageCount: ((p.product_image_ids as string[]) ?? []).length,
+    });
+  }
 
   const brandKits = (kits ?? [])
     .map((k) => {
@@ -39,7 +58,9 @@ export default async function NewCampaignPage() {
         packagingImages: ((k.packaging_image_ids as string[]) ?? []).length,
       };
     })
-    .filter((k) => k.productImages > 0);
+    // Un kit es usable si la marca tiene >=1 producto (V3) o si conserva
+    // imágenes legacy de producto/referencia (pre-productos).
+    .filter((k) => (productsByKit[k.id]?.length ?? 0) > 0 || k.productImages > 0);
 
   // Personajes utilizables: con hoja maestra (o primera referencia, compat V1).
   const usable = (characterRows ?? [])
@@ -102,5 +123,12 @@ export default async function NewCampaignPage() {
     characterId: o.character_id as string,
   }));
 
-  return <CampaignStudioWizard brandKits={brandKits} characters={characters} outfits={outfits} />;
+  return (
+    <CampaignStudioWizard
+      brandKits={brandKits}
+      characters={characters}
+      outfits={outfits}
+      productsByKit={productsByKit}
+    />
+  );
 }
