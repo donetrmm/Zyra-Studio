@@ -83,6 +83,9 @@ type CampaignItemRow = {
   status: string;
   // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (fallback).
   product_id: string | null;
+  // V3 fase 4: selección manual de referencias de ESTE clip. null/vacío = cae a
+  // la de campaña (fallback/compat: backfill de la migración 060).
+  reference_selection: unknown;
 };
 
 type CampaignRow = {
@@ -110,7 +113,7 @@ async function loadItemAndCampaign(
   // Literal estático para que el tipo generado por Supabase sea correcto.
   const { data: rawItem, error: itemErr } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status, product_id')
+    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status, product_id, reference_selection')
     .eq('id', itemId)
     .single();
   if (itemErr || !rawItem) return null;
@@ -281,6 +284,7 @@ export async function generatePanelAction(
     location_id: item.location_id,
     storyboard_image_id: null,
     product_id: item.product_id,
+    reference_selection: item.reference_selection,
   };
 
   // V3 fase 1: producto de ESTE clip (fallback a ctx si no hay product_id o no resuelve).
@@ -288,11 +292,13 @@ export async function generatePanelAction(
     ? await resolveItemProduct(supabase, workspace.id, item.product_id, true)
     : null;
 
-  // La selección manual de referencias de la campaña (054) también filtra las
-  // refs del panel (producto/locación; los masters del cast nunca se filtran).
+  // La selección manual de referencias (054, por ítem desde V3 fase 4) también
+  // filtra las refs del panel (producto/locación; los masters del cast nunca se
+  // filtran). item.reference_selection gana; campaign.reference_selection es
+  // fallback/compat.
   const dirCtx = applyReferenceSelection(
     directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProduct ?? undefined),
-    normalizeReferenceSelection(campaign.reference_selection),
+    normalizeReferenceSelection(itemRow.reference_selection ?? campaign.reference_selection ?? null),
   );
 
   // Modo estricto de zona segura: genera la base en 4:5 (garantia geometrica) y luego
@@ -614,6 +620,7 @@ export async function refinePanelAction(
     character_state_hint: null,
     character_outfit_hint: null,
     product_id: item.product_id,
+    reference_selection: item.reference_selection,
   };
 
   // V3 fase 1: producto de ESTE clip (fallback a ctx si no hay product_id o no resuelve).
@@ -621,11 +628,13 @@ export async function refinePanelAction(
     ? await resolveItemProduct(supabase, workspace.id, item.product_id, true)
     : null;
 
-  // La selección manual de referencias de la campaña (054) también filtra las
-  // refs del panel (producto/locación; los masters del cast nunca se filtran).
+  // La selección manual de referencias (054, por ítem desde V3 fase 4) también
+  // filtra las refs del panel (producto/locación; los masters del cast nunca se
+  // filtran). item.reference_selection gana; campaign.reference_selection es
+  // fallback/compat.
   const dirCtx = applyReferenceSelection(
     directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProduct ?? undefined),
-    normalizeReferenceSelection(campaign.reference_selection),
+    normalizeReferenceSelection(itemRow.reference_selection ?? campaign.reference_selection ?? null),
   );
 
   const guidelines = dirCtx.guidelines;

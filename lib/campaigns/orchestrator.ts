@@ -66,6 +66,10 @@ export type ItemRow = {
   character_outfit_hint: string | null;
   // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (product_brief) como fallback.
   product_id: string | null;
+  // V3 fase 4: selección manual de referencias de ESTE clip (jsonb crudo, mismo
+  // shape que campaigns.reference_selection). null/vacío = cae a la de campaña
+  // (fallback/compat: el backfill de la migración 060 copió campaña → ítem).
+  reference_selection: unknown;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -1049,10 +1053,11 @@ export async function enqueueBatch(params: {
 
   const characterIds = [...new Set(selected.flatMap((i) => itemCharacterIds(i)))];
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
-  // Selección manual de referencias de la campaña (054): se aplica UPSTREAM al
-  // DirectorContext de cada item (nunca post-filtro: las citas @imageN del
-  // compiler están amarradas al orden). null = recorte automático.
-  const refSelection = normalizeReferenceSelection(campaign.reference_selection ?? null);
+  // Selección manual de referencias (054, por ítem desde V3 fase 4): se aplica
+  // UPSTREAM al DirectorContext de cada item (nunca post-filtro: las citas
+  // @imageN del compiler están amarradas al orden). Se resuelve POR ÍTEM dentro
+  // del loop (item.reference_selection gana; campaign.reference_selection es
+  // fallback/compat). null en ambos = recorte automático.
   const pricing = await loadPricing();
   const supabase = await createClient();
   const templateVideos = await loadTemplateVideoPaths(supabase, selected);
@@ -1179,6 +1184,9 @@ export async function enqueueBatch(params: {
       itemProduct = itemProductCache.get(item.product_id) ?? null;
     }
 
+    // Por ítem (V3 fase 4): item.reference_selection gana; campaign.reference_selection
+    // es fallback (compat con campañas existentes, ya backfilleadas por la migración 060).
+    const itemRefSelection = normalizeReferenceSelection(item.reference_selection ?? campaign.reference_selection ?? null);
     const baseDirCtx = applyReferenceSelection(
       directorContextFor(
         item,
@@ -1193,7 +1201,7 @@ export async function enqueueBatch(params: {
         })(),
         itemProduct ?? undefined,
       ),
-      refSelection,
+      itemRefSelection,
     );
     const dirCtx = storyboardMode ? onlyCharacterRefs(baseDirCtx) : baseDirCtx;
 
