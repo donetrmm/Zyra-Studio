@@ -165,7 +165,8 @@ function assemblePool(input: {
 // - Producto: item.product_id vía resolveItemProduct; si no hay asignación (o
 //   el id ya no resuelve — producto borrado/de otro workspace) cae al producto
 //   de campaña (mismo fallback que directorContextFor en la generación real).
-// - Cast: solo item.character_ids (máx 3, cap compartido con itemCharacterIds).
+// - Cast: solo el cast del ítem (item.character_ids + el character_id legacy que
+//   itemCharacterIds honra, igual que loadReferencePool; máx 3, cap compartido).
 // - Locación: solo item.location_id (una, no todas las de la campaña).
 // - Extras: solo item.reference_ids.
 // El caller ya validó ownership (workspace) del ítem/campaña.
@@ -175,13 +176,14 @@ export async function loadItemReferencePool(
   item: {
     product_id: string | null;
     location_id: string | null;
+    character_id: string | null;
     character_ids: string[] | null;
     reference_ids: string[] | null;
   },
 ): Promise<{ entries: ReferencePoolEntry[]; texts: ReferencePoolTexts }> {
   const supabase = await createClient();
 
-  const characterIds = itemCharacterIds({ character_id: null, character_ids: item.character_ids });
+  const characterIds = itemCharacterIds({ character_id: item.character_id, character_ids: item.character_ids });
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
   const usedCharacters = characterIds
     .map((id) => ctx.characters.get(id))
