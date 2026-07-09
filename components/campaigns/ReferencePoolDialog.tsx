@@ -17,7 +17,9 @@ import {
 import {
   analyzeProductReferencesAction,
   applyReferenceAnalysisAction,
+  getItemReferencePoolAction,
   getReferencePoolAction,
+  setItemReferenceSelectionAction,
   setReferenceSelectionAction,
 } from '@/server-actions/campaigns';
 // Type-only: reference-analysis es server-only pero los tipos se borran al compilar.
@@ -62,12 +64,24 @@ const CATEGORY_ORDER: ReferencePoolCategory[] = [
 // masters del cast y locación llegan a paneles, y en regenerar/refinar solo
 // viajan las que los toggles del beat metan al chat — la identidad la anclan
 // las descripciones de texto, visibles abajo en read-only).
+//
+// V3 multi-producto (Fase 4): si `itemId` viene, el diálogo opera en modo
+// POR CLIP — pool y selección scopeados a ESE ítem (getItemReferencePoolAction/
+// setItemReferenceSelectionAction) en vez de a la campaña entera. El resto de
+// la UI es idéntico; el flujo "Analizar con IA" se oculta en este modo porque
+// escribe product_brief a nivel de CAMPAÑA (no existe un brief por clip).
 export function ReferencePoolDialog({
   campaignId,
+  itemId,
   context = 'video',
+  trigger,
+  onSaved,
 }: {
   campaignId: string;
+  itemId?: string;
   context?: 'video' | 'storyboard';
+  trigger?: React.ReactNode;
+  onSaved?: (isManual: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -132,8 +146,37 @@ export function ReferencePoolDialog({
     }
   }
 
+  // Aplica la respuesta común (entries/texts/include) al estado local — el
+  // shape de `brief` difiere entre pool de campaña y pool por-ítem, así que
+  // cada llamador de loadPool lo resuelve por su cuenta antes de invocar esto.
+  function applyPoolData(data: { entries: PoolEntry[]; texts: ReferencePoolTexts; include: string[] | null }) {
+    setEntries(data.entries);
+    setTexts(data.texts);
+    const stored = data.include;
+    setStoredIsAuto(stored === null);
+    // Estado inicial: la selección guardada (+ masters, siempre viajan) o, en
+    // automático, lo que el recorte por prioridad mandaría hoy.
+    const init = new Set<string>(stored ?? data.entries.filter((e) => e.autoIncluded).map((e) => e.path));
+    for (const e of data.entries) if (e.locked) init.add(e.path);
+    setSelected(init);
+  }
+
   async function loadPool() {
     setLoading(true);
+    if (itemId) {
+      const res = await getItemReferencePoolAction(itemId);
+      setLoading(false);
+      if (!res.ok) {
+        toast.error('No se pudo cargar el pool de referencias');
+        setOpen(false);
+        return;
+      }
+      // La respuesta por-ítem no trae `brief`: el análisis de producto es a
+      // nivel de campaña, no de clip.
+      setCurrentBrief(null);
+      applyPoolData(res.data);
+      return;
+    }
     const res = await getReferencePoolAction(campaignId);
     setLoading(false);
     if (!res.ok) {
@@ -141,18 +184,8 @@ export function ReferencePoolDialog({
       setOpen(false);
       return;
     }
-    setEntries(res.data.entries);
-    setTexts(res.data.texts);
     setCurrentBrief(res.data.brief);
-    const stored = res.data.include;
-    setStoredIsAuto(stored === null);
-    // Estado inicial: la selección guardada (+ masters, siempre viajan) o, en
-    // automático, lo que el recorte por prioridad mandaría hoy.
-    const init = new Set<string>(
-      stored ?? res.data.entries.filter((e) => e.autoIncluded).map((e) => e.path),
-    );
-    for (const e of res.data.entries) if (e.locked) init.add(e.path);
-    setSelected(init);
+    applyPoolData(res.data);
   }
 
   function toggle(entry: PoolEntry) {
@@ -167,12 +200,15 @@ export function ReferencePoolDialog({
 
   async function handleSave() {
     setSaving(true);
-    const res = await setReferenceSelectionAction({ campaignId, include: [...selected] });
+    const res = itemId
+      ? await setItemReferenceSelectionAction({ itemId, include: [...selected] })
+      : await setReferenceSelectionAction({ campaignId, include: [...selected] });
     setSaving(false);
     if (res.ok) {
       setStoredIsAuto(false);
       toast.success('Selección de referencias guardada · aplica al generar o regenerar');
       setOpen(false);
+      onSaved?.(true);
     } else {
       toast.error(res.message ?? 'No se pudo guardar la selección');
     }
@@ -180,11 +216,14 @@ export function ReferencePoolDialog({
 
   async function handleReset() {
     setSaving(true);
-    const res = await setReferenceSelectionAction({ campaignId, include: null });
+    const res = itemId
+      ? await setItemReferenceSelectionAction({ itemId, include: null })
+      : await setReferenceSelectionAction({ campaignId, include: null });
     setSaving(false);
     if (res.ok) {
       toast.success('Selección restablecida al recorte automático');
       setOpen(false);
+      onSaved?.(false);
     } else {
       toast.error(res.message ?? 'No se pudo restablecer');
     }
@@ -206,10 +245,12 @@ export function ReferencePoolDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
-          <Images className="size-3.5" aria-hidden />
-          Referencias
-        </Button>
+        {trigger ?? (
+          <Button type="button" variant="outline" size="sm">
+            <Images className="size-3.5" aria-hidden />
+            Referencias
+          </Button>
+        )}
       </DialogTrigger>
       {/* flex-col + cuerpo scrolleable: el DialogContent base es un grid centrado
           por transform y scrollear TODO el contenido desbordaba el modal cuando
@@ -217,11 +258,13 @@ export function ReferencePoolDialog({
           cuerpo scrollea (min-h-0 permite que el flex hijo encoja). */}
       <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Referencias de la campaña</DialogTitle>
+          <DialogTitle>{itemId ? 'Referencias de este clip' : 'Referencias de la campaña'}</DialogTitle>
           <DialogDescription>
-            {context === 'storyboard'
-              ? `Una sola selección por campaña, compartida con el video. A los PANELES llegan producto, hojas del cast y locación — y solo en paneles nuevos: al regenerar o refinar viajan únicamente las que actives con los toggles del beat; la identidad la sostienen las descripciones de abajo.`
-              : `Elige qué imágenes viajan al modelo al generar video (tope ${MODEL_IMAGE_CAP} por clip). Las hojas maestras del cast siempre viajan: anclan la identidad. En automático, los ángulos del cast entran según el presupuesto del clip.`}
+            {itemId
+              ? `La selección aplica solo a este clip. El pool refleja el producto, cast, locación y demás activos asignados a él (tope ${MODEL_IMAGE_CAP} por clip). Las hojas maestras del cast siempre viajan: anclan la identidad.`
+              : context === 'storyboard'
+                ? `Una sola selección por campaña, compartida con el video. A los PANELES llegan producto, hojas del cast y locación — y solo en paneles nuevos: al regenerar o refinar viajan únicamente las que actives con los toggles del beat; la identidad la sostienen las descripciones de abajo.`
+                : `Elige qué imágenes viajan al modelo al generar video (tope ${MODEL_IMAGE_CAP} por clip). Las hojas maestras del cast siempre viajan: anclan la identidad. En automático, los ángulos del cast entran según el presupuesto del clip.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -312,9 +355,12 @@ export function ReferencePoolDialog({
                 {count} seleccionadas de {MODEL_IMAGE_CAP} que acepta el video por clip
                 {over > 0 &&
                   ` — se recortarán ${over} por prioridad (producto, empaque, cast, locación, mapa, extras)`}
-                {storedIsAuto && ' · hoy la campaña usa el recorte automático'}
+                {storedIsAuto &&
+                  (itemId ? ' · hoy este clip usa el recorte automático' : ' · hoy la campaña usa el recorte automático')}
               </p>
-              {entries.some((e) => e.category === 'product') && (
+              {/* El análisis escribe product_brief a nivel de CAMPAÑA: no aplica en
+                  modo por-clip (itemId). */}
+              {!itemId && entries.some((e) => e.category === 'product') && (
                 <Button
                   type="button"
                   variant="outline"

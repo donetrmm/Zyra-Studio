@@ -39,6 +39,11 @@ export type StudioItem = {
   // clip. null = sin asignar (el orchestrator cae a product_brief; el tablero
   // pide asignación cuando la campaña tiene marca+pool).
   productId: string | null;
+  // V3 multi-producto (Fase 4): true si el clip tiene una selección MANUAL de
+  // referencias propia (reference_selection jsonb no nulo). false = usa el
+  // recorte automático del pool scopeado al clip. Solo indica presencia —
+  // el contenido vive en reference_selection, no se proyecta aquí.
+  hasManualRefs: boolean;
 };
 
 // Proyecta una fila cruda de campaign_items a StudioItem. Los nombres de formato
@@ -81,5 +86,6 @@ export function toStudioItem(
     characterStateHint: (row.character_state_hint as string | null) ?? null,
     characterOutfitHint: (row.character_outfit_hint as string | null) ?? null,
     productId: (row.product_id as string | null) ?? null,
+    hasManualRefs: (row.reference_selection as unknown) != null,
   };
 }

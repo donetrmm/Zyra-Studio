@@ -10,6 +10,7 @@ import {
   Download,
   Eye,
   FileBarChart,
+  Images,
   Info,
   Layers,
   Loader2,
@@ -500,6 +501,9 @@ export function CampaignStudioView({
             onProductChanged={(itemId, productId) =>
               setItems((p) => p.map((i) => (i.id === itemId ? { ...i, productId } : i)))
             }
+            onRefsChanged={(itemId, isManual) =>
+              setItems((p) => p.map((i) => (i.id === itemId ? { ...i, hasManualRefs: isManual } : i)))
+            }
           />
         </>
       ) : tab === 'produccion' ? (
@@ -797,6 +801,7 @@ function PlanTable({
   onSequenceMerged,
   onSequenceLocationChanged,
   onProductChanged,
+  onRefsChanged,
 }: {
   campaignId: string;
   items: StudioItem[];
@@ -811,6 +816,9 @@ function PlanTable({
   onSequenceMerged: (sequenceId: string, merged: StudioItem) => void;
   onSequenceLocationChanged: (sequenceId: string, locationId: string | null) => void;
   onProductChanged: (itemId: string, productId: string | null) => void;
+  // V3 multi-producto (Fase 4): refleja en el estado local si el clip quedó con
+  // selección manual de referencias tras guardar/restablecer en el diálogo.
+  onRefsChanged: (itemId: string, isManual: boolean) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
@@ -921,6 +929,34 @@ function PlanTable({
     );
   }
 
+  // V3 multi-producto (Fase 4): botón de referencias por clip, compartido entre
+  // renderPlanRow y las filas de escena. A diferencia del selector de producto,
+  // no se gatea por productPool: hay referencias de sobra sin pool (cast,
+  // locación, brand kit).
+  function renderClipRefs(item: StudioItem) {
+    return (
+      <div className="mt-1 inline-flex items-center gap-1.5">
+        <ReferencePoolDialog
+          campaignId={campaignId}
+          itemId={item.id}
+          context="video"
+          trigger={
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-2xs">
+              <Images className="size-3" aria-hidden />
+              Referencias
+            </Button>
+          }
+          onSaved={(isManual) => onRefsChanged(item.id, isManual)}
+        />
+        {item.hasManualRefs && (
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-2xs uppercase tracking-wide text-primary">
+            manual
+          </span>
+        )}
+      </div>
+    );
+  }
+
   function renderPlanRow(item: StudioItem) {
     const unassigned = productPool.length > 0 && !item.productId && !!brandKitId;
     return (
@@ -955,6 +991,7 @@ function PlanTable({
             </span>
           )}
           {renderProductSelector(item)}
+          {renderClipRefs(item)}
         </td>
         <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
           {item.scene && (
@@ -1181,6 +1218,7 @@ function PlanTable({
                           </span>
                         )}
                         {renderProductSelector(scene)}
+                        {renderClipRefs(scene)}
                       </td>
                       <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
                         {scene.scene && (
