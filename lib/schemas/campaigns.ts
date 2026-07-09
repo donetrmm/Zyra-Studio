@@ -245,6 +245,14 @@ export const MergeSequenceSchema = z.object({
   campaignId: z.string().uuid(),
 });
 
+// V3 multi-producto (Fase 3): fija/limpia el producto asignado a un clip.
+// productId null = "sin asignar" (el tablero lo pide antes de generar cuando
+// la campaña tiene marca+pool).
+export const SetItemProductSchema = z.object({
+  itemId: z.string().uuid(),
+  productId: z.string().uuid().nullable(),
+});
+
 // Selección manual de referencias de video (054). include = storage paths del
 // pool de la campaña; null = volver al recorte automático. El server intersecta
 // con el pool real antes de persistir (paths forjados no se guardan).
@@ -322,3 +330,4 @@ export type CreateCampaignStudioInput = z.infer<typeof CreateCampaignStudioSchem
 export type CampaignItemInput = z.infer<typeof CampaignItemSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
 export type CreateFormatInput = z.infer<typeof CreateFormatSchema>;
+export type SetItemProductInput = z.infer<typeof SetItemProductSchema>;

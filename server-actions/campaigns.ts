@@ -46,9 +46,11 @@ import {
   GenerateSeriesSchema,
   MergeSequenceSchema,
   RequestFinalSchema,
+  SetItemProductSchema,
   SetReferenceSelectionSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
+import { inferProductForClip, type ProductCandidate } from '@/lib/campaigns/infer-assignment';
 import { loadReferencePool } from '@/lib/campaigns/reference-pool';
 import { analyzeProductImages, type ReferenceAnalysisProposal } from '@/lib/campaigns/reference-analysis';
 import {
@@ -1056,30 +1058,74 @@ export async function generatePlanAction(input: unknown): Promise<
     .eq('campaign_id', campaign.id)
     .in('status', ['planned', 'skipped']);
 
-  const { error: insertErr } = await supabase.from('campaign_items').insert(
-    items.map((i) => ({
-      campaign_id: campaign.id,
-      format_id: i.formatId,
-      model_slug: i.modelSlug,
-      duration_s: i.durationS,
-      aspect_ratio: i.aspectRatio,
-      scene: i.scene,
-      audio: i.audio,
-      character_id: i.characterIds[0] ?? null,
-      character_ids: i.characterIds,
-      scene_prompt: i.scenePrompt,
-      scene_summary: i.sceneSummary,
-      caption: i.caption,
-      scheduled_date: i.scheduledDate,
-      status: 'planned',
-      sequence_id: i.sequenceId,
-      scene_index: i.sceneIndex,
-      sequence_label: i.sequenceLabel,
-      character_state_hint: i.characterStateHint ?? null,
-      transition_hint: i.transitionHint ?? null,
-    })),
-  );
+  const { data: insertedItems, error: insertErr } = await supabase
+    .from('campaign_items')
+    .insert(
+      items.map((i) => ({
+        campaign_id: campaign.id,
+        format_id: i.formatId,
+        model_slug: i.modelSlug,
+        duration_s: i.durationS,
+        aspect_ratio: i.aspectRatio,
+        scene: i.scene,
+        audio: i.audio,
+        character_id: i.characterIds[0] ?? null,
+        character_ids: i.characterIds,
+        scene_prompt: i.scenePrompt,
+        scene_summary: i.sceneSummary,
+        caption: i.caption,
+        scheduled_date: i.scheduledDate,
+        status: 'planned',
+        sequence_id: i.sequenceId,
+        scene_index: i.sceneIndex,
+        sequence_label: i.sequenceLabel,
+        character_state_hint: i.characterStateHint ?? null,
+        transition_hint: i.transitionHint ?? null,
+      })),
+    )
+    .select('id, scene_prompt, scene_summary');
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
+
+  // V3 multi-producto (Fase 3): pre-llena product_id de los items recién
+  // creados por inferencia de texto contra el pool de la campaña
+  // (campaign_products→products). Solo confidence 'high' se aplica; 'low'/
+  // 'none' quedan null y el tablero los pide a mano. Best-effort: un fallo
+  // acá no debe tumbar el plan ya creado.
+  try {
+    const { data: poolRows } = await supabase
+      .from('campaign_products')
+      .select('products(id, name, slug, visual_details)')
+      .eq('campaign_id', campaign.id as string);
+    type ProductEmbed = { id: string; name: string; slug: string | null; visual_details: string | null };
+    // El embed es un belongs-to (campaign_products.product_id → products.id),
+    // en runtime PostgREST lo devuelve como objeto único; sin Database
+    // genérico en el cliente, TS lo infiere (mal) como array — se corrige
+    // con el cast por unknown, igual que sugiere el compilador.
+    const pool: ProductCandidate[] = (poolRows ?? [])
+      .map((r) => (r as unknown as { products: ProductEmbed | null }).products)
+      .filter((p): p is ProductEmbed => !!p)
+      .map((p) => ({ id: p.id, name: p.name, slug: p.slug, visualDetails: p.visual_details }));
+    if (pool.length > 0) {
+      for (const row of insertedItems ?? []) {
+        const clipText = `${(row.scene_prompt as string | null) ?? ''} ${(row.scene_summary as string | null) ?? ''}`;
+        const inferred = inferProductForClip(clipText, pool);
+        if (inferred.confidence === 'high' && inferred.productId) {
+          const { error: prodErr } = await supabase
+            .from('campaign_items')
+            .update({ product_id: inferred.productId })
+            .eq('id', row.id as string);
+          if (prodErr) {
+            console.warn('[generatePlanAction] no se pudo pre-llenar product_id de un item', {
+              itemId: row.id,
+              message: prodErr.message,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[generatePlanAction] inferencia de producto por clip falló; items quedan sin asignar', err);
+  }
 
   await supabase
     .from('campaigns')
@@ -2933,6 +2979,51 @@ export async function assignSequenceLocationAction(
   if (error) return { ok: false, error: 'internal_error' };
   revalidatePath(`/app/campaigns/${campaignId}`);
   return { ok: true };
+}
+
+// V3 multi-producto (Fase 3): fija/limpia el producto asignado a un clip.
+// Espeja assignSequenceLocationAction (ownership por join, update simple,
+// revalidatePath); el gate de estado copia updateCampaignItemAction — solo
+// se puede reasignar antes de que el item entre en producción.
+export async function setItemProductAction(input: unknown): Promise<Result<{ updated: true }>> {
+  const parsed = SetItemProductSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  // Ownership vía join item→campaña→workspace (RLS también lo cubre; defensa doble).
+  const { data: item } = await supabase
+    .from('campaign_items')
+    .select('id, campaign_id, status, campaigns!inner(workspace_id)')
+    .eq('id', parsed.data.itemId)
+    .single();
+  const ws = (item as { campaigns?: { workspace_id?: string } } | null)?.campaigns?.workspace_id;
+  if (!item || ws !== workspace.id) return { ok: false, error: 'not_found' };
+
+  if (!['planned', 'skipped', 'failed'].includes(item.status as string)) {
+    return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
+  }
+
+  if (parsed.data.productId !== null) {
+    const { data: link } = await supabase
+      .from('campaign_products')
+      .select('product_id')
+      .eq('campaign_id', item.campaign_id as string)
+      .eq('product_id', parsed.data.productId)
+      .maybeSingle();
+    if (!link) {
+      return { ok: false, error: 'validation_error', message: 'El producto no está en el pool de la campaña' };
+    }
+  }
+
+  const { error: updateErr } = await supabase
+    .from('campaign_items')
+    .update({ product_id: parsed.data.productId })
+    .eq('id', parsed.data.itemId);
+  if (updateErr) return { ok: false, error: 'internal_error', message: updateErr.message };
+
+  revalidatePath(`/app/campaigns/${item.campaign_id}`);
+  return { ok: true, data: { updated: true } };
 }
 
 // --- Selector de referencias de video (054) ---------------------------------
