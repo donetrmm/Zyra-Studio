@@ -321,8 +321,9 @@ export function CampaignStudioWizard({
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       ...(Object.keys(outfitMap).length ? { characterOutfitMap: outfitMap } : {}),
       // V3 multi-producto (Task 6 la consumirá): pool de productos elegidos de
-      // la marca. El server hoy la ignora (safeParse descarta claves extra).
-      productIds: selectedProductIds,
+      // la marca. Solo en modo 'kit' — en 'upload' no hay marca y enviar el pool
+      // de otra marca enlazaría productos ajenos a la campaña.
+      ...(mode === 'kit' ? { productIds: selectedProductIds } : {}),
       includePackaging,
       aspectRatio,
       visualStyle,
