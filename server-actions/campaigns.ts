@@ -31,6 +31,7 @@ import {
   resolveCharacterMasterPaths,
   resolveLocations,
 } from '@/lib/campaigns/orchestrator';
+import { selectBatchItems } from '@/lib/campaigns/batch-selection';
 import { enqueueJob } from '@/lib/jobs/queue';
 import { failGeneration, reserveCredits } from '@/lib/credits/operations';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -1717,6 +1718,23 @@ export async function generateItemAction(
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
 
+  // Gating V3 multi-producto (Fase 3, Task 5): una campaña con marca y pool de
+  // productos no puede generar un clip sin producto asignado — sin esto el
+  // fallback a product_brief serviría una referencia genérica pudiendo el
+  // usuario elegir entre productos específicos. Sin pool no hay nada que
+  // asignar, así que no bloquea.
+  if (campaign.brand_kit_id && !item.product_id) {
+    const { data: poolRow } = await supabase
+      .from('campaign_products')
+      .select('product_id')
+      .eq('campaign_id', item.campaign_id as string)
+      .limit(1)
+      .maybeSingle();
+    if (poolRow) {
+      return { ok: false, error: 'validation_error', message: 'Asigna un producto a este clip antes de generar' };
+    }
+  }
+
   // enqueueBatch solo toma items 'planned'/'failed'; resetear limpia la gen previa.
   await supabase.from('campaign_items').update({ status: 'planned', generation_id: null }).eq('id', itemId);
 
@@ -1799,6 +1817,28 @@ export async function approveBatchAction(
     .eq('format_id', parsed.data.formatId)
     .order('created_at');
   if (!itemRows?.length) return { ok: false, error: 'not_found', message: 'Sin items para este formato' };
+
+  // Gating V3 multi-producto (Fase 3, Task 5): igual que generateItemAction pero
+  // para el lote — si ALGÚN item que este batch encolaría (mismo recorte de
+  // selectBatchItems que usa enqueueBatch) no tiene producto, no se encola
+  // ninguno. Sin pool no hay nada que asignar, así que no bloquea.
+  if (campaign.brand_kit_id) {
+    const { data: poolRow } = await supabase
+      .from('campaign_products')
+      .select('product_id')
+      .eq('campaign_id', campaign.id as string)
+      .limit(1)
+      .maybeSingle();
+    if (poolRow) {
+      const pending = itemRows.filter(
+        (i) => i.status === 'planned' || i.status === 'failed',
+      );
+      const selected = selectBatchItems(pending, parsed.data.mode);
+      if (selected.some((i) => !i.product_id)) {
+        return { ok: false, error: 'validation_error', message: 'Hay clips sin producto asignado' };
+      }
+    }
+  }
 
   const { data: formatRows } = await supabase
     .from('formats')

@@ -508,6 +508,8 @@ export function CampaignStudioView({
           groups={byFormat}
           characterOptions={characterOptions}
           pricing={pricing}
+          brandKitId={campaign.brandKitId}
+          productPool={campaign.productPool}
           onWinner={(id, isWinner) =>
             setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isWinner } : i)))
           }
@@ -983,8 +985,8 @@ function PlanTable({
                 <button
                   type="button"
                   onClick={() => handleGenerateItem(item)}
-                  disabled={generatingItem === item.id}
-                  title="Generar esta escena"
+                  disabled={generatingItem === item.id || unassigned}
+                  title={unassigned ? 'Asigna un producto a este clip antes de generar' : 'Generar esta escena'}
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                 >
                   {generatingItem === item.id ? (
@@ -1206,8 +1208,12 @@ function PlanTable({
                               <button
                                 type="button"
                                 onClick={() => handleGenerateItem(scene)}
-                                disabled={generatingItem === scene.id}
-                                title="Generar esta escena (continúa desde la anterior)"
+                                disabled={generatingItem === scene.id || sceneUnassigned}
+                                title={
+                                  sceneUnassigned
+                                    ? 'Asigna un producto a este clip antes de generar'
+                                    : 'Generar esta escena (continúa desde la anterior)'
+                                }
                                 className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                               >
                                 {generatingItem === scene.id ? (
@@ -1269,6 +1275,8 @@ function ProductionView({
   groups,
   characterOptions,
   pricing,
+  brandKitId,
+  productPool,
   onWinner,
   onSamplesReset,
 }: {
@@ -1276,6 +1284,10 @@ function ProductionView({
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
   characterOptions: StudioCharacterOption[];
   pricing: PricingRow[];
+  // V3 multi-producto (Fase 3, Task 5): gating de "Muestra"/"Lote completo" —
+  // mismo cálculo que el resalte de PlanTable, aplicado a nivel de grupo.
+  brandKitId: string | null;
+  productPool: StudioProductPoolEntry[];
   onWinner: (itemId: string, isWinner: boolean) => void;
   onSamplesReset: (formatId: string) => void;
 }) {
@@ -1470,6 +1482,11 @@ function ProductionView({
           (i) => i.sequenceId == null && ['planned', 'failed'].includes(i.status),
         ).length;
         const pureSequence = sequences.length > 0 && loosePending === 0;
+        // V3 multi-producto (Fase 3, Task 5): mismo cálculo que el resalte "Sin
+        // asignar" de PlanTable, a nivel de grupo — si algún clip del formato no
+        // tiene producto (campaña con marca+pool), no se puede encolar el lote.
+        const groupUnassigned =
+          !!brandKitId && productPool.length > 0 && group.items.some((i) => !i.productId);
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1504,11 +1521,13 @@ function ProductionView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pending === 0 || busy !== null || pureSequence}
+                  disabled={pending === 0 || busy !== null || pureSequence || groupUnassigned}
                   title={
-                    pureSequence
-                      ? 'Una secuencia se genera completa y en orden: usa «Lote completo».'
-                      : undefined
+                    groupUnassigned
+                      ? 'Asigna un producto a cada clip antes de generar'
+                      : pureSequence
+                        ? 'Una secuencia se genera completa y en orden: usa «Lote completo».'
+                        : undefined
                   }
                   onClick={() => handleBatch(group.formatId, 'sample')}
                 >
@@ -1522,7 +1541,8 @@ function ProductionView({
                 <Button
                   type="button"
                   size="sm"
-                  disabled={pending === 0 || busy !== null}
+                  disabled={pending === 0 || busy !== null || groupUnassigned}
+                  title={groupUnassigned ? 'Asigna un producto a cada clip antes de generar' : undefined}
                   onClick={() => handleBatch(group.formatId, 'full')}
                 >
                   {busy === `${group.formatId}:full` ? (
@@ -1534,6 +1554,13 @@ function ProductionView({
                 </Button>
               </div>
             </div>
+
+            {groupUnassigned && (
+              <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-2xs leading-snug text-amber-300/90">
+                <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>Hay clips sin producto asignado — asígnalos en el Plan antes de generar.</span>
+              </p>
+            )}
 
             {sequences.length > 0 && pending > 0 && (
               <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-2xs leading-snug text-amber-300/90">
