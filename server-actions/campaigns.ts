@@ -528,7 +528,11 @@ export async function createCampaignStudioAction(
         (candidates ?? []).map((p) => [p.id as string, (p.brand_id as string | null) ?? null]),
       );
       const rows: { campaign_id: string; product_id: string }[] = [];
-      for (const productId of parsed.data.productIds) {
+      // Dedupe: campaign_products tiene PK (campaign_id, product_id); un id
+      // repetido en el payload haría fallar el insert entero y dejaría el pool
+      // vacío en silencio.
+      const uniqueProductIds = [...new Set(parsed.data.productIds)];
+      for (const productId of uniqueProductIds) {
         const brandId = found.get(productId);
         if (brandId === undefined) {
           console.warn(
