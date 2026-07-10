@@ -140,17 +140,15 @@ export function StudioClient(props: StudioClientProps) {
           items={items}
           renderActions={(item) => (
             <>
-              {props.assetType === 'product' && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="h-7 text-xs"
-                  onClick={() => setAttachId(item.id)}
-                >
-                  Adjuntar
-                </Button>
-              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={() => setAttachId(item.id)}
+              >
+                Adjuntar
+              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -172,7 +170,7 @@ export function StudioClient(props: StudioClientProps) {
         open={attachId !== null}
         onOpenChange={(o) => !o && setAttachId(null)}
         generationId={attachId}
-        productId={props.assetId}
+        assetId={props.assetId}
         assetType={props.assetType}
         assetImages={assetImages}
         onAttached={(next, newRef) => {
