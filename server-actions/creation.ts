@@ -10,8 +10,8 @@ import { averageHash, hammingDistance, NEARLY_IDENTICAL_MAX_DISTANCE } from '@/l
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
 // Resuelve el storagePath de imágenes ya guardadas (validando ownership) para
-// que el wizard pueda EDITARLAS con Nano Banana (necesita {id, storagePath}).
-// Lo usa el flujo "Mejorar con IA" del Brand Kit, que lee las imágenes del kit.
+// editarlas con Nano Banana (necesita {id, storagePath}). Lo usan los editores
+// de cast y locación (estados/outfits/cuerpo completo, mapa de escala).
 export async function getReferencePathsAction(ids: unknown): Promise<Result<Record<string, string>>> {
   const parsed = z.array(z.string().uuid()).max(8).safeParse(ids);
   if (!parsed.success) return { ok: false, error: 'validation_error' };
