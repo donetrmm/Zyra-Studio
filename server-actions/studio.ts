@@ -406,7 +406,9 @@ export async function attachStudioImageAction(
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
   const { assetType, assetId, role, referenceId } = parsed.data;
-  if (!ATTACH_ROLES[assetType].includes(role)) {
+  // Widening a readonly string[]: ATTACH_ROLES es tuplas `as const` (literales),
+  // y role es el string validado por Zod — comparar sin castear el role.
+  if (!(ATTACH_ROLES[assetType] as readonly string[]).includes(role)) {
     return { ok: false, error: 'validation_error', message: 'Rol inválido' };
   }
 

@@ -130,6 +130,24 @@ describe('mergeRole — location', () => {
     if (result.next.assetType !== 'location') throw new Error('narrowing');
     expect(result.next.referenceImageIds).toEqual(['ref-new']);
   });
+
+  it('tope de referencias: con 4 referencias, una NUEVA devuelve error y no persiste', () => {
+    const images = locationImages({ referenceImageIds: ['ref-a', 'ref-b', 'ref-c', 'ref-d'] });
+    const result = mergeRole(images, 'reference', 'ref-quinta');
+    expect('error' in result).toBe(true);
+    if (!('error' in result)) throw new Error('esperaba error');
+    expect(typeof result.error).toBe('string');
+    expect(result.error.length).toBeGreaterThan(0);
+  });
+
+  it('tope de referencias: re-adjuntar una referencia YA presente no da error y mantiene 4 (dedup)', () => {
+    const images = locationImages({ referenceImageIds: ['ref-a', 'ref-b', 'ref-c', 'ref-d'] });
+    const result = mergeRole(images, 'reference', 'ref-a');
+    if (!('next' in result)) throw new Error('esperaba next, no error');
+    if (result.next.assetType !== 'location') throw new Error('narrowing');
+    expect(result.next.referenceImageIds).toEqual(['ref-a', 'ref-b', 'ref-c', 'ref-d']);
+    expect(result.next.referenceImageIds).toHaveLength(4);
+  });
 });
 
 describe('mergeRole — character', () => {

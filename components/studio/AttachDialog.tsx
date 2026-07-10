@@ -12,9 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { attachStudioImageAction } from '@/server-actions/studio';
+import type { StudioRole } from '@/lib/studio/attach-merge';
 import type { StudioRefOption, StudioAssetType } from './types';
 
-type RoleDef = { key: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type RoleDef = { key: StudioRole; label: string; icon: React.ComponentType<{ className?: string }> };
 
 const ROLES_BY_TYPE: Record<StudioAssetType, RoleDef[]> = {
   product: [
@@ -44,7 +45,7 @@ export function AttachDialog(props: {
   const [saving, setSaving] = useState<string | null>(null);
   const roles = ROLES_BY_TYPE[props.assetType];
 
-  async function attach(roleKey: string, roleLabel: string) {
+  async function attach(roleKey: StudioRole, roleLabel: string) {
     if (!props.generationId || saving) return;
     setSaving(roleKey);
     const ref = await addGenerationAsReferenceAction({ generationId: props.generationId });
@@ -83,7 +84,9 @@ export function AttachDialog(props: {
           <DialogTitle>Adjuntar al activo</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">Elige el rol de esta imagen.</p>
-        <div className="grid grid-cols-3 gap-3 pt-2">
+        {/* Columnas según el nº de roles: producto tiene 2, locación/personaje 3.
+            Con grid-cols-3 fijo, producto dejaba una tercera columna vacía. */}
+        <div className={`grid ${roles.length === 2 ? 'grid-cols-2' : 'grid-cols-3'} gap-3 pt-2`}>
           {roles.map((r) => {
             const Icon = r.icon;
             return (

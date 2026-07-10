@@ -116,7 +116,7 @@ export function LocationsPage({
                   href={`/app/studio/location/${l.id}`}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
                 >
-                  <Sparkles className="size-3" aria-hidden /> Estudio
+                  <Sparkles className="size-3" aria-hidden /> Abrir estudio
                 </Link>
                 <button
                   type="button"
