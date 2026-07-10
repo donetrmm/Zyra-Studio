@@ -53,7 +53,7 @@ export default async function StudioPage({
 
   const sessionsRes = await listStudioSessionsAction(type, assetId);
   const sessions: StudioSessionOption[] = sessionsRes.ok
-    ? sessionsRes.data.map((s) => ({ id: s.id, createdAt: s.created_at }))
+    ? sessionsRes.data.map((s) => ({ id: s.id, title: s.title, createdAt: s.created_at }))
     : [];
 
   // Sesión activa: ?session válida y propia, si no la más reciente (redirige para

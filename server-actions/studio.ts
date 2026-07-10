@@ -47,6 +47,7 @@ export type StudioGeneration = {
 
 export type StudioSessionSummary = {
   id: string;
+  title: string | null;
   created_at: string;
   default_provider: string;
   default_model_id: string;
@@ -306,7 +307,7 @@ export async function listStudioSessionsAction(
 
   const { data: rows, error } = await supabase
     .from('studio_sessions')
-    .select('id, created_at, default_provider, default_model_id')
+    .select('id, title, created_at, default_provider, default_model_id')
     .eq('workspace_id', workspace.id)
     .eq('asset_type', parsedType.data)
     .eq('asset_id', assetId)
@@ -318,11 +319,60 @@ export async function listStudioSessionsAction(
 
   const sessions: StudioSessionSummary[] = (rows ?? []).map((r) => ({
     id: r.id as string,
+    title: (r.title as string | null) ?? null,
     created_at: r.created_at as string,
     default_provider: r.default_provider as string,
     default_model_id: r.default_model_id as string,
   }));
   return { ok: true, data: sessions };
+}
+
+// Renombra una sesión (title editable por el usuario). Ownership por workspace +
+// RLS. El cliente refresca el RSC para reflejar la etiqueta nueva.
+export async function renameStudioSessionAction(
+  input: unknown,
+): Promise<Result<{ title: string }>> {
+  const parsed = z
+    .object({ sessionId: z.string().uuid(), title: z.string().trim().min(1).max(60) })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: 'Nombre inválido (1 a 60 caracteres).' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('studio_sessions')
+    .update({ title: parsed.data.title })
+    .eq('id', parsed.data.sessionId)
+    .eq('workspace_id', workspace.id)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  if (!data) return { ok: false, error: 'not_found', message: 'Sesión no encontrada' };
+  return { ok: true, data: { title: parsed.data.title } };
+}
+
+// Archiva una sesión (soft-delete: archived_at). listStudioSessionsAction ya
+// filtra las archivadas; las generaciones se conservan (siguen en la biblioteca).
+export async function archiveStudioSessionAction(
+  sessionId: string,
+): Promise<Result<{ archived: true }>> {
+  if (!z.string().uuid().safeParse(sessionId).success) {
+    return { ok: false, error: 'validation_error', message: 'ID inválido' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('studio_sessions')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', sessionId)
+    .eq('workspace_id', workspace.id)
+    .is('archived_at', null)
+    .select('id')
+    .maybeSingle();
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  if (!data) return { ok: false, error: 'not_found', message: 'Sesión no encontrada' };
+  return { ok: true, data: { archived: true } };
 }
 
 // Las update actions de locations/cast/products tienen su propio Result local

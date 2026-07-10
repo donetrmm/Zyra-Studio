@@ -52,6 +52,7 @@ export type StudioAssetType = 'product' | 'location' | 'character';
 
 export type StudioSessionOption = {
   id: string;
+  title: string | null;
   createdAt: string;
 };
 

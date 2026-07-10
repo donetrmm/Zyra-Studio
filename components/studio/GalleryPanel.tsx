@@ -3,18 +3,20 @@
 import { ImageOff } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
+import { cn } from '@/lib/utils';
 import type { StudioTurn } from './types';
 
 export function GalleryPanel(props: {
   items: StudioTurn[];
   renderActions?: (item: StudioTurn) => React.ReactNode;
+  className?: string;
 }) {
   const done = props.items.filter(
     (i): i is StudioTurn & { thumbPath: string } => Boolean(i.thumbPath) && i.status === 'done',
   );
 
   return (
-    <aside className="flex h-full flex-col border-l border-border">
+    <aside className={cn('flex h-full flex-col border-border lg:border-l', props.className)}>
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-medium text-foreground">Galería de la sesión</h2>
         <p className="text-xs text-muted-foreground">{done.length} imagen(es)</p>

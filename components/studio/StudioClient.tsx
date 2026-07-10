@@ -11,7 +11,9 @@ import { ChatPanel } from './ChatPanel';
 import { Composer, type ComposerSubmit } from './Composer';
 import { GenerationStatusWatcher } from './GenerationStatusWatcher';
 import { AttachDialog } from './AttachDialog';
+import { DownloadTurnButton } from './DownloadTurnButton';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { StudioClientProps, StudioTurn } from './types';
 
 export function StudioClient(props: StudioClientProps) {
@@ -30,6 +32,8 @@ export function StudioClient(props: StudioClientProps) {
   const [attachId, setAttachId] = useState<string | null>(null);
   // Reintentar un fallo: rellena el prompt en el Composer (el nonce dispara el efecto).
   const [seed, setSeed] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
+  // En móvil no caben chat y galería a la vez: se alternan con un segmentado.
+  const [mobileTab, setMobileTab] = useState<'chat' | 'gallery'>('chat');
   const [submitting, startSubmit] = useTransition();
   const submitLock = useRef(false);
 
@@ -116,6 +120,7 @@ export function StudioClient(props: StudioClientProps) {
   }
 
   const pending = items.filter((i) => i.status === 'queued' || i.status === 'processing');
+  const doneCount = items.filter((i) => i.status === 'done' && i.thumbPath).length;
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -128,8 +133,38 @@ export function StudioClient(props: StudioClientProps) {
         defaultProvider="nano-banana"
         defaultModelId="gemini-3-pro-image-preview"
       />
+      {/* Segmentado móvil: en lg se ven ambos paneles, aquí se alternan. */}
+      <div className="flex gap-1 rounded-none border-b border-border p-2 lg:hidden">
+        <div className="flex w-full gap-0.5 rounded-lg bg-muted p-0.5">
+          <button
+            type="button"
+            onClick={() => setMobileTab('chat')}
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              mobileTab === 'chat' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+            )}
+          >
+            Chat
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('gallery')}
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+              mobileTab === 'gallery' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
+            )}
+          >
+            Galería{doneCount > 0 ? ` (${doneCount})` : ''}
+          </button>
+        </div>
+      </div>
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[1fr_360px]">
-        <section className="flex h-full flex-col overflow-hidden">
+        <section
+          className={cn(
+            'flex h-full flex-col overflow-hidden',
+            mobileTab === 'gallery' && 'hidden lg:flex',
+          )}
+        >
           <ChatPanel
             items={items}
             workingId={workingId}
@@ -150,6 +185,7 @@ export function StudioClient(props: StudioClientProps) {
           />
         </section>
         <GalleryPanel
+          className={cn('lg:flex', mobileTab === 'chat' && 'hidden')}
           items={items}
           renderActions={(item) => (
             <>
@@ -171,6 +207,7 @@ export function StudioClient(props: StudioClientProps) {
               >
                 Usar como base
               </Button>
+              <DownloadTurnButton generationId={item.id} variant="secondary" iconOnly />
             </>
           )}
         />

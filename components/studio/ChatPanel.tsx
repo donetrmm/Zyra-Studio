@@ -5,6 +5,7 @@ import { Loader2, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
 import { Lightbox } from '@/components/generation/Lightbox';
 import { Button } from '@/components/ui/button';
+import { DownloadTurnButton } from './DownloadTurnButton';
 import type { StudioAssetType, StudioTurn } from './types';
 
 const EMPTY_COPY: Record<StudioAssetType, string> = {
@@ -55,7 +56,7 @@ export function ChatPanel(props: {
                   src={publicThumbnailUrlClient(item.thumbPath)}
                   alt={item.prompt ?? 'Imagen generada'}
                 />
-                <div className="flex items-center gap-2 bg-card px-2 py-1.5">
+                <div className="flex items-center gap-1 bg-card px-2 py-1.5">
                   {item.id === props.workingId ? (
                     <span className="flex items-center gap-1 text-xs text-brand">
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -72,6 +73,7 @@ export function ChatPanel(props: {
                       Usar como base
                     </Button>
                   )}
+                  <DownloadTurnButton generationId={item.id} className="ml-auto h-7 gap-1 text-xs" />
                 </div>
               </div>
             ) : item.status === 'failed' || item.status === 'canceled' ? (
