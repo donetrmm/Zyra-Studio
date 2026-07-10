@@ -24,6 +24,9 @@ export function StudioClient(props: StudioClientProps) {
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
   const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
+  // Se vuelve true al adjuntar una maestra en sesión, para habilitar Outfit/Estado
+  // sin recargar (la page lo entrega ya calculado del activo).
+  const [characterHasMaster, setCharacterHasMaster] = useState(props.characterHasMaster);
   const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
   const submitLock = useRef(false);
@@ -173,6 +176,8 @@ export function StudioClient(props: StudioClientProps) {
         generationId={attachId}
         assetId={props.assetId}
         assetType={props.assetType}
+        characterHasMaster={characterHasMaster}
+        onMasterAttached={() => setCharacterHasMaster(true)}
         onAttached={(newRef) => {
           // La imagen adjuntada queda disponible como referencia en el compositor
           // sin recargar (dedup por id por si se adjunta dos veces).

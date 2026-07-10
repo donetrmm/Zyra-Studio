@@ -70,4 +70,7 @@ export type StudioClientProps = {
   // Presets de imagen guardados del usuario (tabla presets, type='image'). Los
   // integrados (BUILTIN_PRESETS) los resuelve el Composer por assetType.
   userPresets: StudioPreset[];
+  // Sólo relevante en personaje: si ya tiene maestra. Compuerta de Outfit/Estado
+  // en el AttachDialog (se actualiza en vivo al adjuntar una maestra en sesión).
+  characterHasMaster: boolean;
 };

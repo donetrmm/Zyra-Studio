@@ -127,7 +127,7 @@ export async function updateProductAction(
 }
 
 // Imágenes de producto/empaque: los ids apuntan a media_references del
-// workspace — se valida ownership de cada uno (igual que setBrandKitImagesAction).
+// workspace — se valida ownership de cada uno.
 export async function setProductImagesAction(
   id: string,
   input: unknown,

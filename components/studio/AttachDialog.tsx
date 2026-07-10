@@ -111,6 +111,11 @@ export function AttachDialog(props: {
   generationId: string | null;
   assetId: string;
   assetType: StudioAssetType;
+  // Personaje: si ya tiene maestra. Compuerta de Outfit/Estado (variaciones que
+  // necesitan la identidad canónica). onMasterAttached avisa al padre para
+  // habilitarlos en vivo si la maestra se adjunta en esta misma sesión.
+  characterHasMaster: boolean;
+  onMasterAttached: () => void;
   onAttached: (newRef: StudioRefOption) => void;
 }) {
   const [saving, setSaving] = useState<string | null>(null);
@@ -125,6 +130,8 @@ export function AttachDialog(props: {
   const roles = ROLES_BY_TYPE[props.assetType];
   const labeledRoles = props.assetType === 'character' ? LABELED_ROLE_DEFS : [];
   const totalButtons = roles.length + labeledRoles.length;
+  // Outfit/Estado quedan bloqueados hasta que el personaje tenga maestra.
+  const labeledLocked = labeledRoles.length > 0 && !props.characterHasMaster;
 
   async function attach(roleKey: StudioRole, roleLabel: string) {
     if (!props.generationId || saving) return;
@@ -155,6 +162,9 @@ export function AttachDialog(props: {
       }
       return;
     }
+    // Adjuntar la maestra de un personaje habilita Outfit/Estado en vivo (el
+    // aviso corre aunque el diálogo se cierre: el estado vive en el padre).
+    if (roleKey === 'master' && props.assetType === 'character') props.onMasterAttached();
     // Diálogo cerrado mid-flight: el adjuntar ya quedó server-side; no tocamos la
     // UI (evita setState en desmontado y un toast de éxito tras cancelar).
     if (!mountedRef.current) return;
@@ -205,7 +215,8 @@ export function AttachDialog(props: {
                     type="button"
                     variant="outline"
                     className="h-24 flex-col gap-2 whitespace-normal text-center text-xs"
-                    disabled={saving !== null}
+                    disabled={saving !== null || labeledLocked}
+                    title={labeledLocked ? 'Adjunta una imagen maestra primero' : undefined}
                     onClick={() => setView({ kind: 'labeled', role })}
                   >
                     <Icon className="h-6 w-6" />
@@ -214,6 +225,11 @@ export function AttachDialog(props: {
                 );
               })}
             </div>
+            {labeledLocked && (
+              <p className="text-xs text-muted-foreground">
+                Adjunta una imagen maestra antes de crear outfits o estados.
+              </p>
+            )}
           </>
         ) : (
           <LabeledAttachView

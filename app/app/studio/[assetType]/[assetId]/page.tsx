@@ -46,6 +46,10 @@ export default async function StudioPage({
   const assetName = loaded.name;
   const assetImages = loaded.assetImages;
   const imageIds = imageIdsFromAssetImages(assetImages);
+  // Outfit/Estado son variaciones sobre la identidad canónica del personaje: sin
+  // maestra no hay ancla, así que el estudio los habilita sólo cuando ya existe.
+  const characterHasMaster =
+    assetImages.assetType === 'character' ? assetImages.masterImageId !== null : false;
 
   const sessionsRes = await listStudioSessionsAction(type, assetId);
   const sessions: StudioSessionOption[] = sessionsRes.ok
@@ -133,6 +137,7 @@ export default async function StudioPage({
       initialItems={initialItems}
       availableReferences={availableReferences}
       userPresets={userPresets}
+      characterHasMaster={characterHasMaster}
     />
   );
 }
