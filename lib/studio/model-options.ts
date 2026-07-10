@@ -8,7 +8,11 @@ export type StudioModelKey =
   | 'nano-flash'
   | 'gpt-image-2'
   | 'gpt-image-1'
-  | 'gpt-image-1-mini';
+  | 'gpt-image-1-mini'
+  | 'flux-2-pro'
+  | 'flux-2-max';
+
+export type StudioProviderKind = 'nano-banana' | 'gpt-image' | 'flux';
 
 export type StudioVariantControl =
   | { kind: 'resolution'; options: string[] }
@@ -21,6 +25,8 @@ export const STUDIO_MODELS: { key: StudioModelKey; label: string; sub: string }[
   { key: 'gpt-image-2', label: 'GPT Image 2', sub: 'OpenAI (calidad configurable)' },
   { key: 'gpt-image-1', label: 'GPT Image 1', sub: 'OpenAI' },
   { key: 'gpt-image-1-mini', label: 'GPT Image 1 Mini', sub: 'OpenAI (rápido)' },
+  { key: 'flux-2-pro', label: 'FLUX.2 Pro', sub: 'Black Forest Labs (realismo)' },
+  { key: 'flux-2-max', label: 'FLUX.2 Max', sub: 'Black Forest Labs (máxima calidad)' },
 ];
 
 export function variantControlFor(key: StudioModelKey): StudioVariantControl {
@@ -39,20 +45,24 @@ export function defaultVariantFor(key: StudioModelKey): string {
 export function resolveSelection(
   key: StudioModelKey,
   variant: string,
-): { provider: 'nano-banana' | 'gpt-image'; model: string; variant: string } {
+): { provider: StudioProviderKind; model: string; variant: string } {
   if (key === 'nano-pro') {
     return { provider: 'nano-banana', model: 'gemini-3-pro-image-preview', variant };
   }
   if (key === 'nano-flash') {
     return { provider: 'nano-banana', model: 'gemini-3.1-flash-image-preview', variant };
   }
+  if (key === 'flux-2-pro' || key === 'flux-2-max') {
+    // FLUX por el gateway (bfl/…): la key ES el model_id.
+    return { provider: 'flux', model: key, variant };
+  }
   // gpt-image-2 | gpt-image-1 | gpt-image-1-mini: la key ES el model_id.
   return { provider: 'gpt-image', model: key, variant };
 }
 
-export function maxReferencesFor(provider: 'nano-banana' | 'gpt-image', hasBase: boolean): number {
+export function maxReferencesFor(provider: StudioProviderKind, hasBase: boolean): number {
   // gpt-image: el gateway acepta 4 imágenes de entrada; con base ocupa un cupo.
-  // nano: SubmitStudioTurnSchema limita referenceIds a 6; con base, 5.
+  // nano y flux: SubmitStudioTurnSchema limita referenceIds a 6; con base, 5.
   const cap = provider === 'gpt-image' ? 4 : 6;
   return hasBase ? cap - 1 : cap;
 }

@@ -8,13 +8,15 @@ import {
 } from './model-options';
 
 describe('STUDIO_MODELS', () => {
-  it('ofrece 5 modelos (2 nano + 3 gpt-image)', () => {
+  it('ofrece 7 modelos (2 nano + 3 gpt-image + 2 flux)', () => {
     expect(STUDIO_MODELS.map((m) => m.key)).toEqual([
       'nano-pro',
       'nano-flash',
       'gpt-image-2',
       'gpt-image-1',
       'gpt-image-1-mini',
+      'flux-2-pro',
+      'flux-2-max',
     ]);
   });
 });
@@ -33,6 +35,10 @@ describe('variantControlFor', () => {
     expect(variantControlFor('gpt-image-1')).toEqual({ kind: 'none' });
     expect(variantControlFor('gpt-image-1-mini')).toEqual({ kind: 'none' });
   });
+  it('flux pro/max = sin control (variant fija)', () => {
+    expect(variantControlFor('flux-2-pro')).toEqual({ kind: 'none' });
+    expect(variantControlFor('flux-2-max')).toEqual({ kind: 'none' });
+  });
 });
 
 describe('defaultVariantFor', () => {
@@ -42,6 +48,8 @@ describe('defaultVariantFor', () => {
     expect(defaultVariantFor('gpt-image-2')).toBe('medium');
     expect(defaultVariantFor('gpt-image-1')).toBe('default');
     expect(defaultVariantFor('gpt-image-1-mini')).toBe('default');
+    expect(defaultVariantFor('flux-2-pro')).toBe('default');
+    expect(defaultVariantFor('flux-2-max')).toBe('default');
   });
 });
 
@@ -74,6 +82,20 @@ describe('resolveSelection', () => {
       variant: 'default',
     });
   });
+  it('flux-2-pro → provider flux, model = key', () => {
+    expect(resolveSelection('flux-2-pro', 'default')).toEqual({
+      provider: 'flux',
+      model: 'flux-2-pro',
+      variant: 'default',
+    });
+  });
+  it('flux-2-max → provider flux, model = key', () => {
+    expect(resolveSelection('flux-2-max', 'default')).toEqual({
+      provider: 'flux',
+      model: 'flux-2-max',
+      variant: 'default',
+    });
+  });
 });
 
 describe('maxReferencesFor', () => {
@@ -84,5 +106,9 @@ describe('maxReferencesFor', () => {
   it('nano: 6 sin base, 5 con base (el schema limita referenceIds a 6)', () => {
     expect(maxReferencesFor('nano-banana', false)).toBe(6);
     expect(maxReferencesFor('nano-banana', true)).toBe(5);
+  });
+  it('flux: 6 sin base, 5 con base (mismo tope que nano en v1)', () => {
+    expect(maxReferencesFor('flux', false)).toBe(6);
+    expect(maxReferencesFor('flux', true)).toBe(5);
   });
 });

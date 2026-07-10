@@ -25,6 +25,7 @@ import {
   resolveSelection,
   maxReferencesFor,
   type StudioModelKey,
+  type StudioProviderKind,
 } from '@/lib/studio/model-options';
 import { BUILTIN_PRESETS, type StudioPreset } from '@/lib/studio/presets';
 import type { StudioRefOption, StudioAssetType } from './types';
@@ -40,7 +41,7 @@ const VARIANT_LABEL: Record<string, string> = {
 };
 
 export type ComposerSubmit = {
-  provider: 'nano-banana' | 'gpt-image';
+  provider: StudioProviderKind;
   model: string;
   variant: string;
   prompt: string;

@@ -36,7 +36,15 @@ describe('SubmitStudioTurnSchema', () => {
     expect(SubmitStudioTurnSchema.safeParse({ ...base, referenceIds: Array(7).fill(UUID_2) }).success).toBe(false);
   });
   it('rechaza provider desconocido', () => {
-    expect(SubmitStudioTurnSchema.safeParse({ ...base, provider: 'flux' }).success).toBe(false);
+    expect(SubmitStudioTurnSchema.safeParse({ ...base, provider: 'midjourney' }).success).toBe(false);
+  });
+  it('acepta flux con model y variant propios', () => {
+    const r = SubmitStudioTurnSchema.safeParse({ ...base, provider: 'flux', model: 'flux-2-max', variant: 'default' });
+    expect(r.success).toBe(true);
+  });
+  it('rechaza model que no corresponde al provider (flux + gpt-image-2)', () => {
+    const r = SubmitStudioTurnSchema.safeParse({ ...base, provider: 'flux', model: 'gpt-image-2', variant: 'default' });
+    expect(r.success).toBe(false);
   });
   it('rechaza model que no corresponde al provider (nano-banana + gpt-image-2)', () => {
     const r = SubmitStudioTurnSchema.safeParse({ ...base, provider: 'nano-banana', model: 'gpt-image-2', variant: '2k' });

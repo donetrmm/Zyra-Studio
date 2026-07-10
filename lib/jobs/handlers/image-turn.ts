@@ -1,6 +1,7 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateGptImage, type GptImageModel, type GptImageQuality } from '@/lib/providers/gpt-image';
+import { generate as generateFluxGateway, type FluxGatewayModel } from '@/lib/providers/flux-gateway';
 import { generate as generateNano, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { ProviderError, type ImageReference, type NanoBananaParams } from '@/lib/providers/types';
 import { resolveReferenceBuffers } from '@/lib/jobs/handlers/reference-buffers';
@@ -66,9 +67,15 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
 
     // El gateway acepta hasta 4 imágenes de entrada para gpt-image. Con base +
     // refs se puede pasar de 4 → se recorta (el schema ya limita referenceIds a 4,
-    // pero la base es adicional). Nano tolera más, no se recorta.
+    // pero la base es adicional). FLUX.2 admite hasta 10, pero el estudio lo acota
+    // a 6 en v1 (base incluida) mientras la edición por gateway no está smoke-eada.
+    // Nano tolera más, no se recorta.
     const providerReferences =
-      gen.provider === 'gpt-image' ? references.slice(0, 4) : references;
+      gen.provider === 'gpt-image'
+        ? references.slice(0, 4)
+        : gen.provider === 'flux'
+          ? references.slice(0, 6)
+          : references;
 
     // Guard "mantener idéntico" (opt-in): anexa la cláusula de identidad del
     // activo al prompt que ve el proveedor. El prompt CRUDO queda en la fila.
@@ -76,6 +83,24 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
       keepIdentical: params.keepIdentical === true,
       assetType: typeof params.assetType === 'string' ? params.assetType : null,
     });
+
+    if (gen.provider === 'flux') {
+      // FLUX.2 [pro]/[max] por el gateway (bfl/…): image-only, aspecto directo por
+      // aspectRatio (sin mapeo a size como gpt-image). La variant es 'default'
+      // (no hay sub-calidad); el pricing es plano por imagen.
+      const result = await generateFluxGateway({
+        model: gen.model_id as FluxGatewayModel,
+        prompt: finalPrompt,
+        aspectRatio: typeof params.aspectRatio === 'string' ? params.aspectRatio : '1:1',
+        references: providerReferences,
+      });
+      return {
+        kind: 'finalize',
+        outputBuffer: result.buffer,
+        mimeType: result.mimeType,
+        metadata: result.meta,
+      };
+    }
 
     if (gen.provider === 'gpt-image') {
       // gpt-image-2 usa la variant como quality (low/medium/high); gpt-image-1

@@ -32,6 +32,7 @@ import {
   createStudioSessionAction,
   renameStudioSessionAction,
 } from '@/server-actions/studio';
+import type { StudioProviderKind } from '@/lib/studio/model-options';
 import type { StudioSessionOption } from './types';
 
 const BACK_HREF: Record<'product' | 'location' | 'character', string> = {
@@ -62,7 +63,7 @@ export function SessionHeader(props: {
   assetName: string;
   sessions: StudioSessionOption[];
   activeSessionId: string | null;
-  defaultProvider: 'nano-banana' | 'gpt-image';
+  defaultProvider: StudioProviderKind;
   defaultModelId: string;
 }) {
   const router = useRouter();

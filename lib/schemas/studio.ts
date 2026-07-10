@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const StudioProviderSchema = z.enum(['nano-banana', 'gpt-image']);
+export const StudioProviderSchema = z.enum(['nano-banana', 'gpt-image', 'flux']);
 export const StudioAssetTypeSchema = z.enum(['product', 'location', 'character']);
 export type StudioProvider = z.infer<typeof StudioProviderSchema>;
 export type StudioAssetType = z.infer<typeof StudioAssetTypeSchema>;
@@ -21,6 +21,15 @@ const NANO_MODELS = ['gemini-3-pro-image-preview', 'gemini-3.1-flash-image-previ
 const NANO_VARIANTS = ['1k', '2k', '4k'];
 const GPT_MODELS = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini'];
 const GPT_VARIANTS = ['low', 'medium', 'high', 'default'];
+// FLUX.2 [pro]/[max] por el gateway (bfl/…): sin sub-calidad, variant fija.
+const FLUX_MODELS = ['flux-2-pro', 'flux-2-max'];
+const FLUX_VARIANTS = ['default'];
+
+const MODELS_BY_PROVIDER: Record<StudioProvider, [string[], string[]]> = {
+  'nano-banana': [NANO_MODELS, NANO_VARIANTS],
+  'gpt-image': [GPT_MODELS, GPT_VARIANTS],
+  flux: [FLUX_MODELS, FLUX_VARIANTS],
+};
 
 export const SubmitStudioTurnSchema = z
   .object({
@@ -36,8 +45,7 @@ export const SubmitStudioTurnSchema = z
     assetType: StudioAssetTypeSchema.optional(),
   })
   .superRefine((val, ctx) => {
-    const [models, variants] =
-      val.provider === 'nano-banana' ? [NANO_MODELS, NANO_VARIANTS] : [GPT_MODELS, GPT_VARIANTS];
+    const [models, variants] = MODELS_BY_PROVIDER[val.provider];
     if (!models.includes(val.model)) {
       ctx.addIssue({ code: 'custom', path: ['model'], message: `model inválido para ${val.provider}` });
     }
