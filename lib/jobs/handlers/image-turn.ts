@@ -4,6 +4,8 @@ import { generate as generateGptImage, type GptImageModel, type GptImageQuality 
 import { generate as generateNano, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { ProviderError, type ImageReference, type NanoBananaParams } from '@/lib/providers/types';
 import { resolveReferenceBuffers } from '@/lib/jobs/handlers/reference-buffers';
+import { resolveBaseImage } from '@/lib/jobs/handlers/base-image';
+import { assembleStudioPrompt } from '@/lib/studio/prompt-assembly';
 import type { GenerationRow, JobResult } from '@/lib/jobs/handlers/types';
 
 export function mapCode(err: ProviderError): 'safety' | 'rate_limit' | 'timeout' | 'unknown' {
@@ -60,6 +62,27 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
       gen.reference_ids ?? [],
     );
 
+    // Edición en contexto: si el turno tiene parent, su output es la imagen base.
+    // Va como PRIMERA imagen (nano la toma como content-part; gpt-image como
+    // prompt.images[0]). Si el padre no resuelve, degrada a texto-a-imagen.
+    if (gen.parent_generation_id) {
+      const base = await resolveBaseImage(gen.workspace_id, gen.parent_generation_id);
+      if (base) references.unshift(base);
+    }
+
+    // El gateway acepta hasta 4 imágenes de entrada para gpt-image. Con base +
+    // refs se puede pasar de 4 → se recorta (el schema ya limita referenceIds a 4,
+    // pero la base es adicional). Nano tolera más, no se recorta.
+    const providerReferences =
+      gen.provider === 'gpt-image' ? references.slice(0, 4) : references;
+
+    // Guard "mantener idéntico" (opt-in): anexa la cláusula de identidad del
+    // activo al prompt que ve el proveedor. El prompt CRUDO queda en la fila.
+    const finalPrompt = assembleStudioPrompt(gen.prompt ?? '', {
+      keepIdentical: params.keepIdentical === true,
+      assetType: typeof params.assetType === 'string' ? params.assetType : null,
+    });
+
     if (gen.provider === 'gpt-image') {
       // gpt-image-2 usa la variant como quality (low/medium/high); gpt-image-1
       // y gpt-image-1-mini no aceptan quality (el adapter lo ignora si no es
@@ -67,10 +90,10 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
       const quality = gen.model_id === 'gpt-image-2' ? (variant as GptImageQuality) : undefined;
       const result = await generateGptImage({
         model: gen.model_id as GptImageModel,
-        prompt: gen.prompt ?? '',
+        prompt: finalPrompt,
         quality,
         size: gptImageSize(params.aspectRatio),
-        references,
+        references: providerReferences,
       });
       return {
         kind: 'finalize',
@@ -84,10 +107,10 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
     // (lib/providers/nano-banana.ts) — sin duplicar el mapeo.
     const result = await generateNano({
       model: gen.model_id as NanoBananaParams['model'],
-      prompt: gen.prompt ?? '',
+      prompt: finalPrompt,
       aspectRatio: typeof params.aspectRatio === 'string' ? params.aspectRatio : '1:1',
       resolution: nanoVariantToResolution(variant),
-      references,
+      references: providerReferences,
     });
     return {
       kind: 'finalize',

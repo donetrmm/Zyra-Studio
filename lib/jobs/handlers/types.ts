@@ -41,6 +41,7 @@ export type GenerationRow = {
   prompt: string | null;
   params: Record<string, unknown>;
   reference_ids: string[];
+  parent_generation_id: string | null;
   status: 'queued' | 'processing' | 'done' | 'failed' | 'canceled';
   provider_task_id: string | null;
   provider_payload: Record<string, unknown> | null;

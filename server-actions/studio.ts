@@ -149,6 +149,7 @@ export async function submitStudioTurnAction(
       variant: data.variant,
       aspectRatio: data.aspectRatio,
       keepIdentical: data.keepIdentical,
+      assetType: data.assetType ?? null,
     },
     reference_ids: data.referenceIds ?? [],
     parent_generation_id: data.parentGenerationId ?? null,

@@ -33,7 +33,7 @@ function row(strict: boolean, prevTurn: unknown = null): GenerationRow {
     id: 'gen-1', user_id: 'u', workspace_id: 'ws', type: 'image', provider: 'nano-banana',
     model_id: 'gemini-3-pro-image-preview', prompt: 'do it',
     params: { storyboard: { campaignItemId: 'item-1', campaignId: 'c', genAspect: strict ? '4:5' : '9:16', strict, conversational: prevTurn !== null, referencePaths: [], chatRefPaths: [], prevTurn } },
-    reference_ids: [], status: 'processing', provider_task_id: null,
+    reference_ids: [], parent_generation_id: null, status: 'processing', provider_task_id: null,
     provider_payload: null, poll_attempts: 0, timeout_at: null, cancel_requested: false, credits_estimated: 10,
   };
 }

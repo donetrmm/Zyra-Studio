@@ -33,6 +33,7 @@ export const SubmitStudioTurnSchema = z
     parentGenerationId: z.string().uuid().nullable().optional(),
     keepIdentical: z.boolean().optional(),
     aspectRatio: z.string().optional(),
+    assetType: StudioAssetTypeSchema.optional(),
   })
   .superRefine((val, ctx) => {
     const [models, variants] =

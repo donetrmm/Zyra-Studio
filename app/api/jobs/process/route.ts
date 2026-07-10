@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   const { data: gen, error: loadErr } = await admin
     .from('generations')
     .select(
-      'id, user_id, workspace_id, type, provider, model_id, prompt, params, reference_ids, status, provider_task_id, provider_payload, poll_attempts, timeout_at, cancel_requested, credits_estimated',
+      'id, user_id, workspace_id, type, provider, model_id, prompt, params, reference_ids, parent_generation_id, status, provider_task_id, provider_payload, poll_attempts, timeout_at, cancel_requested, credits_estimated',
     )
     .eq('id', generationId)
     .single();
