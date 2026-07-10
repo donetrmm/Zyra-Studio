@@ -136,6 +136,7 @@ export function Composer(props: {
       referenceIds: refs.map((r) => r.id),
     });
     setPrompt('');
+    setRefs([]);
   }
 
   return (
@@ -266,7 +267,7 @@ export function Composer(props: {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit();
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !props.disabled) submit();
           }}
           placeholder={props.hasWorkingImage ? 'Describe el cambio sobre la imagen de trabajo…' : 'Describe la imagen…'}
           rows={2}

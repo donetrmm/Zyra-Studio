@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
@@ -22,6 +22,7 @@ export function StudioClient(props: StudioClientProps) {
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
   const [submitting, startSubmit] = useTransition();
+  const submitLock = useRef(false);
 
   function onResolved(
     id: string,
@@ -36,58 +37,64 @@ export function StudioClient(props: StudioClientProps) {
   }
 
   function handleSubmit(input: ComposerSubmit) {
+    if (submitLock.current) return;
+    submitLock.current = true;
     startSubmit(async () => {
-      // Sesión: usa la activa; si no hay, crea una y fija la URL.
-      let sessionId = activeSessionId;
-      if (!sessionId) {
-        const created = await createStudioSessionAction({
+      try {
+        // Sesión: usa la activa; si no hay, crea una y fija la URL.
+        let sessionId = activeSessionId;
+        if (!sessionId) {
+          const created = await createStudioSessionAction({
+            assetType: 'product',
+            assetId: props.assetId,
+            provider: input.provider,
+            modelId: input.model,
+          });
+          if (!created.ok) {
+            toast.error('No se pudo crear la sesión');
+            return;
+          }
+          sessionId = created.data.id;
+          setActiveSessionId(sessionId);
+          router.replace(`/app/studio/product/${props.assetId}?session=${sessionId}`);
+        }
+
+        const res = await submitStudioTurnAction({
+          sessionId,
           assetType: 'product',
-          assetId: props.assetId,
           provider: input.provider,
-          modelId: input.model,
+          model: input.model,
+          variant: input.variant,
+          prompt: input.prompt,
+          aspectRatio: input.aspectRatio,
+          keepIdentical: input.keepIdentical,
+          referenceIds: input.referenceIds,
+          parentGenerationId: workingId,
         });
-        if (!created.ok) {
-          toast.error('No se pudo crear la sesión');
+        if (!res.ok) {
+          toast.error(
+            res.error === 'insufficient_credits'
+              ? 'Créditos insuficientes'
+              : res.message ?? 'No se pudo enviar el turno',
+          );
           return;
         }
-        sessionId = created.data.id;
-        setActiveSessionId(sessionId);
-        router.replace(`/app/studio/product/${props.assetId}?session=${sessionId}`);
-      }
 
-      const res = await submitStudioTurnAction({
-        sessionId,
-        assetType: 'product',
-        provider: input.provider,
-        model: input.model,
-        variant: input.variant,
-        prompt: input.prompt,
-        aspectRatio: input.aspectRatio,
-        keepIdentical: input.keepIdentical,
-        referenceIds: input.referenceIds,
-        parentGenerationId: workingId,
-      });
-      if (!res.ok) {
-        toast.error(
-          res.error === 'insufficient_credits'
-            ? 'Créditos insuficientes'
-            : res.message ?? 'No se pudo enviar el turno',
-        );
-        return;
+        // Turno optimista: aparece como "generando…" y se resuelve por Realtime.
+        const optimistic: StudioTurn = {
+          id: res.data.generationId,
+          prompt: input.prompt,
+          status: 'queued',
+          provider: input.provider,
+          modelId: input.model,
+          thumbPath: null,
+          createdAt: new Date().toISOString(),
+          errorMessage: null,
+        };
+        setItems((cur) => [...cur, optimistic]);
+      } finally {
+        submitLock.current = false;
       }
-
-      // Turno optimista: aparece como "generando…" y se resuelve por Realtime.
-      const optimistic: StudioTurn = {
-        id: res.data.generationId,
-        prompt: input.prompt,
-        status: 'queued',
-        provider: input.provider,
-        modelId: input.model,
-        thumbPath: null,
-        createdAt: new Date().toISOString(),
-        errorMessage: null,
-      };
-      setItems((cur) => [...cur, optimistic]);
     });
   }
 
