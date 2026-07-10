@@ -35,7 +35,7 @@ import {
 } from '@/lib/schemas/video';
 import { SubmitSeedanceSchema, type SubmitSeedanceInput } from '@/lib/schemas/campaigns';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
-import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
+import { generate as generateNanoBanana, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
 import { enqueueJob } from '@/lib/jobs/queue';
@@ -54,19 +54,6 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; messag
 
 function megapixelsToVariant(mp: number): number {
   return mp;
-}
-
-function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | '4K' {
-  switch (variant) {
-    case '1k':
-      return '1K';
-    case '2k':
-      return '2K';
-    case '4k':
-      return '4K';
-    default:
-      return '2K';
-  }
 }
 
 function paramsForEstimator(input: SubmitGenerationInput) {

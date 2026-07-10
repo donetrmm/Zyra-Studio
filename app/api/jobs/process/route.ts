@@ -290,6 +290,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ack: 'failed' });
   }
 
+  if (result.kind === 'skip') {
+    // Claim atómico perdido dentro del handler one-shot (image-turn.ts): otra
+    // invocación de QStash (reintento) ya tomó este job y lo está procesando
+    // o ya terminó. No-op — nada que confirmar, refundear ni re-encolar. El
+    // manejo pleno de retries/dedupe queda para una task posterior; aquí solo
+    // se evita el error de exhaustividad del switch al agregar 'skip' a JobResult.
+    return NextResponse.json({ ok: true, ack: 'skip' });
+  }
+
   // result.kind === 'finalize' — handler entregó el buffer
   const startedAt = generation.provider_payload?._started_at as number | undefined;
   const processingMs = startedAt ? Date.now() - startedAt : 0;

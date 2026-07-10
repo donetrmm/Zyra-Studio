@@ -7,6 +7,7 @@ import { ProviderError, type ImageReference, type NanoBananaParams, type NanoBan
 import { extendPanelTo916Attempt } from '@/lib/campaigns/storyboard-expand';
 import { centralSafeCrop } from '@/lib/images/safe-area';
 import { downloadOutputBuffer, downloadReferenceBuffer, uploadSafeBase, uploadThoughtSignature } from '@/lib/supabase/storage';
+import { runImageTurn } from './image-turn';
 
 // inferExtension no vive en un módulo importable (es una función privada
 // duplicada en varios archivos); se define local aquí para no acoplar el worker
@@ -114,6 +115,14 @@ async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
 
 export const nanoBananaHandler: JobHandler = {
   async handle(gen: GenerationRow, action): Promise<JobResult> {
+    // Turno del estudio (Fase 1 del estudio creativo): sin params.storyboard,
+    // no es un panel de storyboard sino una generación one-shot del chat del
+    // estudio. Enrutar a runImageTurn y conservar intacto todo lo de abajo
+    // para el flujo de storyboard.
+    const studioParams = gen.params as { storyboard?: unknown };
+    if (!studioParams.storyboard) {
+      return runImageTurn(gen);
+    }
     try {
       const p = payloadOf(gen);
       if (action === 'submit') {
