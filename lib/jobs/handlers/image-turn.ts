@@ -6,7 +6,7 @@ import { ProviderError, type ImageReference, type NanoBananaParams } from '@/lib
 import { resolveReferenceBuffers } from '@/lib/jobs/handlers/reference-buffers';
 import type { GenerationRow, JobResult } from '@/lib/jobs/handlers/types';
 
-function mapCode(err: ProviderError): 'safety' | 'rate_limit' | 'timeout' | 'unknown' {
+export function mapCode(err: ProviderError): 'safety' | 'rate_limit' | 'timeout' | 'unknown' {
   if (err.code === 'safety') return 'safety';
   if (err.code === 'rate_limit') return 'rate_limit';
   if (err.code === 'timeout') return 'timeout';
@@ -35,12 +35,16 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
 
   const params = (gen.params ?? {}) as Record<string, unknown>;
   const variant = typeof params.variant === 'string' ? params.variant : '';
-  const references: ImageReference[] = await resolveReferenceBuffers(
-    gen.workspace_id,
-    gen.reference_ids ?? [],
-  );
 
   try {
+    // Dentro del try: si una referencia falla (objeto de Storage borrado, blip
+    // de DB) el throw se convierte en 'fail' -> refund + mensaje, en vez de
+    // dejar la fila colgada en 'processing' (ya reclamada arriba) sin refund.
+    const references: ImageReference[] = await resolveReferenceBuffers(
+      gen.workspace_id,
+      gen.reference_ids ?? [],
+    );
+
     if (gen.provider === 'gpt-image') {
       // gpt-image-2 usa la variant como quality (low/medium/high); gpt-image-1
       // y gpt-image-1-mini no aceptan quality (el adapter lo ignora si no es
