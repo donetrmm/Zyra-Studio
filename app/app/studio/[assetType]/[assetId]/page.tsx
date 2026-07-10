@@ -119,7 +119,6 @@ export default async function StudioPage({
       activeSessionId={activeSessionId}
       initialItems={initialItems}
       availableReferences={availableReferences}
-      assetImages={assetImages}
     />
   );
 }

@@ -330,11 +330,25 @@ export async function listStudioSessionsAction(
 // devuelven ('validation_error' | 'forbidden' | 'not_found' | 'internal_error')
 // caben en el ActionError de este módulo — se normaliza acá para no filtrar
 // un `string` suelto al Result tipado de attachStudioImageAction.
+const KNOWN_ACTION_ERRORS: readonly ActionError[] = [
+  'validation_error',
+  'not_found',
+  'insufficient_credits',
+  'internal_error',
+  'forbidden',
+];
+
+function toActionError(error: string): ActionError {
+  return (KNOWN_ACTION_ERRORS as readonly string[]).includes(error)
+    ? (error as ActionError)
+    : 'internal_error';
+}
+
 function normalizeResult<T>(
   res: { ok: true; data: T } | { ok: false; error: string; message?: string },
 ): Result<T> {
   if (res.ok) return { ok: true, data: res.data };
-  return { ok: false, error: res.error as ActionError, message: res.message };
+  return { ok: false, error: toActionError(res.error), message: res.message };
 }
 
 // Persiste el StudioAssetImages fusionado reusando la update action del tipo

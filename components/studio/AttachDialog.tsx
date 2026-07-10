@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { attachStudioImageAction } from '@/server-actions/studio';
-import type { StudioAssetImages, StudioRefOption, StudioAssetType } from './types';
+import type { StudioRefOption, StudioAssetType } from './types';
 
 type RoleDef = { key: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -39,7 +39,7 @@ export function AttachDialog(props: {
   generationId: string | null;
   assetId: string;
   assetType: StudioAssetType;
-  onAttached: (next: StudioAssetImages, newRef: StudioRefOption) => void;
+  onAttached: (newRef: StudioRefOption) => void;
 }) {
   const [saving, setSaving] = useState<string | null>(null);
   const roles = ROLES_BY_TYPE[props.assetType];
@@ -67,7 +67,7 @@ export function AttachDialog(props: {
       toast.error(res.message ?? 'No se pudo guardar');
       return;
     }
-    props.onAttached(res.data.assetImages, {
+    props.onAttached({
       id: ref.data.id,
       previewUrl: ref.data.previewUrl,
       filename: ref.data.filename,

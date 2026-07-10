@@ -66,5 +66,4 @@ export type StudioClientProps = {
   activeSessionId: string | null;
   initialItems: StudioTurn[];
   availableReferences: StudioRefOption[];
-  assetImages: StudioAssetImages;
 };

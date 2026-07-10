@@ -12,7 +12,7 @@ import { Composer, type ComposerSubmit } from './Composer';
 import { GenerationStatusWatcher } from './GenerationStatusWatcher';
 import { AttachDialog } from './AttachDialog';
 import { Button } from '@/components/ui/button';
-import type { StudioClientProps, StudioAssetImages, StudioTurn } from './types';
+import type { StudioClientProps, StudioTurn } from './types';
 
 export function StudioClient(props: StudioClientProps) {
   const router = useRouter();
@@ -23,10 +23,6 @@ export function StudioClient(props: StudioClientProps) {
     return lastDone?.id ?? null;
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
-  // El valor ya no se lee aquí (attachStudioImageAction re-lee el activo fresco
-  // server-side y AttachDialog ya no recibe el snapshot); se conserva el setter
-  // porque onAttached sigue sincronizando el estado tras cada adjuntar.
-  const [, setAssetImages] = useState<StudioAssetImages>(props.assetImages);
   const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
   const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
@@ -175,8 +171,7 @@ export function StudioClient(props: StudioClientProps) {
         generationId={attachId}
         assetId={props.assetId}
         assetType={props.assetType}
-        onAttached={(next, newRef) => {
-          setAssetImages(next);
+        onAttached={(newRef) => {
           // La imagen adjuntada queda disponible como referencia en el compositor
           // sin recargar (dedup por id por si se adjunta dos veces).
           setAvailableReferences((cur) =>
