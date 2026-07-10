@@ -20,6 +20,9 @@ export default async function LibraryPage() {
         'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id',
       )
       .eq('workspace_id', workspace.id)
+      // Los turnos del estudio creativo se gestionan en su propia galería de
+      // sesión, no en la Biblioteca general (evita que la saturen).
+      .is('studio_session_id', null)
       .order('created_at', { ascending: false })
       .limit(120),
     supabase

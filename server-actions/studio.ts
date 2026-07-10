@@ -52,6 +52,26 @@ const ASSET_TABLE: Record<StudioAssetType, 'products' | 'locations' | 'character
   character: 'characters',
 };
 
+type StudioSupabase = Awaited<ReturnType<typeof createClient>>;
+
+// Ownership del activo: el product/location/character debe pertenecer al
+// workspace (RLS es la última línea, no la primera). Compartido por
+// createStudioSessionAction y listStudioSessionsAction.
+async function ownsAsset(
+  supabase: StudioSupabase,
+  workspaceId: string,
+  assetType: StudioAssetType,
+  assetId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from(ASSET_TABLE[assetType])
+    .select('id')
+    .eq('id', assetId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 export async function createStudioSessionAction(
   input: unknown,
 ): Promise<Result<{ id: string }>> {
@@ -63,17 +83,9 @@ export async function createStudioSessionAction(
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  // Ownership: el activo debe pertenecer al workspace actual (RLS es la última
-  // línea, no la primera — esta verificación evita crear una sesión huérfana
-  // apuntando a un activo de otro workspace).
-  const table = ASSET_TABLE[data.assetType];
-  const { data: asset } = await supabase
-    .from(table)
-    .select('id')
-    .eq('id', data.assetId)
-    .eq('workspace_id', workspace.id)
-    .maybeSingle();
-  if (!asset) {
+  // Ownership: el activo debe pertenecer al workspace actual (evita crear una
+  // sesión huérfana apuntando a un activo de otro workspace).
+  if (!(await ownsAsset(supabase, workspace.id, data.assetType, data.assetId))) {
     return { ok: false, error: 'not_found', message: `${data.assetType} no pertenece al workspace` };
   }
 
@@ -115,6 +127,22 @@ export async function submitStudioTurnAction(
     .maybeSingle();
   if (!session) {
     return { ok: false, error: 'not_found', message: 'Sesión no encontrada' };
+  }
+
+  // Si el turno edita sobre una imagen de trabajo, la generación padre debe ser
+  // del workspace: evita apuntar a una generación ajena. El worker igual la
+  // ignoraría (resolveBaseImage filtra por workspace), pero acá falla claro en
+  // vez de degradar en silencio a texto-a-imagen.
+  if (data.parentGenerationId) {
+    const { data: parent } = await supabase
+      .from('generations')
+      .select('id')
+      .eq('id', data.parentGenerationId)
+      .eq('workspace_id', workspace.id)
+      .maybeSingle();
+    if (!parent) {
+      return { ok: false, error: 'not_found', message: 'Imagen base no encontrada' };
+    }
   }
 
   // Costo recalculado server-side (gpt-image es pricing plano sin unit_size;
@@ -264,14 +292,7 @@ export async function listStudioSessionsAction(
 
   // Ownership del activo (no basta que la sesión sea del workspace: el activo
   // también debe serlo, igual que createStudioSessionAction).
-  const table = ASSET_TABLE[parsedType.data];
-  const { data: asset } = await supabase
-    .from(table)
-    .select('id')
-    .eq('id', assetId)
-    .eq('workspace_id', workspace.id)
-    .maybeSingle();
-  if (!asset) {
+  if (!(await ownsAsset(supabase, workspace.id, parsedType.data, assetId))) {
     return { ok: false, error: 'not_found', message: `${parsedType.data} no pertenece al workspace` };
   }
 
