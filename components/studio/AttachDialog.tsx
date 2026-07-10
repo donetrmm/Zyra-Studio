@@ -38,7 +38,7 @@ const ROLES_BY_TYPE: Record<StudioAssetType, RoleDef[]> = {
 // Fusiona el nuevo ref en el rol y devuelve el siguiente StudioAssetImages, o un
 // error legible (p. ej. tope de ángulos). Pura sobre el estado en memoria; la
 // persistencia (server action) la hace attach() con este resultado.
-function mergeRole(
+export function mergeRole(
   images: StudioAssetImages,
   roleKey: string,
   refId: string,
