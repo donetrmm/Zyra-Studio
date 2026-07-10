@@ -12,8 +12,23 @@ export const PRODUCT_IDENTITY_CLAUSE =
   'Keep the product identity perfectly consistent — identical shape, colors, label, logo, ' +
   'materials and proportions. Do not alter or invent any label text.';
 
+// Cláusula de identidad de LOCACIÓN (misma intención que refineLocationMaster):
+// preserva arquitectura, disposición y encuadre; el cambio solo toca luz/hora/
+// elementos. Sin personas salvo que la instrucción lo pida.
+export const LOCATION_IDENTITY_CLAUSE =
+  'Keep the exact same place — same architecture, layout, surfaces and camera framing. ' +
+  'Do not add or remove structural elements, and keep it empty of people unless the change explicitly says otherwise.';
+
+// Cláusula de identidad de PERSONAJE (misma intención que refineCharacterMaster):
+// preserva cara, complexión, piel y build; la instrucción manda sobre lo demás.
+export const CHARACTER_IDENTITY_CLAUSE =
+  'Keep the exact same person identity — same face, complexion, build, skin and hairstyle. ' +
+  'Only change what the instruction asks; the result must still read as the same person.';
+
 const IDENTITY_CLAUSE_BY_TYPE: Record<string, string> = {
   product: PRODUCT_IDENTITY_CLAUSE,
+  location: LOCATION_IDENTITY_CLAUSE,
+  character: CHARACTER_IDENTITY_CLAUSE,
 };
 
 export function assembleStudioPrompt(

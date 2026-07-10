@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { assembleStudioPrompt, PRODUCT_IDENTITY_CLAUSE } from './prompt-assembly';
+import {
+  assembleStudioPrompt,
+  PRODUCT_IDENTITY_CLAUSE,
+  LOCATION_IDENTITY_CLAUSE,
+  CHARACTER_IDENTITY_CLAUSE,
+} from './prompt-assembly';
 
 describe('assembleStudioPrompt', () => {
   it('sin guard devuelve el prompt crudo', () => {
@@ -15,9 +20,8 @@ describe('assembleStudioPrompt', () => {
     expect(out.startsWith('cámbiale el fondo')).toBe(true);
     expect(out).toContain(PRODUCT_IDENTITY_CLAUSE);
   });
-  it('guard on sin assetType conocido (location/character en Fase 2) = prompt crudo', () => {
-    // Fase 2 solo tiene cláusula de producto; otros tipos se generalizan en Fase 4.
-    expect(assembleStudioPrompt('de noche', { keepIdentical: true, assetType: 'location' })).toBe('de noche');
+  it('guard on sin assetType conocido (null) = prompt crudo', () => {
+    // location y character ya existen en Fase 4a; solo null es desconocido.
     expect(assembleStudioPrompt('de noche', { keepIdentical: true, assetType: null })).toBe('de noche');
   });
   it('recorta espacios del prompt crudo antes de anexar', () => {
@@ -33,5 +37,24 @@ describe('assembleStudioPrompt', () => {
     expect(out).toBe('cambia el fondo ' + PRODUCT_IDENTITY_CLAUSE);
     expect(out).toContain('cambia el fondo');
     expect(out).toContain(PRODUCT_IDENTITY_CLAUSE);
+  });
+});
+
+describe('assembleStudioPrompt: locación y personaje', () => {
+  it('guard on en locación anexa la cláusula de arquitectura', () => {
+    const out = assembleStudioPrompt('de noche', { keepIdentical: true, assetType: 'location' });
+    expect(out.startsWith('de noche')).toBe(true);
+    expect(out.endsWith(LOCATION_IDENTITY_CLAUSE)).toBe(true);
+  });
+  it('guard on en personaje anexa la cláusula de identidad de persona', () => {
+    const out = assembleStudioPrompt('cámbiale el peinado', { keepIdentical: true, assetType: 'character' });
+    expect(out.endsWith(CHARACTER_IDENTITY_CLAUSE)).toBe(true);
+  });
+  it('guard off = prompt crudo para cualquier tipo', () => {
+    expect(assembleStudioPrompt('x', { keepIdentical: false, assetType: 'location' })).toBe('x');
+    expect(assembleStudioPrompt('x', { keepIdentical: false, assetType: 'character' })).toBe('x');
+  });
+  it('las 3 cláusulas son distintas entre sí', () => {
+    expect(new Set([PRODUCT_IDENTITY_CLAUSE, LOCATION_IDENTITY_CLAUSE, CHARACTER_IDENTITY_CLAUSE]).size).toBe(3);
   });
 });
