@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { setProductImagesAction } from '@/server-actions/products';
-import type { StudioProductImages, StudioRefOption } from './types';
+import type { StudioAssetImages, StudioRefOption } from './types';
 
 type Role = 'product' | 'packaging';
 
@@ -21,13 +21,18 @@ export function AttachDialog(props: {
   onOpenChange: (open: boolean) => void;
   generationId: string | null;
   productId: string;
-  productImages: StudioProductImages;
-  onAttached: (next: StudioProductImages, newRef: StudioRefOption) => void;
+  assetType: 'product' | 'location' | 'character';
+  assetImages: StudioAssetImages;
+  onAttached: (next: StudioAssetImages, newRef: StudioRefOption) => void;
 }) {
   const [saving, setSaving] = useState<Role | null>(null);
 
   async function attach(role: Role) {
     if (!props.generationId) return;
+    // Fase 2: el diálogo solo maneja producto (los roles de locación/personaje
+    // llegan en la Task 3). El botón que abre este diálogo ya está gateado a
+    // producto en StudioClient; este narrowing es solo robustez de tipos.
+    if (props.assetImages.assetType !== 'product') return;
     setSaving(role);
     // 1) Promueve la generación a media_reference reutilizable.
     const ref = await addGenerationAsReferenceAction({ generationId: props.generationId });
@@ -37,15 +42,20 @@ export function AttachDialog(props: {
       return;
     }
     // 2) Agrega el ref al array del rol, sin duplicar ni pisar lo existente.
-    const next: StudioProductImages =
+    // 'as const' en assetType conserva el literal 'product' (si no, TS lo
+    // widena a string y next deja de calzar con StudioAssetImages).
+    const productImages = props.assetImages;
+    const next =
       role === 'product'
         ? {
-            productImageIds: [...new Set([...props.productImages.productImageIds, ref.data.id])],
-            packagingImageIds: props.productImages.packagingImageIds,
+            assetType: 'product' as const,
+            productImageIds: [...new Set([...productImages.productImageIds, ref.data.id])],
+            packagingImageIds: productImages.packagingImageIds,
           }
         : {
-            productImageIds: props.productImages.productImageIds,
-            packagingImageIds: [...new Set([...props.productImages.packagingImageIds, ref.data.id])],
+            assetType: 'product' as const,
+            productImageIds: productImages.productImageIds,
+            packagingImageIds: [...new Set([...productImages.packagingImageIds, ref.data.id])],
           };
     // 3) Persiste (setProductImagesAction reemplaza ambos arrays).
     const res = await setProductImagesAction(props.productId, {

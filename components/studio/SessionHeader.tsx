@@ -16,6 +16,12 @@ import { Button } from '@/components/ui/button';
 import { createStudioSessionAction } from '@/server-actions/studio';
 import type { StudioSessionOption } from './types';
 
+const BACK_HREF: Record<'product' | 'location' | 'character', string> = {
+  product: '/app/brand/kits',
+  location: '/app/brand/locations',
+  character: '/app/brand/cast',
+};
+
 function sessionLabel(createdAt: string): string {
   const d = new Date(createdAt);
   return `Sesión · ${d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} ${d.toLocaleTimeString(
@@ -25,6 +31,7 @@ function sessionLabel(createdAt: string): string {
 }
 
 export function SessionHeader(props: {
+  assetType: 'product' | 'location' | 'character';
   assetId: string;
   assetName: string;
   sessions: StudioSessionOption[];
@@ -36,13 +43,13 @@ export function SessionHeader(props: {
   const [pending, startTransition] = useTransition();
 
   function goToSession(id: string) {
-    router.push(`/app/studio/product/${props.assetId}?session=${id}`);
+    router.push(`/app/studio/${props.assetType}/${props.assetId}?session=${id}`);
   }
 
   function newSession() {
     startTransition(async () => {
       const res = await createStudioSessionAction({
-        assetType: 'product',
+        assetType: props.assetType,
         assetId: props.assetId,
         provider: props.defaultProvider,
         modelId: props.defaultModelId,
@@ -58,7 +65,7 @@ export function SessionHeader(props: {
   return (
     <header className="flex items-center gap-3 border-b border-border px-4 py-3">
       <Link
-        href="/app/brand"
+        href={BACK_HREF[props.assetType]}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />

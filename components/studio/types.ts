@@ -22,11 +22,32 @@ export type StudioRefOption = {
   filename: string;
 };
 
-// Arrays de imágenes del producto por rol (para adjuntar sin pisar lo existente).
-export type StudioProductImages = {
-  productImageIds: string[];
-  packagingImageIds: string[];
-};
+// Imágenes del activo por rol. Para producto es solo arrays de imágenes; para
+// locación/personaje se carga la ENTIDAD COMPLETA porque updateLocation/Character
+// hacen upsert de todo el registro (adjuntar = fusionar la nueva imagen en el rol
+// y reescribir el resto sin pisarlo).
+export type StudioAssetImages =
+  | { assetType: 'product'; productImageIds: string[]; packagingImageIds: string[] }
+  | {
+      assetType: 'location';
+      name: string;
+      description: string | null;
+      masterImageId: string | null;
+      referenceImageIds: string[];
+      scaleMapImageId: string | null;
+      scaleMapNotes: string | null;
+    }
+  | {
+      assetType: 'character';
+      name: string;
+      description: string | null;
+      masterImageId: string | null;
+      angleImageIds: string[];
+      fullBodyImageId: string | null;
+      voiceCloneId: string | null;
+    };
+
+export type StudioAssetType = 'product' | 'location' | 'character';
 
 export type StudioSessionOption = {
   id: string;
@@ -36,7 +57,7 @@ export type StudioSessionOption = {
 export type StudioClientProps = {
   workspaceId: string;
   userId: string;
-  assetType: 'product';
+  assetType: StudioAssetType;
   assetId: string;
   assetName: string;
   initialBalance: number;
@@ -45,5 +66,5 @@ export type StudioClientProps = {
   activeSessionId: string | null;
   initialItems: StudioTurn[];
   availableReferences: StudioRefOption[];
-  productImages: StudioProductImages;
+  assetImages: StudioAssetImages;
 };

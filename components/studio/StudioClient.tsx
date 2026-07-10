@@ -12,7 +12,7 @@ import { Composer, type ComposerSubmit } from './Composer';
 import { GenerationStatusWatcher } from './GenerationStatusWatcher';
 import { AttachDialog } from './AttachDialog';
 import { Button } from '@/components/ui/button';
-import type { StudioClientProps, StudioProductImages, StudioTurn } from './types';
+import type { StudioClientProps, StudioAssetImages, StudioTurn } from './types';
 
 export function StudioClient(props: StudioClientProps) {
   const router = useRouter();
@@ -23,7 +23,7 @@ export function StudioClient(props: StudioClientProps) {
     return lastDone?.id ?? null;
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
-  const [productImages, setProductImages] = useState<StudioProductImages>(props.productImages);
+  const [assetImages, setAssetImages] = useState<StudioAssetImages>(props.assetImages);
   const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
   const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
@@ -51,7 +51,7 @@ export function StudioClient(props: StudioClientProps) {
         let createdNew = false;
         if (!sessionId) {
           const created = await createStudioSessionAction({
-            assetType: 'product',
+            assetType: props.assetType,
             assetId: props.assetId,
             provider: input.provider,
             modelId: input.model,
@@ -66,7 +66,7 @@ export function StudioClient(props: StudioClientProps) {
 
         const res = await submitStudioTurnAction({
           sessionId,
-          assetType: 'product',
+          assetType: props.assetType,
           provider: input.provider,
           model: input.model,
           variant: input.variant,
@@ -103,7 +103,7 @@ export function StudioClient(props: StudioClientProps) {
         // fila 'queued', sin perder la tarjeta "generando…".
         if (createdNew) {
           setActiveSessionId(sessionId);
-          router.replace(`/app/studio/product/${props.assetId}?session=${sessionId}`);
+          router.replace(`/app/studio/${props.assetType}/${props.assetId}?session=${sessionId}`);
         }
       } finally {
         submitLock.current = false;
@@ -116,6 +116,7 @@ export function StudioClient(props: StudioClientProps) {
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <SessionHeader
+        assetType={props.assetType}
         assetId={props.assetId}
         assetName={props.assetName}
         sessions={props.sessions}
@@ -139,15 +140,17 @@ export function StudioClient(props: StudioClientProps) {
           items={items}
           renderActions={(item) => (
             <>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                onClick={() => setAttachId(item.id)}
-              >
-                Adjuntar
-              </Button>
+              {props.assetType === 'product' && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={() => setAttachId(item.id)}
+                >
+                  Adjuntar
+                </Button>
+              )}
               <Button
                 type="button"
                 size="sm"
@@ -170,9 +173,10 @@ export function StudioClient(props: StudioClientProps) {
         onOpenChange={(o) => !o && setAttachId(null)}
         generationId={attachId}
         productId={props.assetId}
-        productImages={productImages}
+        assetType={props.assetType}
+        assetImages={assetImages}
         onAttached={(next, newRef) => {
-          setProductImages(next);
+          setAssetImages(next);
           // La imagen adjuntada queda disponible como referencia en el compositor
           // sin recargar (dedup por id por si se adjunta dos veces).
           setAvailableReferences((cur) =>
