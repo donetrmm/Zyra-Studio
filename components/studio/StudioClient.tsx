@@ -45,8 +45,9 @@ export function StudioClient(props: StudioClientProps) {
     submitLock.current = true;
     startSubmit(async () => {
       try {
-        // Sesión: usa la activa; si no hay, crea una y fija la URL.
+        // Sesión: usa la activa; si no hay, créala (la URL se fija DESPUÉS del insert).
         let sessionId = activeSessionId;
+        let createdNew = false;
         if (!sessionId) {
           const created = await createStudioSessionAction({
             assetType: 'product',
@@ -59,8 +60,7 @@ export function StudioClient(props: StudioClientProps) {
             return;
           }
           sessionId = created.data.id;
-          setActiveSessionId(sessionId);
-          router.replace(`/app/studio/product/${props.assetId}?session=${sessionId}`);
+          createdNew = true;
         }
 
         const res = await submitStudioTurnAction({
@@ -96,6 +96,14 @@ export function StudioClient(props: StudioClientProps) {
           errorMessage: null,
         };
         setItems((cur) => [...cur, optimistic]);
+
+        // Fijar la URL de la sesión recién creada DESPUÉS de insertar el turno:
+        // el refetch del RSC remonta StudioClient (key por sesión) y ya ve la
+        // fila 'queued', sin perder la tarjeta "generando…".
+        if (createdNew) {
+          setActiveSessionId(sessionId);
+          router.replace(`/app/studio/product/${props.assetId}?session=${sessionId}`);
+        }
       } finally {
         submitLock.current = false;
       }

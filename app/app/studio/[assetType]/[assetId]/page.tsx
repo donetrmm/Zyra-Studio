@@ -100,6 +100,7 @@ export default async function StudioPage({
 
   return (
     <StudioClient
+      key={activeSessionId ?? 'new'}
       workspaceId={workspace.id}
       userId={user.id}
       assetType="product"

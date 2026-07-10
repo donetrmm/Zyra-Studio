@@ -126,6 +126,12 @@ export function Composer(props: {
       toast.error('Créditos insuficientes');
       return;
     }
+    const effectiveRefs = refs.slice(0, maxRefs);
+    if (effectiveRefs.length < refs.length) {
+      toast.info(
+        `Se usaron ${effectiveRefs.length} de ${refs.length} referencias (la imagen de trabajo ocupa un cupo).`,
+      );
+    }
     props.onSubmit({
       provider: selection.provider,
       model: selection.model,
@@ -133,7 +139,7 @@ export function Composer(props: {
       prompt: trimmed,
       aspectRatio: aspect,
       keepIdentical,
-      referenceIds: refs.map((r) => r.id),
+      referenceIds: effectiveRefs.map((r) => r.id),
     });
     setPrompt('');
     setRefs([]);
