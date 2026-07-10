@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +31,6 @@ import {
 import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
-import { CreationWizard } from '@/components/creation/CreationWizard';
-import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import {
   createCampaignStudioAction,
   generatePlanAction,
@@ -135,9 +133,8 @@ export function CampaignStudioWizard({
   productsByKit: Record<string, ProductOption[]>;
 }) {
   const router = useRouter();
-  // Estado local: el producto creado con IA inline se guarda como Brand Kit y se
-  // añade aquí para que aparezca en el selector sin recargar.
-  const [brandKits, setBrandKits] = useState(initialBrandKits);
+  // Sin creación de Brand Kit inline (Task 6): la lista es la que llega por props.
+  const brandKits = initialBrandKits;
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
@@ -154,7 +151,6 @@ export function CampaignStudioWizard({
   const [audioSourceTouched, setAudioSourceTouched] = useState(false);
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
-  const [aiOpen, setAiOpen] = useState(false);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(initialBrandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
@@ -444,14 +440,12 @@ export function CampaignStudioWizard({
                   ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setAiOpen(true)}
-                className="mt-2 inline-flex items-center gap-1 text-2xs text-primary underline-offset-2 hover:underline"
+              <Link
+                href="/app/brand/kits"
+                className="mt-2 block text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                ¿No tienes una foto del producto? Créala con IA
-                <ArrowRight className="size-3" aria-hidden />
-              </button>
+                ¿No tienes el producto? Créalo en tu biblioteca de productos
+              </Link>
             </div>
           ) : (
             <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
@@ -1017,37 +1011,6 @@ export function CampaignStudioWizard({
           )}
         </Button>
       </div>
-
-      {aiOpen && (
-        <CreationWizard
-          kind="product"
-          productFlow="create"
-          onSave={async (result) => {
-            if (result.kind !== 'product-create') return;
-            // Guarda el producto generado como Brand Kit reutilizable y lo
-            // selecciona para esta campaña (cubre ambos: usarlo aquí y reusarlo).
-            const created = await createBrandKitAction({
-              name: result.name,
-              colors: result.colors,
-              toneDescription: result.tone,
-            });
-            if (!created.ok) { toast.error(created.message || 'No se pudo crear el Brand Kit'); return; }
-            const img = await setBrandKitImagesAction(created.data.id, {
-              productImageIds: [result.productRefId],
-              packagingImageIds: result.packagingRefId ? [result.packagingRefId] : [],
-            });
-            if (!img.ok) { toast.error(img.message || 'Kit creado, pero no se guardaron las imágenes'); return; }
-            setBrandKits((ks) => [
-              { id: created.data.id, name: result.name, productImages: 1, packagingImages: result.packagingRefId ? 1 : 0 },
-              ...ks,
-            ]);
-            setBrandKitId(created.data.id);
-            setMode('kit');
-            toast.success('Brand Kit creado y seleccionado');
-          }}
-          onClose={() => setAiOpen(false)}
-        />
-      )}
 
       <Dialog open={askIdeasOpen} onOpenChange={setAskIdeasOpen}>
         <DialogContent className="sm:max-w-md">
