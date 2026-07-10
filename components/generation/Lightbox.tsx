@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export function Lightbox({
@@ -20,7 +21,15 @@ export function Lightbox({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
+  // Portal a document.body: el Lightbox es `position: fixed` y debe cubrir el
+  // viewport. Si se renderiza dentro de un ancestro con `transform`/`filter`
+  // (p. ej. `.zyra-fade-up` deja un `transform: translateY(0)` por su fill-mode
+  // `both`), ese ancestro se vuelve el bloque contenedor del `fixed` y el overlay
+  // queda anclado a una caja chica → la imagen a resolución completa desborda y
+  // se recorta. Sacarlo al body lo desacopla de cualquier ancestro.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -44,6 +53,7 @@ export function Lightbox({
       >
         <X className="size-4" aria-hidden />
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
