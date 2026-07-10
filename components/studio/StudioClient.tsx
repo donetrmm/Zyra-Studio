@@ -10,7 +10,9 @@ import { GalleryPanel } from './GalleryPanel';
 import { ChatPanel } from './ChatPanel';
 import { Composer, type ComposerSubmit } from './Composer';
 import { GenerationStatusWatcher } from './GenerationStatusWatcher';
-import type { StudioClientProps, StudioTurn } from './types';
+import { AttachDialog } from './AttachDialog';
+import { Button } from '@/components/ui/button';
+import type { StudioClientProps, StudioProductImages, StudioTurn } from './types';
 
 export function StudioClient(props: StudioClientProps) {
   const router = useRouter();
@@ -21,6 +23,8 @@ export function StudioClient(props: StudioClientProps) {
     return lastDone?.id ?? null;
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
+  const [productImages, setProductImages] = useState<StudioProductImages>(props.productImages);
+  const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
   const submitLock = useRef(false);
 
@@ -122,11 +126,43 @@ export function StudioClient(props: StudioClientProps) {
             onSubmit={handleSubmit}
           />
         </section>
-        <GalleryPanel items={items} />
+        <GalleryPanel
+          items={items}
+          renderActions={(item) => (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                onClick={() => setAttachId(item.id)}
+              >
+                Adjuntar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-zinc-200"
+                onClick={() => setWorkingId(item.id)}
+              >
+                Usar como base
+              </Button>
+            </>
+          )}
+        />
       </div>
       {pending.map((it) => (
         <GenerationStatusWatcher key={it.id} generationId={it.id} onResolved={onResolved} />
       ))}
+      <AttachDialog
+        open={attachId !== null}
+        onOpenChange={(o) => !o && setAttachId(null)}
+        generationId={attachId}
+        productId={props.assetId}
+        productImages={productImages}
+        onAttached={setProductImages}
+      />
     </div>
   );
 }
