@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Package, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { deleteProductAction } from '@/server-actions/products';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -138,6 +139,12 @@ function ProductCard({
         </p>
       </div>
       <div className="flex gap-2 border-t border-border/30 p-3">
+        <Link
+          href={`/app/studio/product/${product.id}`}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <Sparkles className="size-3" aria-hidden /> Abrir estudio
+        </Link>
         <button
           type="button"
           onClick={onEdit}

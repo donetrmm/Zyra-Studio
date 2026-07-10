@@ -13,6 +13,7 @@ import { enqueueJob } from '@/lib/jobs/queue';
 import {
   CreateStudioSessionSchema,
   SubmitStudioTurnSchema,
+  StudioAssetTypeSchema,
   type StudioAssetType,
 } from '@/lib/schemas/studio';
 
@@ -34,6 +35,13 @@ export type StudioGeneration = {
   model_id: string;
   params: Record<string, unknown>;
   created_at: string;
+};
+
+export type StudioSessionSummary = {
+  id: string;
+  created_at: string;
+  default_provider: string;
+  default_model_id: string;
 };
 
 // El activo referenciado (product/location/character) vive en su propia tabla
@@ -241,4 +249,49 @@ export async function listStudioSessionGenerationsAction(
   }));
 
   return { ok: true, data: generations };
+}
+
+export async function listStudioSessionsAction(
+  assetType: string,
+  assetId: string,
+): Promise<Result<StudioSessionSummary[]>> {
+  const parsedType = StudioAssetTypeSchema.safeParse(assetType);
+  if (!parsedType.success || !z.string().uuid().safeParse(assetId).success) {
+    return { ok: false, error: 'validation_error', message: 'Parámetros inválidos' };
+  }
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+
+  // Ownership del activo (no basta que la sesión sea del workspace: el activo
+  // también debe serlo, igual que createStudioSessionAction).
+  const table = ASSET_TABLE[parsedType.data];
+  const { data: asset } = await supabase
+    .from(table)
+    .select('id')
+    .eq('id', assetId)
+    .eq('workspace_id', workspace.id)
+    .maybeSingle();
+  if (!asset) {
+    return { ok: false, error: 'not_found', message: `${parsedType.data} no pertenece al workspace` };
+  }
+
+  const { data: rows, error } = await supabase
+    .from('studio_sessions')
+    .select('id, created_at, default_provider, default_model_id')
+    .eq('workspace_id', workspace.id)
+    .eq('asset_type', parsedType.data)
+    .eq('asset_id', assetId)
+    .is('archived_at', null)
+    .order('created_at', { ascending: false });
+  if (error) {
+    return { ok: false, error: 'internal_error', message: error.message };
+  }
+
+  const sessions: StudioSessionSummary[] = (rows ?? []).map((r) => ({
+    id: r.id as string,
+    created_at: r.created_at as string,
+    default_provider: r.default_provider as string,
+    default_model_id: r.default_model_id as string,
+  }));
+  return { ok: true, data: sessions };
 }
