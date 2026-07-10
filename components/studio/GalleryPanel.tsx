@@ -2,6 +2,7 @@
 
 import { ImageOff } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
+import { ZoomableImage } from '@/components/shared/ZoomableImage';
 import type { StudioTurn } from './types';
 
 export function GalleryPanel(props: {
@@ -29,16 +30,15 @@ export function GalleryPanel(props: {
             {[...done].reverse().map((item) => (
               <div
                 key={item.id}
-                className="group relative overflow-hidden rounded-lg border border-border bg-card"
+                className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <ZoomableImage
                   src={publicThumbnailUrlClient(item.thumbPath)}
                   alt={item.prompt ?? 'Imagen generada'}
-                  className="aspect-square w-full object-cover"
+                  className="absolute inset-0 h-full w-full"
                 />
                 {props.renderActions ? (
-                  <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                     {props.renderActions(item)}
                   </div>
                 ) : null}

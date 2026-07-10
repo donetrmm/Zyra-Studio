@@ -28,6 +28,8 @@ export function StudioClient(props: StudioClientProps) {
   // sin recargar (la page lo entrega ya calculado del activo).
   const [characterHasMaster, setCharacterHasMaster] = useState(props.characterHasMaster);
   const [attachId, setAttachId] = useState<string | null>(null);
+  // Reintentar un fallo: rellena el prompt en el Composer (el nonce dispara el efecto).
+  const [seed, setSeed] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
   const [submitting, startSubmit] = useTransition();
   const submitLock = useRef(false);
 
@@ -128,7 +130,13 @@ export function StudioClient(props: StudioClientProps) {
       />
       <div className="grid flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[1fr_360px]">
         <section className="flex h-full flex-col overflow-hidden">
-          <ChatPanel items={items} workingId={workingId} onUseAsBase={setWorkingId} />
+          <ChatPanel
+            items={items}
+            workingId={workingId}
+            assetType={props.assetType}
+            onUseAsBase={setWorkingId}
+            onRetry={(text) => setSeed((s) => ({ text, nonce: s.nonce + 1 }))}
+          />
           <Composer
             pricing={props.pricing}
             balance={balance}
@@ -138,6 +146,7 @@ export function StudioClient(props: StudioClientProps) {
             onSubmit={handleSubmit}
             assetType={props.assetType}
             userPresets={props.userPresets}
+            seed={seed}
           />
         </section>
         <GalleryPanel

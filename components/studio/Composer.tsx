@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import {
@@ -58,6 +58,9 @@ export function Composer(props: {
   onSubmit: (input: ComposerSubmit) => void;
   assetType: StudioAssetType;
   userPresets: StudioPreset[];
+  // Semilla para reintentar: al cambiar nonce, rellena el prompt y enfoca. Evita
+  // levantar el estado del prompt al padre (el chat pide reintentar un fallo).
+  seed?: { text: string; nonce: number };
 }) {
   const [modelKey, setModelKey] = useState<StudioModelKey>('nano-pro');
   const [variant, setVariant] = useState<string>(defaultVariantFor('nano-pro'));
@@ -67,6 +70,20 @@ export function Composer(props: {
   const [refs, setRefs] = useState<StudioRefOption[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [lastSeedNonce, setLastSeedNonce] = useState(0);
+
+  // Reintentar desde el chat: al cambiar el nonce, rellena el prompt del fallo.
+  // Patrón de React (ajustar estado en render al cambiar un prop) en vez de un
+  // efecto con setState, que dispara renders en cascada.
+  if (props.seed && props.seed.nonce !== lastSeedNonce) {
+    setLastSeedNonce(props.seed.nonce);
+    setPrompt(props.seed.text);
+  }
+  // El foco sí es efecto colateral (no toca estado): enfoca al aplicar la semilla.
+  useEffect(() => {
+    if (lastSeedNonce > 0) textareaRef.current?.focus();
+  }, [lastSeedNonce]);
 
   const builtinPresets = BUILTIN_PRESETS[props.assetType];
   const applyPreset = (id: string) => {
@@ -93,6 +110,9 @@ export function Composer(props: {
       return null;
     }
   }, [props.pricing, selection.provider, selection.model, selection.variant]);
+
+  const insufficient = cost !== null && cost > props.balance;
+  const canSubmit = !props.disabled && prompt.trim().length > 0 && !insufficient;
 
   function changeModel(key: StudioModelKey) {
     setModelKey(key);
@@ -234,7 +254,10 @@ export function Composer(props: {
           </Select>
         ) : null}
 
-        <label className="ml-auto flex items-center gap-2 text-xs text-foreground">
+        <label
+          className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-foreground"
+          title="Conserva la identidad del sujeto (rostro, forma, color) entre ediciones."
+        >
           <Switch checked={keepIdentical} onCheckedChange={setKeepIdentical} />
           Mantener idéntico
         </label>
@@ -315,19 +338,34 @@ export function Composer(props: {
 
       <div className="flex items-end gap-2">
         <Textarea
+          ref={textareaRef}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !props.disabled) submit();
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSubmit) submit();
           }}
           placeholder={props.hasWorkingImage ? 'Describe el cambio sobre la imagen de trabajo…' : 'Describe la imagen…'}
           rows={2}
           className="resize-none text-sm"
         />
-        <Button type="button" onClick={submit} disabled={props.disabled} className="h-10 gap-1">
+        <Button type="button" onClick={submit} disabled={!canSubmit} className="h-10 gap-1.5">
           {props.disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {cost !== null ? `${cost}` : '—'}
+          Enviar
         </Button>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">
+          <kbd className="rounded border border-border px-1 py-0.5 font-sans text-[10px]">⌘/Ctrl</kbd>
+          {' + '}
+          <kbd className="rounded border border-border px-1 py-0.5 font-sans text-[10px]">Enter</kbd>
+          {' para enviar'}
+        </span>
+        {cost !== null ? (
+          <span className={insufficient ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+            {cost} créditos{insufficient ? ' · saldo insuficiente' : ''}
+          </span>
+        ) : null}
       </div>
     </div>
   );
