@@ -30,6 +30,11 @@ export type EnqueueJobInput = {
   // Compat: jobs encolados antes del deploy traen la URL cruda. Nuevo código usa
   // lastFramePath; este campo se mantiene para drenar la cola en vuelo.
   lastFrameUrl?: string;
+  // HTTP timeout (segundos) que QStash usa al llamar al worker, en vez del
+  // límite máximo del plan. Necesario para jobs one-shot largos (imagen del
+  // estudio, hasta ~280s) — sin esto, QStash puede cortar antes de que el
+  // worker responda y reintentar, generando doble-cobro/doble-generación.
+  timeoutSeconds?: number;
 };
 
 // Encola un mensaje POST al worker /api/jobs/process. El worker se re-encola
@@ -52,6 +57,7 @@ export async function enqueueJob(input: EnqueueJobInput): Promise<{ messageId: s
     },
     delay: input.delaySeconds ?? 0,
     retries: 3,
+    ...(input.timeoutSeconds !== undefined ? { timeout: input.timeoutSeconds } : {}),
   });
   return { messageId: res.messageId };
 }
