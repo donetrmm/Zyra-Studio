@@ -123,7 +123,11 @@ export function StudioClient(props: StudioClientProps) {
   const doneCount = items.filter((i) => i.status === 'done' && i.thumbPath).length;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    // Llena EXACTAMENTE el <main> del shell (altura por %, no 100vh) y cancela su
+    // padding (px-4 py-6 / lg:px-8 lg:py-8) con márgenes negativos para ir
+    // edge-to-edge: así main no scrollea (el scroll incómodo del estudio) y en
+    // móvil la altura ya excluye el bottom-nav porque main es su hermano flex.
+    <div className="-mx-4 -my-6 flex h-[calc(100%_+_3rem)] flex-col overflow-hidden lg:-mx-8 lg:-my-8 lg:h-[calc(100%_+_4rem)]">
       <SessionHeader
         assetType={props.assetType}
         assetId={props.assetId}
