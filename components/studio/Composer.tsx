@@ -6,7 +6,9 @@ import { ImagePlus, Loader2, Send, X } from 'lucide-react';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -24,7 +26,8 @@ import {
   maxReferencesFor,
   type StudioModelKey,
 } from '@/lib/studio/model-options';
-import type { StudioRefOption } from './types';
+import { BUILTIN_PRESETS, type StudioPreset } from '@/lib/studio/presets';
+import type { StudioRefOption, StudioAssetType } from './types';
 
 const ASPECTS = ['1:1', '4:5', '9:16', '16:9'];
 const VARIANT_LABEL: Record<string, string> = {
@@ -53,6 +56,8 @@ export function Composer(props: {
   hasWorkingImage: boolean;
   disabled: boolean;
   onSubmit: (input: ComposerSubmit) => void;
+  assetType: StudioAssetType;
+  userPresets: StudioPreset[];
 }) {
   const [modelKey, setModelKey] = useState<StudioModelKey>('nano-pro');
   const [variant, setVariant] = useState<string>(defaultVariantFor('nano-pro'));
@@ -62,6 +67,16 @@ export function Composer(props: {
   const [refs, setRefs] = useState<StudioRefOption[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const builtinPresets = BUILTIN_PRESETS[props.assetType];
+  const applyPreset = (id: string) => {
+    const preset =
+      builtinPresets.find((p) => p.id === id) ?? props.userPresets.find((p) => p.id === id);
+    if (!preset) return;
+    setPrompt(preset.prompt);
+    if (preset.keepIdentical) setKeepIdentical(true);
+  };
+  const hasPresets = builtinPresets.length > 0 || props.userPresets.length > 0;
 
   const variantControl = variantControlFor(modelKey);
   const selection = resolveSelection(modelKey, variant);
@@ -188,6 +203,36 @@ export function Composer(props: {
             ))}
           </SelectContent>
         </Select>
+
+        {hasPresets ? (
+          <Select value="" onValueChange={applyPreset}>
+            <SelectTrigger className="h-8 w-[130px] text-xs">
+              <SelectValue placeholder="Presets" />
+            </SelectTrigger>
+            <SelectContent>
+              {builtinPresets.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel className="text-xs">Sugeridos</SelectLabel>
+                  {builtinPresets.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+              {props.userPresets.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel className="text-xs">Guardados</SelectLabel>
+                  {props.userPresets.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs">
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+            </SelectContent>
+          </Select>
+        ) : null}
 
         <label className="ml-auto flex items-center gap-2 text-xs text-foreground">
           <Switch checked={keepIdentical} onCheckedChange={setKeepIdentical} />

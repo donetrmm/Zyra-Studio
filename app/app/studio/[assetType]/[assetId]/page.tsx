@@ -8,6 +8,7 @@ import {
   listStudioSessionGenerationsAction,
 } from '@/server-actions/studio';
 import { loadStudioAsset, imageIdsFromAssetImages } from '@/lib/studio/asset-images';
+import { parseUserPreset, type StudioPreset } from '@/lib/studio/presets';
 import { StudioClient } from '@/components/studio/StudioClient';
 import type {
   StudioTurn,
@@ -105,6 +106,18 @@ export default async function StudioPage({
 
   const pricing = await loadPricing();
 
+  // Presets de imagen del usuario (se ofrecen en el compositor). RLS por user_id;
+  // se filtran los que no traen un prompt usable.
+  const { data: presetRows } = await supabase
+    .from('presets')
+    .select('id, name, params')
+    .eq('user_id', user.id)
+    .eq('type', 'image')
+    .order('created_at', { ascending: false });
+  const userPresets = (presetRows ?? [])
+    .map((r) => parseUserPreset({ id: r.id as string, name: r.name as string, params: r.params }))
+    .filter((p): p is StudioPreset => p !== null);
+
   return (
     <StudioClient
       key={activeSessionId ?? 'new'}
@@ -119,6 +132,7 @@ export default async function StudioPage({
       activeSessionId={activeSessionId}
       initialItems={initialItems}
       availableReferences={availableReferences}
+      userPresets={userPresets}
     />
   );
 }

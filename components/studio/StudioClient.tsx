@@ -133,6 +133,8 @@ export function StudioClient(props: StudioClientProps) {
             hasWorkingImage={workingId !== null}
             disabled={submitting}
             onSubmit={handleSubmit}
+            assetType={props.assetType}
+            userPresets={props.userPresets}
           />
         </section>
         <GalleryPanel

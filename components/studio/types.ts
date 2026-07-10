@@ -1,4 +1,5 @@
 import type { PricingRow } from '@/lib/credits/types';
+import type { StudioPreset } from '@/lib/studio/presets';
 
 // Un turno del chat = una fila generations de la sesión. La galería muestra los
 // que tienen thumbnail; el chat los muestra todos. thumbPath es el path CRUDO en
@@ -66,4 +67,7 @@ export type StudioClientProps = {
   activeSessionId: string | null;
   initialItems: StudioTurn[];
   availableReferences: StudioRefOption[];
+  // Presets de imagen guardados del usuario (tabla presets, type='image'). Los
+  // integrados (BUILTIN_PRESETS) los resuelve el Composer por assetType.
+  userPresets: StudioPreset[];
 };
