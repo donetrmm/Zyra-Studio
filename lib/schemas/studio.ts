@@ -43,5 +43,10 @@ export const SubmitStudioTurnSchema = z
     if (!variants.includes(val.variant)) {
       ctx.addIssue({ code: 'custom', path: ['variant'], message: `variant inválida para ${val.provider}` });
     }
+    // El gateway soporta hasta 4 imágenes de entrada para gpt-image (nano tolera
+    // más). Se rechaza temprano en vez de dejar que el gateway falle el turno.
+    if (val.provider === 'gpt-image' && (val.referenceIds?.length ?? 0) > 4) {
+      ctx.addIssue({ code: 'custom', path: ['referenceIds'], message: 'gpt-image acepta máximo 4 referencias' });
+    }
   });
 export type SubmitStudioTurnInput = z.infer<typeof SubmitStudioTurnSchema>;

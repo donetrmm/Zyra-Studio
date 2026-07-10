@@ -120,7 +120,13 @@ export async function submitStudioTurnAction(
       variant: data.variant,
     }).total;
   } catch (e) {
-    return { ok: false, error: 'internal_error', message: (e as Error).message };
+    const msg = (e as Error).message;
+    // Un combo model×variant sin fila de pricing (p. ej. flash + 4k) es una
+    // entrada inválida del cliente, no un fallo interno → validation_error.
+    if (msg.includes('Pricing no encontrado')) {
+      return { ok: false, error: 'validation_error', message: 'Combinación de modelo y calidad no soportada' };
+    }
+    return { ok: false, error: 'internal_error', message: msg };
   }
 
   const generationId = crypto.randomUUID();
@@ -170,9 +176,6 @@ export async function submitStudioTurnAction(
     // SIEMPRE se encola — el estudio no tiene camino inline. timeoutSeconds:300
     // porque gpt-image-2 puede bloquear hasta ~280s (worker a maxDuration=300).
     await enqueueJob({ generationId, action: 'submit', timeoutSeconds: 300 });
-
-    revalidatePath('/app/library');
-    return { ok: true, data: { generationId } };
   } catch (err) {
     const message = (err as Error)?.message ?? 'unknown';
     const refundAmount = reserved ? cost : 0;
@@ -189,6 +192,11 @@ export async function submitStudioTurnAction(
     }
     return { ok: false, error: 'internal_error', message };
   }
+
+  // Fuera del try: el job ya está encolado. Un fallo de revalidatePath (muy
+  // improbable) NO debe disparar el catch de arriba y reembolsar un job vivo.
+  revalidatePath('/app/library');
+  return { ok: true, data: { generationId } };
 }
 
 export async function listStudioSessionGenerationsAction(

@@ -13,6 +13,21 @@ export function mapCode(err: ProviderError): 'safety' | 'rate_limit' | 'timeout'
   return 'unknown';
 }
 
+// gpt-image no acepta un aspectRatio libre como Nano; mapea el ratio elegido al
+// size soportado más cercano (comunes a gpt-image-1/mini/2). Sin esto, el submit
+// escribe `aspectRatio` pero el turno gpt-image saldría siempre en el size
+// default del gateway, ignorando el aspecto.
+export function gptImageSize(aspectRatio: unknown): '1024x1024' | '1536x1024' | '1024x1536' {
+  if (typeof aspectRatio !== 'string') return '1024x1024';
+  const m = aspectRatio.match(/^(\d+):(\d+)$/);
+  if (!m) return '1024x1024';
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  if (w > h) return '1536x1024';
+  if (h > w) return '1024x1536';
+  return '1024x1024';
+}
+
 // Handler one-shot de imagen para el estudio creativo (Fase 1): nano-banana y
 // gpt-image comparten este camino (a diferencia del storyboard, que sigue en
 // nano-banana.ts con su propio flujo strict/conversational). Espeja el
@@ -54,7 +69,7 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
         model: gen.model_id as GptImageModel,
         prompt: gen.prompt ?? '',
         quality,
-        size: typeof params.size === 'string' ? params.size : undefined,
+        size: gptImageSize(params.aspectRatio),
         references,
       });
       return {
