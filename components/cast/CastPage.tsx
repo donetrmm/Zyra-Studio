@@ -14,16 +14,13 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import {
   generateCharacterState,
   refineCharacterState,
-  refineCharacterMaster,
   generateFullBody,
   generateOutfit,
   isGenError,
 } from '@/components/creation/generate';
-import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { CreationWizard } from '@/components/creation/CreationWizard';
 import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
@@ -61,7 +58,6 @@ export function CastPage({
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<CastCharacter | 'new' | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -74,13 +70,6 @@ export function CastPage({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAiOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15"
-          >
-            <Sparkles className="size-4" aria-hidden /> Crear con IA
-          </button>
           <button
             type="button"
             onClick={() => setEditing('new')}
@@ -100,23 +89,6 @@ export function CastPage({
           fluxCost={fluxCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
-        />
-      )}
-
-      {aiOpen && (
-        <CreationWizard
-          kind="character"
-          onSave={async (result) => {
-            if (result.kind !== 'character') return;
-            const res = await createCharacterAction({
-              name: 'Nuevo personaje',
-              masterImageId: result.refId,
-              angleImageIds: result.angleRefIds.slice(0, 2),
-            });
-            if (!res.ok) { toast.error(res.message || 'No se pudo crear'); return; }
-            router.refresh();
-          }}
-          onClose={() => setAiOpen(false)}
         />
       )}
 
@@ -602,19 +574,6 @@ function CharacterEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
-
-        {/* Refinado iterativo de la maestra (feedback 2026-07-04): antes solo se
-            podía editar durante la creación en el wizard; post-guardado obligaba
-            a Photoshop o a regenerar de cero. Preserva la identidad; el cambio
-            pedido (peinado, ropa, expresión) manda. */}
-        {masterImages.length > 0 && (
-          <MasterImageRefiner
-            image={masterImages[0]}
-            refine={refineCharacterMaster}
-            onResult={(r) => setMasterImages([r])}
-            placeholder="ej. pelo más corto, chaqueta de mezclilla"
-          />
-        )}
 
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">
