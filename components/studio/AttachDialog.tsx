@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
+import { addGenerationAsReferenceAction, deleteMediaReferenceAction } from '@/server-actions/media-references';
 import { attachStudioImageAction } from '@/server-actions/studio';
 import {
   createCharacterOutfitAction,
@@ -72,7 +72,10 @@ type LabeledRoleConfig = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   placeholder: string;
-  loadItems: (characterId: string) => Promise<LabeledItem[]>;
+  // Devuelve el Result de la action tal cual: distinguir "lista vacía" (data: [])
+  // de "no se pudo cargar" (ok: false) — tragarse el error empujaba a crear un
+  // duplicado en vez de reemplazar.
+  loadItems: (characterId: string) => Promise<{ ok: true; data: LabeledItem[] } | { ok: false }>;
   create: (characterId: string, label: string, imageId: string) => Promise<LabeledActionResult>;
   update: (id: string, imageId: string) => Promise<LabeledActionResult>;
 };
@@ -82,10 +85,7 @@ const LABELED_ROLE_CONFIG: Record<LabeledRole, LabeledRoleConfig> = {
     label: 'Outfit',
     icon: Shirt,
     placeholder: 'Etiqueta (ej. Look casual)',
-    loadItems: async (characterId) => {
-      const res = await listCharacterOutfitsAction(characterId);
-      return res.ok ? res.data.map((o) => ({ id: o.id, label: o.label })) : [];
-    },
+    loadItems: (characterId) => listCharacterOutfitsAction(characterId),
     create: (characterId, label, imageId) =>
       createCharacterOutfitAction({ characterId, label, outfitImageId: imageId }),
     update: (id, imageId) => updateCharacterOutfitImageAction({ outfitId: id, outfitImageId: imageId }),
@@ -94,10 +94,7 @@ const LABELED_ROLE_CONFIG: Record<LabeledRole, LabeledRoleConfig> = {
     label: 'Estado',
     icon: Droplets,
     placeholder: 'Etiqueta (ej. Mojado)',
-    loadItems: async (characterId) => {
-      const res = await listCharacterStatesAction(characterId);
-      return res.ok ? res.data.map((s) => ({ id: s.id, label: s.label })) : [];
-    },
+    loadItems: (characterId) => listCharacterStatesAction(characterId),
     create: (characterId, label, imageId) =>
       createCharacterStateAction({ characterId, label, stateImageId: imageId }),
     update: (id, imageId) => updateCharacterStateImageAction({ stateId: id, stateImageId: imageId }),
@@ -118,6 +115,13 @@ export function AttachDialog(props: {
 }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [view, setView] = useState<View>({ kind: 'roles' });
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
   const roles = ROLES_BY_TYPE[props.assetType];
   const labeledRoles = props.assetType === 'character' ? LABELED_ROLE_DEFS : [];
   const totalButtons = roles.length + labeledRoles.length;
@@ -127,8 +131,10 @@ export function AttachDialog(props: {
     setSaving(roleKey);
     const ref = await addGenerationAsReferenceAction({ generationId: props.generationId });
     if (!ref.ok) {
-      setSaving(null);
-      toast.error('No se pudo preparar la imagen');
+      if (mountedRef.current) {
+        setSaving(null);
+        toast.error('No se pudo preparar la imagen');
+      }
       return;
     }
     // Read-modify-write server-side: attachStudioImageAction relee el activo
@@ -139,11 +145,20 @@ export function AttachDialog(props: {
       role: roleKey,
       referenceId: ref.data.id,
     });
-    setSaving(null);
     if (!res.ok) {
-      toast.error(res.message ?? 'No se pudo guardar');
+      // La ref recién copiada quedaría huérfana si el adjuntar falla: se limpia
+      // (best-effort, server-side; corre aunque el diálogo se haya cerrado).
+      void deleteMediaReferenceAction({ id: ref.data.id }).catch(() => {});
+      if (mountedRef.current) {
+        setSaving(null);
+        toast.error(res.message ?? 'No se pudo guardar');
+      }
       return;
     }
+    // Diálogo cerrado mid-flight: el adjuntar ya quedó server-side; no tocamos la
+    // UI (evita setState en desmontado y un toast de éxito tras cancelar).
+    if (!mountedRef.current) return;
+    setSaving(null);
     props.onAttached({
       id: ref.data.id,
       previewUrl: ref.data.previewUrl,
@@ -226,13 +241,24 @@ function LabeledAttachView(props: {
 }) {
   const config = LABELED_ROLE_CONFIG[props.role];
   const [items, setItems] = useState<LabeledItem[] | null>(null); // null = cargando
+  const [loadError, setLoadError] = useState(false);
   const [label, setLabel] = useState('');
   const [saving, setSaving] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
-    config.loadItems(props.characterId).then((list) => {
-      if (active) setItems(list);
+    config.loadItems(props.characterId).then((res) => {
+      if (!active) return;
+      // Distingue lista vacía (data: []) de fallo de carga (ok: false).
+      if (res.ok) setItems(res.data);
+      else setLoadError(true);
     });
     return () => {
       active = false;
@@ -249,19 +275,29 @@ function LabeledAttachView(props: {
     setSaving(true);
     const ref = await addGenerationAsReferenceAction({ generationId: props.generationId });
     if (!ref.ok) {
-      setSaving(false);
-      toast.error('No se pudo preparar la imagen');
+      if (mountedRef.current) {
+        setSaving(false);
+        toast.error('No se pudo preparar la imagen');
+      }
       return;
     }
     const res =
       plan.kind === 'create'
         ? await config.create(props.characterId, plan.label, ref.data.id)
         : await config.update(plan.id, ref.data.id);
-    setSaving(false);
     if (!res.ok) {
-      toast.error(res.message ?? 'No se pudo guardar');
+      // La ref recién copiada quedaría huérfana si el guardado falla: se limpia
+      // (best-effort, server-side; corre aunque el diálogo se haya cerrado).
+      void deleteMediaReferenceAction({ id: ref.data.id }).catch(() => {});
+      if (mountedRef.current) {
+        setSaving(false);
+        toast.error(res.message ?? 'No se pudo guardar');
+      }
       return;
     }
+    // Diálogo cerrado mid-flight: ya quedó guardado server-side; no tocamos la UI.
+    if (!mountedRef.current) return;
+    setSaving(false);
     props.onAttached({ id: ref.data.id, previewUrl: ref.data.previewUrl, filename: ref.data.filename });
     props.onDone();
     toast.success(`${config.label} guardado`);
@@ -284,13 +320,18 @@ function LabeledAttachView(props: {
         </DialogTitle>
       </DialogHeader>
 
-      {items === null ? (
+      {items === null && !loadError ? (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
         </div>
       ) : (
         <div className="space-y-4 pt-1">
-          {items.length > 0 && (
+          {loadError && (
+            <p className="text-xs text-destructive">
+              No se pudieron cargar los existentes. Puedes crear uno nuevo.
+            </p>
+          )}
+          {items && items.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
                 Reemplazar la imagen de uno existente
