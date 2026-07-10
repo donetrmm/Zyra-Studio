@@ -26,10 +26,27 @@ function toGatewayModel(model: FluxGatewayModel): string {
   return `bfl/${model}`;
 }
 
+// flux-2-pro/max SOLO reconoce un set discreto de aspectRatio (1:1, 4:3, 3:4,
+// 16:9, 9:16); '4:5' (el de los canvas) NO está y el provider caía a un default,
+// ignorando la proporción del estudio. La API de BFL acepta width/height
+// (256–1920 px) por providerOptions y OVERRIDEAN cualquier ratio: mapeamos el
+// aspecto elegido a dimensiones exactas para respetar SIEMPRE la proporción.
+// Múltiplos de 32 (FLUX los prefiere), ~1.05–1.3 MP.
+const FLUX_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  '1:1': { width: 1024, height: 1024 },
+  '4:5': { width: 1024, height: 1280 },
+  '9:16': { width: 864, height: 1536 },
+  '16:9': { width: 1536, height: 864 },
+};
+
+export function fluxDimensions(aspectRatio?: string): { width: number; height: number } {
+  return (aspectRatio ? FLUX_DIMENSIONS[aspectRatio] : undefined) ?? { width: 1024, height: 1024 };
+}
+
 export function buildImageRequest(params: FluxGatewayParams): {
   model: string;
   prompt: string | { text: string; images: Buffer[] };
-  aspectRatio?: string;
+  providerOptions: Record<string, { width: number; height: number }>;
 } {
   const refs = params.references ?? [];
   // Edición: las refs (base primero) viajan como prompt.images, igual que
@@ -38,10 +55,14 @@ export function buildImageRequest(params: FluxGatewayParams): {
   // compuerta que gpt-image). El smoke con API real del usuario la valida.
   const prompt =
     refs.length > 0 ? { text: params.prompt, images: refs.map((r) => r.buffer) } : params.prompt;
+  const dims = fluxDimensions(params.aspectRatio);
+  // El namespace de providerOptions es ambiguo por el gateway (slug 'bfl/…' vs
+  // provider 'blackForestLabs'): se manda bajo AMBOS y cada provider lee solo su
+  // clave — mismo patrón que gateway.ts con thinkingConfig (google/vertex).
   return {
     model: toGatewayModel(params.model),
     prompt,
-    ...(params.aspectRatio ? { aspectRatio: params.aspectRatio } : {}),
+    providerOptions: { bfl: dims, blackForestLabs: dims },
   };
 }
 
@@ -60,14 +81,12 @@ export async function generate(params: FluxGatewayParams): Promise<GenerationRes
   const req = buildImageRequest(params);
   try {
     // prompt (string | { text, images }) encaja directo en el tipo público del
-    // SDK (mismo patrón que gpt-image.ts). aspectRatio sí necesita cast: el SDK lo
-    // tipa como plantilla `${number}:${number}` y lo guardamos como string libre.
+    // SDK (mismo patrón que gpt-image.ts). providerOptions sí necesita cast: el
+    // SDK exige JSONValue, no un objeto tipado.
     const result = await generateImage({
       model: req.model,
       prompt: req.prompt,
-      ...(req.aspectRatio
-        ? { aspectRatio: req.aspectRatio as Parameters<typeof generateImage>[0]['aspectRatio'] }
-        : {}),
+      providerOptions: req.providerOptions as Parameters<typeof generateImage>[0]['providerOptions'],
     });
     return interpretImageResult(
       result as unknown as { images: Array<{ base64: string; mediaType?: string }> },
