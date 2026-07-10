@@ -5,15 +5,9 @@ import { generate as generateNano, nanoVariantToResolution } from '@/lib/provide
 import { ProviderError, type ImageReference, type NanoBananaParams } from '@/lib/providers/types';
 import { resolveReferenceBuffers } from '@/lib/jobs/handlers/reference-buffers';
 import { resolveBaseImage } from '@/lib/jobs/handlers/base-image';
+import { mapProviderCode } from '@/lib/jobs/handlers/fail';
 import { assembleStudioPrompt } from '@/lib/studio/prompt-assembly';
 import type { GenerationRow, JobResult } from '@/lib/jobs/handlers/types';
-
-export function mapCode(err: ProviderError): 'safety' | 'rate_limit' | 'timeout' | 'unknown' {
-  if (err.code === 'safety') return 'safety';
-  if (err.code === 'rate_limit') return 'rate_limit';
-  if (err.code === 'timeout') return 'timeout';
-  return 'unknown';
-}
 
 // gpt-image no acepta un aspectRatio libre como Nano; mapea el ratio elegido al
 // size soportado más cercano (comunes a gpt-image-1/mini/2). Sin esto, el submit
@@ -119,7 +113,7 @@ export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
       metadata: result.meta,
     };
   } catch (err) {
-    if (err instanceof ProviderError) return { kind: 'fail', message: err.message, code: mapCode(err) };
+    if (err instanceof ProviderError) return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
     return {
       kind: 'fail',
       message: err instanceof Error ? err.message : 'error de generación',

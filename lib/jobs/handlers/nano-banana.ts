@@ -1,5 +1,6 @@
 import 'server-only';
 import type { GenerationRow, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 import type { StoryboardJobPayload, StoryboardPrevTurnRef } from '@/lib/campaigns/storyboard-job';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateNanoBanana, NANO_VARIANT, nanoVariantToResolution } from '@/lib/providers/nano-banana';
@@ -28,12 +29,7 @@ function payloadOf(gen: GenerationRow): StoryboardJobPayload {
 
 function toFail(err: unknown): JobResult {
   if (err instanceof ProviderError) {
-    const code =
-      err.code === 'safety' ? 'safety'
-        : err.code === 'rate_limit' ? 'rate_limit'
-          : err.code === 'timeout' ? 'timeout'
-            : 'unknown';
-    return { kind: 'fail', message: err.message, code };
+    return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
   }
   return { kind: 'fail', message: (err as Error)?.message ?? 'unknown', code: 'unknown' };
 }

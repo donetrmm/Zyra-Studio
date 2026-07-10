@@ -11,6 +11,7 @@ import {
 import { ProviderError } from '@/lib/providers/types';
 import { signedReferenceUrlAdmin, signedVoiceSampleUrlAdmin } from '@/lib/supabase/storage';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 
 // Un clip de hasta 15 s con referencias puede tardar varios minutos.
 // 40 polls con delays 15→30 s ≈ 17 min de techo; timeout_at corta antes si aplica.
@@ -132,18 +133,7 @@ export const seedanceHandler: JobHandler = {
       };
     } catch (err) {
       if (err instanceof ProviderError) {
-        return {
-          kind: 'fail',
-          message: err.message,
-          code:
-            err.code === 'safety'
-              ? 'safety'
-              : err.code === 'rate_limit'
-                ? 'rate_limit'
-                : err.code === 'timeout'
-                  ? 'timeout'
-                  : 'unknown',
-        };
+        return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
       }
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }
