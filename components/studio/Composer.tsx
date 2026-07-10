@@ -146,7 +146,7 @@ export function Composer(props: {
   }
 
   return (
-    <div className="space-y-3 border-t border-zinc-800 p-4">
+    <div className="space-y-3 border-t border-border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={modelKey} onValueChange={(v) => changeModel(v as StudioModelKey)}>
           <SelectTrigger className="h-8 w-[180px] text-xs">
@@ -189,7 +189,7 @@ export function Composer(props: {
           </SelectContent>
         </Select>
 
-        <label className="ml-auto flex items-center gap-2 text-xs text-zinc-300">
+        <label className="ml-auto flex items-center gap-2 text-xs text-foreground">
           <Switch checked={keepIdentical} onCheckedChange={setKeepIdentical} />
           Mantener idéntico
         </label>
@@ -197,7 +197,7 @@ export function Composer(props: {
 
       {props.availableReferences.length > 0 || refs.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-zinc-500">Referencias:</span>
+          <span className="text-xs text-muted-foreground">Referencias:</span>
           {props.availableReferences.map((opt) => {
             const active = refs.some((r) => r.id === opt.id);
             return (
@@ -206,7 +206,7 @@ export function Composer(props: {
                 type="button"
                 onClick={() => toggleRef(opt)}
                 className={`h-10 w-10 overflow-hidden rounded border ${
-                  active ? 'border-[#009fff] ring-1 ring-[#009fff]' : 'border-zinc-700'
+                  active ? 'border-brand ring-1 ring-brand' : 'border-border'
                 }`}
                 title={opt.filename}
               >
@@ -223,7 +223,7 @@ export function Composer(props: {
             .map((r) => (
               <span
                 key={r.id}
-                className="flex h-10 items-center gap-1 rounded border border-[#009fff] bg-zinc-800 px-2 text-xs text-zinc-200"
+                className="flex h-10 items-center gap-1 rounded border border-brand bg-muted px-2 text-xs text-foreground"
               >
                 {r.filename.slice(0, 12)}
                 <button type="button" onClick={() => setRefs((cur) => cur.filter((x) => x.id !== r.id))}>
@@ -235,7 +235,7 @@ export function Composer(props: {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading || refs.length >= maxRefs}
-            className="flex h-10 w-10 items-center justify-center rounded border border-dashed border-zinc-700 text-zinc-400 hover:text-zinc-100 disabled:opacity-40"
+            className="flex h-10 w-10 items-center justify-center rounded border border-dashed border-border text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
           </button>
@@ -253,7 +253,7 @@ export function Composer(props: {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading || refs.length >= maxRefs}
-            className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-100 disabled:opacity-40"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
             Adjuntar referencia

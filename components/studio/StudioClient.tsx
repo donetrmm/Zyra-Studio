@@ -152,7 +152,7 @@ export function StudioClient(props: StudioClientProps) {
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-7 text-xs text-zinc-200"
+                className="h-7 text-xs text-foreground"
                 onClick={() => setWorkingId(item.id)}
               >
                 Usar como base

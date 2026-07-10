@@ -13,14 +13,14 @@ export function GalleryPanel(props: {
   );
 
   return (
-    <aside className="flex h-full flex-col border-l border-zinc-800">
-      <div className="border-b border-zinc-800 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-100">Galería de la sesión</h2>
-        <p className="text-xs text-zinc-500">{done.length} imagen(es)</p>
+    <aside className="flex h-full flex-col border-l border-border">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-medium text-foreground">Galería de la sesión</h2>
+        <p className="text-xs text-muted-foreground">{done.length} imagen(es)</p>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto p-4">
         {done.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-zinc-600">
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
             <ImageOff className="h-8 w-8" />
             <p className="text-xs">Aún no hay imágenes en esta sesión.</p>
           </div>
@@ -29,7 +29,7 @@ export function GalleryPanel(props: {
             {[...done].reverse().map((item) => (
               <div
                 key={item.id}
-                className="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900"
+                className="group relative overflow-hidden rounded-lg border border-border bg-card"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

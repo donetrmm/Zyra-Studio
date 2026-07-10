@@ -13,14 +13,14 @@ export function ChatPanel(props: {
   return (
     <div className="scroll-thin flex-1 space-y-4 overflow-y-auto p-4">
       {props.items.length === 0 ? (
-        <p className="mx-auto max-w-sm pt-12 text-center text-sm text-zinc-500">
+        <p className="mx-auto max-w-sm pt-12 text-center text-sm text-muted-foreground">
           Escribe un prompt abajo para crear la primera imagen del producto.
         </p>
       ) : null}
       {props.items.map((item) => (
         <div key={item.id} className="space-y-2">
           {item.prompt ? (
-            <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-zinc-800 px-3 py-2 text-sm text-zinc-100">
+            <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-muted px-3 py-2 text-sm text-foreground">
               {item.prompt}
             </div>
           ) : null}
@@ -28,7 +28,7 @@ export function ChatPanel(props: {
             {item.status === 'done' && item.thumbPath ? (
               <div
                 className={`overflow-hidden rounded-2xl rounded-bl-sm border ${
-                  item.id === props.workingId ? 'border-[#009fff]' : 'border-zinc-800'
+                  item.id === props.workingId ? 'border-brand' : 'border-border'
                 }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -37,9 +37,9 @@ export function ChatPanel(props: {
                   alt={item.prompt ?? 'Imagen generada'}
                   className="w-full object-cover"
                 />
-                <div className="flex items-center gap-2 bg-zinc-900 px-2 py-1.5">
+                <div className="flex items-center gap-2 bg-card px-2 py-1.5">
                   {item.id === props.workingId ? (
-                    <span className="flex items-center gap-1 text-xs text-[#009fff]">
+                    <span className="flex items-center gap-1 text-xs text-brand">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Imagen de trabajo
                     </span>
@@ -62,7 +62,7 @@ export function ChatPanel(props: {
                 <span>{item.errorMessage ?? 'La generación falló. Se reembolsaron los créditos.'}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm border border-zinc-800 bg-zinc-900 px-3 py-3 text-sm text-zinc-400">
+              <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Generando…
               </div>

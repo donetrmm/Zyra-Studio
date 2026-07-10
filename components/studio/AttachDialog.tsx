@@ -74,7 +74,7 @@ export function AttachDialog(props: {
         <DialogHeader>
           <DialogTitle>Adjuntar al producto</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-zinc-400">Elige el rol de esta imagen.</p>
+        <p className="text-sm text-muted-foreground">Elige el rol de esta imagen.</p>
         <div className="grid grid-cols-2 gap-3 pt-2">
           <Button
             type="button"
