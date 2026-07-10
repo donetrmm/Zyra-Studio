@@ -54,6 +54,9 @@ export function ChatPanel(props: {
           <div className="max-w-[80%]">
             {item.status === 'done' && item.thumbPath ? (
               <div
+                // La tarjeta ABRAZA la imagen (mediaBubbleWidth) en vez de quedar a
+                // 80% con huecos grises: angosta en vertical, ancha en horizontal.
+                style={{ width: mediaBubbleWidth(item.aspectRatio) }}
                 className={`zyra-fade-in overflow-hidden rounded-2xl rounded-bl-sm border transition-shadow ${
                   item.id === props.workingId
                     ? 'border-brand shadow-[0_0_0_1px_var(--color-brand)]'
@@ -114,6 +117,17 @@ export function ChatPanel(props: {
   );
 }
 
+// Ancho del bubble para turnos con imagen: hace que la burbuja ABRACE la imagen o
+// el loader en vez de quedar a 80% con huecos grises. Vertical -> angosto (el ancho
+// que da 65vh de alto); horizontal/1:1 -> hasta 100% del bubble. Espeja el cap
+// max-h-[65vh] del <img> resuelto, así el loader y la imagen ocupan lo mismo.
+function mediaBubbleWidth(aspectRatio: string | null): string {
+  const parts = (aspectRatio ?? '1:1').split(':');
+  const rw = Number(parts[0]) > 0 ? Number(parts[0]) : 1;
+  const rh = Number(parts[1]) > 0 ? Number(parts[1]) : 1;
+  return `min(100%, calc(65vh * ${(rw / rh).toFixed(4)}))`;
+}
+
 // Tarjeta "generando": reserva el espacio del aspecto pedido (sin salto al llegar
 // la imagen) con shimmer + spinner orbital de acento — mismo lenguaje visual que
 // PreviewArea. Cronómetro y aviso al pasar el minuto (gpt-image puede tardar).
@@ -123,21 +137,17 @@ function PendingCard(props: { aspectRatio: string | null }) {
     const t = setInterval(() => setSecs((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
-  // Reserva el MISMO footprint que tendrá la imagen final (max-h-[65vh] w-auto):
-  // el área de carga toma el aspecto pedido PERO acotada a 65vh de alto, para que
-  // un formato vertical (9:16) no crezca sin límite y se salga de la pantalla. El
-  // width con min() replica el "w-auto max-w-full" del <img> del turno resuelto:
-  // el ancho que haría height=65vh, o 100% del bubble si eso es más chico.
   const parts = (props.aspectRatio ?? '1:1').split(':');
   const rw = Number(parts[0]) > 0 ? Number(parts[0]) : 1;
   const rh = Number(parts[1]) > 0 ? Number(parts[1]) : 1;
-  const widthFactor = (rw / rh).toFixed(4);
+  // La tarjeta abraza el loader (mediaBubbleWidth); el área interna llena ese ancho
+  // con el aspecto pedido, así el alto queda acotado a 65vh (no se sale en 9:16).
   return (
-    <div className="overflow-hidden rounded-2xl rounded-bl-sm border border-border bg-card">
-      <div
-        className="relative mx-auto max-h-[65vh] max-w-full"
-        style={{ aspectRatio: `${rw} / ${rh}`, width: `min(100%, calc(65vh * ${widthFactor}))` }}
-      >
+    <div
+      className="overflow-hidden rounded-2xl rounded-bl-sm border border-border bg-card"
+      style={{ width: mediaBubbleWidth(props.aspectRatio) }}
+    >
+      <div className="relative w-full" style={{ aspectRatio: `${rw} / ${rh}` }}>
         <div
           className="absolute inset-0"
           aria-hidden
