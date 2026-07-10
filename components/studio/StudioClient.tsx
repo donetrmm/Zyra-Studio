@@ -24,6 +24,7 @@ export function StudioClient(props: StudioClientProps) {
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
   const [productImages, setProductImages] = useState<StudioProductImages>(props.productImages);
+  const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
   const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
   const submitLock = useRef(false);
@@ -128,7 +129,7 @@ export function StudioClient(props: StudioClientProps) {
           <Composer
             pricing={props.pricing}
             balance={balance}
-            availableReferences={props.availableReferences}
+            availableReferences={availableReferences}
             hasWorkingImage={workingId !== null}
             disabled={submitting}
             onSubmit={handleSubmit}
@@ -164,12 +165,20 @@ export function StudioClient(props: StudioClientProps) {
         <GenerationStatusWatcher key={it.id} generationId={it.id} onResolved={onResolved} />
       ))}
       <AttachDialog
+        key={attachId ?? 'none'}
         open={attachId !== null}
         onOpenChange={(o) => !o && setAttachId(null)}
         generationId={attachId}
         productId={props.assetId}
         productImages={productImages}
-        onAttached={setProductImages}
+        onAttached={(next, newRef) => {
+          setProductImages(next);
+          // La imagen adjuntada queda disponible como referencia en el compositor
+          // sin recargar (dedup por id por si se adjunta dos veces).
+          setAvailableReferences((cur) =>
+            cur.some((r) => r.id === newRef.id) ? cur : [...cur, newRef],
+          );
+        }}
       />
     </div>
   );

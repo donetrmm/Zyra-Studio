@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { addGenerationAsReferenceAction } from '@/server-actions/media-references';
 import { setProductImagesAction } from '@/server-actions/products';
-import type { StudioProductImages } from './types';
+import type { StudioProductImages, StudioRefOption } from './types';
 
 type Role = 'product' | 'packaging';
 
@@ -22,7 +22,7 @@ export function AttachDialog(props: {
   generationId: string | null;
   productId: string;
   productImages: StudioProductImages;
-  onAttached: (next: StudioProductImages) => void;
+  onAttached: (next: StudioProductImages, newRef: StudioRefOption) => void;
 }) {
   const [saving, setSaving] = useState<Role | null>(null);
 
@@ -57,7 +57,13 @@ export function AttachDialog(props: {
       toast.error('No se pudo guardar en el producto');
       return;
     }
-    props.onAttached(next);
+    // Devuelve la referencia recién creada para que el compositor la ofrezca de
+    // inmediato (sin recargar): la imagen adjuntada ya es una media_reference.
+    props.onAttached(next, {
+      id: ref.data.id,
+      previewUrl: ref.data.previewUrl,
+      filename: ref.data.filename,
+    });
     props.onOpenChange(false);
     toast.success(role === 'product' ? 'Añadida a Imágenes de producto' : 'Añadida a Empaque');
   }

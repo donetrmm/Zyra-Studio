@@ -46,7 +46,9 @@ export default async function StudioPage({
   let activeSessionId: string | null = null;
   if (sessionParam && sessions.some((s) => s.id === sessionParam)) {
     activeSessionId = sessionParam;
-  } else if (!sessionParam && sessions.length > 0) {
+  } else if (sessions.length > 0) {
+    // ?session ausente o inválido (ajeno/archivado) pero hay sesiones: fija la
+    // más reciente en la URL en vez de caer a estado vacío.
     redirect(`/app/studio/product/${assetId}?session=${sessions[0].id}`);
   }
 
