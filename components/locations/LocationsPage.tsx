@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Loader2, MapPin, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -111,6 +112,12 @@ export function LocationsPage({
                 </div>
               </div>
               <div className="flex gap-2 border-t border-border/30 p-3">
+                <Link
+                  href={`/app/studio/location/${l.id}`}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+                >
+                  <Sparkles className="size-3" aria-hidden /> Estudio
+                </Link>
                 <button
                   type="button"
                   onClick={() => setEditing(l)}
