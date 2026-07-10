@@ -19,13 +19,11 @@ export function ProductsSection({
   products: initial,
   previews,
   usages,
-  angleCost,
 }: {
   brandKitId: string;
   products: ProductView[];
   previews: Record<string, string>;
   usages: Record<string, string>;
-  angleCost: number | null;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -60,7 +58,6 @@ export function ProductsSection({
           product={editing === 'new' ? null : editing}
           previews={previews}
           usages={usages}
-          angleCost={angleCost}
           onClose={() => setEditing(null)}
           onSaved={() => router.refresh()}
         />

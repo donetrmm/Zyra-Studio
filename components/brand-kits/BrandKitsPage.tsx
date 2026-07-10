@@ -24,13 +24,11 @@ type BrandKit = {
 
 export function BrandKitsPage({
   kits: initial,
-  angleCost,
   products,
   productPreviews,
   productUsages,
 }: {
   kits: BrandKit[];
-  angleCost: number | null;
   products: ProductView[];
   productPreviews: Record<string, string>;
   productUsages: Record<string, string>;
@@ -139,7 +137,6 @@ export function BrandKitsPage({
                   products={products.filter((p) => p.brand_id === expandedKit.id)}
                   previews={productPreviews}
                   usages={productUsages}
-                  angleCost={angleCost}
                 />
               </div>
             </div>

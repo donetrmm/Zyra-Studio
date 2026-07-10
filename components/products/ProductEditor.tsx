@@ -42,9 +42,6 @@ export function ProductEditor({
   product,
   previews,
   usages,
-  // Prop conservada por compatibilidad con el caller (ProductsSection); ya no
-  // se usa aquí tras retirar los botones de ángulo (ese costo se muestra en el estudio).
-  angleCost: _angleCost,
   onClose,
   onSaved,
 }: {
@@ -52,7 +49,6 @@ export function ProductEditor({
   product: ProductView | null;
   previews: Record<string, string>;
   usages: Record<string, string>;
-  angleCost: number | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
