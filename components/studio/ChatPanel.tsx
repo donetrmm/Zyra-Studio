@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
-import { Lightbox } from '@/components/generation/Lightbox';
 import { Button } from '@/components/ui/button';
 import { DownloadTurnButton } from './DownloadTurnButton';
+import { StudioImage } from './StudioImage';
 import type { StudioAssetType, StudioTurn } from './types';
 
 const EMPTY_COPY: Record<StudioAssetType, string> = {
@@ -60,9 +60,12 @@ export function ChatPanel(props: {
                     : 'border-border'
                 }`}
               >
-                <ChatImage
-                  src={publicThumbnailUrlClient(item.thumbPath)}
+                <StudioImage
+                  thumbSrc={publicThumbnailUrlClient(item.thumbPath)}
+                  generationId={item.id}
                   alt={item.prompt ?? 'Imagen generada'}
+                  className="block w-full"
+                  imgClassName="mx-auto block max-h-[65vh] w-auto max-w-full"
                 />
                 <div className="flex items-center gap-1 bg-card px-2 py-1.5">
                   {item.id === props.workingId ? (
@@ -108,26 +111,6 @@ export function ChatPanel(props: {
         </div>
       ))}
     </div>
-  );
-}
-
-// Imagen del chat: altura natural (no recorta el encuadre) y click para ampliar.
-function ChatImage(props: { src: string; alt: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={`Ampliar imagen: ${props.alt}`}
-        title="Ampliar"
-        className="block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={props.src} alt={props.alt} loading="lazy" decoding="async" className="w-full" />
-      </button>
-      {open && <Lightbox src={props.src} alt={props.alt} onClose={() => setOpen(false)} />}
-    </>
   );
 }
 

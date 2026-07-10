@@ -2,7 +2,7 @@
 
 import { ImageOff } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
-import { ZoomableImage } from '@/components/shared/ZoomableImage';
+import { StudioImage } from './StudioImage';
 import { cn } from '@/lib/utils';
 import type { StudioTurn } from './types';
 
@@ -38,11 +38,12 @@ export function GalleryPanel(props: {
                 key={item.id}
                 className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-brand/40"
               >
-                <ZoomableImage
-                  src={publicThumbnailUrlClient(item.thumbPath)}
+                <StudioImage
+                  thumbSrc={publicThumbnailUrlClient(item.thumbPath)}
+                  generationId={item.id}
                   alt={item.prompt ?? 'Imagen generada'}
                   className="absolute inset-0 h-full w-full"
-                  imgClassName="transition-transform duration-300 ease-out group-hover:scale-[1.05]"
+                  imgClassName="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.05]"
                 />
                 {props.renderActions ? (
                   <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
