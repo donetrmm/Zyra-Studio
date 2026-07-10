@@ -1,16 +1,13 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Loader2, Sparkles, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createProductAction, updateProductAction, setProductImagesAction } from '@/server-actions/products';
-import { getReferencePathsAction } from '@/server-actions/creation';
 import { setReferenceUsageAction } from '@/server-actions/media-references';
 import { Button } from '@/components/ui/button';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
-import { generateProductAngle, refineProductImage, isGenError, type ProductAngleView } from '@/components/creation/generate';
 
 // Espeja ProductRow (lib/campaigns/products.ts) para el consumo en UI: los
 // arrays de imágenes llegan siempre resueltos ([] en vez de null) porque el
@@ -40,17 +37,14 @@ function numOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-const ANGLE_LABEL: Record<ProductAngleView, { name: string; buttonLabel: string }> = {
-  'three-quarter': { name: 'vista 3/4', buttonLabel: 'Generar vista 3/4' },
-  profile: { name: 'vista 90° (perfil)', buttonLabel: 'Generar vista 90°' },
-};
-
 export function ProductEditor({
   brandKitId,
   product,
   previews,
   usages,
-  angleCost,
+  // Prop conservada por compatibilidad con el caller (ProductsSection); ya no
+  // se usa aquí tras retirar los botones de ángulo (ese costo se muestra en el estudio).
+  angleCost: _angleCost,
   onClose,
   onSaved,
 }: {
@@ -87,46 +81,11 @@ export function ProductEditor({
     ),
   );
   const [saving, startSave] = useTransition();
-  // Vista en generación ('three-quarter' | 'profile') o null.
-  const [angling, setAngling] = useState<ProductAngleView | null>(null);
-  // Vista con el retoque IA abierto (mismo patrón que BrandKitEditor).
-  const [refiningId, setRefiningId] = useState<string | null>(null);
 
   async function saveUsage(refId: string, value: string) {
     setImageUsages((prev) => ({ ...prev, [refId]: value }));
     const res = await setReferenceUsageAction({ refId, usage: value });
     if (!res.ok) toast.error(res.message || 'No se pudo guardar el uso');
-  }
-
-  // Genera una vista del producto (3/4 o perfil 90°) desde la PRIMERA imagen
-  // subida y la antepone a la lista (tope 4). Se conserva al Guardar.
-  async function generateAngleView(view: ProductAngleView) {
-    if (productImages.length === 0 || productImages.length >= 4 || angling) return;
-    setAngling(view);
-    try {
-      const src = productImages[0];
-      const pathRes = await getReferencePathsAction([src.id]);
-      const storagePath = pathRes.ok ? pathRes.data[src.id] : undefined;
-      if (!storagePath) { toast.error('No se pudo resolver la imagen de producto'); return; }
-      const out = await generateProductAngle({ id: src.id, storagePath }, view);
-      if (isGenError(out)) { toast.error(out.message || `No se pudo generar la ${ANGLE_LABEL[view].name}`); return; }
-      setProductImages((prev) => [{ id: out.refId, previewUrl: out.previewUrl }, ...prev].slice(0, 4));
-      toast.success(`${ANGLE_LABEL[view].name} generada; guarda el producto para conservarla`);
-    } finally {
-      setAngling(null);
-    }
-  }
-
-  // Retoque IA de una vista concreta: corrige la vista generada (o subida) sin
-  // borrarla y regenerar. El resultado reemplaza la vista en su posición.
-  function adoptRefinedView(oldId: string, r: { id: string; previewUrl: string | null }) {
-    setProductImages((prev) => prev.map((img) => (img.id === oldId ? { id: r.id, previewUrl: r.previewUrl } : img)));
-    const usage = imageUsages[oldId] ?? '';
-    if (usage && r.id !== oldId) {
-      setImageUsages((prev) => ({ ...prev, [r.id]: usage }));
-      void setReferenceUsageAction({ refId: r.id, usage });
-    }
-    setRefiningId(r.id);
   }
 
   function handleSave() {
@@ -186,74 +145,24 @@ export function ProductEditor({
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Uso de cada vista (opcional)</label>
             {productImages.map((img) => (
-              <div key={img.id}>
-                <div className="flex items-center gap-2">
-                  {img.previewUrl ? (
-                    <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
-                  ) : (
-                    <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
-                  )}
-                  <input
-                    type="text"
-                    aria-label="Uso de esta vista de producto"
-                    defaultValue={imageUsages[img.id] ?? ''}
-                    placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
-                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
-                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRefiningId((cur) => (cur === img.id ? null : img.id))}
-                    title="Retocar esta vista con IA"
-                    aria-label="Retocar esta vista con IA"
-                    className={`grid size-8 shrink-0 place-items-center rounded-md border transition-colors ${
-                      refiningId === img.id
-                        ? 'border-primary/60 bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Sparkles className="size-3.5" aria-hidden />
-                  </button>
-                </div>
-                {refiningId === img.id && (
-                  <div className="ml-12 mt-1.5">
-                    <MasterImageRefiner
-                      image={img}
-                      refine={refineProductImage}
-                      onResult={(r) => adoptRefinedView(img.id, r)}
-                      placeholder="ej. fondo blanco puro, centra el producto"
-                    />
-                  </div>
+              <div key={img.id} className="flex items-center gap-2">
+                {img.previewUrl ? (
+                  <ZoomableImage src={img.previewUrl} alt="Vista de producto" className="size-10 shrink-0 rounded-md border border-border" />
+                ) : (
+                  <div className="size-10 shrink-0 rounded-md border border-border bg-muted/30" aria-hidden />
                 )}
+                <input
+                  type="text"
+                  aria-label="Uso de esta vista de producto"
+                  defaultValue={imageUsages[img.id] ?? ''}
+                  placeholder="¿Qué muestra? p.ej. frontal en blanco, vista 3/4, detalle del logo"
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (usages[img.id] ?? '')) void saveUsage(img.id, v); }}
+                  className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                />
               </div>
             ))}
           </div>
         ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          {(['three-quarter', 'profile'] as const).map((view) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => void generateAngleView(view)}
-              disabled={angling !== null || productImages.length === 0 || productImages.length >= 4}
-              title={
-                productImages.length === 0
-                  ? 'Sube primero una imagen de producto'
-                  : productImages.length >= 4
-                    ? 'Ya tienes el máximo de vistas (4)'
-                    : view === 'three-quarter'
-                      ? 'Genera una vista 3/4 para reducir la deriva geométrica en video'
-                      : 'Genera la vista lateral (90°) del producto'
-              }
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {angling === view ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Sparkles className="size-3.5 text-primary" aria-hidden />}
-              {ANGLE_LABEL[view].buttonLabel}
-              {angleCost != null && <span className="text-muted-foreground">· −{angleCost} cr</span>}
-            </button>
-          ))}
-        </div>
 
         <ReferenceImagesUploader
           label="Empaque"
