@@ -80,6 +80,7 @@ export default async function StudioPage({
         thumbPath: g.thumbnail_url,
         createdAt: g.created_at,
         errorMessage: null,
+        aspectRatio: (g.params?.aspectRatio as string | undefined) ?? null,
       }));
     }
   }

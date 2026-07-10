@@ -103,6 +103,7 @@ export function StudioClient(props: StudioClientProps) {
           thumbPath: null,
           createdAt: new Date().toISOString(),
           errorMessage: null,
+          aspectRatio: input.aspectRatio,
         };
         setItems((cur) => [...cur, optimistic]);
 

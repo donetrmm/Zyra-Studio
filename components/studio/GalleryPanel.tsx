@@ -18,8 +18,12 @@ export function GalleryPanel(props: {
   return (
     <aside className={cn('flex h-full flex-col border-border lg:border-l', props.className)}>
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-medium text-foreground">Galería de la sesión</h2>
-        <p className="text-xs text-muted-foreground">{done.length} imagen(es)</p>
+        <h2 className="font-heading text-2sm font-semibold text-foreground">Galería</h2>
+        <p className="text-xs text-muted-foreground">
+          {done.length === 0
+            ? 'Sin imágenes aún'
+            : `${done.length} ${done.length === 1 ? 'imagen' : 'imágenes'}`}
+        </p>
       </div>
       <div className="scroll-thin flex-1 overflow-y-auto p-4">
         {done.length === 0 ? (
@@ -32,12 +36,13 @@ export function GalleryPanel(props: {
             {[...done].reverse().map((item) => (
               <div
                 key={item.id}
-                className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card"
+                className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-brand/40"
               >
                 <ZoomableImage
                   src={publicThumbnailUrlClient(item.thumbPath)}
                   alt={item.prompt ?? 'Imagen generada'}
                   className="absolute inset-0 h-full w-full"
+                  imgClassName="transition-transform duration-300 ease-out group-hover:scale-[1.05]"
                 />
                 {props.renderActions ? (
                   <div className="absolute inset-x-0 bottom-0 z-10 flex flex-wrap gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">

@@ -181,7 +181,7 @@ export function Composer(props: {
   }
 
   return (
-    <div className="space-y-3 border-t border-border p-4">
+    <div className="space-y-3 border-t border-border bg-card/30 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Select value={modelKey} onValueChange={(v) => changeModel(v as StudioModelKey)}>
           <SelectTrigger className="h-8 w-[180px] text-xs">

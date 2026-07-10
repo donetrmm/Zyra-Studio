@@ -14,6 +14,9 @@ export type StudioTurn = {
   thumbPath: string | null;
   createdAt: string;
   errorMessage: string | null;
+  // Reserva el espacio del skeleton de carga con el aspecto pedido (evita el
+  // salto cuando llega la imagen). '1:1' | '4:5' | '9:16' | '16:9'.
+  aspectRatio: string | null;
 };
 
 // Una imagen ya adjunta al producto, ofrecible como referencia en el compositor.

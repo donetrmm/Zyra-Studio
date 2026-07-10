@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
 import { Lightbox } from '@/components/generation/Lightbox';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,9 @@ import { DownloadTurnButton } from './DownloadTurnButton';
 import type { StudioAssetType, StudioTurn } from './types';
 
 const EMPTY_COPY: Record<StudioAssetType, string> = {
-  product: 'Escribe un prompt abajo para crear la primera imagen del producto.',
-  location: 'Escribe un prompt abajo para crear la primera imagen de la locación.',
-  character: 'Escribe un prompt abajo para crear la primera imagen del personaje.',
+  product: 'Describe el producto que imaginas y el estudio lo genera. Cada versión aparece aquí.',
+  location: 'Describe la locación que imaginas y el estudio la genera. Cada versión aparece aquí.',
+  character: 'Describe al personaje que imaginas y el estudio lo genera. Cada versión aparece aquí.',
 };
 
 export function ChatPanel(props: {
@@ -34,12 +34,18 @@ export function ChatPanel(props: {
   return (
     <div ref={scrollRef} className="scroll-thin flex-1 space-y-4 overflow-y-auto p-4">
       {props.items.length === 0 ? (
-        <p className="mx-auto max-w-sm pt-12 text-center text-sm text-muted-foreground">
-          {EMPTY_COPY[props.assetType]}
-        </p>
+        <div className="zyra-fade-in flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+          <div className="grid size-14 place-items-center rounded-2xl border border-border bg-card">
+            <Sparkles className="size-6 text-brand" aria-hidden />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="font-heading text-base font-semibold text-foreground">Crea tu primera imagen</h2>
+            <p className="mx-auto max-w-xs text-sm text-muted-foreground">{EMPTY_COPY[props.assetType]}</p>
+          </div>
+        </div>
       ) : null}
       {props.items.map((item) => (
-        <div key={item.id} className="space-y-2">
+        <div key={item.id} className="zyra-fade-up space-y-2">
           {item.prompt ? (
             <div className="ml-auto max-w-[80%] rounded-2xl rounded-br-sm bg-muted px-3 py-2 text-sm text-foreground">
               {item.prompt}
@@ -48,8 +54,10 @@ export function ChatPanel(props: {
           <div className="max-w-[80%]">
             {item.status === 'done' && item.thumbPath ? (
               <div
-                className={`overflow-hidden rounded-2xl rounded-bl-sm border ${
-                  item.id === props.workingId ? 'border-brand' : 'border-border'
+                className={`zyra-fade-in overflow-hidden rounded-2xl rounded-bl-sm border transition-shadow ${
+                  item.id === props.workingId
+                    ? 'border-brand shadow-[0_0_0_1px_var(--color-brand)]'
+                    : 'border-border'
                 }`}
               >
                 <ChatImage
@@ -58,7 +66,7 @@ export function ChatPanel(props: {
                 />
                 <div className="flex items-center gap-1 bg-card px-2 py-1.5">
                   {item.id === props.workingId ? (
-                    <span className="flex items-center gap-1 text-xs text-brand">
+                    <span className="flex items-center gap-1 text-xs font-medium text-brand">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       Imagen de trabajo
                     </span>
@@ -77,7 +85,7 @@ export function ChatPanel(props: {
                 </div>
               </div>
             ) : item.status === 'failed' || item.status === 'canceled' ? (
-              <div className="space-y-2 rounded-2xl rounded-bl-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className="zyra-fade-in space-y-2 rounded-2xl rounded-bl-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{item.errorMessage ?? 'La generación falló. Se reembolsaron los créditos.'}</span>
@@ -94,7 +102,7 @@ export function ChatPanel(props: {
                 ) : null}
               </div>
             ) : (
-              <PendingCard />
+              <PendingCard aspectRatio={item.aspectRatio} />
             )}
           </div>
         </div>
@@ -123,25 +131,55 @@ function ChatImage(props: { src: string; alt: string }) {
   );
 }
 
-// Tarjeta "generando": cronómetro + aviso al pasar el minuto, porque gpt-image
-// puede tardar un par de minutos y un spinner mudo se lee como "colgado".
-function PendingCard() {
+// Tarjeta "generando": reserva el espacio del aspecto pedido (sin salto al llegar
+// la imagen) con shimmer + spinner orbital de acento — mismo lenguaje visual que
+// PreviewArea. Cronómetro y aviso al pasar el minuto (gpt-image puede tardar).
+function PendingCard(props: { aspectRatio: string | null }) {
   const [secs, setSecs] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setSecs((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
+  const ratio = props.aspectRatio ? props.aspectRatio.replace(':', ' / ') : '1 / 1';
   return (
-    <div className="space-y-1 rounded-2xl rounded-bl-sm border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
-      <div className="flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Generando…{secs >= 3 ? ` ${secs}s` : ''}
+    <div className="overflow-hidden rounded-2xl rounded-bl-sm border border-border bg-card">
+      <div className="relative w-full" style={{ aspectRatio: ratio }}>
+        <div
+          className="absolute inset-0"
+          aria-hidden
+          style={{
+            background:
+              'linear-gradient(105deg, transparent 30%, color-mix(in oklch, var(--color-brand) 14%, transparent) 50%, transparent 70%)',
+            backgroundSize: '400px 100%',
+            animation: 'zyra-shimmer 1.6s linear infinite',
+          }}
+        />
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="relative size-11">
+            <div className="absolute inset-0 rounded-full border-[1.5px] border-brand/20" aria-hidden />
+            <div
+              className="absolute inset-0 rounded-full border-[1.5px] border-transparent"
+              aria-hidden
+              style={{ borderTopColor: 'var(--color-brand)', animation: 'zyra-orbit 1.2s linear infinite' }}
+            />
+            <Sparkles className="absolute left-[15px] top-[15px] size-3.5 text-brand" aria-hidden />
+          </div>
+        </div>
       </div>
-      {secs >= 25 ? (
-        <p className="pl-6 text-xs text-muted-foreground/80">
-          Puede tardar un par de minutos. Puedes seguir trabajando mientras tanto.
-        </p>
-      ) : null}
+      <div className="space-y-0.5 px-3 py-2">
+        <div className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-[0.08em] text-brand">
+          <span
+            className="size-1.5 rounded-full bg-brand"
+            style={{ animation: 'zyra-pulse-glow 1.4s ease infinite' }}
+          />
+          Generando{secs >= 3 ? ` · ${secs}s` : ''}
+        </div>
+        {secs >= 25 ? (
+          <p className="text-2xs text-muted-foreground">
+            Puede tardar un par de minutos. Puedes seguir trabajando.
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

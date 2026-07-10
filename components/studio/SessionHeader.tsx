@@ -40,6 +40,12 @@ const BACK_HREF: Record<'product' | 'location' | 'character', string> = {
   character: '/app/brand/cast',
 };
 
+const TYPE_LABEL: Record<'product' | 'location' | 'character', string> = {
+  product: 'Producto',
+  location: 'Locación',
+  character: 'Personaje',
+};
+
 // Etiqueta de sesión: el nombre que puso el usuario, o la fecha/hora si no tiene.
 function sessionLabel(s: StudioSessionOption): string {
   if (s.title) return s.title;
@@ -141,7 +147,10 @@ export function SessionHeader(props: {
         <span className="hidden sm:inline">Volver</span>
       </Link>
       <div className="min-w-0">
-        <h1 className="truncate text-sm font-medium text-foreground">Estudio · {props.assetName}</h1>
+        <p className="text-2xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+          Estudio · {TYPE_LABEL[props.assetType]}
+        </p>
+        <h1 className="truncate font-heading text-2sm font-semibold text-foreground">{props.assetName}</h1>
       </div>
       <div className="ml-auto flex items-center gap-2">
         {props.sessions.length > 0 && props.activeSessionId ? (
