@@ -14,7 +14,8 @@ import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// 300s: una llamada de imagen (gpt-image-2) bloquea hasta ~280s; ver spec estudio.
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
