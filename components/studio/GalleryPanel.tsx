@@ -16,7 +16,17 @@ export function GalleryPanel(props: {
   );
 
   return (
-    <aside className={cn('flex h-full flex-col border-border lg:border-l', props.className)}>
+    <aside
+      className={cn(
+        // min-h-0 + overflow-hidden: sin esto el <aside> toma su tamaño mínimo
+        // automático (= su contenido) en la celda del grid y NO se encoge a la
+        // altura disponible, así que crece con las imágenes en vez de dejar que
+        // el div interno (flex-1 overflow-y-auto) scrollee. Mismo patrón que el
+        // <section> del chat en StudioClient.
+        'flex h-full min-h-0 flex-col overflow-hidden border-border lg:border-l',
+        props.className,
+      )}
+    >
       <div className="border-b border-border px-4 py-3">
         <h2 className="font-heading text-2sm font-semibold text-foreground">Galería</h2>
         <p className="text-xs text-muted-foreground">
