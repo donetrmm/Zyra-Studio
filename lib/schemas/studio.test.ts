@@ -38,4 +38,15 @@ describe('SubmitStudioTurnSchema', () => {
   it('rechaza provider desconocido', () => {
     expect(SubmitStudioTurnSchema.safeParse({ ...base, provider: 'flux' }).success).toBe(false);
   });
+  it('rechaza model que no corresponde al provider (nano-banana + gpt-image-2)', () => {
+    const r = SubmitStudioTurnSchema.safeParse({ ...base, provider: 'nano-banana', model: 'gpt-image-2', variant: '2k' });
+    expect(r.success).toBe(false);
+  });
+  it('rechaza variant que no corresponde al provider (gpt-image + 4k)', () => {
+    expect(SubmitStudioTurnSchema.safeParse({ ...base, variant: '4k' }).success).toBe(false);
+  });
+  it('acepta nano-banana con model y variant propios', () => {
+    const r = SubmitStudioTurnSchema.safeParse({ ...base, provider: 'nano-banana', model: 'gemini-3-pro-image-preview', variant: '2k' });
+    expect(r.success).toBe(true);
+  });
 });

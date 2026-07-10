@@ -13,15 +13,35 @@ export const CreateStudioSessionSchema = z.object({
 });
 export type CreateStudioSessionInput = z.infer<typeof CreateStudioSessionSchema>;
 
-export const SubmitStudioTurnSchema = z.object({
-  sessionId: z.string().uuid(),
-  provider: StudioProviderSchema,
-  model: z.string().min(1),
-  variant: z.string().min(1), // '1k'/'2k'/'4k' (nano) | 'low'/'medium'/'high' (gpt-image-2) | 'default'
-  prompt: z.string().min(1).max(12000),
-  referenceIds: z.array(z.string().uuid()).max(6).optional(),
-  parentGenerationId: z.string().uuid().nullable().optional(),
-  keepIdentical: z.boolean().optional(),
-  aspectRatio: z.string().optional(),
-});
+// Modelos y variants válidos por proveedor. El schema los ata al provider (via
+// superRefine) para que la validación sea la frontera real — un combo inválido
+// (p. ej. nano-banana + gpt-image-2) se rechaza aquí, no aguas abajo en el
+// estimador. El pricing sigue siendo la autoridad final del combo model×variant.
+const NANO_MODELS = ['gemini-3-pro-image-preview', 'gemini-3.1-flash-image-preview'];
+const NANO_VARIANTS = ['1k', '2k', '4k'];
+const GPT_MODELS = ['gpt-image-2', 'gpt-image-1', 'gpt-image-1-mini'];
+const GPT_VARIANTS = ['low', 'medium', 'high', 'default'];
+
+export const SubmitStudioTurnSchema = z
+  .object({
+    sessionId: z.string().uuid(),
+    provider: StudioProviderSchema,
+    model: z.string().min(1),
+    variant: z.string().min(1), // '1k'/'2k'/'4k' (nano) | 'low'/'medium'/'high'/'default' (gpt-image)
+    prompt: z.string().min(1).max(12000),
+    referenceIds: z.array(z.string().uuid()).max(6).optional(),
+    parentGenerationId: z.string().uuid().nullable().optional(),
+    keepIdentical: z.boolean().optional(),
+    aspectRatio: z.string().optional(),
+  })
+  .superRefine((val, ctx) => {
+    const [models, variants] =
+      val.provider === 'nano-banana' ? [NANO_MODELS, NANO_VARIANTS] : [GPT_MODELS, GPT_VARIANTS];
+    if (!models.includes(val.model)) {
+      ctx.addIssue({ code: 'custom', path: ['model'], message: `model inválido para ${val.provider}` });
+    }
+    if (!variants.includes(val.variant)) {
+      ctx.addIssue({ code: 'custom', path: ['variant'], message: `variant inválida para ${val.provider}` });
+    }
+  });
 export type SubmitStudioTurnInput = z.infer<typeof SubmitStudioTurnSchema>;
