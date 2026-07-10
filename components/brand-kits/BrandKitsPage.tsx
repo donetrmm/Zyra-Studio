@@ -2,11 +2,20 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Package, Palette, Plus, Trash2, Pencil, X } from 'lucide-react';
+import { Copy, Loader2, MoreHorizontal, Package, Palette, Plus, Trash2, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { createBrandKitAction, updateBrandKitAction, deleteBrandKitAction } from '@/server-actions/brand-kits';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { AssetPageHeader } from '@/components/assets/AssetPageHeader';
+import { AssetGrid } from '@/components/assets/AssetGrid';
 import { ProductsSection } from '@/components/products/ProductsSection';
 import type { ProductView } from '@/components/products/ProductEditor';
 
@@ -51,25 +60,17 @@ export function BrandKitsPage({
   const expandedKit = kits.find((k) => k.id === expandedKitId) ?? null;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">Brand Kits</h1>
-          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
-            Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para inyectar tu estilo en el prompt.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setEditing('new')}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
+    <div>
+      <AssetPageHeader
+        title="Brand Kits"
+        description="Define la identidad visual de tu marca: paleta de colores, fuentes y tono de voz. Al generar imágenes, selecciona un kit para inyectar tu estilo en el prompt."
+        actions={
+          <Button type="button" onClick={() => setEditing('new')}>
             <Plus className="size-4" aria-hidden />
             Nuevo kit
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
       {editing && (
         <BrandKitEditor
@@ -80,16 +81,14 @@ export function BrandKitsPage({
       )}
 
       {kits.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-            <Palette className="size-7" aria-hidden />
-          </div>
-          <p className="text-[14px] text-foreground/70">No tienes brand kits</p>
-          <p className="max-w-xs text-[12.5px]">Crea tu primer kit para inyectar identidad de marca en tus generaciones</p>
-        </div>
+        <PageEmptyState
+          icon={Palette}
+          title="No tienes brand kits"
+          sub="Crea tu primer kit para inyectar identidad de marca en tus generaciones."
+        />
       ) : (
         <>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <AssetGrid className="mt-6">
             {kits.map((kit) => (
               <BrandKitCard
                 key={kit.id}
@@ -98,6 +97,19 @@ export function BrandKitsPage({
                 expanded={expandedKitId === kit.id}
                 onToggleProducts={() => setExpandedKitId((cur) => (cur === kit.id ? null : kit.id))}
                 onEdit={() => setEditing(kit)}
+                onDuplicate={async () => {
+                  const res = await createBrandKitAction({
+                    name: `${kit.name} (copia)`,
+                    colors: kit.colors,
+                    fonts: kit.fonts,
+                    toneDescription: kit.tone_description ?? undefined,
+                    styleGuidelines: kit.style_guidelines ?? undefined,
+                  });
+                  if (res.ok) {
+                    toast.success('Kit duplicado');
+                    router.refresh();
+                  } else toast.error(res.message || 'No se pudo duplicar');
+                }}
                 onDelete={async () => {
                   const ok = await confirm({ title: `¿Eliminar "${kit.name}"?`, description: 'El brand kit se eliminara permanentemente.', confirmLabel: 'Eliminar', destructive: true });
                   if (!ok) return;
@@ -111,7 +123,7 @@ export function BrandKitsPage({
                 }}
               />
             ))}
-          </div>
+          </AssetGrid>
 
           {expandedKit && (
             <div className="mt-4 overflow-hidden rounded-xl border border-primary/30 bg-card/40">
@@ -153,6 +165,7 @@ function BrandKitCard({
   expanded,
   onToggleProducts,
   onEdit,
+  onDuplicate,
   onDelete,
 }: {
   kit: BrandKit;
@@ -160,64 +173,77 @@ function BrandKitCard({
   expanded: boolean;
   onToggleProducts: () => void;
   onEdit: () => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-xl border bg-card/50 transition-colors ${
-        expanded ? 'border-primary/50' : 'border-border hover:border-muted-foreground/20'
+      className={`flex flex-col overflow-hidden rounded-xl border bg-card/50 transition-colors ${
+        expanded ? 'border-primary/50' : 'border-border hover:border-muted-foreground/25'
       }`}
     >
-      <div className="p-4">
-      <h3 className="truncate text-[14px] font-medium text-foreground">{kit.name}</h3>
-      {kit.colors.length > 0 && (
-        <div className="mt-2 flex gap-1">
-          {kit.colors.slice(0, 6).map((c, i) => (
-            <div
-              key={i}
-              role="img"
-              aria-label={`${c.name}: ${c.hex}`}
-              className="size-5 rounded-full border border-border"
-              style={{ backgroundColor: c.hex }}
-              title={`${c.name}: ${c.hex}`}
-            />
-          ))}
-          {kit.colors.length > 6 && (
-            <span className="text-[11px] text-muted-foreground">+{kit.colors.length - 6}</span>
-          )}
-        </div>
-      )}
-      {kit.fonts.length > 0 && (
-        <p className="mt-1.5 truncate text-[11px] text-muted-foreground">
-          {kit.fonts.join(', ')}
-        </p>
-      )}
-      {kit.tone_description && (
-        <p className="mt-1 truncate text-[11px] text-muted-foreground/70">{kit.tone_description}</p>
-      )}
-      <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {productCount} {productCount === 1 ? 'producto' : 'productos'}
-      </p>
+      <div className="flex-1 p-4">
+        <h3 className="truncate text-sm font-medium text-foreground">{kit.name}</h3>
+        {kit.colors.length > 0 && (
+          <div className="mt-2.5 flex items-center gap-1">
+            {kit.colors.slice(0, 6).map((c, i) => (
+              <div
+                key={i}
+                role="img"
+                aria-label={`${c.name}: ${c.hex}`}
+                className="size-5 rounded-full border border-border"
+                style={{ backgroundColor: c.hex }}
+                title={`${c.name}: ${c.hex}`}
+              />
+            ))}
+            {kit.colors.length > 6 && (
+              <span className="text-2xs text-muted-foreground">+{kit.colors.length - 6}</span>
+            )}
+          </div>
+        )}
+        {kit.fonts.length > 0 && (
+          <p className="mt-2 truncate text-2xs text-muted-foreground">{kit.fonts.join(', ')}</p>
+        )}
+        {kit.tone_description && (
+          <p className="mt-1 truncate text-2xs text-muted-foreground/70">{kit.tone_description}</p>
+        )}
       </div>
-      <div className="flex gap-2 border-t border-border/30 p-3">
-        <button type="button" onClick={onEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <Pencil className="size-3" aria-hidden /> Editar
-        </button>
-        <button
+      <div className="flex items-center gap-1.5 border-t border-border/40 p-2.5">
+        <Button type="button" variant="outline" size="sm" className="flex-1" onClick={onEdit}>
+          <Pencil className="size-3.5" aria-hidden /> Editar
+        </Button>
+        <Button
           type="button"
-          onClick={onToggleProducts}
+          variant={expanded ? 'secondary' : 'outline'}
+          size="sm"
+          className="flex-1"
           aria-expanded={expanded}
-          className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-            expanded
-              ? 'border-primary/50 bg-primary/10 text-foreground'
-              : 'border-border text-muted-foreground hover:text-foreground'
-          }`}
+          onClick={onToggleProducts}
         >
-          <Package className="size-3" aria-hidden /> {expanded ? 'Ocultar productos' : `Productos (${productCount})`}
-        </button>
-        <button type="button" onClick={onDelete} aria-label="Eliminar kit" className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-          <Trash2 className="size-3" aria-hidden />
-        </button>
+          <Package className="size-3.5" aria-hidden />
+          {expanded ? 'Ocultar' : productCount > 0 ? `Productos · ${productCount}` : 'Productos'}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground"
+              aria-label={`Más acciones para ${kit.name}`}
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={onDuplicate}>
+              <Copy className="size-3.5" aria-hidden /> Duplicar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
+              <Trash2 className="size-3.5" aria-hidden /> Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

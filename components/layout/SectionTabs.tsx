@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
-export type SectionTab = { label: string; href: string };
+export type SectionTab = { label: string; href: string; count?: number };
 
 // Tabs de navegación interna de un segmento (Marca, Creación rápida).
 // Mismo lenguaje visual que los tabs del Campaign Studio.
@@ -51,6 +51,16 @@ export function SectionTabs({ tabs }: { tabs: SectionTab[] }) {
             )}
           >
             {tab.label}
+            {tab.count ? (
+              <span
+                className={cn(
+                  'ml-1.5 tabular-nums',
+                  active ? 'text-muted-foreground' : 'text-muted-foreground/60',
+                )}
+              >
+                {tab.count}
+              </span>
+            ) : null}
           </Link>
         );
       })}

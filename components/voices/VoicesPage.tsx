@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { FlaskConical, Loader2, Mic, Pause, Play, Plus, RotateCcw, Trash2, Upload, Volume2 } from 'lucide-react';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { Button } from '@/components/ui/button';
+import { AssetPageHeader } from '@/components/assets/AssetPageHeader';
+import { ReadinessChip } from '@/components/assets/AssetCard';
 import { toast } from 'sonner';
 import { cloneVoiceAction, deleteVoiceAction, tryVoiceAction, uploadVoiceAction } from '@/server-actions/voices';
 import { cn } from '@/lib/utils';
@@ -101,43 +104,34 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-[18px] font-semibold text-foreground">Mis voces</h1>
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400">
-              <FlaskConical className="size-3" aria-hidden />
-              Experimental
-            </span>
-          </div>
-          <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
-            Clona voces desde samples de audio para texto a voz, o carga un audio ya terminado (hecho aquí o en otra herramienta) para tenerlo en tu biblioteca.
-          </p>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-400">
+    <div>
+      <AssetPageHeader
+        title="Mis voces"
+        description="Clona voces desde samples de audio para texto a voz, o carga un audio ya terminado (hecho aquí o en otra herramienta) para tenerlo en tu biblioteca."
+        badge={
+          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-2xs font-medium text-amber-400">
+            <FlaskConical className="size-3" aria-hidden />
+            Experimental
+          </span>
+        }
+        notice={
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 text-2xs font-medium text-emerald-400">
             Gratis por tiempo limitado
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setShowUpload(true); setShowClone(false); }}
-            className="inline-flex items-center gap-2 rounded-md border border-border px-3.5 py-2 text-[13px] font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
-          >
-            <Upload className="size-4" aria-hidden />
-            Cargar audio
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowClone(true); setShowUpload(false); }}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground outline-none transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
-          >
-            <Plus className="size-4" aria-hidden />
-            Clonar voz
-          </button>
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={() => { setShowUpload(true); setShowClone(false); }}>
+              <Upload className="size-4" aria-hidden />
+              Cargar audio
+            </Button>
+            <Button type="button" onClick={() => { setShowClone(true); setShowUpload(false); }}>
+              <Plus className="size-4" aria-hidden />
+              Clonar voz
+            </Button>
+          </>
+        }
+      />
 
       {/* Upload dialog: voz cargada tal cual (sin clonar) */}
       {showUpload && (
@@ -329,54 +323,56 @@ export function VoicesPage({ voices: initial }: { voices: VoiceRow[] }) {
                   )}
                 </div>
                 <span
+                  className="shrink-0"
                   title={v.status === 'failed' ? 'El sample pudo tener ruido o música de fondo. Vuelve a clonar con audio limpio.' : undefined}
-                  className={cn(
-                    'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                    v.status === 'ready'
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : v.status === 'failed'
-                        ? 'bg-red-500/10 text-red-400'
-                        : 'bg-amber-500/10 text-amber-400',
-                  )}
                 >
-                  {v.status === 'ready' ? 'Lista' : v.status === 'failed' ? 'Error' : 'Procesando'}
+                  <ReadinessChip
+                    status={v.status === 'ready' ? 'ready' : v.status === 'failed' ? 'error' : 'processing'}
+                    label={v.status === 'ready' ? 'Lista' : v.status === 'failed' ? 'Error' : 'Procesando'}
+                  />
                 </span>
               </div>
 
-              <div className="flex gap-2 p-3">
+              <div className="flex items-center gap-2 p-3">
                 {v.status === 'ready' && v.elevenlabs_voice_id && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
                     onClick={() => handleTry(v.elevenlabs_voice_id!)}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
                   >
                     <Play className="size-3.5" aria-hidden />
                     Probar
-                  </button>
+                  </Button>
                 )}
                 {v.status === 'failed' && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
                     onClick={() => setShowClone(true)}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px"
                   >
                     <RotateCcw className="size-3.5" aria-hidden />
                     Volver a clonar
-                  </button>
+                  </Button>
                 )}
                 {/* Voz cargada: reproductor del audio subido (sin TTS). */}
                 {!v.elevenlabs_voice_id && v.sampleUrl && (
                   <MiniPlayer src={v.sampleUrl} autoPlay={false} className="flex-1" />
                 )}
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon-sm"
                   onClick={() => handleDelete(v.id, v.name)}
                   disabled={deleting}
                   aria-label={`Eliminar voz "${v.name}"`}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] text-muted-foreground outline-none transition-colors hover:border-destructive/40 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
+                  className="ml-auto shrink-0 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
                 >
                   <Trash2 className="size-3.5" aria-hidden />
-                </button>
+                </Button>
               </div>
             </div>
           ))}

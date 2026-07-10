@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Copy, Package, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deleteProductAction } from '@/server-actions/products';
+import { createProductAction, deleteProductAction, setProductImagesAction } from '@/server-actions/products';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Button } from '@/components/ui/button';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { AssetCard } from '@/components/assets/AssetCard';
+import { AssetGrid } from '@/components/assets/AssetGrid';
+import { AssetSearch } from '@/components/assets/AssetSearch';
 import { ProductEditor, type ProductView } from '@/components/products/ProductEditor';
 
 // Lista anidada de productos de un brand kit (V3 multi-producto). Espeja el
@@ -36,13 +39,67 @@ export function ProductsSection({
     setProducts(initial);
   }
   const [editing, setEditing] = useState<ProductView | 'new' | null>(null);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) => p.name.toLowerCase().includes(q) || (p.medium ?? '').toLowerCase().includes(q),
+    );
+  }, [products, query]);
+
+  async function handleDelete(product: ProductView) {
+    const ok = await confirm({
+      title: `¿Eliminar "${product.name}"?`,
+      description: 'El producto se eliminará permanentemente.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await deleteProductAction(product.id);
+    if (res.ok) {
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      toast.success('Producto eliminado');
+    } else toast.error(res.message || 'Error');
+  }
+
+  // Duplica: crea el producto con la misma ficha y, si tiene imágenes, las
+  // comparte (mismos ids de media_references) vía setProductImagesAction.
+  async function handleDuplicate(product: ProductView) {
+    const res = await createProductAction({
+      brandId: brandKitId,
+      name: `${product.name} (copia)`,
+      medium: product.medium ?? undefined,
+      heightCm: product.height_cm ?? undefined,
+      widthCm: product.width_cm ?? undefined,
+      thicknessMm: product.thickness_mm ?? undefined,
+      weightKg: product.weight_kg ?? undefined,
+      visualDetails: product.visual_details ?? undefined,
+      palette: product.palette ?? undefined,
+    });
+    if (!res.ok) {
+      toast.error(res.message || 'No se pudo duplicar');
+      return;
+    }
+    if (product.product_image_ids.length || product.packaging_image_ids.length) {
+      await setProductImagesAction(res.data.id, {
+        productImageIds: product.product_image_ids,
+        packagingImageIds: product.packaging_image_ids,
+      });
+    }
+    toast.success('Producto duplicado');
+    router.refresh();
+  }
+
+  const showSearch = products.length > 5;
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-[15px] font-semibold text-foreground">Productos</h2>
-          <p className="mt-1 max-w-xl text-[12.5px] leading-relaxed text-muted-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-heading text-base font-semibold text-foreground">Productos</h2>
+          <p className="mt-1 max-w-xl text-2xs leading-relaxed text-muted-foreground">
             Cada producto tiene su propia ficha física y referencias visuales, para anclar escala y fidelidad en el storyboard.
           </p>
         </div>
@@ -64,99 +121,82 @@ export function ProductsSection({
       )}
 
       {products.length === 0 && !editing ? (
-        <div className="mt-8 flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <div className="grid size-14 place-items-center rounded-2xl border border-border bg-muted/30">
-            <Package className="size-6" aria-hidden />
-          </div>
-          <p className="text-[13.5px] text-foreground/70">Sin productos todavía</p>
-          <p className="max-w-xs text-[12px]">Agrega el primer producto de esta marca para usarlo en tus campañas</p>
-        </div>
+        <PageEmptyState
+          className="min-h-[220px]"
+          icon={Package}
+          title="Sin productos todavía"
+          sub="Agrega el primer producto de esta marca para usarlo en tus campañas."
+        />
       ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onEdit={() => setEditing(product)}
-              onDelete={async () => {
-                const ok = await confirm({
-                  title: `¿Eliminar "${product.name}"?`,
-                  description: 'El producto se eliminará permanentemente.',
-                  confirmLabel: 'Eliminar',
-                  destructive: true,
-                });
-                if (!ok) return;
-                const res = await deleteProductAction(product.id);
-                if (res.ok) {
-                  setProducts((prev) => prev.filter((p) => p.id !== product.id));
-                  toast.success('Producto eliminado');
-                } else {
-                  toast.error(res.message || 'Error');
-                }
-              }}
+        <>
+          {showSearch && (
+            <AssetSearch className="mt-4" value={query} onChange={setQuery} placeholder="Buscar producto…" />
+          )}
+          {filtered.length === 0 ? (
+            <PageEmptyState
+              className="min-h-[220px]"
+              icon={Package}
+              title="Sin resultados"
+              sub="Ningún producto coincide con tu búsqueda."
             />
-          ))}
-        </div>
+          ) : (
+            <AssetGrid className="mt-4">
+              {filtered.map((product) => {
+                const hasDims = product.height_cm != null && product.width_cm != null;
+                const hasPalette = Boolean(product.palette && product.palette.length > 0);
+                const imgId = product.product_image_ids[0] ?? product.packaging_image_ids[0] ?? null;
+                return (
+                  <AssetCard
+                    key={product.id}
+                    media={{
+                      url: imgId ? previews[imgId] ?? null : null,
+                      alt: product.name,
+                      aspect: 'square',
+                      fallbackIcon: Package,
+                    }}
+                    title={product.name}
+                    description={product.medium}
+                    readiness={
+                      product.product_image_ids.length > 0
+                        ? { status: 'ready', label: 'Listo' }
+                        : { status: 'incomplete', label: 'Sin imágenes' }
+                    }
+                    meta={
+                      hasDims || hasPalette ? (
+                        <span className="inline-flex items-center gap-2 text-2xs text-muted-foreground/70">
+                          {hasDims && (
+                            <span>
+                              {product.height_cm} × {product.width_cm} cm
+                            </span>
+                          )}
+                          {hasPalette && (
+                            <span className="flex gap-1">
+                              {product.palette!.slice(0, 5).map((hex, i) => (
+                                <span
+                                  key={i}
+                                  className="size-3 rounded-full border border-border"
+                                  style={{ backgroundColor: hex }}
+                                  title={hex}
+                                />
+                              ))}
+                            </span>
+                          )}
+                        </span>
+                      ) : null
+                    }
+                    primary={{ kind: 'link', href: `/app/studio/product/${product.id}`, label: 'Estudio', icon: Sparkles }}
+                    secondary={{ kind: 'button', onClick: () => setEditing(product), label: 'Editar', icon: Pencil }}
+                    menu={[
+                      { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicate(product) },
+                      { label: 'Eliminar', icon: Trash2, onClick: () => handleDelete(product), destructive: true },
+                    ]}
+                  />
+                );
+              })}
+            </AssetGrid>
+          )}
+        </>
       )}
-    </div>
-  );
-}
-
-function ProductCard({
-  product,
-  onEdit,
-  onDelete,
-}: {
-  product: ProductView;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const hasDims = product.height_cm != null && product.width_cm != null;
-  return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
-      <div className="p-4">
-        <h3 className="truncate text-[14px] font-medium text-foreground">{product.name}</h3>
-        {product.medium && (
-          <p className="mt-1 truncate text-[11.5px] text-muted-foreground">{product.medium}</p>
-        )}
-        {hasDims && (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            {product.height_cm} × {product.width_cm} cm
-          </p>
-        )}
-        {product.palette && product.palette.length > 0 && (
-          <div className="mt-2 flex gap-1">
-            {product.palette.slice(0, 6).map((hex, i) => (
-              <div key={i} className="size-5 rounded-full border border-border" style={{ backgroundColor: hex }} title={hex} />
-            ))}
-          </div>
-        )}
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          {product.product_image_ids.length} img producto · {product.packaging_image_ids.length} empaque
-        </p>
-      </div>
-      <div className="flex gap-2 border-t border-border/30 p-3">
-        <Link
-          href={`/app/studio/product/${product.id}`}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <Sparkles className="size-3" aria-hidden /> Abrir estudio
-        </Link>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <Pencil className="size-3" aria-hidden /> Editar
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <Trash2 className="size-3" aria-hidden /> Eliminar
-        </button>
-      </div>
     </div>
   );
 }

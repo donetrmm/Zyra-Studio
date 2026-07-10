@@ -2,12 +2,14 @@
 
 import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Files, ImageIcon, Loader2, Search, Trash2, Upload } from 'lucide-react';
+import { Check, Files, ImageIcon, Loader2, Maximize2, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadReferenceFile } from '@/lib/media-references/upload-client';
 import { deleteMediaReferenceAction } from '@/server-actions/media-references';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { AssetPageHeader } from '@/components/assets/AssetPageHeader';
+import { Lightbox } from '@/components/generation/Lightbox';
 import { cn } from '@/lib/utils';
 
 type ReferenceRow = {
@@ -37,6 +39,9 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
   }
   const [query, setQuery] = useState('');
   const [drag, setDrag] = useState(false);
+  // Imagen ampliada en Lightbox: la miniatura sigue sirviendo para seleccionar
+  // (grid de selección múltiple); ampliar es una acción aparte sobre la imagen.
+  const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -125,38 +130,24 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">Referencias</h1>
-          <p className="mt-1 max-w-lg text-[13px] leading-relaxed text-muted-foreground">
-            Imágenes de referencia para usar en tus generaciones. Sube imágenes o guarda
-            generaciones como referencia desde la biblioteca.
-          </p>
-        </div>
-        {/* CTA secundario: el dropzone abajo es el affordance principal de subida.
-            Usamos PrimaryGhost para alinear con el resto de la app (Library, previews). */}
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
-          Subir
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            void handleFiles(e.target.files);
-            if (fileRef.current) fileRef.current.value = '';
-          }}
-        />
-      </div>
+    <div>
+      {/* Sin botón de subida en el header: el dropzone de abajo es el único
+          affordance (antes había doble affordance para la misma acción). */}
+      <AssetPageHeader
+        title="Referencias"
+        description="Imágenes de referencia para usar en tus generaciones. Sube imágenes o guarda generaciones como referencia desde la biblioteca."
+      />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          if (fileRef.current) fileRef.current.value = '';
+        }}
+      />
 
       {/* Dropzone visible — primary affordance para subir. Match del estilo del
           ReferencesPanel inline en image creator. */}
@@ -294,7 +285,8 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                   type="button"
                   onClick={() => toggleSelect(r.id)}
                   className="block w-full text-left"
-                  aria-label={`Seleccionar ${r.name}`}
+                  aria-label={isSel ? `Quitar selección de ${r.name}` : `Seleccionar ${r.name}`}
+                  aria-pressed={isSel}
                 >
                   {r.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -312,8 +304,8 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                   )}
                 </button>
                 <div className="px-2.5 py-2">
-                  <p className="truncate text-[12px] font-medium text-foreground">{r.name}</p>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                  <p className="truncate text-2xs font-medium text-foreground">{r.name}</p>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted-foreground/70">
                     <span>{r.source === 'generation' ? 'Generación' : 'Upload'}</span>
                     <span>·</span>
                     <span>
@@ -325,43 +317,55 @@ export function ReferencesPage({ references: initial }: { references: ReferenceR
                   </div>
                 </div>
 
-                {/* Checkbox y trash con hitSlop: el botón visible es 20px pero
-                    el área tappable se extiende a 32px via padding negativo. */}
+                {/* Checkbox con hitSlop (36px): visible al seleccionar; en hover/focus
+                    cuando no. */}
                 <button
                   type="button"
                   onClick={() => toggleSelect(r.id)}
                   aria-label={isSel ? 'Quitar selección' : 'Seleccionar'}
-                  className={cn(
-                    'absolute -left-1 -top-1 grid size-9 place-items-center transition-colors',
-                  )}
+                  className="absolute -left-1 -top-1 grid size-9 place-items-center"
                 >
                   <span
                     className={cn(
                       'grid size-5 place-items-center rounded border transition-colors',
                       isSel
                         ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-foreground/60 bg-background/60 opacity-0 backdrop-blur group-hover:opacity-100',
+                        : 'border-foreground/60 bg-background/60 opacity-0 backdrop-blur group-hover:opacity-100 group-focus-within:opacity-100',
                     )}
                   >
                     {isSel && <Check className="size-3" aria-hidden />}
                   </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(r.id, r.name)}
-                  disabled={deleting}
-                  aria-label="Eliminar referencia"
-                  className="absolute -right-1 -top-1 grid size-9 place-items-center text-muted-foreground transition-colors disabled:cursor-not-allowed"
-                >
-                  <span className="grid size-6 place-items-center rounded-full bg-background/70 opacity-0 backdrop-blur transition-[opacity,color] group-hover:opacity-100 hover:text-destructive">
+
+                {/* Acciones sobre la imagen (hover/focus): ampliar + eliminar. */}
+                <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  {r.previewUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setZoom({ src: r.previewUrl!, alt: r.name })}
+                      aria-label={`Ampliar ${r.name}`}
+                      className="grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground backdrop-blur transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <Maximize2 className="size-3" aria-hidden />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(r.id, r.name)}
+                    disabled={deleting}
+                    aria-label="Eliminar referencia"
+                    className="grid size-6 place-items-center rounded-full bg-background/70 text-muted-foreground backdrop-blur transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed"
+                  >
                     <Trash2 className="size-3" aria-hidden />
-                  </span>
-                </button>
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {zoom && <Lightbox src={zoom.src} alt={zoom.alt} onClose={() => setZoom(null)} />}
     </div>
   );
 }
