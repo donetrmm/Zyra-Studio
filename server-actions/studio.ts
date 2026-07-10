@@ -14,14 +14,22 @@ import {
   CreateStudioSessionSchema,
   SubmitStudioTurnSchema,
   StudioAssetTypeSchema,
+  AttachStudioImageSchema,
   type StudioAssetType,
 } from '@/lib/schemas/studio';
+import { ATTACH_ROLES, mergeRole } from '@/lib/studio/attach-merge';
+import { loadStudioAsset } from '@/lib/studio/asset-images';
+import type { StudioAssetImages } from '@/components/studio/types';
+import { updateLocationAction } from '@/server-actions/locations';
+import { updateCharacterAction } from '@/server-actions/cast';
+import { setProductImagesAction } from '@/server-actions/products';
 
 type ActionError =
   | 'validation_error'
   | 'not_found'
   | 'insufficient_credits'
-  | 'internal_error';
+  | 'internal_error'
+  | 'forbidden';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; message?: string };
 
@@ -315,4 +323,99 @@ export async function listStudioSessionsAction(
     default_model_id: r.default_model_id as string,
   }));
   return { ok: true, data: sessions };
+}
+
+// Las update actions de locations/cast/products tienen su propio Result local
+// (error: string, sin restringir a un union). Todos los valores que de hecho
+// devuelven ('validation_error' | 'forbidden' | 'not_found' | 'internal_error')
+// caben en el ActionError de este módulo — se normaliza acá para no filtrar
+// un `string` suelto al Result tipado de attachStudioImageAction.
+function normalizeResult<T>(
+  res: { ok: true; data: T } | { ok: false; error: string; message?: string },
+): Result<T> {
+  if (res.ok) return { ok: true, data: res.data };
+  return { ok: false, error: res.error as ActionError, message: res.message };
+}
+
+// Persiste el StudioAssetImages fusionado reusando la update action del tipo
+// (NO reimplementa su lógica): preserva light_profile null-on-master-change
+// (locación), derivación de reference_image_ids (personaje, la action la
+// recalcula sola), describe-on-null y la validación de ownership de cada una.
+async function persistStudioAssetImages(
+  assetId: string,
+  images: StudioAssetImages,
+): Promise<Result<{ updated: true }>> {
+  if (images.assetType === 'product') {
+    const res = await setProductImagesAction(assetId, {
+      productImageIds: images.productImageIds,
+      packagingImageIds: images.packagingImageIds,
+    });
+    return normalizeResult(res);
+  }
+  if (images.assetType === 'location') {
+    const res = await updateLocationAction(assetId, {
+      name: images.name,
+      description: images.description ?? undefined,
+      masterImageId: images.masterImageId ?? undefined,
+      referenceImageIds: images.referenceImageIds,
+      scaleMapImageId: images.scaleMapImageId ?? undefined,
+      scaleMapNotes: images.scaleMapNotes ?? undefined,
+    });
+    return normalizeResult(res);
+  }
+  // character: updateCharacterAction exige masterImageId (schema no-nullable);
+  // sin maestra todavía no hay nada que fusionar de forma persistible.
+  if (!images.masterImageId) {
+    return { ok: false, error: 'validation_error', message: 'El personaje necesita una imagen maestra primero.' };
+  }
+  const res = await updateCharacterAction(assetId, {
+    name: images.name,
+    description: images.description ?? undefined,
+    masterImageId: images.masterImageId,
+    angleImageIds: images.angleImageIds,
+    voiceCloneId: images.voiceCloneId ?? null,
+    fullBodyImageId: images.fullBodyImageId ?? null,
+  });
+  return normalizeResult(res);
+}
+
+// Adjuntar una imagen del estudio a un rol del activo (locación/personaje/
+// producto). Read-modify-write server-side: relee el registro FRESCO de la BD
+// antes de fusionar, así un cambio externo (otra pestaña, editor inline) hecho
+// mientras el estudio estaba abierto no se revierte por un upsert con snapshot
+// viejo (bug del review de Fase 4a).
+export async function attachStudioImageAction(
+  input: unknown,
+): Promise<Result<{ assetImages: StudioAssetImages }>> {
+  const parsed = AttachStudioImageSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'validation_error', message: parsed.error.message };
+  }
+  const { assetType, assetId, role, referenceId } = parsed.data;
+  if (!ATTACH_ROLES[assetType].includes(role)) {
+    return { ok: false, error: 'validation_error', message: 'Rol inválido' };
+  }
+
+  const { workspace } = await requireWorkspace();
+  const supabase = await createClient();
+  if (!(await ownsAsset(supabase, workspace.id, assetType, assetId))) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  const loaded = await loadStudioAsset(supabase, workspace.id, assetType, assetId);
+  if (!loaded) {
+    return { ok: false, error: 'not_found' };
+  }
+
+  const merged = mergeRole(loaded.assetImages, role, referenceId);
+  if ('error' in merged) {
+    return { ok: false, error: 'validation_error', message: merged.error };
+  }
+
+  const saved = await persistStudioAssetImages(assetId, merged.next);
+  if (!saved.ok) {
+    return { ok: false, error: saved.error, message: saved.message };
+  }
+
+  return { ok: true, data: { assetImages: merged.next } };
 }

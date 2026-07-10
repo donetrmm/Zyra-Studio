@@ -51,3 +51,15 @@ export const SubmitStudioTurnSchema = z
     }
   });
 export type SubmitStudioTurnInput = z.infer<typeof SubmitStudioTurnSchema>;
+
+// Adjuntar una imagen generada en el estudio a un rol del activo (locación,
+// personaje, producto). role se valida contra ATTACH_ROLES[assetType] en la
+// action (no aquí: el mapa vive en lib/studio/attach-merge.ts para no crear
+// una dependencia de schemas → lib/studio).
+export const AttachStudioImageSchema = z.object({
+  assetType: StudioAssetTypeSchema,
+  assetId: z.string().uuid(),
+  role: z.string().min(1),
+  referenceId: z.string().uuid(),
+});
+export type AttachStudioImageInput = z.infer<typeof AttachStudioImageSchema>;

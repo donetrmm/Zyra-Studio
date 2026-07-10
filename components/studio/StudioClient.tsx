@@ -23,7 +23,10 @@ export function StudioClient(props: StudioClientProps) {
     return lastDone?.id ?? null;
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
-  const [assetImages, setAssetImages] = useState<StudioAssetImages>(props.assetImages);
+  // El valor ya no se lee aquí (attachStudioImageAction re-lee el activo fresco
+  // server-side y AttachDialog ya no recibe el snapshot); se conserva el setter
+  // porque onAttached sigue sincronizando el estado tras cada adjuntar.
+  const [, setAssetImages] = useState<StudioAssetImages>(props.assetImages);
   const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
   const [attachId, setAttachId] = useState<string | null>(null);
   const [submitting, startSubmit] = useTransition();
@@ -172,7 +175,6 @@ export function StudioClient(props: StudioClientProps) {
         generationId={attachId}
         assetId={props.assetId}
         assetType={props.assetType}
-        assetImages={assetImages}
         onAttached={(next, newRef) => {
           setAssetImages(next);
           // La imagen adjuntada queda disponible como referencia en el compositor

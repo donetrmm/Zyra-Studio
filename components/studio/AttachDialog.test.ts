@@ -5,17 +5,11 @@
 // de datos silenciosa (se pisa un campo que debía preservarse, o no se
 // deduplica y el schema de personaje rompe con >2 ángulos). Se testea cada
 // rama + los casos especiales (reemplazo vs. agregar+dedup, tope de ángulos).
-import { describe, it, expect, vi } from 'vitest';
-
-// AttachDialog.tsx importa 4 server actions con cadenas hacia Supabase/Next
-// que no hace falta cargar para probar mergeRole (función pura, sin efectos).
-// Se mockean para que el import del módulo no arrastre esas dependencias.
-vi.mock('@/server-actions/media-references', () => ({ addGenerationAsReferenceAction: vi.fn() }));
-vi.mock('@/server-actions/products', () => ({ setProductImagesAction: vi.fn() }));
-vi.mock('@/server-actions/locations', () => ({ updateLocationAction: vi.fn() }));
-vi.mock('@/server-actions/cast', () => ({ updateCharacterAction: vi.fn() }));
-
-const { mergeRole } = await import('./AttachDialog');
+//
+// mergeRole vive en lib/studio/attach-merge.ts (puro, sin 'use client' ni
+// imports de server actions) — no hace falta mockear nada para importarlo.
+import { describe, it, expect } from 'vitest';
+import { mergeRole } from '@/lib/studio/attach-merge';
 import type { StudioAssetImages } from './types';
 
 type ProductImages = Extract<StudioAssetImages, { assetType: 'product' }>;

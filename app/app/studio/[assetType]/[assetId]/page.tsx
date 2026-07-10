@@ -7,12 +7,12 @@ import {
   listStudioSessionsAction,
   listStudioSessionGenerationsAction,
 } from '@/server-actions/studio';
+import { loadStudioAsset, imageIdsFromAssetImages } from '@/lib/studio/asset-images';
 import { StudioClient } from '@/components/studio/StudioClient';
 import type {
   StudioTurn,
   StudioRefOption,
   StudioSessionOption,
-  StudioAssetImages,
   StudioAssetType,
 } from '@/components/studio/types';
 
@@ -38,68 +38,13 @@ export default async function StudioPage({
 
   // Resuelve el activo + arma assetImages (entidad completa para loc/char) +
   // la lista de ids de imágenes que ya tiene (para ofrecerlas como referencia).
-  let assetName = '';
-  let assetImages: StudioAssetImages;
-  let imageIds: string[] = [];
-
-  if (type === 'product') {
-    const { data: product } = await supabase
-      .from('products')
-      .select('id, name, product_image_ids, packaging_image_ids')
-      .eq('id', assetId)
-      .eq('workspace_id', workspace.id)
-      .maybeSingle();
-    if (!product) notFound();
-    assetName = (product.name as string | null) ?? 'Producto';
-    const productImageIds = (product.product_image_ids as string[] | null) ?? [];
-    const packagingImageIds = (product.packaging_image_ids as string[] | null) ?? [];
-    assetImages = { assetType: 'product', productImageIds, packagingImageIds };
-    imageIds = [...productImageIds, ...packagingImageIds];
-  } else if (type === 'location') {
-    const { data: loc } = await supabase
-      .from('locations')
-      .select('id, name, description, master_image_id, reference_image_ids, scale_map_image_id, scale_map_notes')
-      .eq('id', assetId)
-      .eq('workspace_id', workspace.id)
-      .maybeSingle();
-    if (!loc) notFound();
-    assetName = (loc.name as string | null) ?? 'Locación';
-    const masterImageId = (loc.master_image_id as string | null) ?? null;
-    const referenceImageIds = (loc.reference_image_ids as string[] | null) ?? [];
-    const scaleMapImageId = (loc.scale_map_image_id as string | null) ?? null;
-    assetImages = {
-      assetType: 'location',
-      name: assetName,
-      description: (loc.description as string | null) ?? null,
-      masterImageId,
-      referenceImageIds,
-      scaleMapImageId,
-      scaleMapNotes: (loc.scale_map_notes as string | null) ?? null,
-    };
-    imageIds = [masterImageId, ...referenceImageIds, scaleMapImageId].filter((x): x is string => !!x);
-  } else {
-    const { data: ch } = await supabase
-      .from('characters')
-      .select('id, name, description, master_image_id, angle_image_ids, full_body_image_id, voice_clone_id')
-      .eq('id', assetId)
-      .eq('workspace_id', workspace.id)
-      .maybeSingle();
-    if (!ch) notFound();
-    assetName = (ch.name as string | null) ?? 'Personaje';
-    const masterImageId = (ch.master_image_id as string | null) ?? null;
-    const angleImageIds = (ch.angle_image_ids as string[] | null) ?? [];
-    const fullBodyImageId = (ch.full_body_image_id as string | null) ?? null;
-    assetImages = {
-      assetType: 'character',
-      name: assetName,
-      description: (ch.description as string | null) ?? null,
-      masterImageId,
-      angleImageIds,
-      fullBodyImageId,
-      voiceCloneId: (ch.voice_clone_id as string | null) ?? null,
-    };
-    imageIds = [masterImageId, ...angleImageIds, fullBodyImageId].filter((x): x is string => !!x);
-  }
+  // Mismo loader que usa attachStudioImageAction (server-actions/studio.ts) al
+  // re-leer fresco antes de fusionar — un solo select por tipo, sin drift.
+  const loaded = await loadStudioAsset(supabase, workspace.id, type, assetId);
+  if (!loaded) notFound();
+  const assetName = loaded.name;
+  const assetImages = loaded.assetImages;
+  const imageIds = imageIdsFromAssetImages(assetImages);
 
   const sessionsRes = await listStudioSessionsAction(type, assetId);
   const sessions: StudioSessionOption[] = sessionsRes.ok
