@@ -1,5 +1,5 @@
 import 'server-only';
-import { generateImage } from 'ai';
+import { APICallError, generateImage } from 'ai';
 import { ProviderError, type GenerationResult, type ImageReference } from '@/lib/providers/types';
 
 // GPT Image por el Vercel AI Gateway (mismo AI_GATEWAY_API_KEY que Nano). A
@@ -76,10 +76,31 @@ export async function generate(params: GptImageParams): Promise<GenerationResult
       result as unknown as { images: Array<{ base64: string; mediaType?: string }> },
     );
   } catch (err) {
-    if (err instanceof ProviderError) throw err;
-    const message = err instanceof Error ? err.message : 'error desconocido de gpt-image';
-    const status = (err as { statusCode?: number } | null)?.statusCode;
-    const code = status === 429 ? 'rate_limit' : status === 401 || status === 403 ? 'auth' : 'unknown';
-    throw new ProviderError(message, code, code === 'rate_limit');
+    throw translateError(err);
   }
+}
+
+// Espeja translateError de gateway.ts / nano-banana.ts (mismo AI Gateway): 429 ->
+// rate_limit, 401/403 -> auth, 5xx -> server (retryable), resto -> unknown. Usa
+// APICallError.isInstance en vez de un cast ciego para clasificar 5xx bien (el
+// worker consumirá `retryable` para decidir reintentos).
+function translateError(err: unknown): ProviderError {
+  if (err instanceof ProviderError) return err;
+  if (APICallError.isInstance(err)) {
+    const status = err.statusCode ?? 0;
+    if (status === 429) return new ProviderError('Rate limit gpt-image', 'rate_limit', true);
+    if (status === 401 || status === 403) {
+      return new ProviderError('Auth inválida con AI Gateway (gpt-image)', 'auth', false);
+    }
+    return new ProviderError(
+      `gpt-image ${status}: ${err.message.slice(0, 200)}`,
+      'server',
+      status >= 500,
+    );
+  }
+  return new ProviderError(
+    `gpt-image: ${err instanceof Error ? err.message : 'error desconocido'}`,
+    'unknown',
+    false,
+  );
 }
