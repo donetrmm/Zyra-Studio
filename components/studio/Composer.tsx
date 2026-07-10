@@ -346,7 +346,10 @@ export function Composer(props: {
           }}
           placeholder={props.hasWorkingImage ? 'Describe el cambio sobre la imagen de trabajo…' : 'Describe la imagen…'}
           rows={2}
-          className="resize-none text-sm"
+          // El Textarea base usa field-sizing-content (auto-crece con el texto)
+          // SIN tope; un prompt largo crecía hasta tapar el chat. Se acota a 35vh
+          // y a partir de ahí desplaza dentro del propio campo.
+          className="scroll-thin max-h-[35vh] resize-none overflow-y-auto text-sm"
         />
         <Button type="button" onClick={submit} disabled={!canSubmit} className="h-10 gap-1.5">
           {props.disabled ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

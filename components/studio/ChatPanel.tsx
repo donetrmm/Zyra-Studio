@@ -32,7 +32,7 @@ export function ChatPanel(props: {
   }, [props.items.length]);
 
   return (
-    <div ref={scrollRef} className="scroll-thin flex-1 space-y-4 overflow-y-auto p-4">
+    <div ref={scrollRef} className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
       {props.items.length === 0 ? (
         <div className="zyra-fade-in flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="grid size-14 place-items-center rounded-2xl border border-border bg-card">
