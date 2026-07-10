@@ -123,10 +123,21 @@ function PendingCard(props: { aspectRatio: string | null }) {
     const t = setInterval(() => setSecs((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, []);
-  const ratio = props.aspectRatio ? props.aspectRatio.replace(':', ' / ') : '1 / 1';
+  // Reserva el MISMO footprint que tendrá la imagen final (max-h-[65vh] w-auto):
+  // el área de carga toma el aspecto pedido PERO acotada a 65vh de alto, para que
+  // un formato vertical (9:16) no crezca sin límite y se salga de la pantalla. El
+  // width con min() replica el "w-auto max-w-full" del <img> del turno resuelto:
+  // el ancho que haría height=65vh, o 100% del bubble si eso es más chico.
+  const parts = (props.aspectRatio ?? '1:1').split(':');
+  const rw = Number(parts[0]) > 0 ? Number(parts[0]) : 1;
+  const rh = Number(parts[1]) > 0 ? Number(parts[1]) : 1;
+  const widthFactor = (rw / rh).toFixed(4);
   return (
     <div className="overflow-hidden rounded-2xl rounded-bl-sm border border-border bg-card">
-      <div className="relative w-full" style={{ aspectRatio: ratio }}>
+      <div
+        className="relative mx-auto max-h-[65vh] max-w-full"
+        style={{ aspectRatio: `${rw} / ${rh}`, width: `min(100%, calc(65vh * ${widthFactor}))` }}
+      >
         <div
           className="absolute inset-0"
           aria-hidden
