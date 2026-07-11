@@ -447,16 +447,21 @@ export function CampaignStudioView({
         </div>
       </div>
 
-      <div className="mt-3">
-        <ProductSizeEditor
-          campaignId={campaign.id}
-          initialHeightCm={campaign.productHeightCm}
-          initialWidthCm={campaign.productWidthCm}
-          initialMedium={campaign.productMedium}
-          initialThicknessMm={campaign.productThicknessMm}
-          initialWeightKg={campaign.productWeightKg}
-        />
-      </div>
+      {/* Producto físico: solo como fallback de escala cuando la campaña NO tiene
+          productos en el pool. Con productos (V3), la escala física vive en cada
+          producto (biblioteca) y se asigna por clip, así que esta tarjeta se oculta. */}
+      {campaign.productPool.length === 0 && (
+        <div className="mt-3">
+          <ProductSizeEditor
+            campaignId={campaign.id}
+            initialHeightCm={campaign.productHeightCm}
+            initialWidthCm={campaign.productWidthCm}
+            initialMedium={campaign.productMedium}
+            initialThicknessMm={campaign.productThicknessMm}
+            initialWeightKg={campaign.productWeightKg}
+          />
+        </div>
+      )}
       <div className="mt-3">
         <CreativeGuidelinesEditor campaignId={campaign.id} aspectRatio={campaign.aspectRatio} initial={campaign.guidelines} />
       </div>
