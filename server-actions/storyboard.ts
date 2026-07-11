@@ -648,6 +648,7 @@ export async function setBeatAudioAction(
   itemId: string,
   dialogue: string,
   durationS: number,
+  voiceTone: string | null = null,
 ): Promise<Result<{ updated: true }>> {
   if (!itemId) return { ok: false, error: 'validation_error', message: 'itemId requerido' };
   if (typeof dialogue !== 'string' || dialogue.length > 600) {
@@ -656,6 +657,11 @@ export async function setBeatAudioAction(
   if (!Number.isInteger(durationS) || durationS < 4 || durationS > 15) {
     return { ok: false, error: 'validation_error', message: 'duración fuera del rango 4-15s' };
   }
+  const tone = typeof voiceTone === 'string' ? voiceTone.trim() : '';
+  if (tone.length > 80) {
+    return { ok: false, error: 'validation_error', message: 'tono inválido (máx 80 caracteres)' };
+  }
+  const cleanTone = tone.length > 0 ? tone : null;
 
   const { workspace } = await requireWorkspace();
   const loaded = await loadItemAndCampaign(workspace.id, itemId);
@@ -667,7 +673,7 @@ export async function setBeatAudioAction(
   const supabase = await createClient();
   const { error } = await supabase
     .from('campaign_items')
-    .update({ scene_prompt: nextPrompt, duration_s: durationS })
+    .update({ scene_prompt: nextPrompt, duration_s: durationS, voice_tone: cleanTone })
     .eq('id', itemId);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
 
