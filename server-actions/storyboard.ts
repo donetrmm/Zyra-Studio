@@ -26,7 +26,7 @@ import { applyReferenceSelection, normalizeReferenceSelection } from '@/lib/camp
 import { compilePanel, compilePanelEdit, compileRefinePrompt, expressionDirective, humanRealismDirective, sceneStyleDirective, physicsClause, chainedProductFidelity, chainedCharacterFidelity, chatRefPathsFor, stripDialogueForPanel, NO_TEXT_CLAUSE, SINGLE_FRAME_CLAUSE } from '@/lib/campaigns/storyboard';
 import { buildStoryboardJobPayload } from '@/lib/campaigns/storyboard-job';
 import { enqueueJob } from '@/lib/jobs/queue';
-import { uploadReference, downloadReferenceBuffer } from '@/lib/supabase/storage';
+import { uploadReference, downloadReferenceBuffer, promoteOutputToReference } from '@/lib/supabase/storage';
 import { deriveLightProfileFromImage } from '@/lib/locations/light-profile';
 import { describeProductScale, describeProductWeight, productUsageClause } from '@/lib/prompt-director/inventory';
 import { creativeGuidelineClauses, guidelinesForSafeBase } from '@/lib/campaigns/guidelines';
@@ -996,4 +996,99 @@ export async function setBeatAudioAction(
   revalidatePath(`/app/campaigns/${campaign.id}/storyboard`);
   revalidatePath(`/app/campaigns/${campaign.id}`);
   return { ok: true, data: { updated: true } };
+}
+
+// ─── acción: usar un resultado del estudio como panel del beat ────────────────
+
+// El estudio de panel produce turnos normales (generations con studio_session_id).
+// "Usar como panel" toma el turno elegido, promueve su output a media_references y
+// ancla el beat (storyboard_image_id/_generation_id) — igual que promoteStoryboardPanel.
+// Además ESTAMPA la generación (campaign_id + params.storyboard.campaignItemId) para
+// que aparezca en el historial de versiones y sea restaurable. Idempotente: si el
+// output ya se promovió (media_reference con ese source_generation_id), reusa esa ref.
+export async function usePanelFromStudioAction(
+  itemId: string,
+  generationId: string,
+): Promise<Result<{ applied: true }>> {
+  if (!itemId || !generationId) {
+    return { ok: false, error: 'validation_error', message: 'itemId y generationId requeridos' };
+  }
+
+  const { user, workspace } = await requireWorkspace();
+  const loaded = await loadItemAndCampaign(workspace.id, itemId);
+  if (!loaded) return { ok: false, error: 'not_found' };
+  const { item } = loaded;
+
+  const supabase = await createClient();
+  const { data: gen } = await supabase
+    .from('generations')
+    .select('id, workspace_id, status, output_url, studio_session_id')
+    .eq('id', generationId)
+    .single();
+  const g = gen as
+    | { id: string; workspace_id: string; status: string; output_url: string | null; studio_session_id: string | null }
+    | null;
+  if (!g || g.workspace_id !== workspace.id) return { ok: false, error: 'not_found' };
+  if (g.status !== 'done' || !g.output_url) {
+    return { ok: false, error: 'forbidden', message: 'La generación no está lista' };
+  }
+
+  // Defensa: el turno debe venir del estudio de ESTE panel (sesión panel + asset_id).
+  if (!g.studio_session_id) {
+    return { ok: false, error: 'forbidden', message: 'La generación no es un turno del estudio' };
+  }
+  const { data: sess } = await supabase
+    .from('studio_sessions')
+    .select('id')
+    .eq('id', g.studio_session_id)
+    .eq('workspace_id', workspace.id)
+    .eq('asset_type', 'panel')
+    .eq('asset_id', itemId)
+    .maybeSingle();
+  if (!sess) {
+    return { ok: false, error: 'forbidden', message: 'La generación no pertenece al estudio de este panel' };
+  }
+
+  // Promote idempotente: reusar la media_reference existente de esta gen si ya
+  // fue aplicada antes (evita duplicar objeto en storage al reaplicar).
+  const { data: existingRefs } = await supabase
+    .from('media_references')
+    .select('id')
+    .eq('source_generation_id', generationId)
+    .limit(1);
+  let refId = (existingRefs?.[0] as { id: string } | undefined)?.id ?? null;
+  if (!refId) {
+    try {
+      refId = await promoteOutputToReference(workspace.id, user.id, g.output_url, generationId);
+    } catch (err) {
+      return { ok: false, error: 'internal_error', message: (err as Error)?.message ?? 'promote fallo' };
+    }
+  }
+
+  // Estampar la gen para el historial de versiones (merge preservando params del
+  // turno). Admin: mismo criterio que promote (ownership ya validado arriba).
+  const admin = createAdminClient();
+  const { data: cur } = await admin
+    .from('generations')
+    .select('params')
+    .eq('id', generationId)
+    .single();
+  const curParams = ((cur as { params?: Record<string, unknown> | null } | null)?.params ?? {}) as Record<string, unknown>;
+  const nextParams = { ...curParams, storyboard: { campaignItemId: itemId } };
+  const { error: stampErr } = await admin
+    .from('generations')
+    .update({ campaign_id: item.campaign_id, params: nextParams })
+    .eq('id', generationId);
+  if (stampErr) {
+    return { ok: false, error: 'internal_error', message: stampErr.message };
+  }
+
+  const { error } = await supabase
+    .from('campaign_items')
+    .update({ storyboard_image_id: refId, storyboard_generation_id: generationId, warnings: [] })
+    .eq('id', itemId);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+
+  revalidatePath(`/app/campaigns/${item.campaign_id}/storyboard`);
+  return { ok: true, data: { applied: true } };
 }
