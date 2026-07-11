@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { createStudioSessionAction, submitStudioTurnAction } from '@/server-actions/studio';
+import { usePanelFromStudioAction } from '@/server-actions/storyboard';
 import { SessionHeader } from './SessionHeader';
 import { GalleryPanel } from './GalleryPanel';
 import { ChatPanel } from './ChatPanel';
@@ -31,6 +32,22 @@ export function StudioClient(props: StudioClientProps) {
   // sin recargar (la page lo entrega ya calculado del activo).
   const [characterHasMaster, setCharacterHasMaster] = useState(props.characterHasMaster);
   const [attachId, setAttachId] = useState<string | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+  async function handleUseAsPanel(generationId: string) {
+    if (applyingId) return;
+    setApplyingId(generationId);
+    try {
+      const res = await usePanelFromStudioAction(props.assetId, generationId);
+      if (!res.ok) {
+        toast.error(res.message ?? 'No se pudo usar como panel');
+        return;
+      }
+      toast.success('Panel actualizado');
+      if (props.backHref) router.push(props.backHref);
+    } finally {
+      setApplyingId(null);
+    }
+  }
   // Guardar un resultado como preset: el prompt del turno elegido + un nonce para
   // remontar el diálogo limpio en cada apertura (mismo patrón que el seed).
   const [savePreset, setSavePreset] = useState<{ prompt: string; nonce: number } | null>(null);
@@ -200,29 +217,54 @@ export function StudioClient(props: StudioClientProps) {
         <GalleryPanel
           className={cn('lg:flex', mobileTab === 'chat' && 'hidden')}
           items={items}
-          renderActions={(item) => (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs"
-                onClick={() => setAttachId(item.id)}
-              >
-                Adjuntar
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs text-foreground"
-                onClick={() => setWorkingId(item.id)}
-              >
-                Usar como base
-              </Button>
-              <DownloadTurnButton generationId={item.id} variant="secondary" iconOnly />
-            </>
-          )}
+          renderActions={(item) =>
+            props.assetType === 'panel' ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  disabled={item.status !== 'done' || applyingId !== null}
+                  onClick={() => void handleUseAsPanel(item.id)}
+                >
+                  Usar como panel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-foreground"
+                  onClick={() => setWorkingId(item.id)}
+                >
+                  Usar como base
+                </Button>
+                <DownloadTurnButton generationId={item.id} variant="secondary" iconOnly />
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs"
+                  onClick={() => setAttachId(item.id)}
+                >
+                  Adjuntar
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-foreground"
+                  onClick={() => setWorkingId(item.id)}
+                >
+                  Usar como base
+                </Button>
+                <DownloadTurnButton generationId={item.id} variant="secondary" iconOnly />
+              </>
+            )
+          }
         />
       </div>
       {pending.map((it) => (
