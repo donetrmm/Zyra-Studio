@@ -86,5 +86,6 @@ export function imageIdsFromAssetImages(a: StudioAssetImages): string[] {
   if (a.assetType === 'location') {
     return [a.masterImageId, ...a.referenceImageIds, a.scaleMapImageId].filter((x): x is string => !!x);
   }
+  if (a.assetType === 'panel') return a.cleanReferenceIds;
   return [a.masterImageId, ...a.angleImageIds, a.fullBodyImageId].filter((x): x is string => !!x);
 }

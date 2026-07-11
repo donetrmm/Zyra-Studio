@@ -49,9 +49,23 @@ export type StudioAssetImages =
       angleImageIds: string[];
       fullBodyImageId: string | null;
       voiceCloneId: string | null;
+    }
+  | {
+      assetType: 'panel';
+      // Etiqueta del beat (p. ej. "Panel 3") para el header del estudio.
+      name: string;
+      // media_reference del panel vigente (null = beat sin panel todavía).
+      panelImageId: string | null;
+      // Refs limpias del beat (producto/personaje/locación) + el panel actual,
+      // ofrecibles como referencia en el compositor. Dedup, sin null.
+      cleanReferenceIds: string[];
+      // Guion del beat, precargado como pista editable en el compositor.
+      scenePrompt: string;
+      // Aspecto del beat (default del compositor para consistencia con el video).
+      aspectRatio: string | null;
     };
 
-export type StudioAssetType = 'product' | 'location' | 'character';
+export type StudioAssetType = 'product' | 'location' | 'character' | 'panel';
 
 export type StudioSessionOption = {
   id: string;

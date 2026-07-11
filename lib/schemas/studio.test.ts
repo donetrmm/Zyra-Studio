@@ -18,6 +18,16 @@ describe('CreateStudioSessionSchema', () => {
   });
 });
 
+describe('CreateStudioSessionSchema — panel', () => {
+  it('acepta assetType "panel"', () => {
+    const res = CreateStudioSessionSchema.safeParse({
+      assetType: 'panel',
+      assetId: UUID,
+    });
+    expect(res.success).toBe(true);
+  });
+});
+
 describe('SubmitStudioTurnSchema', () => {
   const base = {
     sessionId: UUID,

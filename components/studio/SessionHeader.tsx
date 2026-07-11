@@ -33,18 +33,20 @@ import {
   renameStudioSessionAction,
 } from '@/server-actions/studio';
 import type { StudioProviderKind } from '@/lib/studio/model-options';
-import type { StudioSessionOption } from './types';
+import type { StudioAssetType, StudioSessionOption } from './types';
 
-const BACK_HREF: Record<'product' | 'location' | 'character', string> = {
+const BACK_HREF: Record<StudioAssetType, string> = {
   product: '/app/brand/kits',
   location: '/app/brand/locations',
   character: '/app/brand/cast',
+  panel: '/app/campaigns',
 };
 
-const TYPE_LABEL: Record<'product' | 'location' | 'character', string> = {
+const TYPE_LABEL: Record<StudioAssetType, string> = {
   product: 'Producto',
   location: 'Locación',
   character: 'Personaje',
+  panel: 'Panel',
 };
 
 // Etiqueta de sesión: el nombre que puso el usuario, o la fecha/hora si no tiene.
@@ -58,7 +60,7 @@ function sessionLabel(s: StudioSessionOption): string {
 }
 
 export function SessionHeader(props: {
-  assetType: 'product' | 'location' | 'character';
+  assetType: StudioAssetType;
   assetId: string;
   assetName: string;
   sessions: StudioSessionOption[];

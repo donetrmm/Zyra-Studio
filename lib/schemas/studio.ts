@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const StudioProviderSchema = z.enum(['nano-banana', 'gpt-image', 'flux']);
-export const StudioAssetTypeSchema = z.enum(['product', 'location', 'character']);
+export const StudioAssetTypeSchema = z.enum(['product', 'location', 'character', 'panel']);
 export type StudioProvider = z.infer<typeof StudioProviderSchema>;
 export type StudioAssetType = z.infer<typeof StudioAssetTypeSchema>;
 

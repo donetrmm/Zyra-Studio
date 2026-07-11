@@ -58,6 +58,7 @@ const ROLES_BY_TYPE: Record<StudioAssetType, RoleDef[]> = {
     { key: 'angle', label: 'Ángulo', icon: ImageIcon },
     { key: 'full_body', label: 'Cuerpo completo', icon: PersonStanding },
   ],
+  panel: [],
 };
 
 // Sub-roles con etiqueta (solo personaje): NO son campos del registro characters

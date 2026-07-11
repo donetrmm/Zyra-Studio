@@ -12,6 +12,7 @@ const EMPTY_COPY: Record<StudioAssetType, string> = {
   product: 'Describe el producto que imaginas y el estudio lo genera. Cada versión aparece aquí.',
   location: 'Describe la locación que imaginas y el estudio la genera. Cada versión aparece aquí.',
   character: 'Describe al personaje que imaginas y el estudio lo genera. Cada versión aparece aquí.',
+  panel: 'Describe el cambio que imaginas para el panel y el estudio lo genera. Cada versión aparece aquí.',
 };
 
 export function ChatPanel(props: {

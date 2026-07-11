@@ -55,7 +55,8 @@ export type StudioSessionSummary = {
 
 // El activo referenciado (product/location/character) vive en su propia tabla
 // workspace-scoped; un turno del estudio SIEMPRE cuelga de uno de estos tres.
-const ASSET_TABLE: Record<StudioAssetType, 'products' | 'locations' | 'characters'> = {
+// Los paneles NO son activos independientes (viven bajo storyboard_panels).
+const ASSET_TABLE: Record<Exclude<StudioAssetType, 'panel'>, 'products' | 'locations' | 'characters'> = {
   product: 'products',
   location: 'locations',
   character: 'characters',
@@ -65,11 +66,12 @@ type StudioSupabase = Awaited<ReturnType<typeof createClient>>;
 
 // Ownership del activo: el product/location/character debe pertenecer al
 // workspace (RLS es la última línea, no la primera). Compartido por
-// createStudioSessionAction y listStudioSessionsAction.
+// createStudioSessionAction y listStudioSessionsAction. Los paneles usan
+// ownsStoryboardPanel (Task 3).
 async function ownsAsset(
   supabase: StudioSupabase,
   workspaceId: string,
-  assetType: StudioAssetType,
+  assetType: Exclude<StudioAssetType, 'panel'>,
   assetId: string,
 ): Promise<boolean> {
   const { data } = await supabase
@@ -89,6 +91,10 @@ export async function createStudioSessionAction(
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
   const data = parsed.data;
+  // Panels se crean vía la ruta /app/studio/panel (Task 4), no aquí.
+  if (data.assetType === 'panel') {
+    return { ok: false, error: 'validation_error', message: 'Los paneles se crean desde el storyboard.' };
+  }
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -296,6 +302,10 @@ export async function listStudioSessionsAction(
   if (!parsedType.success || !z.string().uuid().safeParse(assetId).success) {
     return { ok: false, error: 'validation_error', message: 'Parámetros inválidos' };
   }
+  // Panels se listan vía listStudioPanelSessionsAction (Task 3).
+  if (parsedType.data === 'panel') {
+    return { ok: false, error: 'validation_error', message: 'Usa listStudioPanelSessionsAction para paneles.' };
+  }
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -409,6 +419,9 @@ async function persistStudioAssetImages(
   assetId: string,
   images: StudioAssetImages,
 ): Promise<Result<{ updated: true }>> {
+  if (images.assetType === 'panel') {
+    return { ok: false, error: 'validation_error', message: 'Los paneles se aplican vía usePanelFromStudioAction (Task 5).' };
+  }
   if (images.assetType === 'product') {
     const res = await setProductImagesAction(assetId, {
       productImageIds: images.productImageIds,
@@ -456,6 +469,10 @@ export async function attachStudioImageAction(
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
   const { assetType, assetId, role, referenceId } = parsed.data;
+  // Panels no se adjuntan a roles (se aplican vía usePanelFromStudioAction en Task 5).
+  if (assetType === 'panel') {
+    return { ok: false, error: 'validation_error', message: 'Los paneles no se adjuntan aquí.' };
+  }
   // Widening a readonly string[]: ATTACH_ROLES es tuplas `as const` (literales),
   // y role es el string validado por Zod — comparar sin castear el role.
   if (!(ATTACH_ROLES[assetType] as readonly string[]).includes(role)) {
@@ -464,7 +481,7 @@ export async function attachStudioImageAction(
 
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
-  if (!(await ownsAsset(supabase, workspace.id, assetType, assetId))) {
+  if (!(await ownsAsset(supabase, workspace.id, assetType as Exclude<StudioAssetType, 'panel'>, assetId))) {
     return { ok: false, error: 'not_found' };
   }
 

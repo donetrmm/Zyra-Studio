@@ -10,6 +10,8 @@ export const ATTACH_ROLES = {
   product: ['product', 'packaging'],
   location: ['master', 'reference', 'scale_map'],
   character: ['master', 'angle', 'full_body'],
+  // Los paneles no se adjuntan a un rol de activo: se aplican con "Usar como panel".
+  panel: [],
 } as const satisfies Record<StudioAssetType, readonly string[]>;
 
 // Unión de todas las keys de rol válidas (para tipar la tabla de botones y el
@@ -31,6 +33,9 @@ export function mergeRole(
   roleKey: string,
   refId: string,
 ): { next: StudioAssetImages } | { error: string } {
+  if (images.assetType === 'panel') {
+    return { error: 'Los paneles se aplican con "Usar como panel", no se adjuntan a un rol.' };
+  }
   if (images.assetType === 'product') {
     if (roleKey === 'product') {
       return { next: { ...images, productImageIds: [...new Set([...images.productImageIds, refId])] } };

@@ -27,6 +27,8 @@ export const BUILTIN_PRESETS: Record<StudioAssetType, StudioPreset[]> = {
     { id: 'builtin:char-3q', label: 'Vista 3/4', keepIdentical: true, prompt: 'Show the exact same person from a three-quarter view (about 45 degrees). Identical face, hairstyle, build, skin and clothing; only the camera angle changes.' },
     { id: 'builtin:char-90', label: 'Vista 90°', keepIdentical: true, prompt: 'Show the exact same person from a direct side profile view (90 degrees). Identical face, hairstyle, build, skin and clothing; only the camera angle changes.' },
   ],
+  // Paneles: sin presets integrados en v1 (el compositor muestra solo los guardados).
+  panel: [],
 };
 
 // Extrae un StudioPreset de una fila `presets` (params jsonb = unknown). Guarda:
