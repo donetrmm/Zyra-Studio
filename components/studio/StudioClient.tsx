@@ -23,7 +23,7 @@ export function StudioClient(props: StudioClientProps) {
   const [items, setItems] = useState<StudioTurn[]>(props.initialItems);
   const [workingId, setWorkingId] = useState<string | null>(() => {
     const lastDone = [...props.initialItems].reverse().find((i) => i.status === 'done');
-    return lastDone?.id ?? null;
+    return lastDone?.id ?? props.initialWorkingId ?? null;
   });
   const [activeSessionId, setActiveSessionId] = useState<string | null>(props.activeSessionId);
   const [availableReferences, setAvailableReferences] = useState(props.availableReferences);
@@ -141,6 +141,7 @@ export function StudioClient(props: StudioClientProps) {
         activeSessionId={activeSessionId}
         defaultProvider="nano-banana"
         defaultModelId="gemini-3-pro-image-preview"
+        backHref={props.backHref}
       />
       {/* Segmentado móvil: en lg se ven ambos paneles, aquí se alternan. */}
       <div className="flex gap-1 rounded-none border-b border-border p-2 lg:hidden">
@@ -192,6 +193,8 @@ export function StudioClient(props: StudioClientProps) {
             assetType={props.assetType}
             userPresets={props.userPresets}
             seed={seed}
+            initialPrompt={props.initialPrompt}
+            defaultAspect={props.defaultAspect}
           />
         </section>
         <GalleryPanel

@@ -8,6 +8,7 @@ import {
   listStudioSessionGenerationsAction,
 } from '@/server-actions/studio';
 import { loadStudioAsset, imageIdsFromAssetImages } from '@/lib/studio/asset-images';
+import { loadPanelAsset } from '@/lib/studio/panel-asset';
 import { parseUserPreset, type StudioPreset } from '@/lib/studio/presets';
 import { StudioClient } from '@/components/studio/StudioClient';
 import type {
@@ -19,7 +20,7 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
-const ASSET_TYPES: StudioAssetType[] = ['product', 'location', 'character'];
+const ASSET_TYPES: StudioAssetType[] = ['product', 'location', 'character', 'panel'];
 
 export default async function StudioPage({
   params,
@@ -40,16 +41,38 @@ export default async function StudioPage({
   // Resuelve el activo + arma assetImages (entidad completa para loc/char) +
   // la lista de ids de imágenes que ya tiene (para ofrecerlas como referencia).
   // Mismo loader que usa attachStudioImageAction (server-actions/studio.ts) al
-  // re-leer fresco antes de fusionar — un solo select por tipo, sin drift.
-  const loaded = await loadStudioAsset(supabase, workspace.id, type, assetId);
-  if (!loaded) notFound();
-  const assetName = loaded.name;
-  const assetImages = loaded.assetImages;
+  // re-leer fresco antes de fusionar — un solo select por tipo, sin drift. El
+  // modo panel (beat de storyboard) usa un loader propio (lib/studio/panel-asset.ts)
+  // que no persiste como entidad: solo seedea el estudio.
+  let assetName: string;
+  let assetImages;
+  let characterHasMaster = false;
+  let initialWorkingId: string | null = null;
+  let initialPrompt = '';
+  let defaultAspect: string | null = null;
+  let backHref: string | undefined;
+
+  if (type === 'panel') {
+    const panel = await loadPanelAsset(supabase, workspace.id, assetId);
+    if (!panel) notFound();
+    assetName = panel.name;
+    assetImages = panel.assetImages;
+    initialWorkingId = panel.workingGenerationId;
+    initialPrompt = panel.scenePrompt;
+    defaultAspect = panel.aspectRatio;
+    backHref = `/app/campaigns/${panel.campaignId}/storyboard`;
+  } else {
+    const loaded = await loadStudioAsset(supabase, workspace.id, type, assetId);
+    if (!loaded) notFound();
+    assetName = loaded.name;
+    assetImages = loaded.assetImages;
+    // Outfit/Estado son variaciones sobre la identidad canónica del personaje: sin
+    // maestra no hay ancla, así que el estudio los habilita sólo cuando ya existe.
+    characterHasMaster =
+      assetImages.assetType === 'character' ? assetImages.masterImageId !== null : false;
+  }
+
   const imageIds = imageIdsFromAssetImages(assetImages);
-  // Outfit/Estado son variaciones sobre la identidad canónica del personaje: sin
-  // maestra no hay ancla, así que el estudio los habilita sólo cuando ya existe.
-  const characterHasMaster =
-    assetImages.assetType === 'character' ? assetImages.masterImageId !== null : false;
 
   const sessionsRes = await listStudioSessionsAction(type, assetId);
   const sessions: StudioSessionOption[] = sessionsRes.ok
@@ -139,6 +162,10 @@ export default async function StudioPage({
       availableReferences={availableReferences}
       userPresets={userPresets}
       characterHasMaster={characterHasMaster}
+      initialWorkingId={initialWorkingId}
+      initialPrompt={initialPrompt}
+      backHref={backHref}
+      defaultAspect={defaultAspect}
     />
   );
 }

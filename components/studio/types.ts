@@ -91,4 +91,13 @@ export type StudioClientProps = {
   // Sólo relevante en personaje: si ya tiene maestra. Compuerta de Outfit/Estado
   // en el AttachDialog (se actualiza en vivo al adjuntar una maestra en sesión).
   characterHasMaster: boolean;
+  // Base de edición inicial cuando la sesión aún no tiene turnos (modo panel: la
+  // generación del panel vigente). Si hay turnos done, gana el último.
+  initialWorkingId?: string | null;
+  // Prompt precargado en el compositor (modo panel: el scene_prompt del beat).
+  initialPrompt?: string;
+  // Link "volver" del header (modo panel: al storyboard de la campaña).
+  backHref?: string;
+  // Aspecto por defecto del compositor (modo panel: el aspect_ratio del beat).
+  defaultAspect?: string | null;
 };

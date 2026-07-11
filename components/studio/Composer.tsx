@@ -64,12 +64,20 @@ export function Composer(props: {
   // Semilla para reintentar: al cambiar nonce, rellena el prompt y enfoca. Evita
   // levantar el estado del prompt al padre (el chat pide reintentar un fallo).
   seed?: { text: string; nonce: number };
+  // Prompt precargado al montar (modo panel: el scene_prompt del beat). Editable
+  // libremente, no fuerza nada — solo el valor inicial del textarea.
+  initialPrompt?: string;
+  // Aspecto por defecto al montar (modo panel: el aspect_ratio del beat). Si no
+  // coincide con una opción soportada, cae a '1:1' como el resto de los modos.
+  defaultAspect?: string | null;
 }) {
   const [modelKey, setModelKey] = useState<StudioModelKey>('nano-pro');
   const [variant, setVariant] = useState<string>(defaultVariantFor('nano-pro'));
-  const [aspect, setAspect] = useState('1:1');
+  const [aspect, setAspect] = useState(() =>
+    props.defaultAspect && ASPECTS.includes(props.defaultAspect) ? props.defaultAspect : '1:1',
+  );
   const [keepIdentical, setKeepIdentical] = useState(false);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(props.initialPrompt ?? '');
   const [refs, setRefs] = useState<StudioRefOption[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);

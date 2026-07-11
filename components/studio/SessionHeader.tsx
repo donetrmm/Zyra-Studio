@@ -67,6 +67,9 @@ export function SessionHeader(props: {
   activeSessionId: string | null;
   defaultProvider: StudioProviderKind;
   defaultModelId: string;
+  // Destino del link "volver". Modo panel: storyboard de la campaña. Por defecto
+  // cae a BACK_HREF[assetType] (biblioteca del tipo de activo).
+  backHref?: string;
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -143,7 +146,7 @@ export function SessionHeader(props: {
   return (
     <header className="flex items-center gap-3 border-b border-border px-4 py-3">
       <Link
-        href={BACK_HREF[props.assetType]}
+        href={props.backHref ?? BACK_HREF[props.assetType]}
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
