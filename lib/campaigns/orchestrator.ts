@@ -49,6 +49,9 @@ export type ItemRow = {
   character_ids: string[] | null;
   reference_ids: string[] | null;
   scene_prompt: string;
+  // Tono/entrega de voz de ESTE clip (audio expresivo fase 1, migración 064).
+  // null = default por registro (sin override).
+  voice_tone: string | null;
   status: string;
   // Secuencia: las escenas de un mismo anuncio comparten sequence_id y se
   // ordenan por scene_index. null en creativos sueltos.
@@ -849,7 +852,7 @@ export async function advanceSequenceChain(
 
   const { data: itemRows } = await admin
     .from('campaign_items')
-    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint, character_outfit_hint')
+    .select('id, scene_prompt, scene, duration_s, voice_tone, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint, character_outfit_hint')
     .eq('campaign_id', chain.campaignId)
     .eq('sequence_id', chain.sequenceId);
   if (!itemRows?.length) return;
@@ -1210,6 +1213,7 @@ export async function enqueueBatch(params: {
         modelSlug: item.model_slug,
         scenePrompt: item.scene_prompt,
         durationS: item.duration_s ?? undefined,
+        voiceTone: item.voice_tone ?? undefined,
         aspectRatio: item.aspect_ratio ?? undefined,
         generateAudio: item.audio,
         isOpeningBeat: (item.scene_index ?? 0) === 0,

@@ -272,6 +272,8 @@ export async function generatePanelAction(
     character_ids: item.character_ids,
     reference_ids: item.reference_ids,
     scene_prompt: item.scene_prompt,
+    // Panel de storyboard (imagen FLUX/Nano, sin audio): sin concepto de tono de voz.
+    voice_tone: null,
     status: item.status,
     sequence_id: item.sequence_id,
     scene_index: item.scene_index,
