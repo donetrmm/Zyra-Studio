@@ -107,10 +107,6 @@ export async function createStudioSessionAction(
     return { ok: false, error: 'validation_error', message: parsed.error.message };
   }
   const data = parsed.data;
-  // Panels se crean vía la ruta /app/studio/panel (Task 4), no aquí.
-  if (data.assetType === 'panel') {
-    return { ok: false, error: 'validation_error', message: 'Los paneles se crean desde el storyboard.' };
-  }
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
@@ -317,10 +313,6 @@ export async function listStudioSessionsAction(
   const parsedType = StudioAssetTypeSchema.safeParse(assetType);
   if (!parsedType.success || !z.string().uuid().safeParse(assetId).success) {
     return { ok: false, error: 'validation_error', message: 'Parámetros inválidos' };
-  }
-  // Panels se listan vía listStudioPanelSessionsAction (Task 3).
-  if (parsedType.data === 'panel') {
-    return { ok: false, error: 'validation_error', message: 'Usa listStudioPanelSessionsAction para paneles.' };
   }
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
