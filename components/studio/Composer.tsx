@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { ImagePlus, Loader2, Send, X } from 'lucide-react';
+import { ImagePlus, Loader2, Send, Settings2, X } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import {
   type StudioProviderKind,
 } from '@/lib/studio/model-options';
 import { BUILTIN_PRESETS, type StudioPreset } from '@/lib/studio/presets';
+import { ManagePresetsDialog } from './ManagePresetsDialog';
 import type { StudioRefOption, StudioAssetType } from './types';
 
 const ASPECTS = ['1:1', '4:5', '9:16', '16:9'];
@@ -73,6 +75,8 @@ export function Composer(props: {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [lastSeedNonce, setLastSeedNonce] = useState(0);
+  const [manageOpen, setManageOpen] = useState(false);
+  const router = useRouter();
 
   // Reintentar desde el chat: al cambiar el nonce, rellena el prompt del fallo.
   // Patrón de React (ajustar estado en render al cambiar un prop) en vez de un
@@ -255,6 +259,20 @@ export function Composer(props: {
           </Select>
         ) : null}
 
+        {props.userPresets.length > 0 ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => setManageOpen(true)}
+            title="Editar o eliminar mis presets"
+            aria-label="Gestionar mis presets"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+
         <label
           className="ml-auto flex cursor-pointer items-center gap-2 text-xs text-foreground"
           title="Conserva la identidad del sujeto (rostro, forma, color) entre ediciones."
@@ -371,6 +389,15 @@ export function Composer(props: {
           </span>
         ) : null}
       </div>
+
+      <ManagePresetsDialog
+        open={manageOpen}
+        presets={props.userPresets}
+        onOpenChange={setManageOpen}
+        // Recarga los userPresets del RSC: el diálogo abierto y el dropdown de
+        // Presets reflejan la edición/eliminación sin cerrar ni recargar la página.
+        onChanged={() => router.refresh()}
+      />
     </div>
   );
 }

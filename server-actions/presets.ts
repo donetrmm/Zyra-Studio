@@ -38,6 +38,39 @@ export async function savePresetAction(input: unknown): Promise<Result<{ id: str
   return { ok: true, data: { id: data.id as string } };
 }
 
+const UpdatePresetSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1).max(100),
+  prompt: z.string().trim().min(1).max(12000),
+});
+
+// Edita nombre + prompt de un preset propio. Relee params y MERGEA solo `prompt`
+// para no perder otros campos (thumbnailUrl/model/aspectRatio) que un preset
+// guardado desde la biblioteca sí trae. RLS + el filtro user_id garantizan que
+// solo se toque un preset del propio usuario.
+export async function updatePresetAction(input: unknown): Promise<Result<{ id: string }>> {
+  const parsed = UpdatePresetSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from('presets')
+    .select('params')
+    .eq('id', parsed.data.id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (!existing) return { ok: false, error: 'not_found' };
+  const params = { ...((existing.params as Record<string, unknown> | null) ?? {}), prompt: parsed.data.prompt };
+  const { error } = await supabase
+    .from('presets')
+    .update({ name: parsed.data.name, params })
+    .eq('id', parsed.data.id)
+    .eq('user_id', user.id);
+  if (error) return { ok: false, error: 'internal_error', message: error.message };
+  revalidatePath('/app/create/presets');
+  return { ok: true, data: { id: parsed.data.id } };
+}
+
 export async function deletePresetAction(id: string): Promise<Result<{ deleted: true }>> {
   const user = await requireUser();
   const supabase = await createClient();

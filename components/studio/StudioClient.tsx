@@ -11,6 +11,7 @@ import { ChatPanel } from './ChatPanel';
 import { Composer, type ComposerSubmit } from './Composer';
 import { GenerationStatusWatcher } from './GenerationStatusWatcher';
 import { AttachDialog } from './AttachDialog';
+import { SavePresetDialog } from './SavePresetDialog';
 import { DownloadTurnButton } from './DownloadTurnButton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -30,6 +31,9 @@ export function StudioClient(props: StudioClientProps) {
   // sin recargar (la page lo entrega ya calculado del activo).
   const [characterHasMaster, setCharacterHasMaster] = useState(props.characterHasMaster);
   const [attachId, setAttachId] = useState<string | null>(null);
+  // Guardar un resultado como preset: el prompt del turno elegido + un nonce para
+  // remontar el diálogo limpio en cada apertura (mismo patrón que el seed).
+  const [savePreset, setSavePreset] = useState<{ prompt: string; nonce: number } | null>(null);
   // Reintentar un fallo: rellena el prompt en el Composer (el nonce dispara el efecto).
   const [seed, setSeed] = useState<{ text: string; nonce: number }>({ text: '', nonce: 0 });
   // En móvil no caben chat y galería a la vez: se alternan con un segmentado.
@@ -176,6 +180,7 @@ export function StudioClient(props: StudioClientProps) {
             assetType={props.assetType}
             onUseAsBase={setWorkingId}
             onRetry={(text) => setSeed((s) => ({ text, nonce: s.nonce + 1 }))}
+            onSavePreset={(prompt) => setSavePreset((s) => ({ prompt, nonce: (s?.nonce ?? 0) + 1 }))}
           />
           <Composer
             pricing={props.pricing}
@@ -235,6 +240,19 @@ export function StudioClient(props: StudioClientProps) {
           setAvailableReferences((cur) =>
             cur.some((r) => r.id === newRef.id) ? cur : [...cur, newRef],
           );
+        }}
+      />
+      <SavePresetDialog
+        key={savePreset?.nonce ?? 'none'}
+        open={savePreset !== null}
+        initialPrompt={savePreset?.prompt ?? ''}
+        onOpenChange={(o) => !o && setSavePreset(null)}
+        onSaved={() => {
+          setSavePreset(null);
+          // Recarga los userPresets del RSC para que el nuevo aparezca en el
+          // dropdown "Guardados" del compositor (savePresetAction no revalida esta
+          // ruta). El estado del chat (items) es client-side y sobrevive el refresh.
+          router.refresh();
         }}
       />
     </div>

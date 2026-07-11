@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertCircle, BookmarkPlus, CheckCircle2, RotateCcw, Sparkles } from 'lucide-react';
 import { publicThumbnailUrlClient } from '@/lib/supabase/public-url';
 import { Button } from '@/components/ui/button';
 import { DownloadTurnButton } from './DownloadTurnButton';
@@ -20,6 +20,7 @@ export function ChatPanel(props: {
   assetType: StudioAssetType;
   onUseAsBase: (id: string) => void;
   onRetry: (prompt: string) => void;
+  onSavePreset: (prompt: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +88,23 @@ export function ChatPanel(props: {
                       Usar como base
                     </Button>
                   )}
-                  <DownloadTurnButton generationId={item.id} className="ml-auto h-7 gap-1 text-xs" />
+                  {item.prompt ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto size-7"
+                      onClick={() => props.onSavePreset(item.prompt as string)}
+                      title="Guardar el prompt como preset"
+                      aria-label="Guardar el prompt como preset"
+                    >
+                      <BookmarkPlus className="h-3.5 w-3.5" />
+                    </Button>
+                  ) : null}
+                  <DownloadTurnButton
+                    generationId={item.id}
+                    className={item.prompt ? 'h-7 gap-1 text-xs' : 'ml-auto h-7 gap-1 text-xs'}
+                  />
                 </div>
               </div>
             ) : item.status === 'failed' || item.status === 'canceled' ? (
