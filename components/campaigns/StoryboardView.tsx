@@ -11,6 +11,7 @@ import { generatePanelAction, restorePanelVersionAction, setStoryboardLocationAc
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
+import { VOICE_TONE_LABELS } from '@/lib/campaigns/voice-tone';
 import { useStoryboardPanelRealtime, panelUpdateFromRow, slimPanelRow, type SlimPanelRow } from './use-storyboard-panel-realtime';
 import {
   reconcilePanelStates,
@@ -363,9 +364,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   const [generatingAll, setGeneratingAll] = useState(false);
 
   // Estado del editor de audio por beat
-  const [audioDraft, setAudioDraft] = useState<Record<string, { dialogue: string; durationS: number }>>(() => {
-    const init: Record<string, { dialogue: string; durationS: number }> = {};
-    for (const b of beats) init[b.id] = { dialogue: extractDialogue(b.scenePrompt), durationS: b.durationS };
+  const [audioDraft, setAudioDraft] = useState<Record<string, { dialogue: string; durationS: number; voiceTone: string }>>(() => {
+    const init: Record<string, { dialogue: string; durationS: number; voiceTone: string }> = {};
+    for (const b of beats) init[b.id] = { dialogue: extractDialogue(b.scenePrompt), durationS: b.durationS, voiceTone: b.voiceTone ?? '' };
     return init;
   });
   const [savingAudio, setSavingAudio] = useState<string | null>(null);
@@ -374,7 +375,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const draft = audioDraft[beatId];
     if (!draft) return;
     setSavingAudio(beatId);
-    const res = await setBeatAudioAction(beatId, draft.dialogue, draft.durationS);
+    const res = await setBeatAudioAction(beatId, draft.dialogue, draft.durationS, draft.voiceTone.trim() || null);
     setSavingAudio(null);
     if (res.ok) {
       toast.success('Audio guardado · regenera el video para aplicarlo');
@@ -786,7 +787,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
                 {/* Audio: diálogo + duración + medidor de holgura */}
                 {(() => {
-                  const draft = audioDraft[beat.id] ?? { dialogue: extractDialogue(beat.scenePrompt), durationS: beat.durationS };
+                  const draft = audioDraft[beat.id] ?? {
+                    dialogue: extractDialogue(beat.scenePrompt),
+                    durationS: beat.durationS,
+                    voiceTone: beat.voiceTone ?? '',
+                  };
                   const words = countWords(draft.dialogue);
                   const needed = estimateSpeechSeconds(draft.dialogue, language);
                   const { level, suggestedDurationS } = fitVerdict(needed, draft.durationS);
@@ -832,6 +837,33 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                         <span className="text-[11px]">s</span>
                       </div>
                       <p className={`text-[11px] ${meter.cls}`}>{meter.text}</p>
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          value={draft.voiceTone}
+                          aria-label={`Tono de la escena ${beat.sceneIndex + 1}`}
+                          onChange={(e) =>
+                            setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, voiceTone: e.target.value } }))
+                          }
+                          placeholder="Tono / entrega (opcional) — ej. cálido, entusiasta"
+                          maxLength={80}
+                          className="min-w-0 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          {VOICE_TONE_LABELS.map((label) => (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() =>
+                                setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, voiceTone: label } }))
+                              }
+                              className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
