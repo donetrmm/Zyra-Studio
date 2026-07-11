@@ -69,9 +69,9 @@ Si un proveedor va síncrono (Nano Banana, ElevenLabs TTS corto): `submit` devue
 
 ## FLUX específico
 
-- Siempre usar el `polling_url` devuelto en la respuesta del submit. NO hardcodear ni construirlo.
-- URLs de output expiran a 10 min — adapter descarga apenas el status es `Ready`, no delegues.
-- Manejar `safety_tolerance` con default 2 (más seguro).
+- **FLUX 2 Pro directo** (`flux.ts`, endpoint `/v1/flux-2-pro-preview`, `BFL_API_KEY`): usado por la generación de imagen del estudio. Siempre usar el `polling_url` devuelto en el submit (NO hardcodear); URLs de output expiran a 10 min — descargar apenas el status es `Ready`, no delegues; `safety_tolerance` default 2.
+- **FLUX 2 Pro/Max del estudio** (`flux-gateway.ts`) y **outpaint de zona segura** (`flux-expand.ts`, FLUX.1 Fill `bfl/flux-pro-1.0-fill`) van por el **Vercel AI Gateway** con `AI_GATEWAY_API_KEY` (mismo que Nano/gpt-image), vía `generateImage` del AI SDK (sin submit/poll propio; el gateway hace el polling — acotarlo con `pollTimeoutMillis` para no exceder el maxDuration de 60s del worker).
+- El outpaint se arma como **fill con máscara**, no como expand por bandas: la base 4:5 se centra en un canvas 9:16 y una máscara marca en BLANCO las bandas a generar y en NEGRO la base a preservar. La base queda intacta (mismo efecto que el viejo `/v1/flux-pro-1.0-expand`).
 
 ## Nano Banana específico
 
