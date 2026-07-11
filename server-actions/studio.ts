@@ -66,14 +66,30 @@ type StudioSupabase = Awaited<ReturnType<typeof createClient>>;
 
 // Ownership del activo: el product/location/character debe pertenecer al
 // workspace (RLS es la última línea, no la primera). Compartido por
-// createStudioSessionAction y listStudioSessionsAction. Los paneles usan
-// ownsStoryboardPanel (Task 3).
+// createStudioSessionAction y listStudioSessionsAction. Para 'panel' valida
+// que el campaign_item (beat) pertenezca al workspace vía su campaña, en vez
+// de mirar ASSET_TABLE (los paneles no son activos independientes).
 async function ownsAsset(
   supabase: StudioSupabase,
   workspaceId: string,
-  assetType: Exclude<StudioAssetType, 'panel'>,
+  assetType: StudioAssetType,
   assetId: string,
 ): Promise<boolean> {
+  if (assetType === 'panel') {
+    const { data: item } = await supabase
+      .from('campaign_items')
+      .select('campaign_id')
+      .eq('id', assetId)
+      .maybeSingle();
+    if (!item) return false;
+    const { data: camp } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('id', item.campaign_id as string)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+    return Boolean(camp);
+  }
   const { data } = await supabase
     .from(ASSET_TABLE[assetType])
     .select('id')
