@@ -273,9 +273,9 @@ describe('compile seedance', () => {
     expect(prompt.startsWith('A 9-second vertical (9:16) commercial video')).toBe(true);
     // Lip sync / habla en cámara (no narración).
     expect(prompt).toContain('Synchronized on-camera speech, not voice-over narration');
-    // Voz natural anti-robótica.
+    // Voz natural anti-robótica (Fase 1 audio: rebalanceada hacia expresividad).
     expect(prompt).toContain('natural Mexican accent');
-    expect(prompt).toContain('Avoid robotic speech');
+    expect(prompt).toContain('never flat, monotone, robotic or announcer-like');
     // Articulación clara: rescata palabras menos comunes que el modelo mastica.
     expect(prompt).toContain('articulate every word completely and correctly');
   });

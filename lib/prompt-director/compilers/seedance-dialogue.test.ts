@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitLongDialogues, DIALOGUE_PAUSE_BEAT } from './seedance';
+import { splitLongDialogues, DIALOGUE_PAUSE_BEAT, DIALOGUE_LANGUAGE } from './seedance';
 
 // Fluidez del habla (2026-07-07): las guías de comunidad de Seedance coinciden en
 // que las líneas de 5-10 palabras sincronizan bien y las largas salen "masticadas".
@@ -72,5 +72,27 @@ describe('splitLongDialogues', () => {
     expect(out.match(/Dialogue:/g)?.length).toBe(2);
     expect(out).toContain('Dialogue: "Esto cambió mis mañanas, mis tardes"');
     expect(out).toContain('Dialogue: "mis noches y mi vida entera desde el primer día"');
+  });
+});
+
+describe('DIALOGUE_LANGUAGE rebalanceada (Fase 1 audio)', () => {
+  it('lidera con expresividad sin perder los guardrails es-MX ni la articulación', () => {
+    const es = DIALOGUE_LANGUAGE.es;
+    // Nuevo: prosodia expresiva y contención SOLO visual.
+    expect(es).toMatch(/expressive/i);
+    expect(es).toMatch(/emphasize/i);
+    expect(es).toMatch(/face and gestures/i);
+    // Conservado: es-MX / anti-castellano.
+    expect(es).toContain('seseo');
+    expect(es).toContain('Castilian');
+    // Conservado: articulación (ritmo-neutral, Fase 2 no se toca).
+    expect(es).toContain('full value');
+    expect(es).toContain('consonant clusters');
+    // Ya NO frena la voz como antes ("exaggerated acting" quitado del eje vocal).
+    expect(es).not.toMatch(/exaggerated acting/i);
+  });
+  it('la variante en conserva la articulación y la expresividad', () => {
+    expect(DIALOGUE_LANGUAGE.en).toMatch(/expressive/i);
+    expect(DIALOGUE_LANGUAGE.en).toContain('full value');
   });
 });

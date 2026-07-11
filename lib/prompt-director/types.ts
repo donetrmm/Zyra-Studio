@@ -149,6 +149,10 @@ export type CompileRequest = {
   // El beat es la apertura del creativo (scene_index 0 o clip único). Habilita
   // la guía hookProductHero. Default undefined/false.
   isOpeningBeat?: boolean;
+  // Tono/entrega por clip (es, override del usuario) o null/undefined → default
+  // por registro/emoción. El compiler lo convierte a un cue de entrega en inglés
+  // pegado a la cita del diálogo. NO afecta la velocidad (ritmo = Fase 2).
+  voiceTone?: string | null;
 };
 
 export type CompiledPrompt = {

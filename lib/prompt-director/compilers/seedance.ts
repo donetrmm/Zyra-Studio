@@ -9,6 +9,7 @@ import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { deliveryCueFor, injectDeliveryCue } from '@/lib/campaigns/voice-tone';
 import { getStyleProfile, type StyleProfile } from '../style-profiles';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type {
@@ -58,11 +59,8 @@ export const VOICE_TIMBRE_CITATION =
 // robótica. OJO: acento mexicano sustituye al "neutral LatAm" original —
 // decisión tomada de ese ejemplo que funcionó.
 export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
-  // es-MX explícito y anti-castellano (2026-07-02): "Spanish" a secas tira al
-  // acento de España en el modelo. Los marcadores prohibidos van nombrados: el
-  // seseo (c/z como s suave, nunca la "th" castellana) es EL delator del acento.
-  es: 'All spoken dialogue and any voice-over must be in Mexican Latin American Spanish (es-MX) with a natural Mexican accent — never a Castilian accent from Spain: pronounce c and z as a soft s (Latin American seseo), never as the Castilian "th" sound, and use Mexican intonation, rhythm and vocabulary. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
-  en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  es: 'All spoken dialogue and any voice-over must be in Mexican Latin American Spanish (es-MX) with a natural Mexican accent — never a Castilian accent from Spain: pronounce c and z as a soft s (Latin American seseo), never as the Castilian "th" sound, and use Mexican intonation, rhythm and vocabulary. Perform the line with expressive, dynamic vocal delivery: vary pitch and intonation, emphasize the key words, and let real emotion ride through the voice, with a warm conversational tone, subtle pauses and breathing and natural emotional variation — speak as if talking to a friend, never flat, monotone, robotic or announcer-like. Keep this expressiveness in the VOICE; any on-camera restraint applies only to the face and gestures, not to the vocal delivery. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  en: 'All spoken dialogue and any voice-over must be in English. Perform the line with expressive, dynamic vocal delivery: vary pitch and intonation, emphasize the key words, and let real emotion ride through the voice, with a warm conversational tone, subtle pauses and breathing and natural emotional variation — speak as if talking to a friend, never flat, monotone, robotic or announcer-like. Keep this expressiveness in the VOICE; any on-camera restraint applies only to the face and gestures, not to the vocal delivery. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
 };
 
 // Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en
@@ -468,17 +466,11 @@ function audioDirection(register: string): string {
   return 'Audio: natural diegetic sound that matches the scene, no music — keep it real, with subtle room tone.';
 }
 
-// Matiz de entrega de la voz por registro (#3 audio): se añade a la directiva de
-// idioma/cadencia base (DIALOGUE_LANGUAGE) cuando hay voz en escena. null para
-// registros UGC/casual, ya cubiertos por la cadencia base.
-function voiceToneForRegister(register: string): string | null {
-  const r = register.toLowerCase();
-  if (/asmr|susurro|whisper|macro/.test(r)) return 'Deliver the voice intimately and softly, close to the mic, almost a whisper.';
-  if (/calle|street|vox|interview|entrevista|espont/.test(r)) return 'Deliver the voice spontaneously and candidly, with light street energy, as if caught in the moment.';
-  if (/bold|icono|kinet|en[eé]rg|beat/.test(r)) return 'Deliver the voice with confident, punchy energy.';
-  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv/.test(r)) return 'Deliver the voice calm, sincere and emotionally grounded.';
-  return null;
-}
+// Clips con voz (diálogo o voz en off): sin música para que la voz no compita.
+// "no music" literal es más fiable que "no background music". Los clips SIN voz
+// conservan su música por registro (audioDirection).
+const VOICE_FORWARD_AUDIO =
+  'Audio: no music — the spoken voice carries the scene; keep only subtle diegetic room tone under the dialogue, with the voice clear and forward in the mix.';
 
 export function compileSeedance(
   req: CompileRequest,
@@ -602,7 +594,10 @@ export function compileSeedance(
   // los pasos tocan SOLO el diálogo entrecomillado, nunca el andamiaje del prompt
   // (9:16, 480p, 3-7s:, @imageN). Solo en el prompt enviado; el diálogo guardado
   // no cambia.
-  const action = splitLongDialogues(applyRespellings(normalizeSpokenInDialogue(rawAction)));
+  const action0 = splitLongDialogues(applyRespellings(normalizeSpokenInDialogue(rawAction)));
+  const action = voiced
+    ? injectDeliveryCue(action0, deliveryCueFor(req.voiceTone, ctx.format?.register ?? '', req.scenePrompt))
+    : action0;
   sections.push(action);
 
   // F — Encuadre, registro y ritmo del formato.
@@ -641,15 +636,13 @@ export function compileSeedance(
   // Audio dirigido por registro (#2): música/foley deciden aquí, no "si el
   // registro lo pide". El sonido específico de la acción viene del matcher (#1).
   if (generateAudio && !ctx.audioRefPath) {
-    sections.push(audioDirection(ctx.format?.register ?? ''));
+    sections.push(voiced ? VOICE_FORWARD_AUDIO : audioDirection(ctx.format?.register ?? ''));
   }
   // Idioma/acento de la voz SOLO cuando hay habla o narración en la escena.
-  // Si no la hay, se le cierra la puerta a una voz en off no pedida. Con voz, el
-  // tono de entrega se matiza por registro (#3) sobre la cadencia base.
+  // Si no la hay, se le cierra la puerta a una voz en off no pedida. El tono de
+  // entrega ya va pegado a la cita del diálogo (cue adyacente, ver action arriba).
   if (voiced) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
-    const tone = voiceToneForRegister(ctx.format?.register ?? '');
-    if (tone) sections.push(tone);
   } else if (generateAudio) {
     sections.push('No spoken dialogue or voice-over; ambient sound only.');
   }
