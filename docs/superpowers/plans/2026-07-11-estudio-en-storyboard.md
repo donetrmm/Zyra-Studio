@@ -43,10 +43,19 @@
 - Modify: `lib/schemas/studio.ts`
 - Modify: `components/studio/types.ts`
 - Create: `supabase/migrations/063_studio_panel_assettype.sql`
+- Modify: `server-actions/studio.ts` (tipo de `ASSET_TABLE`)
+- Modify: `lib/studio/presets.ts` (`BUILTIN_PRESETS`)
+- Modify: `lib/studio/attach-merge.ts` (`ATTACH_ROLES` + guard de `mergeRole`)
+- Modify: `lib/studio/asset-images.ts` (rama `panel` de `imageIdsFromAssetImages`)
+- Modify: `components/studio/ChatPanel.tsx` (`EMPTY_COPY`)
+- Modify: `components/studio/AttachDialog.tsx` (`ROLES_BY_TYPE`)
+- Modify: `components/studio/SessionHeader.tsx` (prop `assetType` + `BACK_HREF`/`TYPE_LABEL`)
 - Test: `lib/schemas/studio.test.ts`
 
 **Interfaces:**
 - Produces: `StudioAssetType = 'product' | 'location' | 'character' | 'panel'`; variante `{ assetType: 'panel'; name; panelImageId; cleanReferenceIds; scenePrompt; aspectRatio }` de `StudioAssetImages`.
+
+**Nota de alcance (pre-flight):** agregar `'panel'` a `StudioAssetType` rompe typecheck en TODOS sus consumidores (5 mapas `Record<StudioAssetType,…>`, los switches de variante `mergeRole`/`imageIdsFromAssetImages`, y el prop estrecho de `SessionHeader`). Esta task los actualiza a la vez para que CADA commit quede con `pnpm typecheck && pnpm build` verde (decisión del usuario, 2026-07-11). Los paneles NO se adjuntan a roles de activo (aplican vía "Usar como panel"), así que en los mapas de adjuntar/presets van vacíos.
 
 - [ ] **Step 1: Escribir el test que falla** (append a `lib/schemas/studio.test.ts`)
 
@@ -113,16 +122,98 @@ alter table studio_sessions add constraint studio_sessions_asset_type_check
   check (asset_type in ('product', 'location', 'character', 'panel'));
 ```
 
-- [ ] **Step 6: Correr test + typecheck**
+- [ ] **Step 6: `ASSET_TABLE` narrow** (`server-actions/studio.ts`, línea 58)
 
-Run: `pnpm vitest run lib/schemas/studio.test.ts && pnpm typecheck`
-Expected: test PASS. Typecheck: aparecerán errores en `server-actions/studio.ts` (`ASSET_TABLE` ya no cubre todos los `StudioAssetType`) y en `imageIdsFromAssetImages`/`loadStudioAsset` (union no exhaustivo). **Es esperado** — se resuelven en Tasks 2 y 3. Confirmar que NO hay más errores fuera de esos archivos.
+```typescript
+const ASSET_TABLE: Record<Exclude<StudioAssetType, 'panel'>, 'products' | 'locations' | 'characters'> = {
+  product: 'products',
+  location: 'locations',
+  character: 'characters',
+};
+```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: `BUILTIN_PRESETS` gana `panel`** (`lib/studio/presets.ts`, dentro del objeto, después de la entrada `character`)
+
+```typescript
+  // Paneles: sin presets integrados en v1 (el compositor muestra solo los guardados).
+  panel: [],
+```
+
+- [ ] **Step 8: `ATTACH_ROLES` + guard de `mergeRole`** (`lib/studio/attach-merge.ts`)
+
+En `ATTACH_ROLES` (después de la entrada `character`):
+
+```typescript
+  // Los paneles no se adjuntan a un rol de activo: se aplican con "Usar como panel".
+  panel: [],
+```
+
+Al inicio del cuerpo de `mergeRole` (antes de `if (images.assetType === 'product')`):
+
+```typescript
+  if (images.assetType === 'panel') {
+    return { error: 'Los paneles se aplican con "Usar como panel", no se adjuntan a un rol.' };
+  }
+```
+
+- [ ] **Step 9: rama `panel` de `imageIdsFromAssetImages`** (`lib/studio/asset-images.ts`, dentro de la función, antes del `return` de character ~línea 89)
+
+```typescript
+  if (a.assetType === 'panel') return a.cleanReferenceIds;
+```
+
+(Su test vive en la Task 2, junto al de `buildPanelAssetImages`.)
+
+- [ ] **Step 10: `EMPTY_COPY` gana `panel`** (`components/studio/ChatPanel.tsx`, dentro del objeto)
+
+```typescript
+  panel: 'Describe el cambio que imaginas para el panel y el estudio lo genera. Cada versión aparece aquí.',
+```
+
+- [ ] **Step 11: `ROLES_BY_TYPE` gana `panel`** (`components/studio/AttachDialog.tsx`, dentro del objeto)
+
+```typescript
+  panel: [],
+```
+
+- [ ] **Step 12: `SessionHeader` acepta `panel`** (`components/studio/SessionHeader.tsx`)
+
+Importar el tipo (reemplazar el import de la línea 36):
+
+```typescript
+import type { StudioAssetType, StudioSessionOption } from './types';
+```
+
+Ensanchar el prop `assetType` (línea 61) de `'product' | 'location' | 'character'` a `StudioAssetType`. Ensanchar los dos Records y darles la entrada `panel`:
+
+```typescript
+const BACK_HREF: Record<StudioAssetType, string> = {
+  product: '/app/brand/kits',
+  location: '/app/brand/locations',
+  character: '/app/brand/cast',
+  panel: '/app/campaigns',
+};
+
+const TYPE_LABEL: Record<StudioAssetType, string> = {
+  product: 'Producto',
+  location: 'Locación',
+  character: 'Personaje',
+  panel: 'Panel',
+};
+```
+
+(El back real del panel — al storyboard de la campaña — lo cablea Task 4 vía el prop `backHref`; aquí solo se deja verde con un fallback neutro.)
+
+- [ ] **Step 13: Verificación — todo verde**
+
+Run: `pnpm vitest run lib/schemas/studio.test.ts && pnpm typecheck && pnpm build`
+Expected: test PASS, typecheck limpio, build verde. (`loadStudioAsset` en `asset-images.ts` NO necesita rama `panel`: nunca se llama con `panel` — el page usará `loadPanelAsset`. Confirmar que compila sin agregarla.)
+
+- [ ] **Step 14: Commit**
 
 ```bash
-git add lib/schemas/studio.ts components/studio/types.ts supabase/migrations/063_studio_panel_assettype.sql lib/schemas/studio.test.ts
-git commit -m "feat(estudio): agrega panel como assetType (schema, tipos, migracion 063)"
+git add lib/schemas/studio.ts components/studio/types.ts supabase/migrations/063_studio_panel_assettype.sql server-actions/studio.ts lib/studio/presets.ts lib/studio/attach-merge.ts lib/studio/asset-images.ts components/studio/ChatPanel.tsx components/studio/AttachDialog.tsx components/studio/SessionHeader.tsx lib/schemas/studio.test.ts
+git commit -m "feat(estudio): agrega panel como assetType manteniendo typecheck verde"
 ```
 
 ---
@@ -131,12 +222,13 @@ git commit -m "feat(estudio): agrega panel como assetType (schema, tipos, migrac
 
 **Files:**
 - Create: `lib/studio/panel-asset.ts`
-- Modify: `lib/studio/asset-images.ts`
 - Test: `lib/studio/panel-asset.test.ts`
 
+(La rama `panel` de `imageIdsFromAssetImages` ya se agregó en Task 1; aquí solo se prueba.)
+
 **Interfaces:**
-- Consumes: variante `panel` de `StudioAssetImages` (Task 1).
-- Produces: `buildPanelAssetImages(input: PanelAssetInput): Extract<StudioAssetImages, { assetType: 'panel' }>`; `imageIdsFromAssetImages` cubre `panel`.
+- Consumes: variante `panel` de `StudioAssetImages` + rama `panel` de `imageIdsFromAssetImages` (Task 1).
+- Produces: `buildPanelAssetImages(input: PanelAssetInput): Extract<StudioAssetImages, { assetType: 'panel' }>`.
 
 ```typescript
 export type PanelAssetInput = {
@@ -242,21 +334,15 @@ export function buildPanelAssetImages(
 }
 ```
 
-- [ ] **Step 4: Agregar la rama `panel` en `imageIdsFromAssetImages`** (`lib/studio/asset-images.ts`, dentro de la función, antes del `return` de character en la línea ~89)
-
-```typescript
-  if (a.assetType === 'panel') return a.cleanReferenceIds;
-```
-
-- [ ] **Step 5: Correr el test**
+- [ ] **Step 4: Correr el test**
 
 Run: `pnpm vitest run lib/studio/panel-asset.test.ts`
-Expected: PASS.
+Expected: PASS (la rama `panel` de `imageIdsFromAssetImages` ya existe desde Task 1).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add lib/studio/panel-asset.ts lib/studio/asset-images.ts lib/studio/panel-asset.test.ts
+git add lib/studio/panel-asset.ts lib/studio/panel-asset.test.ts
 git commit -m "feat(estudio): proyeccion pura del panel a StudioAssetImages"
 ```
 
@@ -397,17 +483,7 @@ export async function loadPanelAsset(
 
 - [ ] **Step 2: Extender `ownsAsset` para `panel`** (`server-actions/studio.ts`)
 
-Cambiar el tipo de `ASSET_TABLE` (línea 58) para excluir `panel` (así el índice sigue tipando y `panel` se maneja aparte):
-
-```typescript
-const ASSET_TABLE: Record<Exclude<StudioAssetType, 'panel'>, 'products' | 'locations' | 'characters'> = {
-  product: 'products',
-  location: 'locations',
-  character: 'characters',
-};
-```
-
-Y al inicio del cuerpo de `ownsAsset` (después de la firma, antes del `const { data } = ...` de la línea 75), agregar la rama panel:
+(El tipo de `ASSET_TABLE` ya se estrechó a `Exclude<StudioAssetType, 'panel'>` en Task 1.) Al inicio del cuerpo de `ownsAsset` (después de la firma, antes del `const { data } = ...` de la línea 75), agregar la rama panel:
 
 ```typescript
   if (assetType === 'panel') {
@@ -563,7 +639,7 @@ El prompt precargado es editable y no fuerza nada — el usuario lo borra/edita 
 
 - [ ] **Step 5: `SessionHeader` back link** (`components/studio/SessionHeader.tsx`)
 
-Agregar `backHref?: string` a las props. Donde el header muestra el nombre/volver del activo, si `backHref` está presente usarlo como destino del "volver" (link a `backHref`); si no, conservar el comportamiento actual (volver a la biblioteca del activo). En modo panel, el label puede decir el `assetName` ("Panel N") tal cual.
+(El prop `assetType` ya acepta `StudioAssetType` y `BACK_HREF`/`TYPE_LABEL` ya tienen entrada `panel` desde Task 1.) Agregar `backHref?: string` a las props y usarlo como destino del "volver": `href={props.backHref ?? BACK_HREF[props.assetType]}`. En modo panel `backHref` = storyboard de la campaña; el label del header muestra `assetName` ("Panel N").
 
 - [ ] **Step 6: typecheck + build**
 
