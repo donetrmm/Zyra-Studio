@@ -38,8 +38,8 @@ describe('injectDeliveryCue', () => {
     expect(out.endsWith('Deliver the line in a warm tone —')).toBe(true);
   });
   it('soporta comillas curvas en el marcador', () => {
-    const out = injectDeliveryCue('She speaks. Dialogue: "Hola."', cue);
-    expect(out).toContain('warm tone — Dialogue: "Hola."');
+    const out = injectDeliveryCue('She speaks. Dialogue: “Hola.”', cue);
+    expect(out).toContain('warm tone — Dialogue: “Hola.”');
   });
 });
 

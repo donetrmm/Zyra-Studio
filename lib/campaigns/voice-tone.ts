@@ -50,8 +50,8 @@ export function deliveryCueFor(
 // Prefija el cue a la cita dentro de la acción. Preferencia: 1) marcador
 // Dialogue:/Diálogo:; 2) primer entrecomillado; 3) sin cita → cue al final. Solo
 // toca la acción, nunca el andamiaje (@imageN, 9:16, marcadores de segundos).
-const DIALOGUE_MARKER_RE = /(?:dialogue|di[aá]logo)\s*:\s*[""]/i;
-const FIRST_QUOTE_RE = /[""][^"""]{2,}[""]/;
+const DIALOGUE_MARKER_RE = /(?:dialogue|di[aá]logo)\s*:\s*["“]/i;
+const FIRST_QUOTE_RE = /["“][^"“”]{2,}["”]/;
 
 export function injectDeliveryCue(action: string, cue: string): string {
   if (DIALOGUE_MARKER_RE.test(action)) {
