@@ -357,7 +357,10 @@ describe('compile seedance', () => {
     if (!res.ok) return;
     const { prompt } = res.compiled;
     expect(prompt.match(/Dialogue:/g)?.length).toBe(2);
-    expect(prompt).toContain('pauses briefly, then continues');
+    // Fase 2 audio: el beat de re-sync es una respiración breve sin corte, ya no
+    // ordena una pausa dramática ("pauses briefly").
+    expect(prompt).not.toContain('pauses briefly');
+    expect(prompt).toMatch(/natural breath and continues the same line smoothly/);
     expect(prompt).toContain('Dialogue: "Esto cambió todas mis mañanas desde el primer día."');
   });
 

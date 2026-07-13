@@ -6,13 +6,17 @@
 import { declaresHighEmotion, ENERGETIC_REGISTER_RE } from '@/lib/prompt-director/acting';
 
 // Etiqueta española (chip / valor guardado) → descriptor de entrega en inglés.
+// Fase 2 audio (2026-07-13): los tonos calmos ('serio', 'seguro') se enriquecen con
+// calidez/vida para que, aun eligiéndolos, la voz no salga monótona (la planitud que
+// reportó el usuario venía de que 'seguro' → 'confident, self-assured' se entregaba
+// medido). Conservan su intención (confianza/gravedad), solo dejan de ser planos.
 export const VOICE_TONE_MAP: Record<string, string> = {
   cálido: 'warm, personable',
   entusiasta: 'upbeat, enthusiastic',
-  serio: 'serious, grounded',
+  serio: 'serious and grounded, still warm and expressive',
   juguetón: 'playful, light',
   íntimo: 'intimate, soft, close to the mic',
-  seguro: 'confident, self-assured',
+  seguro: 'confident and self-assured, still warm and lively',
 };
 
 // Chips que ofrece la UI (labels en español = claves del mapa).

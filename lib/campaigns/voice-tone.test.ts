@@ -49,3 +49,16 @@ describe('VOICE_TONE_LABELS', () => {
     expect(VOICE_TONE_LABELS.length).toBe(Object.keys(VOICE_TONE_MAP).length);
   });
 });
+
+// Fase 2 audio (2026-07-13): los tonos calmos ('seguro', 'serio') se enriquecen
+// para no salir monótonos — conservan su intención pero llevan calidez/vida.
+describe('VOICE_TONE_MAP tonos calmos con vida (Fase 2 audio)', () => {
+  it("'seguro' conserva confianza pero suma calidez/vida", () => {
+    expect(VOICE_TONE_MAP.seguro).toMatch(/confident/i);
+    expect(VOICE_TONE_MAP.seguro).toMatch(/warm|lively/i);
+  });
+  it("'serio' conserva gravedad pero suma expresividad", () => {
+    expect(VOICE_TONE_MAP.serio).toMatch(/serious/i);
+    expect(VOICE_TONE_MAP.serio).toMatch(/warm|expressive/i);
+  });
+});
