@@ -69,6 +69,16 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 export const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
 
+// Dinamismo del hablante (Fase 2 audio, 2026-07-13): al acortar clips hablados el
+// talento salía "parado/tieso" — los frames quietos del storyboard + la animación
+// mínima desde un panel estático + el restraint lo congelaban en una foto que habla.
+// Esta directiva mantiene el CUERPO vivo (gestos, peso, torso) sin tocar la
+// contención de la CARA: explícitamente no-teatral, así convive con
+// ACTING_RESTRAINT_DIRECTION sin reactivar el "exagerado" (feedback 2026-07-04).
+// Exportada: los clips de continuación la re-anclan (paridad con SPEECH_DIRECTION).
+export const SPEAKER_LIVELINESS =
+  'Keep the speaker physically alive and dynamic for the whole shot — never a stiff, frozen or posed talking photo. Natural, continuous motion carries the clip: easy hand and arm gestures that follow the speech, small weight shifts, relaxed shoulder and torso movement, gentle head tilts, expressive eyes and eyebrows, natural blinking and breathing. This is the effortless, candid energy of a real person mid-conversation — believable and grounded, never mugging, theatrical or exaggerated.';
+
 // Narración en OFF (voiceover): voz hablada SIN hablante en cámara, sin lip-sync. Para
 // tomas de producto/insertos con VO. Sin esto, hasSpokenDialogue (que matchea el
 // entrecomillado) hacía que un VO recibiera la dirección de lip-sync on-camera — una
@@ -526,6 +536,8 @@ export function compileSeedance(
   // de la acción.
   if (speaker) {
     sections.push(SPEECH_DIRECTION);
+    // Mantiene al hablante físicamente vivo (contra el "parado/tieso" de clips cortos).
+    sections.push(SPEAKER_LIVELINESS);
     // 2+ personajes del Cast en cámara → fija un solo hablante (PD-15).
     if ((ctx.characters?.length ?? 0) >= 2) sections.push(MULTI_SPEAKER_DIRECTION);
   } else if (generateAudio && voiced && voiceover) {

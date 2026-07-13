@@ -273,6 +273,9 @@ describe('compile seedance', () => {
     expect(prompt.startsWith('A 9-second vertical (9:16) commercial video')).toBe(true);
     // Lip sync / habla en cámara (no narración).
     expect(prompt).toContain('Synchronized on-camera speech, not voice-over narration');
+    // Fase 2 audio: dinamismo del hablante (contra el "parado/tieso").
+    expect(prompt).toContain('physically alive and dynamic');
+    expect(prompt).toContain('never mugging, theatrical or exaggerated');
     // Voz natural anti-robótica (Fase 1 audio: rebalanceada hacia expresividad).
     expect(prompt).toContain('natural Mexican accent');
     expect(prompt).toContain('never flat, monotone, robotic or announcer-like');
@@ -329,7 +332,11 @@ describe('compile seedance', () => {
       fullContext(),
     );
     expect(withCast.ok).toBe(true);
-    if (withCast.ok) expect(withCast.compiled.prompt).not.toContain('Synchronized on-camera speech');
+    if (withCast.ok) {
+      expect(withCast.compiled.prompt).not.toContain('Synchronized on-camera speech');
+      // Sin habla → tampoco el dinamismo del hablante (es solo para clips hablados).
+      expect(withCast.compiled.prompt).not.toContain('physically alive and dynamic');
+    }
 
     // Sin personajes ni diálogo (el-icono): audio sí, lip sync no.
     const ctx = fullContext();
@@ -503,7 +510,9 @@ describe('compile seedance', () => {
         durationS: 5,
         aspectRatio: '9:16',
       },
-      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(400) } },
+      // ~5.5k de detalle de producto: andamiaje grande pero bajo el techo (ajustado
+      // en Fase 2 al sumar SPEAKER_LIVELINESS al andamiaje de clips hablados).
+      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(370) } },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;

@@ -131,6 +131,13 @@ describe('STORYBOARD_EDIT_HANDLES', () => {
     expect(STORYBOARD_EDIT_HANDLES).toContain('in and out points');
     expect(STORYBOARD_EDIT_HANDLES.startsWith(' ')).toBe(true);
   });
+  // Fase 2 audio: ya no congela el frame de apertura/cierre (dejaba tieso al
+  // talento en clips cortos); entra en movimiento y cierra vivo, no congelado.
+  it('no pide frames congelados; entra en movimiento y cierra vivo', () => {
+    expect(STORYBOARD_EDIT_HANDLES).not.toContain('almost-still');
+    expect(STORYBOARD_EDIT_HANDLES).not.toContain('still opening frame');
+    expect(STORYBOARD_EDIT_HANDLES).toContain('not frozen');
+  });
 });
 
 describe('STORYBOARD_SCENE_CONTINUITY', () => {

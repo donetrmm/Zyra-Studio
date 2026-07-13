@@ -85,6 +85,8 @@ describe('buildContinuationPrompt', () => {
     });
     expect(out).toContain('Synchronized on-camera speech');
     expect(out).not.toContain('do NOT lip-sync any face');
+    // Fase 2 audio: el hablante encadenado también recibe el dinamismo (paridad).
+    expect(out).toContain('physically alive and dynamic');
   });
 
   it('sin audio no añade dirección de voz (#3)', () => {
@@ -96,6 +98,8 @@ describe('buildContinuationPrompt', () => {
   it('clip de puro producto (sin voz) no añade idioma (#3)', () => {
     const out = buildContinuationPrompt('The can rotates on marble', 1, 0, { generateAudio: true });
     expect(out).not.toContain('must be in');
+    // Sin habla → sin dinamismo del hablante (es solo para clips hablados).
+    expect(out).not.toContain('physically alive and dynamic');
   });
 
   it('ancla el producto contra animación de la foto impresa, conciso (#B)', () => {

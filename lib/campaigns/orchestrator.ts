@@ -9,6 +9,7 @@ import {
   DIALOGUE_LANGUAGE,
   NEGATIVE_CLAUSE,
   NO_REAL_FACES_CLAUSE,
+  SPEAKER_LIVELINESS,
   SPEECH_DIRECTION,
   VOICEOVER_DIRECTION,
   hasSpokenDialogue,
@@ -738,8 +739,11 @@ export function buildContinuationPrompt(
   // Habla EN cámara → lip-sync; narración en off → VOICEOVER_DIRECTION (sin lip-sync).
   // El idioma/acento (es-MX) se re-ancla en CADA clip mientras haya voz (habla o VO):
   // sin esto los clips 2..N derivaban a inglés/acento neutro a mitad de la toma.
-  if (speaker) directives.push(SPEECH_DIRECTION);
-  else if (generateAudio && sceneHasVoice(scenePrompt) && voiceover) directives.push(VOICEOVER_DIRECTION);
+  if (speaker) {
+    directives.push(SPEECH_DIRECTION);
+    // Hablante vivo (paridad con el compiler): contra el "parado/tieso" en cadena.
+    directives.push(SPEAKER_LIVELINESS);
+  } else if (generateAudio && sceneHasVoice(scenePrompt) && voiceover) directives.push(VOICEOVER_DIRECTION);
   if (generateAudio && sceneHasVoice(scenePrompt)) directives.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
   // Cláusula negativa (siempre) y guard anti-rostros (solo tomas sin cara
   // intencional), al final como en el compiler.
