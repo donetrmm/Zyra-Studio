@@ -49,8 +49,11 @@ export const AUDIO_BEAT_SYNC_CITATION =
 // Seedance usa el audio citado como molde de voz. Comparte el slot @audio1 con la
 // música — cuando hay voz, la música se omite (la voz gana). Sin espacio inicial:
 // el compiler la usa como línea propia; el storyboard antepone el espacio al concatenar.
+// Fase 2 audio (2026-07-13): copia SOLO timbre/grano/acento de la muestra, NO su
+// prosodia — el modelo heredaba la entonación plana de la muestra clonada aunque el
+// prompt pidiera expresividad. Ahora la entonación/emoción siguen la dirección.
 export const VOICE_TIMBRE_CITATION =
-  '@audio1 is the voice reference for the speaking character — match its exact vocal timbre, pitch and accent for all spoken dialogue in this clip. Use it only as a voice model, not as background music.';
+  '@audio1 is the voice reference for the speaking character — copy only its vocal timbre, grain and accent for all spoken dialogue in this clip; do NOT copy the reference clip\'s own intonation or pacing. Let the pitch movement, rhythm, emphasis and emotion follow the expressive delivery direction in this prompt, so the voice stays lively and expressive, never flat or monotone. Use it only as a voice model, not as background music.';
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
