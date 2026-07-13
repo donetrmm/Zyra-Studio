@@ -84,11 +84,15 @@ function clamp(n: number, min: number, max: number): number {
 // Veredicto de ajuste + duración sugerida (clamp al rango Seedance). 'tight' ya
 // no es solo "no cabe": habla que llena el clip sin el aire mínimo también es
 // apretada (el modelo la acelera igual) — antes ese caso pasaba como 'ok'.
+// La duración SUGERIDA es la MÁS AJUSTADA que sigue siendo buena (habla + aire
+// mínimo), sesgada CONTRA el arrastre. Fase 2 (2026-07-13): antes usaba
+// `needed + HEADROOM_S`, que caía en la zona 'roomy' que YA arrastra — para 14
+// palabras (~5s de habla) sugería 7s cuando 6s va mejor. Ahora `needed + MIN_AIR_S`.
 export function fitVerdict(
   neededS: number,
   durationS: number,
 ): { level: 'tight' | 'ok' | 'roomy'; suggestedDurationS: number } {
-  const suggestedDurationS = clamp(Math.ceil(neededS + HEADROOM_S), DUR_MIN, DUR_MAX);
+  const suggestedDurationS = clamp(Math.ceil(neededS + MIN_AIR_S), DUR_MIN, DUR_MAX);
   const margin = durationS - neededS;
   let level: 'tight' | 'ok' | 'roomy';
   if (margin < MIN_AIR_S) level = 'tight';

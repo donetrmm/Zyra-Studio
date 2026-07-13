@@ -96,6 +96,14 @@ describe('calibración del ritmo de habla (mediciones del usuario)', () => {
     const needed = estimateSpeechSeconds('Esto cambió por completo todas mis mañanas hoy', 'es');
     expect(fitVerdict(needed, 4).level).toBe('ok');
   });
+  it('14 palabras (~5s de habla) apuntan a 6s, no 7 — 8s arrastra (roomy)', () => {
+    const catorce = Array.from({ length: 14 }, (_, i) => `palabra${i}`).join(' ');
+    const needed = estimateSpeechSeconds(catorce, 'es');
+    // Target = la duración más ajustada que sigue siendo buena (habla + aire mínimo).
+    expect(fitVerdict(needed, 8).suggestedDurationS).toBe(6);
+    expect(fitVerdict(needed, 8).level).toBe('roomy'); // 8s: demasiada holgura → arrastra
+    expect(fitVerdict(needed, 6).level).toBe('ok'); // 6s: el punto bueno
+  });
 });
 
 describe('fitVerdict', () => {
