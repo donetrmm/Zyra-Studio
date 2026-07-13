@@ -795,17 +795,25 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   const words = countWords(draft.dialogue);
                   const needed = estimateSpeechSeconds(draft.dialogue, language);
                   const { level, suggestedDurationS } = fitVerdict(needed, draft.durationS);
+                  // Fase 2 audio (2026-07-13): 'roomy' YA NO es "natural/bueno" — un
+                  // clip mucho más largo que su línea hace que Seedance arrastre la voz
+                  // y meta pausas ("plano y lento"). El punto bueno es 'ok' (suficiente
+                  // aire sin exceso); 'roomy' con sugerencia menor = aviso de recortar.
+                  const tooLong = level === 'roomy' && suggestedDurationS < draft.durationS;
                   const meter =
                     words === 0
                       ? { text: 'Sin diálogo', cls: 'text-muted-foreground' }
-                      : level === 'roomy'
-                        ? { text: 'Holgado (natural)', cls: 'text-emerald-500' }
-                        : level === 'ok'
-                          ? { text: 'Justo', cls: 'text-amber-500' }
-                          : {
-                              text: `Muy ajustado: ~${needed.toFixed(1)}s para ${words} palabras · sube a ${suggestedDurationS}s o acorta`,
-                              cls: 'text-red-500',
-                            };
+                      : level === 'tight'
+                        ? {
+                            text: `Muy ajustado: ~${needed.toFixed(1)}s para ${words} palabras · sube a ${suggestedDurationS}s o acorta`,
+                            cls: 'text-red-500',
+                          }
+                        : tooLong
+                          ? {
+                              text: `Largo para la voz: puede arrastrarse · baja a ~${suggestedDurationS}s`,
+                              cls: 'text-amber-500',
+                            }
+                          : { text: 'Natural', cls: 'text-emerald-500' };
                   return (
                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card/40 p-2">
                       <textarea
