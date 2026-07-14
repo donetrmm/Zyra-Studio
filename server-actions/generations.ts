@@ -353,6 +353,14 @@ export async function submitGenerationAction(
         Object.keys(providerPayload).length > 0 ? providerPayload : null,
     });
 
+    // Auto-review de calidad (specs/v2/19) también para el path síncrono de
+    // imagen. Best-effort: la generación ya está completa y cobrada.
+    try {
+      await enqueueJob({ generationId, action: 'quality_review' });
+    } catch (err) {
+      console.error('[generations] no se pudo encolar el quality review', { generationId, err });
+    }
+
     revalidatePath('/app/library');
     revalidatePath('/app/create/image');
     return { ok: true, data: { generationId } };

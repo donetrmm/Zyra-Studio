@@ -32,7 +32,7 @@ export type LibraryPage = {
 };
 
 const COLUMNS =
-  'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id';
+  'id, type, provider, model_id, prompt, status, thumbnail_url, output_url, credits_charged, created_at, params, parent_generation_id, batch_id, batch_kind, campaign_id, quality_score, quality_flags, quality_summary';
 
 // Escapa los caracteres reservados del sintaxis de filtros de PostgREST
 // dentro de un patrón ilike (coma, paréntesis, comodines).
@@ -113,6 +113,9 @@ export async function fetchLibraryPage(
       batchKind: (g.batch_kind as string | null) ?? null,
       campaignId: (g.campaign_id as string | null) ?? null,
       aspectRatio: params.aspect_ratio ?? null,
+      qualityScore: (g.quality_score as number | null) ?? null,
+      qualityFlags: (g.quality_flags as string[] | null) ?? [],
+      qualitySummary: (g.quality_summary as string | null) ?? null,
     };
   });
 

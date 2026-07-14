@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  AlertTriangle,
   Check,
   Columns2,
   Copy,
@@ -55,6 +56,10 @@ export type LibraryGeneration = {
   batchKind: string | null;
   campaignId: string | null;
   aspectRatio: string | null;
+  // Auto-review de calidad (specs/v2/19). null = sin revisar.
+  qualityScore: number | null;
+  qualityFlags: string[];
+  qualitySummary: string | null;
 };
 
 
@@ -106,6 +111,20 @@ function batchLabel(kind: string): string {
     case 'smart_crop': return 'CROP';
     default: return 'BATCH';
   }
+}
+
+// Etiquetas ES de los códigos del auto-review (lib/quality/review.ts).
+const QUALITY_FLAG_LABEL: Record<string, string> = {
+  deformed_hands: 'Manos deformes',
+  distorted_face: 'Rostro distorsionado',
+  deformed_body: 'Anatomía imposible',
+  garbled_text: 'Texto ilegible',
+  warped_product: 'Producto deformado',
+  artifacts: 'Artefactos visibles',
+};
+
+function qualityFlagLabels(flags: string[]): string {
+  return flags.map((f) => QUALITY_FLAG_LABEL[f] ?? f).join(' · ');
 }
 
 function reuseHref(g: LibraryGeneration): string {
@@ -1205,6 +1224,15 @@ function LibTile({
         </button>
       )}
 
+      {gen.qualityFlags.length > 0 && (
+        <div
+          title={gen.qualitySummary ?? qualityFlagLabels(gen.qualityFlags)}
+          className="absolute right-2 top-9 grid size-6 place-items-center rounded-full border border-amber-500/40 bg-background/70 backdrop-blur"
+        >
+          <AlertTriangle className="size-3 text-amber-400" aria-hidden />
+        </div>
+      )}
+
       {hover && gen.hasOutput && (
         <div className="absolute right-2 bottom-2 flex gap-1">
           {gen.type === 'image' && (
@@ -1494,6 +1522,23 @@ function DetailAside({
                 Sin output
               </div>
             )}
+          </div>
+        )}
+
+        {generation.qualityFlags.length > 0 && (
+          <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+            <div className="flex items-center gap-1.5 text-[12px] font-medium text-amber-400">
+              <AlertTriangle className="size-3.5" aria-hidden />
+              Posibles defectos detectados
+              {generation.qualityScore != null && (
+                <span className="ml-auto font-mono text-[11px] text-amber-400/70">
+                  {generation.qualityScore}/100
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+              {generation.qualitySummary ?? qualityFlagLabels(generation.qualityFlags)}
+            </p>
           </div>
         )}
 

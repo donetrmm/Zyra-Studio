@@ -10,6 +10,7 @@ import { advanceSequenceChain, storeChainAudio, storeChainFrame } from '@/lib/ca
 import { extractVideoAudio } from '@/lib/jobs/video-frame';
 import { downloadOutputBuffer } from '@/lib/supabase/storage';
 import { promoteStoryboardPanel, storyboardCampaignItemId } from '@/lib/jobs/storyboard-finalize';
+import { reviewImageQuality } from '@/lib/quality/review';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
@@ -20,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
   generationId: z.string().uuid(),
-  action: z.enum(['submit', 'poll', 'advance_chain', 'promote_storyboard']),
+  action: z.enum(['submit', 'poll', 'advance_chain', 'promote_storyboard', 'quality_review']),
   // Solo para 'advance_chain': PATH interno (references) del fotograma del clip
   // previo a heredar. El finalize lo sube con la URL fresca.
   lastFramePath: z.string().optional(),
@@ -169,6 +170,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'promote_failed' }, { status: 500 });
     }
     return NextResponse.json({ ok: true, ack: 'promoted' });
+  }
+
+  // 3.7. Auto-review de calidad (specs/v2/19): job dedicado post-done, igual
+  // que advance_chain/promote — se intercepta ANTES del guard terminal porque
+  // la gen ya está 'done'. Best-effort: un review fallido se loguea y ack'ea
+  // (nunca 500 — no vale un ciclo de retries de QStash por un badge).
+  if (action === 'quality_review') {
+    try {
+      if (generation.type === 'image' && generation.status === 'done') {
+        const { data: row } = await admin
+          .from('generations')
+          .select('thumbnail_url, prompt, quality_score')
+          .eq('id', generation.id)
+          .single();
+        const thumbPath = (row as { thumbnail_url?: string | null } | null)?.thumbnail_url;
+        const alreadyReviewed =
+          (row as { quality_score?: number | null } | null)?.quality_score != null;
+        if (thumbPath && !alreadyReviewed) {
+          // El thumbnail (512px) basta para detectar defectos y pesa ~30KB;
+          // el output completo puede ser un PNG 4K de varios MB.
+          const { data: blob, error: dlErr } = await admin.storage
+            .from('thumbnails')
+            .download(thumbPath);
+          if (dlErr || !blob) throw new Error(dlErr?.message ?? 'thumbnail no disponible');
+          const review = await reviewImageQuality({
+            imageBuffer: Buffer.from(await blob.arrayBuffer()),
+            mimeType: 'image/jpeg',
+            prompt: ((row as { prompt?: string | null } | null)?.prompt ?? '').toString(),
+          });
+          await admin
+            .from('generations')
+            .update({
+              quality_score: review.score,
+              quality_flags: review.flags,
+              quality_summary: review.summary,
+            })
+            .eq('id', generation.id)
+            .eq('status', 'done');
+        }
+      }
+    } catch (err) {
+      console.error('[worker] quality review falló', { generationId, err });
+    }
+    return NextResponse.json({ ok: true, ack: 'quality_reviewed' });
   }
 
   // 4. Guard: status terminal → ack
