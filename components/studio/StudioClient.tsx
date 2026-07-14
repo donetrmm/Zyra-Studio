@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useLiveBalance } from '@/components/layout/use-live-balance';
 import { createStudioSessionAction, submitStudioTurnAction } from '@/server-actions/studio';
-import { usePanelFromStudioAction } from '@/server-actions/storyboard';
+// Alias: el nombre exportado empieza con "use" y la regla react-hooks/rules-of-hooks
+// trata la llamada como hook fuera de componente. Es una server action, no un hook.
+import { usePanelFromStudioAction as applyPanelFromStudioAction } from '@/server-actions/storyboard';
 import { SessionHeader } from './SessionHeader';
 import { GalleryPanel } from './GalleryPanel';
 import { ChatPanel } from './ChatPanel';
@@ -37,7 +39,7 @@ export function StudioClient(props: StudioClientProps) {
     if (applyingId) return;
     setApplyingId(generationId);
     try {
-      const res = await usePanelFromStudioAction(props.assetId, generationId);
+      const res = await applyPanelFromStudioAction(props.assetId, generationId);
       if (!res.ok) {
         toast.error(res.message ?? 'No se pudo usar como panel');
         return;
