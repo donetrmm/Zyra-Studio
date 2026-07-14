@@ -416,7 +416,9 @@ export async function generatePanelAction(
       },
       reference_ids: [],
       campaign_id: item.campaign_id,
-      status: 'processing',
+      // 'queued', no 'processing': el claim anti-duplicados del worker exige la
+      // transición queued→processing en el submit. La UI trata ambos igual.
+      status: 'queued',
       credits_estimated: cost,
       timeout_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
     })

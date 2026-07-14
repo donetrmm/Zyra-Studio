@@ -210,6 +210,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ack: reason });
   }
 
+  // 5.5. Claim atómico para 'submit': QStash entrega at-least-once y el submit
+  // llama al proveedor (tarea externa que cuesta dinero) — dos entregas
+  // concurrentes del mismo mensaje crearían dos tareas. La transición
+  // queued→processing con count decide un único ganador; el perdedor ack'ea
+  // sin tocar al proveedor. Si esta invocación muere tras el claim y antes de
+  // encolar el poll, timeout_at + el rescate del cleanup dejan la fila en
+  // failed con refund (mismo tradeoff ya aceptado en image-turn).
+  if (action === 'submit') {
+    const { count: claimCount, error: claimErr } = await admin
+      .from('generations')
+      .update({ status: 'processing' }, { count: 'exact' })
+      .eq('id', generation.id)
+      .eq('status', 'queued');
+    if (claimErr) {
+      // 500 → QStash reintenta; el claim sigue siendo la barrera.
+      console.error('[worker] claim de submit falló', { generationId, error: claimErr.message });
+      return NextResponse.json({ ok: false, error: 'claim_failed' }, { status: 500 });
+    }
+    if (!claimCount) {
+      return NextResponse.json({ ok: true, ack: 'submit_duplicate' });
+    }
+    generation.status = 'processing';
+  }
+
   // 6. Dispatch al handler del provider
   const result = await dispatchJob(generation, action);
 

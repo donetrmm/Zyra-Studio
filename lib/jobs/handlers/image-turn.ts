@@ -1,5 +1,4 @@
 import 'server-only';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateGptImage, type GptImageModel, type GptImageQuality } from '@/lib/providers/gpt-image';
 import { generate as generateFluxGateway, type FluxGatewayModel } from '@/lib/providers/flux-gateway';
 import { generate as generateNano, nanoVariantToResolution } from '@/lib/providers/nano-banana';
@@ -30,21 +29,10 @@ export function gptImageSize(aspectRatio: unknown): '1024x1024' | '1536x1024' | 
 // nano-banana.ts con su propio flujo strict/conversational). Espeja el
 // handler de ElevenLabs (también one-shot, sin polling).
 export async function runImageTurn(gen: GenerationRow): Promise<JobResult> {
-  // Claim atómico queued->processing: QStash puede reentregar el mismo mensaje
-  // (retries) y este handler no tiene un 'continue' que lo re-encole con un
-  // nuevo estado — sin este guard, dos invocaciones concurrentes generarían y
-  // cobrarían/reembolsarían dos veces la misma fila.
-  const admin = createAdminClient();
-  const { count, error: claimError } = await admin
-    .from('generations')
-    .update({ status: 'processing' }, { count: 'exact' })
-    .eq('id', gen.id)
-    .eq('status', 'queued');
-  if (claimError) {
-    return { kind: 'fail', message: `claim falló: ${claimError.message}`, code: 'unknown' };
-  }
-  if (!count) return { kind: 'skip' };
-
+  // El claim atómico queued->processing anti-duplicados de QStash vive ahora
+  // en el worker (route.ts paso 5.5) para TODOS los submits — este handler ya
+  // llega con el claim ganado. No re-verificar aquí: un segundo claim sobre
+  // 'queued' encontraría 0 filas y saltaría el turno legítimo.
   const params = (gen.params ?? {}) as Record<string, unknown>;
   const variant = typeof params.variant === 'string' ? params.variant : '';
 
