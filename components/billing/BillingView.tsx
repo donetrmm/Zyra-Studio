@@ -28,6 +28,13 @@ export type TransactionRow = {
   delta: number;
   reason: string;
   createdAt: string;
+  // Desglose del cargo: null si el movimiento no viene de una generación o si
+  // la generación fue borrada de la biblioteca.
+  generation?: {
+    modelId: string;
+    type: string;
+    promptSnippet: string | null;
+  } | null;
 };
 
 const PACK_META: Record<PackId, { label: string; subtitle: string; highlight?: boolean }> = {
@@ -176,14 +183,34 @@ export function BillingView({
                   {transactions.map((t) => (
                     <li
                       key={t.id}
-                      className="flex items-center justify-between gap-3 py-2"
+                      className="flex items-start justify-between gap-3 py-2"
                     >
-                      <span className="capitalize text-muted-foreground">
-                        {t.reason.replace(/_/g, ' ')}
-                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2">
+                          <span className="capitalize text-muted-foreground">
+                            {t.reason.replace(/_/g, ' ')}
+                          </span>
+                          {t.generation && (
+                            <span className="text-[11px] text-muted-foreground/60">
+                              {t.generation.type} · {t.generation.modelId}
+                            </span>
+                          )}
+                          <span className="text-[11px] text-muted-foreground/50">
+                            {new Date(t.createdAt).toLocaleDateString('es-MX', {
+                              day: '2-digit',
+                              month: 'short',
+                            })}
+                          </span>
+                        </div>
+                        {t.generation?.promptSnippet && (
+                          <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground/60">
+                            {t.generation.promptSnippet}
+                          </p>
+                        )}
+                      </div>
                       <span
                         className={cn(
-                          'tabular-nums',
+                          'shrink-0 tabular-nums',
                           t.delta > 0 ? 'text-emerald-400' : 'text-rose-400',
                         )}
                       >
