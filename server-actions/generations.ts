@@ -10,6 +10,7 @@ import {
   downloadOutputBuffer,
   downloadReferenceBuffer,
   uploadOutput,
+  uploadThoughtSignature,
   uploadThumbnail,
   OUTPUTS_BUCKET,
   THUMBNAILS_BUCKET,
@@ -243,6 +244,7 @@ export async function submitGenerationAction(
         const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url);
         const payload = (parent.provider_payload ?? {}) as {
           thought_signature?: string;
+          thought_signature_path?: string;
         };
         // El thought_signature solo es válido dentro del MISMO modelo Gemini.
         // Si el usuario cambió de Pro a Flash (o viceversa) en medio del hilo,
@@ -250,11 +252,27 @@ export async function submitGenerationAction(
         // En ese caso, omitimos la sig — nano-banana.ts cae a su fallback
         // single-turn que adjunta la imagen previa como ref normal.
         const modelMatches = parent.model_id === data.model;
+        // La firma vive en Storage (thought_signature_path); el valor inline
+        // solo existe en filas anteriores a este cambio.
+        let parentSignature: string | undefined;
+        if (modelMatches) {
+          if (payload.thought_signature_path) {
+            try {
+              const sig = await downloadOutputBuffer(payload.thought_signature_path);
+              parentSignature = sig.buffer.toString('utf8');
+            } catch {
+              // Sin firma → nano-banana.ts cae al fallback single-turn.
+              parentSignature = undefined;
+            }
+          } else {
+            parentSignature = payload.thought_signature;
+          }
+        }
         previousTurn = {
           prompt: parent.prompt ?? '',
           imageBuffer: buffer,
           mimeType,
-          thoughtSignature: modelMatches ? payload.thought_signature : undefined,
+          thoughtSignature: parentSignature,
         };
       }
     }
@@ -298,7 +316,13 @@ export async function submitGenerationAction(
     const processingMs = Date.now() - startedAt;
     const providerPayload: Record<string, unknown> = {};
     if (result.thoughtSignature) {
-      providerPayload.thought_signature = result.thoughtSignature;
+      // A Storage, nunca inline: la firma pesa 6-9MB y rompe
+      // complete_generation (statement timeout) y Realtime (>1MB).
+      providerPayload.thought_signature_path = await uploadThoughtSignature(
+        workspace.id,
+        generationId,
+        result.thoughtSignature,
+      );
     }
 
     // Atómico: confirma el cargo + marca status='done' + escribe URLs en una
