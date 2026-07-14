@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldCheck, ShieldOff } from 'lucide-react';
+import { ShieldCheck, ShieldOff, UserCheck, UserX } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CreditAdjustDialog } from "@/components/admin/CreditAdjustDialog";
-import { toggleAdminAction } from "@/server-actions/admin";
+import { setUserStatusAction, toggleAdminAction } from "@/server-actions/admin";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export type UserRow = {
@@ -82,6 +82,12 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
                     <ToggleAdminButton userId={u.id} email={u.email} currentRole={u.role} />
+                    <SuspendButton
+                      userId={u.id}
+                      email={u.email}
+                      currentStatus={u.status}
+                      isAdmin={u.role === 'admin'}
+                    />
                     <CreditAdjustDialog
                       userId={u.id}
                       email={u.email}
@@ -135,6 +141,64 @@ function ToggleAdminButton({ userId, email, currentRole }: { userId: string; ema
       className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
     >
       {isAdmin ? <ShieldOff className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+    </button>
+  );
+}
+
+function SuspendButton({
+  userId,
+  email,
+  currentStatus,
+  isAdmin,
+}: {
+  userId: string;
+  email: string;
+  currentStatus: 'active' | 'suspended' | 'deleted';
+  isAdmin: boolean;
+}) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const [pending, startTransition] = useTransition();
+  const suspended = currentStatus === 'suspended';
+  // 'deleted' es terminal (soft delete): sin acción de status.
+  if (currentStatus === 'deleted') return null;
+
+  async function handleToggle() {
+    const ok = await confirm({
+      title: suspended ? `Reactivar a ${email}?` : `Suspender a ${email}?`,
+      description: suspended
+        ? 'Recuperara el acceso a su cuenta y sus creditos.'
+        : 'Perdera el acceso en su proximo request. Sus datos y creditos se conservan.',
+      confirmLabel: suspended ? 'Reactivar' : 'Suspender',
+      destructive: !suspended,
+    });
+    if (!ok) return;
+    startTransition(async () => {
+      const res = await setUserStatusAction(userId, suspended ? 'active' : 'suspended');
+      if (res.ok) {
+        toast.success(suspended ? 'Cuenta reactivada' : 'Cuenta suspendida');
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Error');
+      }
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      disabled={pending || (isAdmin && !suspended)}
+      title={
+        isAdmin && !suspended
+          ? 'Quita el rol admin antes de suspender'
+          : suspended
+            ? 'Reactivar cuenta'
+            : 'Suspender cuenta'
+      }
+      className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {suspended ? <UserCheck className="size-3.5" /> : <UserX className="size-3.5" />}
     </button>
   );
 }
