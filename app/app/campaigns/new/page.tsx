@@ -1,6 +1,7 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { buildWizardKitOptions } from '@/lib/campaigns/wizard-kits';
 import { CampaignStudioWizard } from '@/components/campaigns/CampaignStudioWizard';
 
 export const dynamic = 'force-dynamic';
@@ -47,20 +48,18 @@ export default async function NewCampaignPage() {
     });
   }
 
-  const brandKits = (kits ?? [])
-    .map((k) => {
-      const productImages = ((k.product_image_ids as string[]) ?? []).length
-        || ((k.reference_image_ids as string[]) ?? []).length;
-      return {
-        id: k.id as string,
-        name: k.name as string,
-        productImages,
-        packagingImages: ((k.packaging_image_ids as string[]) ?? []).length,
-      };
-    })
-    // Un kit es usable si la marca tiene >=1 producto (V3) o si conserva
-    // imágenes legacy de producto/referencia (pre-productos).
-    .filter((k) => (productsByKit[k.id]?.length ?? 0) > 0 || k.productImages > 0);
+  // Contador y filtro V3-aware (las imágenes pueden vivir en `products`, no
+  // solo en el kit legacy) — lógica y regresión en lib/campaigns/wizard-kits.
+  const brandKits = buildWizardKitOptions(
+    (kits ?? []).map((k) => ({
+      id: k.id as string,
+      name: k.name as string,
+      product_image_ids: (k.product_image_ids as string[] | null) ?? null,
+      packaging_image_ids: (k.packaging_image_ids as string[] | null) ?? null,
+      reference_image_ids: (k.reference_image_ids as string[] | null) ?? null,
+    })),
+    productsByKit,
+  );
 
   // Personajes utilizables: con hoja maestra (o primera referencia, compat V1).
   const usable = (characterRows ?? [])
