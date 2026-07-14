@@ -18,6 +18,7 @@ import {
   type PlanItemDraft,
   type PlannerFormat,
 } from '@/lib/campaigns/planner';
+import { applyPoolAvailability } from '@/lib/campaigns/pool-availability';
 import { buildCaption } from '@/lib/campaigns/captions';
 import { estimatePlanCost } from '@/lib/campaigns/estimate';
 import { buildClosingFrameRef } from '@/lib/campaigns/closing-frame';
@@ -716,6 +717,31 @@ export async function generatePlanAction(input: unknown): Promise<
       ((kit?.packaging_image_ids as string[]) ?? []).length > 0;
   }
 
+  // V3: en kits nuevos las imágenes viven en los productos del pool de la
+  // campaña, no en el kit. Sin este fallback available.product quedaba false y
+  // el plan dirigido bloqueaba TODOS los formatos con producto aunque la
+  // campaña tuviera productos reales (bug 2026-07-14). Mismo orden de
+  // prioridad que createCampaignStudioAction: legacy primero, pool después.
+  if (!available.product || (!available.packaging && campaign.include_packaging !== false)) {
+    const { data: poolRows } = await supabase
+      .from('campaign_products')
+      .select('created_at, products!inner(product_image_ids, packaging_image_ids)')
+      .eq('campaign_id', parsed.data.campaignId)
+      .order('created_at', { ascending: true });
+    const pool = (poolRows ?? []).map(
+      (r) => r.products as unknown as { product_image_ids: string[] | null; packaging_image_ids: string[] | null },
+    );
+    const resolved = applyPoolAvailability({
+      pool,
+      includePackaging: campaign.include_packaging !== false,
+      available,
+      matcherProductImageId,
+    });
+    available.product = resolved.available.product;
+    available.packaging = resolved.available.packaging;
+    matcherProductImageId = resolved.matcherProductImageId;
+  }
+
   // Pool de la campaña (spec 2026-06-12): el plan solo usa los personajes
   // asignados; pool vacío = formatos con presentador usan personaje inventado.
   const poolIds = ((campaign.character_ids as string[]) ?? []).slice(0, 3);
@@ -999,11 +1025,16 @@ export async function generatePlanAction(input: unknown): Promise<
       aspectRatio: (campaign.aspect_ratio as string | null) ?? '9:16',
     });
     if (items.length === 0) {
+      // Solo product/packaging bloquean formatos (el personaje se inventa —
+      // formatFitsRefs); no mencionar Cast aquí: manda al usuario a revisar
+      // lo que no es (así se diagnosticó el bug 2026-07-14).
       return {
         ok: false,
         error: 'validation_error',
         message:
-          'Tus ideas piden formatos que necesitan referencias que faltan (p. ej. un presentador en Cast). Agrégalas o describe otra cosa.',
+          campaignLanguage === 'en'
+            ? 'Your ideas ask for formats that need missing references (product or packaging images). Add them to your brand kit or its products, or describe something else.'
+            : 'Tus ideas piden formatos que necesitan referencias que faltan (imágenes de producto o empaque). Agrégalas al kit o a sus productos, o describe otra cosa.',
       };
     }
   } else {
