@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,14 +74,49 @@ export type CurrentWorkspace = {
   role: "owner" | "editor" | "viewer";
 };
 
-// Devuelve el workspace activo (por ahora: el primero de los que pertenece).
-// Multi-workspace switching se implementa en fase 2 con cookie de selección.
+// Cookie con el workspace elegido explícitamente (equipos, specs/v2/20). La
+// setea setActiveWorkspaceAction tras validar membresía; aquí igual se
+// re-valida contra workspace_members — una cookie apuntando a un workspace
+// del que el usuario ya no es miembro cae al default.
+export const ACTIVE_WORKSPACE_COOKIE = "active_workspace";
+const WS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type MembershipRow = {
+  role: "owner" | "editor" | "viewer";
+  workspaces: { id: string; name: string; owner_id: string };
+};
+
+function toCurrentWorkspace(row: MembershipRow): CurrentWorkspace {
+  return {
+    id: row.workspaces.id,
+    name: row.workspaces.name,
+    ownerId: row.workspaces.owner_id,
+    role: row.role,
+  };
+}
+
+// Devuelve el workspace activo: el de la cookie de selección si el usuario es
+// miembro; si no, el primero de los que pertenece (su propio workspace, el
+// más antiguo por created_at).
 export const getCurrentWorkspace = cache(
   async (): Promise<CurrentWorkspace | null> => {
     const user = await getCurrentUser();
     if (!user) return null;
 
     const supabase = await createClient();
+
+    const cookieStore = await cookies();
+    const preferred = cookieStore.get(ACTIVE_WORKSPACE_COOKIE)?.value;
+    if (preferred && WS_UUID_RE.test(preferred)) {
+      const { data } = await supabase
+        .from("workspace_members")
+        .select("role, workspaces!inner(id, name, owner_id)")
+        .eq("user_id", user.id)
+        .eq("workspace_id", preferred)
+        .maybeSingle();
+      if (data) return toCurrentWorkspace(data as unknown as MembershipRow);
+    }
+
     const { data, error } = await supabase
       .from("workspace_members")
       .select("role, workspaces!inner(id, name, owner_id)")
@@ -90,18 +126,7 @@ export const getCurrentWorkspace = cache(
       .maybeSingle();
 
     if (error || !data) return null;
-
-    type Row = {
-      role: "owner" | "editor" | "viewer";
-      workspaces: { id: string; name: string; owner_id: string };
-    };
-    const row = data as unknown as Row;
-    return {
-      id: row.workspaces.id,
-      name: row.workspaces.name,
-      ownerId: row.workspaces.owner_id,
-      role: row.role,
-    };
+    return toCurrentWorkspace(data as unknown as MembershipRow);
   },
 );
 
