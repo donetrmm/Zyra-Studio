@@ -27,6 +27,7 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import { savePresetAction } from '@/server-actions/presets';
 import { assignCampaignAction, listCampaignsAction } from '@/server-actions/campaigns';
 import { deleteGenerationAction } from '@/server-actions/generations';
+import { listLibraryAction } from '@/server-actions/library';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { CollectionsTab, type Collection } from './CollectionsTab';
 import { toggleFavoriteAction } from '@/server-actions/favorites';
@@ -59,6 +60,7 @@ export type LibraryGeneration = {
 
 type Tab = 'sessions' | 'grid' | 'collections';
 type SortKey = 'recent' | 'old';
+type TypeFilter = 'all' | 'image' | 'video' | 'audio';
 
 const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> }[] = [
   { id: 'sessions', label: 'Sesiones', icon: Library },
@@ -202,11 +204,15 @@ function groupSessions(gens: LibraryGeneration[], sort: SortKey): Session[] {
 
 export function LibraryView({
   generations,
+  initialHasMore = false,
+  initialTotal = null,
   workspaceName,
   initialFavoriteIds = [],
   collections = [],
 }: {
   generations: LibraryGeneration[];
+  initialHasMore?: boolean;
+  initialTotal?: number | null;
   workspaceName: string;
   initialFavoriteIds?: string[];
   collections?: Collection[];
@@ -214,21 +220,97 @@ export function LibraryView({
   const [tab, setTab] = useState<Tab>('sessions');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [includeStudio, setIncludeStudio] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showCompare, setShowCompare] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
   const [favIds, setFavIds] = useState<Set<string>>(() => new Set(initialFavoriteIds));
   const [showFavOnly, setShowFavOnly] = useState(false);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [total, setTotal] = useState<number | null>(initialTotal);
+  const [loadingMore, setLoadingMore] = useState(false);
   const router = useRouter();
   const confirm = useConfirm();
+
+  const filtersAreDefault =
+    query.trim() === '' && !showFavOnly && typeFilter === 'all' && !includeStudio && sort === 'recent';
 
   // Copia local para borrado optimista (sin esperar al refetch del server).
   const [gens, setGens] = useState(generations);
   const [prevInitial, setPrevInitial] = useState(generations);
   if (prevInitial !== generations) {
     setPrevInitial(generations);
-    setGens(generations);
+    // Con filtros activos el prop trae la primera página SIN filtrar (viene de
+    // un router.refresh tras borrar/asignar): no pisar el estado filtrado —
+    // los borrados ya se aplicaron de forma optimista.
+    if (filtersAreDefault) {
+      setGens(generations);
+      setHasMore(initialHasMore);
+      setTotal(initialTotal);
+    }
+  }
+
+  // Los filtros corren server-side (el dataset ya no cabe completo en el
+  // cliente). Debounce corto: la búsqueda también filtra en vivo lo ya
+  // cargado vía filteredGens mientras llega la respuesta.
+  const listReqId = useRef(0);
+  const mountedRef = useRef(false);
+
+  function filterPayload() {
+    return {
+      type: typeFilter === 'all' ? undefined : typeFilter,
+      favoritesOnly: showFavOnly,
+      includeStudio,
+      q: query.trim() || undefined,
+      sort,
+    };
+  }
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    const t = setTimeout(async () => {
+      const reqId = ++listReqId.current;
+      const res = await listLibraryAction({ ...filterPayload(), cursor: null });
+      if (reqId !== listReqId.current) return; // llegó una respuesta más nueva
+      if (!res.ok) {
+        toast.error('No se pudo actualizar la biblioteca');
+        return;
+      }
+      setGens(res.data.items);
+      setHasMore(res.data.hasMore);
+      setTotal(res.data.total);
+      setSelectedIds(new Set());
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, showFavOnly, typeFilter, includeStudio, sort]);
+
+  async function handleLoadMore() {
+    const last = gens[gens.length - 1];
+    if (!last || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await listLibraryAction({
+        ...filterPayload(),
+        cursor: { createdAt: last.createdAt, id: last.id },
+      });
+      if (!res.ok) {
+        toast.error('No se pudo cargar más');
+        return;
+      }
+      setGens((prev) => {
+        const seen = new Set(prev.map((g) => g.id));
+        return [...prev, ...res.data.items.filter((g) => !seen.has(g.id))];
+      });
+      setHasMore(res.data.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   function removeGens(ids: string[]) {
@@ -420,12 +502,16 @@ export function LibraryView({
         setQuery={setQuery}
         sort={sort}
         setSort={setSort}
-        totalImages={gens.length}
+        totalItems={total ?? gens.length}
         totalSessions={sessions.length}
         workspaceName={workspaceName}
         showFavOnly={showFavOnly}
         setShowFavOnly={setShowFavOnly}
         favCount={favIds.size}
+        typeFilter={typeFilter}
+        setTypeFilter={setTypeFilter}
+        includeStudio={includeStudio}
+        setIncludeStudio={setIncludeStudio}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -437,6 +523,24 @@ export function LibraryView({
             <GridTab items={filteredGens} onOpen={setActiveId} selectedIds={selectedIds} onToggleSelect={toggleSelect} favIds={favIds} onToggleFav={handleToggleFav} />
           )}
           {tab === 'collections' && <CollectionsTab collections={collections} />}
+          {tab !== 'collections' && hasMore && (
+            <div className="flex justify-center pb-4 pt-6">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden /> Cargando…
+                  </>
+                ) : (
+                  'Cargar más'
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {active && (
@@ -646,12 +750,16 @@ function LibHeader({
   setQuery,
   sort,
   setSort,
-  totalImages,
+  totalItems,
   totalSessions,
   workspaceName,
   showFavOnly,
   setShowFavOnly,
   favCount,
+  typeFilter,
+  setTypeFilter,
+  includeStudio,
+  setIncludeStudio,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
@@ -659,12 +767,16 @@ function LibHeader({
   setQuery: (q: string) => void;
   sort: SortKey;
   setSort: (s: SortKey) => void;
-  totalImages: number;
+  totalItems: number;
   totalSessions: number;
   workspaceName: string;
   showFavOnly: boolean;
   setShowFavOnly: (v: boolean) => void;
   favCount: number;
+  typeFilter: TypeFilter;
+  setTypeFilter: (v: TypeFilter) => void;
+  includeStudio: boolean;
+  setIncludeStudio: (v: boolean) => void;
 }) {
   const sortLabel = sort === 'recent' ? 'recientes' : 'antiguos';
   return (
@@ -675,8 +787,8 @@ function LibHeader({
             Biblioteca
           </h1>
           <div className="mt-1 text-[12.5px] text-muted-foreground/80">
-            <span className="font-mono tabular-nums">{totalImages.toLocaleString('es-MX')}</span>{' '}
-            imágenes ·{' '}
+            <span className="font-mono tabular-nums">{totalItems.toLocaleString('es-MX')}</span>{' '}
+            elementos ·{' '}
             <span className="font-mono tabular-nums">{totalSessions}</span> sesiones · ordenado por{' '}
             {sortLabel} · {workspaceName}
           </div>
@@ -728,6 +840,35 @@ function LibHeader({
           >
             <Heart className={cn('size-3.5', showFavOnly && 'fill-rose-400')} aria-hidden />
             {favCount > 0 && <span className="font-mono text-[11px]">{favCount}</span>}
+          </button>
+          <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+            <SelectTrigger
+              className={cn(
+                'h-8 rounded-[10px] border-border bg-muted/30 px-3 text-[12.5px]',
+                typeFilter !== 'all' && 'border-primary/40 bg-primary/10 text-foreground',
+              )}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todo</SelectItem>
+              <SelectItem value="image">Imágenes</SelectItem>
+              <SelectItem value="video">Videos</SelectItem>
+              <SelectItem value="audio">Audios</SelectItem>
+            </SelectContent>
+          </Select>
+          <button
+            type="button"
+            onClick={() => setIncludeStudio(!includeStudio)}
+            title="Incluir los turnos del estudio creativo"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+              includeStudio
+                ? 'border-primary/40 bg-primary/10 text-foreground'
+                : 'border-border bg-muted/30 text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Sparkles className="size-3.5" aria-hidden /> Estudio
           </button>
         </div>
 
