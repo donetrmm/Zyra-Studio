@@ -31,6 +31,8 @@ Seedance solo sincroniza labios bien si la **cara está de frente, grande y esta
 
 Regla práctica (la que hizo bueno al anuncio #11): *si el talento aparece y habla, su rostro va a cámara; toda toma sin rostro es producto puro sin lip-sync.*
 
+**Tercera vía — presencia humana silenciosa.** Un clip de producto no tiene por qué estar vacío ni forzar lip-sync: puedes poner **una persona en cuadro sin hablar**, de **3/4 o de espaldas, a media distancia**, usando o admirando el producto. Da **vida** sin pedir sincronía de labios (no mira a la lente, no hay diálogo) — márcalo `Sin diálogo`. Es un **figurante** y **no necesita estar en el Cast**. Es la palanca principal para que un montaje no se sienta muerto; el detalle está en §8.
+
 ### 3. No cargues la cara con acción pesada mientras habla — y si la acción tapa/gira la cara, va en OTRO clip
 Voltear el producto, agacharse, mirar hacia abajo o girar la cabeza **mientras** se dice la línea desincroniza los labios y empuja a que salga como voz en off. Orden correcto: **habla a la lente** primero, **luego** la acción. Quita instrucciones de "asiente / gira la cabeza" en el tramo hablado.
 
@@ -126,8 +128,11 @@ Cuando pegas el maestro y das **Analizar prompt**, el sistema reparte tu texto: 
 - **Producto:** verifica que la ficha del producto tenga los **detalles visuales finos** (material, acabado, medidas, contenido impreso) y sube imágenes de referencia (frontal, perfil, detalle). El chip resumido solo muestra peso y medio; el resto vive en la ficha, no en el chip.
 - **Cast (personaje):** la apariencia del personaje viene de **su ficha en el Cast**, no del texto del maestro. Asegúrate de que exista en el Cast con una referencia que **coincida** con cómo lo describiste (rostro, peinado, vestuario). Si no está, su identidad cambiará entre clips.
 - **Voz del cast:** asígnale al personaje su **referencia de voz** (timbre/acento). El sistema la usa como molde de voz (@audio1) para el diálogo hablado; sin ella, la voz sale genérica.
+- **Figurantes silenciosos (§8b): NO requieren Cast.** Como no tienen rostro protagónico ni diálogo (van de 3/4 o de espaldas, sin hablar), no necesitan ficha ni referencia. Solo quien **habla** o el personaje reconocible de la marca necesita Cast.
 
 Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálogo) se queda en el "describe".** El maestro siembra ambos, pero la consistencia entre clips la dan los activos.
+
+**Realismo al generar activos en el estudio:** si creas las Locaciones/productos/Cast en el **estudio** (sin preset de estilo), el realismo va **dentro del prompt**. Pide **lenguaje de captura** (cámara full-frame, lente, sombras de contacto, balance de blancos neutro, materiales con desgaste) y **niega el render** explícitamente ("no es un render 3D, CGI ni ilustración"). **No** pidas "fotorrealista" ni "cinematográfico": eso etiqueta imágenes CG que imitan foto y empuja el look de IA (la misma regla que aplica el pipeline en `lib/prompt-director/style-profiles.ts`). Plantillas listas para pegar en `docs/prompt-maestro/showcase-multiambiente-activos-realista.md`.
 
 ---
 
@@ -141,6 +146,8 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 - [ ] ¿Medidas/peso/material en la sección de producto, no en el diálogo?
 - [ ] ¿Un solo personaje habla por clip? ¿Mismo look en toda la pieza?
 - [ ] ¿≤ 12 clips?
+- [ ] ¿El montaje tiene **vida**: variedad de cámara entre clips, presencia humana silenciosa donde toque y duraciones variadas — no cámaras fijas en todos y clips vacíos? (§8)
+- [ ] Multi-producto/multi-ambiente: ¿**un producto y un ambiente por clip**, llamado por su nombre, sin amontonar productos en una toma? (§8)
 - [ ] Tras analizar: ¿creaste el **activo de Locación** con la descripción completa (no solo la etiqueta)?
 - [ ] ¿La ficha del **producto** tiene los detalles visuales finos y sus imágenes de referencia?
 - [ ] ¿El **personaje** está en el Cast con una referencia que coincide, y con su **voz** asignada?
@@ -160,7 +167,9 @@ Regla mental: **lo descriptivo se vuelve activo; lo narrativo (acción + diálog
 | Marcar "Voiceover/narración/voz en off" cuando querías lip-sync | El sistema apaga el lip-sync **a propósito** |
 | Números/símbolos crudos en el diálogo ($499, 24/7, 3km) | Se mascan en la voz (mételos en la sección de producto o escríbelos con palabras) |
 | Pedir subtítulos/logo/CTA en el video | Se ignoran / ensucian el cuadro (van en post) |
-| Movimiento rápido o "mucho movimiento" | Cuerpos deformados, miembros que se estiran a media acción (baja el ritmo, evita "rápido") |
+| Movimiento rápido o "mucho movimiento" (buscando "dinamismo") | Cuerpos deformados, miembros que se estiran a media acción (el dinamismo NO se logra con velocidad: baja el ritmo, evita "rápido"; usa variedad de planos y presencia humana, §8) |
+| Cámaras fijas en todos los clips y tomas de producto vacías | Montaje "muerto", se siente stock/sin vida (mete variedad de cámara entre clips, presencia humana silenciosa y ritmo variado, §8) |
+| Amontonar varios productos en una sola toma | Composición recargada, detalle que colapsa; la variedad multi-producto se arma en el CORTE (un producto por clip, §8) |
 | Manos en primer plano extremo | Dedos rotos, de más o doblados (encuádralas a media distancia) |
 | 5+ personajes o escena recargada | Caras de fondo genéricas, conteo erróneo, detalle fino que colapsa (composición despejada, un sujeto) |
 | Espejos/reflejos en cuadro | El reflejo no coincide con el sujeto (evita encuadrarlos) |
@@ -233,3 +242,28 @@ Además de los de diálogo (reglas 1–5), Seedance tropieza con esto — vale p
 - **El español no es el idioma más fuerte del modelo para el sync** (rinde mejor en inglés/mandarín): razón de más para **líneas cortas, dicción limpia y ~2 palabras/seg** (regla 4). El sistema ya normaliza a es-MX; no lo pelees con líneas largas.
 
 > Basado en investigación de buenas prácticas de Seedance (fal.ai, Higgsfield, Volcengine y guías especializadas, jul-2026) + lo aprendido en producción. Los detalles de resolución/duración varían por versión y endpoint; el pipeline los fija por su cuenta.
+
+---
+
+## 8. Dinamismo sin romper el modelo (montajes con vida)
+
+El error opuesto a "mucho movimiento" es un montaje **muerto**: cámaras fijas, nadie en cuadro, todos los clips del mismo largo → se siente stock, sin vida. Seedance **no** te da dinamismo con movimiento rápido (deforma cuerpos, §7). El dinamismo real viene de **tres palancas que no rompen el modelo**, y todas se arman en el **montaje**, no dentro de un clip.
+
+### a) Variedad de planos y de cámara ENTRE clips (no dentro de uno)
+Un movimiento de cámara por clip —**lento y estable**— pero **distinto en cada clip**: dolly-in, over-the-shoulder, tracking lateral, órbita/arco, tilt, rack focus. La sensación de que "pasa algo" nace del **contraste entre tomas**, no de apilar tres movimientos en una. Ocho clips con cámara fija = plano; unos con cámara quieta y otros con movimiento suave y **variado** = vivo. (Vocabulario en §7.)
+
+### b) Presencia humana silenciosa (la tercera vía, además de lip-sync y producto puro)
+Un clip de producto no tiene por qué estar vacío. Pon **una persona (o una pareja, o un niño) en cuadro, en silencio**, de **3/4 o de espaldas, a media distancia**, usando o admirando el producto: da **vida** sin pedir lip-sync ni voz en off. Reglas para que no rompa nada:
+
+- **No mira a la lente y no habla** → el compiler no intenta sincronizar labios (no hay diálogo que sincronizar). El clip se marca **Sin diálogo**.
+- **De 3/4 o de espaldas, a media distancia** → sin primeros planos de cara ni de manos (donde el modelo se rompe, §7).
+- **No necesita estar en el Cast:** al no tener rostro protagónico ni diálogo, es un **figurante**; su función es enmarcar el producto, no dar identidad. Solo quien **habla** o el personaje reconocible de la marca necesita ficha de Cast.
+- **Máx. 2 personas por cuadro** (una pareja); nunca multitudes (§7).
+
+### c) Ritmo por duraciones variadas y cortes en la música
+Clips todos de 6 s aburren. Alterna duraciones (p. ej. **8 / 6 / 5 / 4 / 6 / 3 / 4 / 8 s**) para que el montaje **construya** hacia el CTA, con los cortes cayendo en la música. En los clips silenciosos la duración ya **no** la manda el diálogo (no hay línea que dimensionar): la manda el **ritmo**. Los clips cortos (3–4 s) aceleran el medio; los de apertura y CTA, más largos, respiran.
+
+### Patrón multi-producto / multi-ambiente
+Si el anuncio muestra varios productos o varios espacios: **un producto y un ambiente por clip**, cada uno llamado **por su nombre** (para que la asignación de producto por clip lo mapee sin ambigüedad). **Nunca amontones productos** en una sola toma (composición despejada, §7): la sensación de "hay muchos" se arma en el **corte**, no en el cuadro. Cada ambiente es su propia **Locación** (activo); no derives uno de otro.
+
+> Ejemplo validado en producción: **`docs/prompt-maestro/showcase-multiambiente-v2-dinamica.md`** — 8 clips, solo el gancho (clip 1) y el CTA (clip 8) hablan; el medio es un montaje con personas silenciosas, cámara lenta variada, un canvas por clip y ritmo hacia el CTA. Los activos realistas que lo alimentan (con la cláusula de captura + negación de render) están en `showcase-multiambiente-activos-realista.md`.
