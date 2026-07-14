@@ -25,13 +25,16 @@ export function buildAudioArgs(inputPath: string, outputPath: string): string[] 
 // Andamiaje compartido de una corrida de ffmpeg sobre un video en memoria:
 // tmp dir + input a disco + spawn + leer el archivo de salida + cleanup.
 // LANZA en cualquier fallo; los wrappers deciden el contrato (throw vs null).
+// inputName importa: ffmpeg usa la extensión como pista del demuxer — un mp3
+// nombrado .mp4 puede caer al demuxer mov y fallar.
 async function runFfmpeg(
   buffer: Buffer,
   outputName: string,
   args: (inputPath: string, outputPath: string) => string[],
+  inputName = 'input.mp4',
 ): Promise<Buffer> {
   const dir = await mkdtemp(join(tmpdir(), 'zyra-ffmpeg-'));
-  const inputPath = join(dir, 'input.mp4');
+  const inputPath = join(dir, inputName);
   const outputPath = join(dir, outputName);
   try {
     await writeFile(inputPath, buffer);
@@ -78,4 +81,18 @@ export async function extractVideoAudio(buffer: Buffer): Promise<Buffer | null> 
     console.warn('[video-audio] extracción falló', { err: (err as Error)?.message?.slice(0, 300) });
     return null;
   }
+}
+
+// Args para recortar una pista de audio a los primeros N segundos. Re-encode
+// mp3 (no stream copy): el corte cae exacto y el contenedor reporta la
+// duración recortada — Seedance valida la duración del clip de referencia.
+export function buildAudioTrimArgs(inputPath: string, outputPath: string, seconds: number): string[] {
+  return ['-loglevel', 'error', '-i', inputPath, '-t', String(seconds), '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', outputPath];
+}
+
+// Recorta un audio en memoria a N segundos (MP3). Si el audio ya es más corto,
+// ffmpeg copia el contenido completo (el -t más allá del EOF es inocuo). Lanza
+// si falla: el caller decide si degrada al original.
+export async function trimAudio(buffer: Buffer, seconds: number): Promise<Buffer> {
+  return runFfmpeg(buffer, 'trimmed.mp3', (i, o) => buildAudioTrimArgs(i, o, seconds), 'input.mp3');
 }
