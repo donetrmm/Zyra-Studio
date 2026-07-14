@@ -776,7 +776,7 @@ export async function deleteGenerationAction(
 
   const { data: gen } = await supabase
     .from('generations')
-    .select('id, status, output_url, thumbnail_url')
+    .select('id, status, output_url, thumbnail_url, provider_payload')
     .eq('id', generationId)
     .eq('user_id', user.id)
     .single();
@@ -792,11 +792,19 @@ export async function deleteGenerationAction(
     .eq('user_id', user.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
 
-  // Limpieza best-effort del storage (no bloquea si falla).
+  // Limpieza best-effort del storage (no bloquea si falla). Además del output
+  // y el thumb, el flujo estricto de storyboard deja safe-base y la firma de
+  // Gemini bajo el mismo prefijo — sus paths viven en provider_payload.
   try {
     const admin = createAdminClient();
+    const payload = (gen.provider_payload ?? {}) as {
+      safe_base_path?: string;
+      thought_signature_path?: string;
+    };
+    const outputPaths = [gen.output_url, payload.safe_base_path, payload.thought_signature_path]
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
     const removals: Promise<unknown>[] = [];
-    if (gen.output_url) removals.push(admin.storage.from(OUTPUTS_BUCKET).remove([gen.output_url as string]));
+    if (outputPaths.length > 0) removals.push(admin.storage.from(OUTPUTS_BUCKET).remove(outputPaths));
     if (gen.thumbnail_url) removals.push(admin.storage.from(THUMBNAILS_BUCKET).remove([gen.thumbnail_url as string]));
     await Promise.allSettled(removals);
   } catch {
