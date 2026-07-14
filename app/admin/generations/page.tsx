@@ -36,6 +36,7 @@ type GenerationRow = {
   prompt: string | null;
   credits_charged: number | null;
   credits_estimated: number;
+  error_message: string | null;
   user_id: string;
   created_at: string;
 };
@@ -55,7 +56,7 @@ export default async function AdminGenerationsPage({
   let query = supabase
     .from("generations")
     .select(
-      "id, type, provider, model_id, status, prompt, credits_charged, credits_estimated, user_id, created_at",
+      "id, type, provider, model_id, status, prompt, credits_charged, credits_estimated, error_message, user_id, created_at",
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
@@ -164,6 +165,15 @@ export default async function AdminGenerationsPage({
                     <Badge variant={STATUS_VARIANT[r.status] ?? "outline"}>
                       {r.status}
                     </Badge>
+                    {(r.status === "failed" || r.status === "canceled") &&
+                      r.error_message && (
+                        <p
+                          title={r.error_message}
+                          className="mt-1 max-w-[260px] truncate text-[11px] text-muted-foreground"
+                        >
+                          {r.error_message}
+                        </p>
+                      )}
                   </TableCell>
                   <TableCell className="tabular-nums text-xs">
                     {r.credits_charged ?? r.credits_estimated}
