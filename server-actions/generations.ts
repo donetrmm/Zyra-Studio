@@ -161,6 +161,7 @@ export async function submitGenerationAction(
       : {
           megapixels: data.megapixels,
           photoreal: data.photoreal,
+          ...(data.seed !== undefined ? { seed: data.seed } : {}),
         }),
   };
 
@@ -277,7 +278,12 @@ export async function submitGenerationAction(
       }
     }
 
-    let result: { buffer: Buffer; mimeType: string; thoughtSignature?: string };
+    let result: {
+      buffer: Buffer;
+      mimeType: string;
+      thoughtSignature?: string;
+      meta?: Record<string, unknown>;
+    };
     if (data.provider === 'nano-banana') {
       result = await generateNanoBanana({
         model: data.model,
@@ -299,6 +305,7 @@ export async function submitGenerationAction(
         height,
         references,
         photoreal: data.photoreal,
+        seed: data.seed,
       });
     }
 
@@ -315,6 +322,11 @@ export async function submitGenerationAction(
 
     const processingMs = Date.now() - startedAt;
     const providerPayload: Record<string, unknown> = {};
+    // Seed real usado por FLUX (cuando la API lo devuelve): permite reproducir
+    // una imagen que salió de un seed aleatorio.
+    if (typeof result.meta?.seed === 'number') {
+      providerPayload.seed = result.meta.seed;
+    }
     if (result.thoughtSignature) {
       // A Storage, nunca inline: la firma pesa 6-9MB y rompe
       // complete_generation (statement timeout) y Realtime (>1MB).

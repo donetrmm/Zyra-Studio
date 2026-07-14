@@ -65,6 +65,8 @@ export function ImageGenerator(props: {
   const [useGrounding, setUseGrounding] = useState(false);
   const [photoreal, setPhotoreal] = useState(false);
   const [megapixels, setMegapixels] = useState<1 | 2 | 4>(1);
+  // String como el seed de Seedance: '' = aleatorio, solo dígitos.
+  const [fluxSeed, setFluxSeed] = useState('');
   const [intent, setIntent] = useState<ImageIntent | null>(null);
   const [references, setReferences] = useState<ReferenceClient[]>([]);
   const [brandKit, setBrandKit] = useState<SelectedBrandKit>(null);
@@ -184,6 +186,7 @@ export function ImageGenerator(props: {
       megapixels,
       references: references.map((r) => ({ id: r.id, storagePath: r.storagePath })),
       photoreal,
+      seed: fluxSeed ? Math.min(Number(fluxSeed), 4294967295) : undefined,
       campaignId: campaign?.id,
     };
   }, [
@@ -197,6 +200,7 @@ export function ImageGenerator(props: {
     useGrounding,
     megapixels,
     photoreal,
+    fluxSeed,
     activeResult,
     brandKit,
     campaign,
@@ -316,6 +320,8 @@ export function ImageGenerator(props: {
       setPhotoreal={setPhotoreal}
       megapixels={megapixels}
       setMegapixels={setMegapixels}
+      fluxSeed={fluxSeed}
+      setFluxSeed={setFluxSeed}
       intent={intent}
       setIntent={setIntent}
       references={references}

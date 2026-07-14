@@ -27,6 +27,9 @@ const PollResponseSchema = z.object({
   result: z
     .object({
       sample: z.string().url().optional(),
+      // No documentado en docs/modelos/04-flux-2-pro.md: si BFL lo devuelve
+      // se persiste (reproducibilidad de seeds aleatorios); si no, se ignora.
+      seed: z.number().optional(),
     })
     .nullish(),
 });
@@ -127,7 +130,10 @@ async function submit(params: FluxParams, apiKey: string): Promise<string> {
   return parsed.data.polling_url;
 }
 
-async function pollUntilReady(pollingUrl: string, apiKey: string): Promise<string> {
+async function pollUntilReady(
+  pollingUrl: string,
+  apiKey: string,
+): Promise<{ sampleUrl: string; seed?: number }> {
   const start = Date.now();
   while (Date.now() - start < POLL_TIMEOUT_MS) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
@@ -146,7 +152,7 @@ async function pollUntilReady(pollingUrl: string, apiKey: string): Promise<strin
     }
     const status = parsed.data.status;
     if (status === 'Ready' && parsed.data.result?.sample) {
-      return parsed.data.result.sample;
+      return { sampleUrl: parsed.data.result.sample, seed: parsed.data.result.seed };
     }
     if (status === 'Error' || status === 'Failed') {
       throw new ProviderError('FLUX falló al generar', 'server', true);
@@ -189,6 +195,7 @@ export async function generate(params: FluxParams): Promise<GenerationResult> {
     throw new ProviderError('BFL_API_KEY no configurada', 'auth', false);
   }
   const pollingUrl = await submit(params, apiKey);
-  const sampleUrl = await pollUntilReady(pollingUrl, apiKey);
-  return download(sampleUrl);
+  const { sampleUrl, seed } = await pollUntilReady(pollingUrl, apiKey);
+  const result = await download(sampleUrl);
+  return seed !== undefined ? { ...result, meta: { seed } } : result;
 }
