@@ -12,6 +12,7 @@ Una campaña puede llevar **varios productos de una misma marca**, y cada clip m
 
 - **Multimarca:** descartado. Una marca por campaña (como hoy). Nada de `brand` por clip ni pool cross-marca.
 - **Varios productos en un mismo clip:** fuera. Seedance falla en conteo con múltiples productos en una toma; la variedad se ve en el montaje entre clips (un producto por clip).
+  **REVERTIDO 2026-07-15** para clips explícitamente multi-producto (showcase), con mitigaciones al problema de conteo — ver `2026-07-15-multi-producto-por-clip-design.md`.
 - **Unir clips en un solo MP4 dentro de la plataforma:** hueco preexistente, no se aborda aquí.
 
 ## Contexto del código (hoy)
