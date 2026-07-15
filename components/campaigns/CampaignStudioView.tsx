@@ -946,6 +946,7 @@ function PlanTable({
               <DropdownMenuCheckboxItem
                 key={p.id}
                 checked={item.productIds.includes(p.id)}
+                disabled={assigningProduct === item.id}
                 onSelect={(e) => e.preventDefault()}
                 onCheckedChange={(checked) => {
                   const next = checked
