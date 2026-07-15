@@ -59,7 +59,7 @@ function makeItem(): ItemRow {
     duration_s: 8, aspect_ratio: '9:16', scene: null, audio: true, character_id: null, character_ids: null,
     reference_ids: null, scene_prompt: 'x', voice_tone: null, status: 'draft', sequence_id: null, scene_index: 0,
     location_id: null, storyboard_image_id: null, character_state_hint: null, character_outfit_hint: null,
-    product_id: 'p1', product_ids: null, reference_selection: null,
+    product_ids: null, reference_selection: null,
   };
 }
 

@@ -281,10 +281,12 @@ export async function generatePanelAction(
     character_outfit_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
-    product_id: item.product_id,
-    // Este flujo resuelve el producto vía item.product_id -> itemProduct (abajo) y lo
-    // pasa como productsOverride explícito a directorContextFor; product_ids no se lee
-    // aquí (T9/T10 lo conectan cuando el panel gane multi-producto).
+    // T12: ItemRow ya no lleva el singular product_id (era un campo muerto; nada
+    // en directorContextFor/orchestrator lo leía). Este flujo resuelve el producto
+    // vía item.product_id (CampaignItemRow local, abajo) y lo pasa como
+    // productsOverride explícito; product_ids del clip NO se lee en este flujo
+    // todavía — este panel (Nano/FLUX, distinto del panel del Estudio creativo)
+    // sigue mono-producto, gap señalado en el reporte de T12 para decisión.
     product_ids: null,
     reference_selection: item.reference_selection,
   };

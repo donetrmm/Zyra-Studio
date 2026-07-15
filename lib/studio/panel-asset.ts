@@ -57,7 +57,7 @@ export async function loadPanelAsset(
 ): Promise<PanelAssetLoad | null> {
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, scene_index, scene_prompt, aspect_ratio, character_id, character_ids, location_id, product_id, storyboard_image_id, storyboard_generation_id')
+    .select('id, campaign_id, scene_index, scene_prompt, aspect_ratio, character_id, character_ids, location_id, product_ids, storyboard_image_id, storyboard_generation_id')
     .eq('id', itemId)
     .maybeSingle();
   if (!item) return null;
@@ -72,15 +72,17 @@ export async function loadPanelAsset(
 
   const beatReferenceIds: string[] = [];
 
-  // Producto de ESTE clip (si tiene product_id): imágenes + empaque.
-  if (item.product_id) {
-    const { data: product } = await supabase
+  // Productos de ESTE clip (multi-producto 2026-07-15): imágenes + empaque de
+  // cada uno; los caps de refs los aplican los compilers de imagen aguas abajo.
+  const productIds = ((item.product_ids as string[] | null) ?? []).filter(Boolean);
+  if (productIds.length > 0) {
+    const { data: productRows } = await supabase
       .from('products')
-      .select('product_image_ids, packaging_image_ids')
-      .eq('id', item.product_id as string)
-      .eq('workspace_id', workspaceId)
-      .maybeSingle();
-    if (product) {
+      .select('id, product_image_ids, packaging_image_ids')
+      .in('id', productIds);
+    for (const pid of productIds) {
+      const product = (productRows ?? []).find((r) => r.id === pid);
+      if (!product) continue;
       beatReferenceIds.push(...((product.product_image_ids as string[] | null) ?? []));
       beatReferenceIds.push(...((product.packaging_image_ids as string[] | null) ?? []));
     }

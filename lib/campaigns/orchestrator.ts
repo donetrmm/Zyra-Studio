@@ -68,10 +68,11 @@ export type ItemRow = {
   // Vestuario (specs/v2/16): override de outfit para ESTE clip, por label. null =
   // usa el outfit de campaña (character_outfit_map) o el cuerpo completo base.
   character_outfit_hint: string | null;
-  // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (product_brief) como fallback.
-  product_id: string | null;
   // Multi-producto (spec 2026-07-15): productos ASIGNADOS a ESTE clip, en orden.
-  // null/vacío = cae a product_id (compat) y de ahí al fallback de campaña.
+  // null/vacío = usa el producto de campaña (product_brief) como fallback. El
+  // singular product_id (pre-070) ya no viaja en ItemRow — nada del pipeline lo
+  // leía (directorContextFor solo mira productsOverride/product_ids); su compat
+  // vive en toStudioItem, antes de que el dato llegue acá (T12).
   product_ids: string[] | null;
   // V3 fase 4: selección manual de referencias de ESTE clip (jsonb crudo, mismo
   // shape que campaigns.reference_selection). null/vacío = cae a la de campaña
@@ -200,10 +201,10 @@ export async function resolvePaths(
   return map;
 }
 
-// Resuelve el producto de UN clip (campaign_items.product_id) a ProductInventory,
-// con sus imágenes y usages resueltos. Devuelve null si no existe o no es del
-// workspace (el caller cae al producto de campaña). Espeja el bloque de producto
-// de loadCampaignContext.
+// Resuelve UN producto por su id (uno de campaign_items.product_ids) a
+// ProductInventory, con sus imágenes y usages resueltos. Devuelve null si no
+// existe o no es del workspace (el caller cae al producto de campaña). Espeja
+// el bloque de producto de loadCampaignContext.
 export async function resolveItemProduct(
   supabase: Awaited<ReturnType<typeof createClient>>,
   workspaceId: string,

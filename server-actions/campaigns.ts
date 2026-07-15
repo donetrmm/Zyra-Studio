@@ -548,7 +548,7 @@ export async function createCampaignStudioAction(
     // Fase 2: el wizard preseleccionó productos existentes de la marca — se
     // enlazan tal cual. NO se auto-materializa un producto nuevo desde el
     // brief en este caso (el brief sigue guardándose en campaigns.product_brief
-    // como fallback/compat para items sin product_id — Fase 3).
+    // como fallback/compat para items sin product_ids — Fase 3).
     const { data: candidates, error: productsError } = await supabase
       .from('products')
       .select('id, brand_id')
@@ -1539,7 +1539,7 @@ export async function generateItemAction(
   const { data: item } = await supabase
     .from('campaign_items')
     .select(
-      'id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint, generation_id, product_id, product_ids, reference_selection, campaigns!inner(workspace_id)',
+      'id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint, generation_id, product_ids, reference_selection, campaigns!inner(workspace_id)',
     )
     .eq('id', itemId)
     .single();
@@ -1903,7 +1903,7 @@ export async function approveBatchAction(
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint, product_id, product_ids, reference_selection')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, sequence_id, scene_index, location_id, storyboard_image_id, character_state_hint, character_outfit_hint, product_ids, reference_selection')
     .eq('campaign_id', campaign.id)
     .eq('format_id', parsed.data.formatId)
     .order('created_at');
@@ -2879,7 +2879,7 @@ export async function previewItemPromptAction(itemId: string): Promise<
 
   const { data: item } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, product_id, product_ids, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, character_outfit_map)')
+    .select('id, campaign_id, format_id, template_id, model_slug, duration_s, voice_tone, aspect_ratio, scene, audio, character_id, character_ids, reference_ids, scene_prompt, status, location_id, product_ids, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, chain_audio_source, creative_guidelines, visual_style, visual_style_custom, character_outfit_map)')
     .eq('id', itemId)
     .single();
   const camp = (item as { campaigns?: { workspace_id?: string; brand_kit_id?: string | null; product_brief?: Record<string, unknown> | null; language?: string | null; include_packaging?: boolean | null; music_ref_id?: string | null; chain_audio_source?: string | null; creative_guidelines?: Record<string, unknown> | null; visual_style?: string | null; visual_style_custom?: string | null; character_outfit_map?: Record<string, unknown> | null } } | null)?.campaigns;
