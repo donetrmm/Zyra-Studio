@@ -1597,3 +1597,86 @@ describe('perfil de luz de la locación (052)', () => {
     expect(r.ok && r.compiled.prompt).toContain('Scene light and space: Warm LED strips');
   });
 });
+
+// ============ Task 6: compiler Seedance multi-producto (presupuesto,
+// citas agrupadas, anti-conteo — spec multi-producto 2026-07-15) ============
+
+describe('compileSeedance multi-producto', () => {
+  const twoProducts = [
+    { name: 'Canvas Familiar', imagePaths: ['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png'], visualDetails: 'family portrait' },
+    { name: 'Retrato de Pareja', imagePaths: ['ws/retrato-1.png'], visualDetails: 'couple portrait' },
+  ];
+
+  it('citas nombradas por producto y cap de 2 imágenes con 2 productos', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const refs = res.compiled.references.filter((r) => r.role === 'product').map((r) => r.storagePath);
+    // 2+1, no 3+1: el cap por producto con 2 productos es 2 imágenes.
+    expect(refs).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/retrato-1.png']);
+    expect(res.compiled.prompt).toContain('is the product "Canvas Familiar"');
+    expect(res.compiled.prompt).toContain('is the product "Retrato de Pareja"');
+  });
+
+  it('cláusula anti-conteo presente con 2+ y ausente con 1', () => {
+    const two = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(two.ok).toBe(true);
+    if (two.ok) expect(two.compiled.prompt).toContain('exactly 2 distinct products');
+
+    const one = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The product sits on the table' },
+      { products: [twoProducts[0]] },
+    );
+    expect(one.ok).toBe(true);
+    if (one.ok) expect(one.compiled.prompt).not.toContain('distinct products:');
+  });
+
+  it('la línea SAME single product se emite POR producto con 2+ vistas, nunca global', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('the SAME single product ("Canvas Familiar")');
+    // Retrato de Pareja solo tiene 1 vista referenciada (cap=2 pero solo trae 1
+    // imagen): no debe emitir su propia línea SAME, y mucho menos una global.
+    expect(res.compiled.prompt).not.toContain('the SAME single product ("Retrato de Pareja")');
+  });
+
+  it('multi: descripciones compactas, sin ficha completa ni peso; empaque omitido', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
+      {
+        products: twoProducts.map((x) => ({ ...x, weightKg: 20, packagingImagePaths: ['ws/pack.png'] })),
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('It must appear exactly as in its reference images');
+    expect(res.compiled.prompt).not.toContain('visible effort'); // describeProductWeight no corre en multi
+    expect(res.compiled.references.some((r) => r.role === 'packaging')).toBe(false);
+  });
+
+  it('3+ productos → 1 imagen por producto', () => {
+    const res = compile(
+      { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Three products sit on the table' },
+      {
+        products: [
+          { name: 'A', imagePaths: ['a1.png', 'a2.png'] },
+          { name: 'B', imagePaths: ['b1.png', 'b2.png'] },
+          { name: 'C', imagePaths: ['c1.png'] },
+        ],
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.references.filter((r) => r.role === 'product')).toHaveLength(3);
+  });
+});

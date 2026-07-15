@@ -3,12 +3,13 @@
 // orden exacto en que el handler las firma y envía. Guía completa en
 // docs/modelos/06-seedance-2.md.
 
-import { describeCharacter, describeProduct, describeProductWeight } from '../inventory';
+import { describeCharacter, describeProduct, describeProductCompact, describeProductWeight, multiProductCountClause } from '../inventory';
 import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { perProductImageCap } from '@/lib/campaigns/ref-budget';
 import { deliveryCueFor, injectDeliveryCue } from '@/lib/campaigns/voice-tone';
 import { getStyleProfile, type StyleProfile } from '../style-profiles';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
@@ -271,8 +272,6 @@ export function buildReferences(ctx: DirectorContext): {
   const warnings: string[] = [];
   let imageN = 0;
   let droppedImages = 0;
-  // T5: paridad single — primer producto de la lista (multi real llega en T6).
-  const primary = ctx.products?.[0];
 
   const pushImage = (
     storagePath: string,
@@ -294,31 +293,52 @@ export function buildReferences(ctx: DirectorContext): {
   // por el usuario, así que los topes POR CATEGORÍA se levantan — el usuario es
   // el presupuesto. El tope global de 9 (pushImage) sigue siendo la red.
   const manual = ctx.manualRefs === true;
-  // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
-  // dejar slots libres; el Brand Kit puede traer más.
-  // En manual no se pre-recorta: pushImage aplica el tope de 9 y CUENTA los
-  // drops (el pre-slice silenciaba el warning de recorte).
-  const productImages = primary?.imagePaths.slice(0, manual ? Infinity : 3) ?? [];
-  const productUsages = primary?.imageUsages ?? {};
-  for (const path of productImages) {
-    const usage = productUsages[path];
-    pushImage(
-      path,
-      'product',
-      (n) =>
-        `@image${n} is the product${usage ? `, shown here as ${usage}` : ''} — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
-    );
+  // Producto: presupuesto de imágenes POR PRODUCTO según cuántos van en el clip
+  // (1→3, 2→2, 3+→1: menos vistas por producto = menos confusión de conteo,
+  // mitigación central del spec multi-producto 2026-07-15). En manual no se
+  // pre-recorta: pushImage aplica el tope de 9 y CUENTA los drops (el pre-slice
+  // silenciaba el warning de recorte).
+  const products = ctx.products ?? [];
+  const productCap = manual ? Infinity : perProductImageCap(products.length);
+  for (const product of products) {
+    const productImages = product.imagePaths.slice(0, productCap);
+    const usages = product.imageUsages ?? {};
+    const nums: number[] = [];
+    // En multi la cita nombra al producto: sin el nombre, N líneas "is the
+    // product" idénticas son indistinguibles y el modelo fusiona referencias.
+    const label = products.length > 1 ? `the product "${product.name}"` : 'the product';
+    for (const path of productImages) {
+      const usage = usages[path];
+      const n = pushImage(
+        path,
+        'product',
+        (n) =>
+          `@image${n} is ${label}${usage ? `, shown here as ${usage}` : ''} — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+      );
+      if (n) nums.push(n);
+    }
+    // AM: con 2+ vistas DEL MISMO producto, decláralo scoped a ese producto —
+    // nunca global entre productos distintos (los fusionaría).
+    if (nums.length >= 2) {
+      lines.push(
+        products.length > 1
+          ? `@image${nums.join(' and @image')} show the SAME single product ("${product.name}") from different views; reconcile them into one consistent object — do not treat them as different products.`
+          : 'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
+      );
+    }
   }
-  // AM: con 2+ vistas, dile al modelo que son el MISMO objeto (evita que trate
-  // el 3/4 generado como un producto distinto).
-  if (productImages.length >= 2) {
-    lines.push(
-      'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
-    );
+  if (products.length > 1) {
+    lines.push(multiProductCountClause(products.map((p) => p.name)));
   }
 
-  // Empaque (solo si el formato lo exige está en el contexto).
-  const packagingImages = primary?.packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [];
+  // Empaque: solo clips single-producto en auto (en multi satura el conteo);
+  // la selección manual del usuario sí viaja (manual = el usuario es el presupuesto).
+  const packagingImages =
+    products.length === 1
+      ? (products[0].packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [])
+      : manual
+        ? products.flatMap((p) => p.packagingImagePaths ?? [])
+        : [];
   for (const path of packagingImages) {
     pushImage(path, 'packaging', (n) => `@image${n} is the product packaging, shown exactly as in the reference.`);
   }
@@ -564,11 +584,17 @@ export function compileSeedance(
   // Fidelidad de producto y personajes (reglas duras del inventario). La
   // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay
   // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
-  const primaryProduct = ctx.products?.[0];
-  if (primaryProduct) {
-    sections.push(describeProduct(primaryProduct, { fidelity: !primaryProduct.imagePaths.length }));
-    const weight = describeProductWeight(primaryProduct);
+  const ctxProducts = ctx.products ?? [];
+  if (ctxProducts.length === 1) {
+    const product = ctxProducts[0];
+    sections.push(describeProduct(product, { fidelity: !product.imagePaths.length }));
+    const weight = describeProductWeight(product);
     if (weight) sections.push(weight.trim());
+  } else if (ctxProducts.length > 1) {
+    // Multi: ficha compacta por producto + anti-conteo. El staging proporcional
+    // y el peso son single-producto (saturarían N veces el prompt).
+    for (const product of ctxProducts) sections.push(describeProductCompact(product));
+    sections.push(multiProductCountClause(ctxProducts.map((p) => p.name)));
   }
   for (const character of ctx.characters ?? []) {
     // Sin descripción (describeFromMaster es best-effort y el usuario pudo no
