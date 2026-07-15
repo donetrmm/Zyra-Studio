@@ -1680,3 +1680,113 @@ describe('compileSeedance multi-producto', () => {
     expect(res.compiled.references.filter((r) => r.role === 'product')).toHaveLength(3);
   });
 });
+
+// ============ Task 8: compilers secundarios multi-producto (video-prose,
+// nano-banana, flux — mismo criterio que Seedance, spec multi-producto
+// 2026-07-15) ============
+
+describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)', () => {
+  const twoProducts = [
+    { name: 'Canvas Familiar', imagePaths: ['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png'], visualDetails: 'family portrait' },
+    { name: 'Retrato de Pareja', imagePaths: ['ws/retrato-1.png'], visualDetails: 'couple portrait' },
+  ];
+
+  it('video-prose (Kling) multi: fichas compactas + anti-conteo en el prompt', () => {
+    const res = compile(
+      { modelSlug: 'kling-3', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('exactly 2 distinct products');
+    expect(res.compiled.prompt).toContain('Product: Canvas Familiar');
+    expect(res.compiled.prompt).toContain('Product: Retrato de Pareja');
+  });
+
+  it('video-prose (Kling) multi: la referencia sigue siendo solo 1 imagen del primer producto (sin cambio, Veo/Kling solo aceptan una)', () => {
+    const res = compile(
+      { modelSlug: 'kling-3', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.references).toEqual([{ storagePath: 'ws/canvas-1.png', kind: 'image', role: 'product' }]);
+  });
+
+  it('video-prose (Kling) single-producto: cero cambio (parity)', () => {
+    const res = compile(
+      { modelSlug: 'kling-3', scenePrompt: 'The product sits on the table' },
+      { products: [twoProducts[0]] },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).not.toContain('distinct products:');
+    expect(res.compiled.prompt).toContain('Product: Canvas Familiar, family portrait');
+  });
+
+  it('flux multi: 1 imagen por producto + anti-conteo', () => {
+    const res = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'Both products sit on the table' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const productRefs = res.compiled.references.filter((r) => r.role === 'product');
+    expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/retrato-1.png']);
+    expect(res.compiled.prompt).toContain('exactly 2 distinct products');
+    expect(res.compiled.prompt).toContain('Product: Canvas Familiar');
+  });
+
+  it('flux multi: productUsageClause recibe el merge de usages de todos los productos', () => {
+    const res = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'Both products sit on the table' },
+      {
+        products: [
+          { ...twoProducts[0], imageUsages: { 'ws/canvas-1.png': 'front view' } },
+          { ...twoProducts[1], imageUsages: { 'ws/retrato-1.png': 'three-quarter view' } },
+        ],
+      },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('front view');
+    expect(res.compiled.prompt).toContain('three-quarter view');
+  });
+
+  it('flux single-producto: cero cambio (parity) — sigue usando hasta 4 imágenes de UN producto', () => {
+    const res = compile(
+      { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product' },
+      { products: [twoProducts[0]] },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const productRefs = res.compiled.references.filter((r) => r.role === 'product');
+    expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png']);
+    expect(res.compiled.prompt).not.toContain('distinct products:');
+  });
+
+  it('nano-banana multi: 1 imagen por producto y anti-conteo en el prompt', () => {
+    const res = compile(
+      { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'both products appear together' },
+      { products: twoProducts },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.compiled.prompt).toContain('exactly 2 distinct products');
+    const productRefs = res.compiled.references.filter((r) => r.role === 'product');
+    expect(productRefs).toHaveLength(2);
+    expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/retrato-1.png']);
+  });
+
+  it('nano-banana single-producto: cero cambio (parity) — sigue usando hasta 3 imágenes de UN producto', () => {
+    const res = compile(
+      { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'make the lighting warmer' },
+      { products: [twoProducts[0]] },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const productRefs = res.compiled.references.filter((r) => r.role === 'product');
+    expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png']);
+    expect(res.compiled.prompt).not.toContain('distinct products:');
+  });
+});

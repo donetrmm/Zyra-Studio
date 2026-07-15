@@ -5,12 +5,13 @@
 // (gotcha conocido: chat multi-turn mantiene composición real al editar).
 
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { describeProductCompact, multiProductCountClause } from '../inventory';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
 
 export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): CompiledPrompt {
   const warnings: string[] = [];
-  // T5: paridad single — primer producto de la lista (multi real llega después).
-  const product = ctx.products?.[0];
+  const products = ctx.products ?? [];
+  const product = products[0];
 
   // Heurística de "un cambio por iteración": múltiples instrucciones de cambio
   // en el mismo prompt son menos fiables que iterar.
@@ -26,8 +27,13 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
     req.scenePrompt.trim().replace(/\.?$/, '.'),
     'Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.',
   ];
-  if (product) {
+  if (products.length === 1) {
     sections.push('The product packaging, label and logo must remain exactly as in the reference; never restyle the product.');
+  } else if (products.length > 1) {
+    // Multi: ficha compacta por producto + anti-conteo (mismo criterio que Seedance,
+    // spec multi-producto 2026-07-15).
+    for (const p of products) sections.push(describeProductCompact(p));
+    sections.push(multiProductCountClause(products.map((p) => p.name)));
   }
   // Personaje: la hoja maestra se ancla como referencia para que la identidad no
   // derive (el storyboard la genera/edita con Nano Banana por su fidelidad de ref).
@@ -44,9 +50,16 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
   const guidelineClauses = creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: req.isOpeningBeat });
   if (guidelineClauses) sections.push(guidelineClauses.trim());
 
-  // Referencias: producto (3) + personaje (3 master) + locación (environment).
+  // Referencias: producto (3, o 1 por producto en multi) + personaje (3 master)
+  // + locación (environment).
   const references: CompiledReference[] = [];
-  for (const storagePath of product?.imagePaths.slice(0, 3) ?? []) {
+  // Multi: 1 imagen por producto (mitigación anti-conteo, spec 2026-07-15) — con
+  // varios productos, varias vistas del mismo producto multiplica la confusión.
+  const productPaths =
+    products.length > 1
+      ? products.map((p) => p.imagePaths[0]).filter((p): p is string => !!p)
+      : (product?.imagePaths.slice(0, 3) ?? []);
+  for (const storagePath of productPaths) {
     references.push({ storagePath, kind: 'image', role: 'product' });
   }
   for (const character of (ctx.characters ?? []).slice(0, 3)) {
