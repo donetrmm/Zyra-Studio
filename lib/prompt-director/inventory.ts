@@ -306,3 +306,32 @@ export function stagingPlannerBlock(product?: PlannerProductFacts): string {
   }
   return parts.join('');
 }
+
+// Ficha COMPACTA para clips multi-producto (spec 2026-07-15): N fichas
+// completas de describeProduct saturarían el prompt. Solo hechos declarados +
+// un ancla de fidelidad corta; el arbitraje largo y el staging proporcional
+// son de clips single-producto.
+export function describeProductCompact(product: ProductInventory): string {
+  const parts: string[] = [
+    product.medium ? `Product: ${product.name}, a ${product.medium}` : `Product: ${product.name}`,
+  ];
+  if (product.visualDetails) {
+    parts.push(product.medium ? `displaying this printed image: ${product.visualDetails}` : product.visualDetails);
+  }
+  if (product.palette?.length) parts.push(`colors ${product.palette.join(', ')}`);
+  if (product.heightCm && product.widthCm) parts.push(`about ${product.heightCm} cm tall and ${product.widthCm} cm wide`);
+  else if (product.heightCm) parts.push(`about ${product.heightCm} cm tall`);
+  else if (product.widthCm) parts.push(`about ${product.widthCm} cm wide`);
+  return `${parts.join(', ')}. It must appear exactly as in its reference images — never restyle, stretch or recolor it.`;
+}
+
+// Mitigación anti-conteo (la razón por la que multi-producto se excluyó en el
+// spec V3 y se revierte en el de 2026-07-15): Seedance tiende a duplicar o
+// fusionar productos en tomas con varios. Conteo exacto + enumeración.
+export function multiProductCountClause(names: string[]): string {
+  return (
+    `The scene contains exactly ${names.length} distinct products: ${names.join(', ')} — ` +
+    `render each product exactly once, at its true relative size; ` +
+    `do not duplicate, merge or invent additional products.`
+  );
+}
