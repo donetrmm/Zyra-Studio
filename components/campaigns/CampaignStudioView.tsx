@@ -43,7 +43,7 @@ import {
   redoSamplesAction,
   requestFinalAction,
   setCampaignStatusAction,
-  setItemProductAction,
+  setItemProductsAction,
   toggleWinnerAction,
   updateCampaignItemAction,
   updateCampaignStudioAction,
@@ -876,7 +876,7 @@ function PlanTable({
   // usa un callback en vez de refrescar).
   async function handleAssignProduct(itemId: string, productId: string | null) {
     setAssigningProduct(itemId);
-    const res = await setItemProductAction({ itemId, productId });
+    const res = await setItemProductsAction({ itemId, productIds: productId ? [productId] : [] });
     setAssigningProduct(null);
     if (!res.ok) {
       toast.error(res.message ?? 'No se pudo asignar el producto');

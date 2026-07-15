@@ -245,12 +245,13 @@ export const MergeSequenceSchema = z.object({
   campaignId: z.string().uuid(),
 });
 
-// V3 multi-producto (Fase 3): fija/limpia el producto asignado a un clip.
-// productId null = "sin asignar" (el tablero lo pide antes de generar cuando
-// la campaña tiene marca+pool).
-export const SetItemProductSchema = z.object({
+// Multi-producto por clip (spec 2026-07-15): fija el SUBCONJUNTO de productos
+// del pool asignado a un clip. [] = sin asignar (el tablero lo pide antes de
+// generar cuando la campaña tiene marca+pool). Cap 12 = sanity (tope total de
+// archivos de referencia de Seedance).
+export const SetItemProductsSchema = z.object({
   itemId: z.string().uuid(),
-  productId: z.string().uuid().nullable(),
+  productIds: z.array(z.string().uuid()).max(12),
 });
 
 // Selección manual de referencias de video (054). include = storage paths del
@@ -339,5 +340,5 @@ export type CreateCampaignStudioInput = z.infer<typeof CreateCampaignStudioSchem
 export type CampaignItemInput = z.infer<typeof CampaignItemSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
 export type CreateFormatInput = z.infer<typeof CreateFormatSchema>;
-export type SetItemProductInput = z.infer<typeof SetItemProductSchema>;
+export type SetItemProductsInput = z.infer<typeof SetItemProductsSchema>;
 export type SetItemReferenceSelectionInput = z.infer<typeof SetItemReferenceSelectionSchema>;

@@ -48,12 +48,12 @@ import {
   GenerateSeriesSchema,
   MergeSequenceSchema,
   RequestFinalSchema,
-  SetItemProductSchema,
+  SetItemProductsSchema,
   SetItemReferenceSelectionSchema,
   SetReferenceSelectionSchema,
   UpdateCampaignItemSchema,
 } from '@/lib/schemas/campaigns';
-import { inferProductForClip, type ProductCandidate } from '@/lib/campaigns/infer-assignment';
+import { inferProductsForClip, type ProductCandidate } from '@/lib/campaigns/infer-assignment';
 import { loadItemReferencePool, loadReferencePool } from '@/lib/campaigns/reference-pool';
 import { analyzeProductImages, type ReferenceAnalysisProposal } from '@/lib/campaigns/reference-analysis';
 import {
@@ -1119,11 +1119,11 @@ export async function generatePlanAction(input: unknown): Promise<
     .select('id, scene_prompt, scene_summary, sequence_id, scene_index');
   if (insertErr) return { ok: false, error: 'internal_error', message: insertErr.message };
 
-  // V3 multi-producto (Fase 3): pre-llena product_id de los items recién
-  // creados por inferencia de texto contra el pool de la campaña
-  // (campaign_products→products). Solo confidence 'high' se aplica; 'low'/
-  // 'none' quedan null y el tablero los pide a mano. Best-effort: un fallo
-  // acá no debe tumbar el plan ya creado.
+  // Multi-producto por clip (spec 2026-07-15): pre-llena product_ids de los
+  // items recién creados por inferencia de texto contra el pool de la
+  // campaña (campaign_products→products). Solo confidence 'high' se aplica;
+  // 'none' queda [] y el tablero lo pide a mano. Best-effort: un fallo acá no
+  // debe tumbar el plan ya creado.
   try {
     const { data: poolRows } = await supabase
       .from('campaign_products')
@@ -1139,40 +1139,41 @@ export async function generatePlanAction(input: unknown): Promise<
       .filter((p): p is ProductEmbed => !!p)
       .map((p) => ({ id: p.id, name: p.name, slug: p.slug, visualDetails: p.visual_details }));
     if (pool.length > 0) {
-      // product_id de cada item recién insertado, tal como queda tras la
-      // inferencia por-clip (arranca en null: los items nuevos no traen
-      // product_id en el insert de arriba).
-      const itemProductMap = new Map<string, string | null>();
+      // product_ids de cada item recién insertado, tal como queda tras la
+      // inferencia por-clip (arranca en []: los items nuevos no traen
+      // product_ids en el insert de arriba).
+      const itemProductMap = new Map<string, string[]>();
       for (const row of insertedItems ?? []) {
-        itemProductMap.set(row.id as string, null);
+        itemProductMap.set(row.id as string, []);
       }
       for (const row of insertedItems ?? []) {
         const clipText = `${(row.scene_prompt as string | null) ?? ''} ${(row.scene_summary as string | null) ?? ''}`;
-        const inferred = inferProductForClip(clipText, pool);
-        if (inferred.confidence === 'high' && inferred.productId) {
+        const inferred = inferProductsForClip(clipText, pool);
+        if (inferred.confidence === 'high' && inferred.productIds.length) {
           const { error: prodErr } = await supabase
             .from('campaign_items')
-            .update({ product_id: inferred.productId })
+            .update({ product_ids: inferred.productIds })
             .eq('id', row.id as string);
           if (prodErr) {
-            console.warn('[generatePlanAction] no se pudo pre-llenar product_id de un item', {
+            console.warn('[generatePlanAction] no se pudo pre-llenar product_ids de un item', {
               itemId: row.id,
               message: prodErr.message,
             });
           } else {
-            itemProductMap.set(row.id as string, inferred.productId);
+            itemProductMap.set(row.id as string, inferred.productIds);
           }
         }
       }
 
       // El producto es propiedad de la SECUENCIA (ver orchestrator: en cadenas
-      // Atlas solo la cabecera —menor scene_index— resuelve product_id; las
+      // Atlas solo la cabecera —menor scene_index— resuelve product_ids; las
       // continuaciones heredan el chain.productImagePaths del head y nunca
       // narran el producto de nuevo). Sin este pre-llenado, las continuaciones
-      // quedan con product_id null y el gating del lote las bloquea para
-      // siempre. Se propaga el product_id del head a sus escenas sin asignar;
-      // si el head quedó ambiguo (sin producto inferido), se usa el primer
-      // product_id no-null del grupo. Solo rellena nulls, nunca sobrescribe.
+      // quedan con product_ids [] y el gating del lote las bloquea para
+      // siempre. Se propaga el product_ids del head a sus escenas sin
+      // asignar; si el head quedó ambiguo (sin producto inferido), se usa el
+      // primer product_ids no-vacío del grupo. Solo rellena vacíos, nunca
+      // sobrescribe.
       const bySequence = new Map<string, { id: string; sceneIndex: number }[]>();
       for (const row of insertedItems ?? []) {
         const sequenceId = row.sequence_id as string | null;
@@ -1184,26 +1185,26 @@ export async function generatePlanAction(input: unknown): Promise<
       for (const sceneList of bySequence.values()) {
         const sorted = [...sceneList].sort((a, b) => a.sceneIndex - b.sceneIndex);
         const head = sorted[0];
-        let headProductId = itemProductMap.get(head.id) ?? null;
-        if (!headProductId) {
-          const firstWithProduct = sorted.find((s) => itemProductMap.get(s.id));
-          headProductId = firstWithProduct ? (itemProductMap.get(firstWithProduct.id) ?? null) : null;
+        let headProductIds = itemProductMap.get(head.id) ?? [];
+        if (headProductIds.length === 0) {
+          const firstWithProduct = sorted.find((s) => (itemProductMap.get(s.id) ?? []).length > 0);
+          headProductIds = firstWithProduct ? (itemProductMap.get(firstWithProduct.id) ?? []) : [];
         }
-        if (!headProductId) continue;
+        if (headProductIds.length === 0) continue;
         for (const scene of sorted) {
-          if (itemProductMap.get(scene.id)) continue;
+          if ((itemProductMap.get(scene.id) ?? []).length > 0) continue;
           const { error: fillErr } = await supabase
             .from('campaign_items')
-            .update({ product_id: headProductId })
+            .update({ product_ids: headProductIds })
             .eq('id', scene.id)
-            .is('product_id', null);
+            .eq('product_ids', '{}');
           if (fillErr) {
-            console.warn('[generatePlanAction] no se pudo propagar product_id del head de la secuencia', {
+            console.warn('[generatePlanAction] no se pudo propagar product_ids del head de la secuencia', {
               itemId: scene.id,
               message: fillErr.message,
             });
           } else {
-            itemProductMap.set(scene.id, headProductId);
+            itemProductMap.set(scene.id, headProductIds);
           }
         }
       }
@@ -1808,12 +1809,12 @@ export async function generateItemAction(
     .single();
   if (!campaign) return { ok: false, error: 'not_found' };
 
-  // Gating V3 multi-producto (Fase 3, Task 5): una campaña con marca y pool de
-  // productos no puede generar un clip sin producto asignado — sin esto el
-  // fallback a product_brief serviría una referencia genérica pudiendo el
-  // usuario elegir entre productos específicos. Sin pool no hay nada que
-  // asignar, así que no bloquea.
-  if (campaign.brand_kit_id && !item.product_id) {
+  // Gating multi-producto por clip (spec 2026-07-15): una campaña con marca y
+  // pool de productos no puede generar un clip sin al menos un producto
+  // asignado — sin esto el fallback a product_brief serviría una referencia
+  // genérica pudiendo el usuario elegir entre productos específicos. Sin
+  // pool no hay nada que asignar, así que no bloquea.
+  if (campaign.brand_kit_id && ((item.product_ids as string[] | null) ?? []).length === 0) {
     const { data: poolRow } = await supabase
       .from('campaign_products')
       .select('product_id')
@@ -1908,10 +1909,11 @@ export async function approveBatchAction(
     .order('created_at');
   if (!itemRows?.length) return { ok: false, error: 'not_found', message: 'Sin items para este formato' };
 
-  // Gating V3 multi-producto (Fase 3, Task 5): igual que generateItemAction pero
-  // para el lote — si ALGÚN item que este batch encolaría (mismo recorte de
-  // selectBatchItems que usa enqueueBatch) no tiene producto, no se encola
-  // ninguno. Sin pool no hay nada que asignar, así que no bloquea.
+  // Gating multi-producto por clip (spec 2026-07-15): igual que
+  // generateItemAction pero para el lote — si ALGÚN item que este batch
+  // encolaría (mismo recorte de selectBatchItems que usa enqueueBatch) no
+  // tiene al menos un producto asignado, no se encola ninguno. Sin pool no
+  // hay nada que asignar, así que no bloquea.
   if (campaign.brand_kit_id) {
     const { data: poolRow } = await supabase
       .from('campaign_products')
@@ -1924,7 +1926,7 @@ export async function approveBatchAction(
         (i) => i.status === 'planned' || i.status === 'failed',
       );
       const selected = selectBatchItems(pending, parsed.data.mode);
-      if (selected.some((i) => !i.product_id)) {
+      if (selected.some((i) => (((i as { product_ids?: string[] | null }).product_ids) ?? []).length === 0)) {
         return { ok: false, error: 'validation_error', message: 'Hay clips sin producto asignado' };
       }
     }
@@ -3114,12 +3116,13 @@ export async function assignSequenceLocationAction(
   return { ok: true };
 }
 
-// V3 multi-producto (Fase 3): fija/limpia el producto asignado a un clip.
-// Espeja assignSequenceLocationAction (ownership por join, update simple,
-// revalidatePath); el gate de estado copia updateCampaignItemAction — solo
-// se puede reasignar antes de que el item entre en producción.
-export async function setItemProductAction(input: unknown): Promise<Result<{ updated: true }>> {
-  const parsed = SetItemProductSchema.safeParse(input);
+// Multi-producto por clip (spec 2026-07-15): fija/limpia el SUBCONJUNTO de
+// productos del pool asignado a un clip. Espeja assignSequenceLocationAction
+// (ownership por join, update simple, revalidatePath); el gate de estado
+// copia updateCampaignItemAction — solo se puede reasignar antes de que el
+// item entre en producción.
+export async function setItemProductsAction(input: unknown): Promise<Result<{ updated: true }>> {
+  const parsed = SetItemProductsSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
@@ -3137,15 +3140,16 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
 
-  if (parsed.data.productId !== null) {
-    const { data: link } = await supabase
+  // TODOS los ids deben estar en el pool de la campaña (una query, no N).
+  const productIds = [...new Set(parsed.data.productIds)];
+  if (productIds.length > 0) {
+    const { data: links } = await supabase
       .from('campaign_products')
       .select('product_id')
       .eq('campaign_id', item.campaign_id as string)
-      .eq('product_id', parsed.data.productId)
-      .maybeSingle();
-    if (!link) {
-      return { ok: false, error: 'validation_error', message: 'El producto no está en el pool de la campaña' };
+      .in('product_id', productIds);
+    if ((links ?? []).length !== productIds.length) {
+      return { ok: false, error: 'validation_error', message: 'Algún producto no está en el pool de la campaña' };
     }
   }
 
@@ -3154,7 +3158,7 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
   // editable. Mismo guard que updateCampaignItemAction.
   const { data: updated, error: updateErr } = await supabase
     .from('campaign_items')
-    .update({ product_id: parsed.data.productId })
+    .update({ product_ids: productIds })
     .eq('id', parsed.data.itemId)
     .in('status', ['planned', 'skipped', 'failed'])
     .select('id');
@@ -3163,25 +3167,19 @@ export async function setItemProductAction(input: unknown): Promise<Result<{ upd
     return { ok: false, error: 'forbidden', message: 'El item ya está en producción' };
   }
 
-  // El producto es propiedad de la SECUENCIA: si esta escena pertenece a una
-  // (sequence_id no null) y se le asignó un producto, propágalo a las escenas
-  // hermanas (mismo campaign_id+sequence_id) que sigan sin producto y todavía
-  // sean editables. En cadenas Atlas esto es lo que rellena las continuaciones
-  // que el orchestrator nunca vuelve a resolver por sí mismas; asignar la
-  // cabecera a mano alcanza para que el gating del lote pase. Best-effort:
-  // no sobrescribe hermanas que ya tengan su propio producto (respeta
-  // customización por escena en secuencias no encadenadas).
+  // El producto es propiedad de la SECUENCIA (cadenas Atlas): propaga a las
+  // hermanas SIN asignación ('{}'), nunca sobrescribe. Best-effort.
   const sequenceId = item.sequence_id as string | null;
-  if (parsed.data.productId !== null && sequenceId) {
+  if (productIds.length > 0 && sequenceId) {
     const { error: siblingErr } = await supabase
       .from('campaign_items')
-      .update({ product_id: parsed.data.productId })
+      .update({ product_ids: productIds })
       .eq('campaign_id', item.campaign_id as string)
       .eq('sequence_id', sequenceId)
-      .is('product_id', null)
+      .eq('product_ids', '{}')
       .in('status', ['planned', 'skipped', 'failed']);
     if (siblingErr) {
-      console.warn('[setItemProductAction] no se pudo propagar product_id a escenas hermanas', {
+      console.warn('[setItemProductsAction] no se pudo propagar product_ids a escenas hermanas', {
         itemId: parsed.data.itemId,
         sequenceId,
         message: siblingErr.message,
@@ -3297,7 +3295,7 @@ export async function setReferenceSelectionAction(input: unknown): Promise<Resul
 // V3 multi-producto (Fase 4): espeja getReferencePoolAction pero el pool está
 // SCOPEADO AL CLIP (loadItemReferencePool: solo el producto/cast/locación/
 // extras de ESTE ítem), no un agregado de toda la campaña. Ownership por join
-// item→campaña→workspace, igual que setItemProductAction.
+// item→campaña→workspace, igual que setItemProductsAction.
 export async function getItemReferencePoolAction(itemId: string): Promise<
   Result<{
     entries: (ReferencePoolEntry & { thumbUrl: string | null })[];
@@ -3362,7 +3360,7 @@ export async function getItemReferencePoolAction(itemId: string): Promise<
 
 // Guarda la selección manual de referencias DEL CLIP (o null = automático).
 // Espeja setReferenceSelectionAction (intersección contra el pool real antes de
-// persistir) + el patrón de setItemProductAction (gate de status editable,
+// persistir) + el patrón de setItemProductsAction (gate de status editable,
 // anti-TOCTOU en el propio UPDATE).
 export async function setItemReferenceSelectionAction(
   input: unknown,
@@ -3434,7 +3432,7 @@ export async function setItemReferenceSelectionAction(
 
   // Anti-TOCTOU: repite el filtro de status en el propio UPDATE (el item pudo
   // entrar a producción entre el SELECT y aquí). 0 filas afectadas = ya no es
-  // editable. Mismo guard que setItemProductAction.
+  // editable. Mismo guard que setItemProductsAction.
   const { data: updated, error: updateErr } = await supabase
     .from('campaign_items')
     .update({ reference_selection: value })

@@ -22,11 +22,6 @@ export type ProductCandidate = {
   visualDetails: string | null;
 };
 
-export type InferResult = {
-  productId: string | null;
-  confidence: 'high' | 'low' | 'none';
-};
-
 export type InferProductsResult = { productIds: string[]; confidence: 'high' | 'none' };
 
 // Separador de palabras: cualquier corrida de caracteres que no sean letra o
@@ -77,48 +72,6 @@ function significantTokens(candidate: ProductCandidate): Set<string> {
   addFrom(candidate.slug);
   addFrom(candidate.visualDetails);
   return tokens;
-}
-
-/**
- * Infiere el producto asignado a un clip basándose en su descripción de texto.
- *
- * Reglas:
- * - Pool vacío: `{ productId: null, confidence: 'none' }`
- * - Exactamente 1 candidato: `{ productId: ese.id, confidence: 'high' }`
- * - Múltiples candidatos:
- *   - Normaliza y tokeniza el texto del clip
- *   - Para cada candidato, verifica si "matchea" (ver `candidateMatches`)
- *   - Si exactamente 1 matchea: `{ productId: ese.id, confidence: 'high' }`
- *   - Si ninguno matchea: `{ productId: null, confidence: 'none' }`
- *   - Si ≥2 matchean (ambiguo): `{ productId: null, confidence: 'low' }`
- */
-export function inferProductForClip(clipText: string, pool: ProductCandidate[]): InferResult {
-  // Pool vacío
-  if (pool.length === 0) {
-    return { productId: null, confidence: 'none' };
-  }
-
-  // Exactamente 1 candidato
-  if (pool.length === 1) {
-    return { productId: pool[0].id, confidence: 'high' };
-  }
-
-  // Múltiples candidatos: buscar matches
-  const normalizedClip = normalizeText(clipText);
-  const clipTokens = new Set(tokenize(normalizedClip));
-
-  const matches = pool.filter((candidate) => candidateMatches(candidate, normalizedClip, clipTokens));
-
-  if (matches.length === 0) {
-    return { productId: null, confidence: 'none' };
-  }
-
-  if (matches.length === 1) {
-    return { productId: matches[0].id, confidence: 'high' };
-  }
-
-  // ≥2 candidatos matchean: ambiguo
-  return { productId: null, confidence: 'low' };
 }
 
 /**
