@@ -665,6 +665,10 @@ type ChainParams = {
   // directiva de actuación correcta (contenida vs enérgica) en cada clip de la
   // cadena, igual que el compiler. undefined (cadenas viejas) → contenida.
   register?: string;
+  // Nº de productos DISTINTOS del clip (multi-producto 2026-07-15): las
+  // continuaciones citan las refs de producto como "one of N". undefined
+  // (cadenas viejas) → 1.
+  productCount?: number;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -687,14 +691,26 @@ export function buildContinuationPrompt(
     // Registro del formato: decide actuación contenida vs enérgica (paridad con
     // el compiler). undefined → contenida.
     register?: string;
+    // Multi-producto (2026-07-15): nº de productos DISTINTOS del clip. >1 cambia
+    // la cita de "the product" (singular) a "one of N distinct products" y añade
+    // la cláusula anti-conteo. undefined/1 → paridad con el comportamiento previo.
+    distinctProducts?: number;
   },
 ): string {
   const refs: string[] = [];
   let idx = 0;
+  const distinct = opts?.distinctProducts ?? 1;
   for (let i = 0; i < productCount; i++) {
     idx++;
     refs.push(
-      `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+      distinct > 1
+        ? `@image${idx} is one of the ${distinct} distinct products — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`
+        : `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+    );
+  }
+  if (distinct > 1) {
+    refs.push(
+      `The scene contains exactly ${distinct} distinct products; render each exactly once — do not duplicate, merge or invent additional products.`,
     );
   }
   for (let i = 0; i < characterCount; i++) {
@@ -884,6 +900,9 @@ export async function advanceSequenceChain(
   // Clip de continuación: R2V con [producto..., personaje..., fotograma previo].
   // El producto se cita @image1.. y el fotograma como la última imagen. Mismo
   // modelo R2V que el clip 1 (no i2v): así el producto se re-ancla en cada clip.
+  // Límite (multi-producto 2026-07-15): con 4+ productos distintos las
+  // continuaciones re-anclan solo los 3 primeros (1 imagen c/u por el cap de
+  // ref-budget). Documentado, no se cambia en esta tarea.
   const productPaths = (chain.productImagePaths ?? []).slice(0, 3);
   let characterPaths = (chain.characterImagePaths ?? []).slice(0, 3);
   if (characterPaths.length === 0) {
@@ -927,6 +946,9 @@ export async function advanceSequenceChain(
       // Register de la siembra: actuación contenida/enérgica por clip. Cadenas
       // viejas sin el campo → contenida (default de actingDirectionFor).
       ...(chain.register !== undefined ? { register: chain.register } : {}),
+      // Multi-producto: nº de productos distintos re-anclado desde la siembra.
+      // Cadenas viejas o de un solo producto → sin distinctProducts (paridad).
+      ...(chain.productCount ? { distinctProducts: chain.productCount } : {}),
     },
   );
 
@@ -962,6 +984,7 @@ export async function advanceSequenceChain(
           ...(chainAudio.kind === 'prev_clip' ? { prevAudioPath: chainAudio.paths[0] } : {}),
           ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
           ...(chain.register !== undefined ? { register: chain.register } : {}),
+          ...(chain.productCount ? { productCount: chain.productCount } : {}),
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -1383,6 +1406,9 @@ export async function enqueueBatch(params: {
                       // Register crudo: elige actuación contenida vs enérgica en
                       // cada clip de continuación (paridad con el compiler).
                       register: baseDirCtx.format?.register ?? '',
+                      // Multi-producto: nº de productos DISTINTOS asignados al
+                      // clip (Task 5). >1 → las continuaciones citan "one of N".
+                      ...(itemProducts.length > 1 ? { productCount: itemProducts.length } : {}),
                     } satisfies ChainParams,
                   }
                 : {}),

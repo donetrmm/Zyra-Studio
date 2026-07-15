@@ -1609,6 +1609,9 @@ export async function generateItemAction(
             prevAudioPath?: string;
             videoLook?: string;
             register?: string;
+            // Multi-producto (2026-07-15): nº de productos DISTINTOS del clip;
+            // cadenas viejas o de un solo producto no lo traen.
+            productCount?: number;
           };
           referenceImagePaths?: string[];
           returnLastFrame?: boolean;
@@ -1703,6 +1706,9 @@ export async function generateItemAction(
           prevClipAudio: regenChainAudio.kind === 'prev_clip',
           ...(pp.chain.videoLook ? { videoLook: pp.chain.videoLook } : {}),
           ...(pp.chain.register !== undefined ? { register: pp.chain.register } : {}),
+          // Multi-producto: re-anclar el conteo de productos distintos al
+          // regenerar un clip de continuación (mismo patrón que advanceSequenceChain).
+          ...(pp.chain.productCount ? { distinctProducts: pp.chain.productCount } : {}),
         },
       );
       const cost = (prevGen.credits_estimated as number) ?? 0;

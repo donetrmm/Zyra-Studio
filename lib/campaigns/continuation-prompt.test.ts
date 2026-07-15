@@ -109,6 +109,24 @@ describe('buildContinuationPrompt', () => {
   });
 });
 
+// Multi-producto por clip (2026-07-15): con 2+ productos distintos, cada ref se
+// cita como "one of N" en vez de "the product" (singular), más una cláusula
+// anti-conteo para que el modelo no invente/fusione productos.
+describe('buildContinuationPrompt — multi-producto (distinctProducts)', () => {
+  it('multi-producto: cita cada ref como uno de N productos distintos y añade el anti-conteo', () => {
+    const out = buildContinuationPrompt('la familia contempla la pared', 3, 1, { distinctProducts: 3 });
+    expect(out).toContain('@image1 is one of the 3 distinct products');
+    expect(out).toContain('@image3 is one of the 3 distinct products');
+    expect(out).toContain('exactly 3 distinct products; render each exactly once');
+  });
+
+  it('single (default): la cita clásica "is the product", sin anti-conteo (paridad)', () => {
+    const out = buildContinuationPrompt('escena', 2, 0, {});
+    expect(out).toContain('@image1 is the product —');
+    expect(out).not.toContain('distinct products');
+  });
+});
+
 describe('buildContinuationPrompt — audio del clip anterior (spike 2026-07-04)', () => {
   it('con prevClipAudio cita @audio1 y pide conservar timbre y ambiente', () => {
     const out = buildContinuationPrompt('Scene.', 1, 0, { prevClipAudio: true });
