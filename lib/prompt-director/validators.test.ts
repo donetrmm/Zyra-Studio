@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validate } from './validators';
-import type { CompileRequest, DirectorContext } from './types';
+import type { CompileRequest, DirectorContext, ProductInventory } from './types';
 
 const ctx: DirectorContext = {};
 function warnings(scenePrompt: string, durationS?: number): string[] {
@@ -93,10 +93,10 @@ describe('regla 14 — bloqueo geo-espacial (P13)', () => {
 });
 
 describe('validators P01 — vista única del producto', () => {
-  function warnFor(product: DirectorContext['product']): string[] {
+  function warnFor(product: ProductInventory | undefined): string[] {
     return validate(
       { modelSlug: 'seedance-2', scenePrompt: 'the product on a clean table' } as CompileRequest,
-      { product } as DirectorContext,
+      { products: product ? [product] : undefined } as DirectorContext,
     ).warnings;
   }
   it('avisa cuando el producto tiene una sola imagen', () => {

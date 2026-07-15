@@ -271,6 +271,8 @@ export function buildReferences(ctx: DirectorContext): {
   const warnings: string[] = [];
   let imageN = 0;
   let droppedImages = 0;
+  // T5: paridad single — primer producto de la lista (multi real llega en T6).
+  const primary = ctx.products?.[0];
 
   const pushImage = (
     storagePath: string,
@@ -296,8 +298,8 @@ export function buildReferences(ctx: DirectorContext): {
   // dejar slots libres; el Brand Kit puede traer más.
   // En manual no se pre-recorta: pushImage aplica el tope de 9 y CUENTA los
   // drops (el pre-slice silenciaba el warning de recorte).
-  const productImages = ctx.product?.imagePaths.slice(0, manual ? Infinity : 3) ?? [];
-  const productUsages = ctx.product?.imageUsages ?? {};
+  const productImages = primary?.imagePaths.slice(0, manual ? Infinity : 3) ?? [];
+  const productUsages = primary?.imageUsages ?? {};
   for (const path of productImages) {
     const usage = productUsages[path];
     pushImage(
@@ -316,7 +318,7 @@ export function buildReferences(ctx: DirectorContext): {
   }
 
   // Empaque (solo si el formato lo exige está en el contexto).
-  const packagingImages = ctx.product?.packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [];
+  const packagingImages = primary?.packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [];
   for (const path of packagingImages) {
     pushImage(path, 'packaging', (n) => `@image${n} is the product packaging, shown exactly as in the reference.`);
   }
@@ -562,9 +564,10 @@ export function compileSeedance(
   // Fidelidad de producto y personajes (reglas duras del inventario). La
   // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay
   // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
-  if (ctx.product) {
-    sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
-    const weight = describeProductWeight(ctx.product);
+  const primaryProduct = ctx.products?.[0];
+  if (primaryProduct) {
+    sections.push(describeProduct(primaryProduct, { fidelity: !primaryProduct.imagePaths.length }));
+    const weight = describeProductWeight(primaryProduct);
     if (weight) sections.push(weight.trim());
   }
   for (const character of ctx.characters ?? []) {

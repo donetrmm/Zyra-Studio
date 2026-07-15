@@ -37,15 +37,15 @@ export function applyReferenceSelection(
   return {
     ...ctx,
     manualRefs: true,
-    ...(ctx.product
+    ...(ctx.products
       ? {
-          product: {
-            ...ctx.product,
-            imagePaths: keep(ctx.product.imagePaths),
-            ...(ctx.product.packagingImagePaths
-              ? { packagingImagePaths: keep(ctx.product.packagingImagePaths) }
+          products: ctx.products.map((product) => ({
+            ...product,
+            imagePaths: keep(product.imagePaths),
+            ...(product.packagingImagePaths
+              ? { packagingImagePaths: keep(product.packagingImagePaths) }
               : {}),
-          },
+          })),
         }
       : {}),
     ...(ctx.characters

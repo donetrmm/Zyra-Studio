@@ -59,7 +59,7 @@ function makeItem(): ItemRow {
     duration_s: 8, aspect_ratio: '9:16', scene: null, audio: true, character_id: null, character_ids: null,
     reference_ids: null, scene_prompt: 'x', voice_tone: null, status: 'draft', sequence_id: null, scene_index: 0,
     location_id: null, storyboard_image_id: null, character_state_hint: null, character_outfit_hint: null,
-    product_id: 'p1', reference_selection: null,
+    product_id: 'p1', product_ids: null, reference_selection: null,
   };
 }
 
@@ -68,14 +68,14 @@ describe('directorContextFor — productOverride', () => {
 
   it('sin override → usa el producto de campaña (comportamiento actual)', () => {
     const dc = directorContextFor(makeItem(), null, makeCtx());
-    expect(dc.product?.name).toBe('Producto de Campaña');
-    expect(dc.product?.imagePaths).toEqual(['url/campaign']);
+    expect(dc.products?.[0]?.name).toBe('Producto de Campaña');
+    expect(dc.products?.[0]?.imagePaths).toEqual(['url/campaign']);
   });
 
   it('con override → el producto del clip pisa al de campaña', () => {
-    const dc = directorContextFor(makeItem(), null, makeCtx(), undefined, undefined, undefined, override);
-    expect(dc.product?.name).toBe('Producto del Clip');
-    expect(dc.product?.imagePaths).toEqual(['url/clip']);
-    expect(dc.product?.medium).toBe('canvas print');
+    const dc = directorContextFor(makeItem(), null, makeCtx(), undefined, undefined, undefined, [override]);
+    expect(dc.products?.[0]?.name).toBe('Producto del Clip');
+    expect(dc.products?.[0]?.imagePaths).toEqual(['url/clip']);
+    expect(dc.products?.[0]?.medium).toBe('canvas print');
   });
 });

@@ -14,7 +14,8 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
   const sections: string[] = [];
   if (ctx.scene?.fragment) sections.push(`${ctx.scene.fragment}.`);
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
-  if (ctx.product) sections.push(describeProduct(ctx.product));
+  const product = ctx.products?.[0];
+  if (product) sections.push(describeProduct(product));
   if (ctx.format) {
     const d = directionFor(ctx.format);
     const direction = [d.framing, d.pacing].filter(Boolean).join(' ');
@@ -56,6 +57,6 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
 }
 
 export function firstProductReference(ctx: DirectorContext): CompiledReference[] {
-  const path = ctx.product?.imagePaths[0];
+  const path = ctx.products?.[0]?.imagePaths[0];
   return path ? [{ storagePath: path, kind: 'image', role: 'product' }] : [];
 }

@@ -9,6 +9,8 @@ import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext
 
 export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): CompiledPrompt {
   const warnings: string[] = [];
+  // T5: paridad single — primer producto de la lista (multi real llega después).
+  const product = ctx.products?.[0];
 
   // Heurística de "un cambio por iteración": múltiples instrucciones de cambio
   // en el mismo prompt son menos fiables que iterar.
@@ -24,7 +26,7 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
     req.scenePrompt.trim().replace(/\.?$/, '.'),
     'Keep everything else exactly the same — same composition, framing, lighting, colors and proportions.',
   ];
-  if (ctx.product) {
+  if (product) {
     sections.push('The product packaging, label and logo must remain exactly as in the reference; never restyle the product.');
   }
   // Personaje: la hoja maestra se ancla como referencia para que la identidad no
@@ -44,7 +46,7 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
 
   // Referencias: producto (3) + personaje (3 master) + locación (environment).
   const references: CompiledReference[] = [];
-  for (const storagePath of ctx.product?.imagePaths.slice(0, 3) ?? []) {
+  for (const storagePath of product?.imagePaths.slice(0, 3) ?? []) {
     references.push({ storagePath, kind: 'image', role: 'product' });
   }
   for (const character of (ctx.characters ?? []).slice(0, 3)) {

@@ -84,7 +84,9 @@ export type CharacterInventory = {
 
 export type DirectorContext = {
   format?: FormatDirection;
-  product?: ProductInventory;
+  // Productos del clip, en el orden de `campaign_items.product_ids`. 1 elemento =
+  // comportamiento single clásico; 2+ = clip showcase multi-producto.
+  products?: ProductInventory[];
   // Personajes del creativo, máx 3. Orden = orden de referencias (el primero
   // es el principal). Presupuesto de ángulos: 1→2, 2→1, 3→0 (tope 9 imágenes).
   characters?: CharacterInventory[];

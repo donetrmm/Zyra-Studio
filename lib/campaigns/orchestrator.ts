@@ -70,6 +70,9 @@ export type ItemRow = {
   character_outfit_hint: string | null;
   // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (product_brief) como fallback.
   product_id: string | null;
+  // Multi-producto (spec 2026-07-15): productos ASIGNADOS a ESTE clip, en orden.
+  // null/vacío = cae a product_id (compat) y de ahí al fallback de campaña.
+  product_ids: string[] | null;
   // V3 fase 4: selección manual de referencias de ESTE clip (jsonb crudo, mismo
   // shape que campaigns.reference_selection). null/vacío = cae a la de campaña
   // (fallback/compat: el backfill de la migración 060 copió campaña → ítem).
@@ -518,7 +521,7 @@ export function directorContextFor(
   templateVideoPath?: string,
   extraImagePaths?: string[],
   location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
-  productOverride?: import('@/lib/prompt-director/types').ProductInventory,
+  productsOverride?: import('@/lib/prompt-director/types').ProductInventory[],
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
   // Vestuario (specs/v2/16): override de outfit de ESTE clip, por label.
@@ -550,28 +553,30 @@ export function directorContextFor(
     });
   return {
     format: format ? fromFormatRow(format) : undefined,
-    product: productOverride
-      ? {
-          ...productOverride,
+    products: productsOverride?.length
+      ? productsOverride.map((p) => ({
+          ...p,
           packagingImagePaths: format?.required_refs.includes('packaging')
-            ? productOverride.packagingImagePaths
+            ? p.packagingImagePaths
             : undefined,
-        }
-      : {
-          name: ctx.productName,
-          visualDetails: ctx.visualDetails,
-          palette: ctx.palette,
-          imagePaths: ctx.productImagePaths,
-          imageUsages: ctx.productImageUsages,
-          heightCm: ctx.productHeightCm,
-          widthCm: ctx.productWidthCm,
-          medium: ctx.productMedium,
-          thicknessMm: ctx.productThicknessMm,
-          weightKg: ctx.productWeightKg,
-          packagingImagePaths: format?.required_refs.includes('packaging')
-            ? ctx.packagingImagePaths
-            : undefined,
-        },
+        }))
+      : [
+          {
+            name: ctx.productName,
+            visualDetails: ctx.visualDetails,
+            palette: ctx.palette,
+            imagePaths: ctx.productImagePaths,
+            imageUsages: ctx.productImageUsages,
+            heightCm: ctx.productHeightCm,
+            widthCm: ctx.productWidthCm,
+            medium: ctx.productMedium,
+            thicknessMm: ctx.productThicknessMm,
+            weightKg: ctx.productWeightKg,
+            packagingImagePaths: format?.required_refs.includes('packaging')
+              ? ctx.packagingImagePaths
+              : undefined,
+          },
+        ],
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
     location: (location?.imagePaths.length || location?.description?.trim() || location?.scaleMap) ? location : undefined,
@@ -1154,8 +1159,8 @@ export async function enqueueBatch(params: {
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
 
-  // V3 fase 1: producto por clip (campaign_items.product_id), cacheado por id
-  // para no re-resolver el mismo producto en cada item del lote.
+  // Multi-producto por clip (campaign_items.product_ids), cacheado por id de
+  // producto individual para no re-resolver el mismo producto entre items del lote.
   const itemProductCache = new Map<string, import('@/lib/prompt-director/types').ProductInventory | null>();
 
   for (let idx = 0; idx < selected.length; idx++) {
@@ -1180,15 +1185,16 @@ export async function enqueueBatch(params: {
     const panelPath = item.storyboard_image_id ? storyboardPanels.get(item.storyboard_image_id) : undefined;
     const storyboardMode = !!panelPath;
 
-    let itemProduct: import('@/lib/prompt-director/types').ProductInventory | null = null;
-    if (item.product_id) {
-      if (!itemProductCache.has(item.product_id)) {
-        itemProductCache.set(
-          item.product_id,
-          await resolveItemProduct(supabase, workspaceId, item.product_id, campaign.include_packaging !== false),
-        );
+    // Multi-producto (spec 2026-07-15): resuelve CADA producto asignado al clip;
+    // los ids que no resuelven (borrados/otro workspace) se descartan como el cast.
+    const itemProductIds = (item.product_ids ?? []).filter(Boolean);
+    const itemProducts: import('@/lib/prompt-director/types').ProductInventory[] = [];
+    for (const pid of itemProductIds) {
+      if (!itemProductCache.has(pid)) {
+        itemProductCache.set(pid, await resolveItemProduct(supabase, workspaceId, pid, campaign.include_packaging !== false));
       }
-      itemProduct = itemProductCache.get(item.product_id) ?? null;
+      const resolved = itemProductCache.get(pid);
+      if (resolved) itemProducts.push(resolved);
     }
 
     // Por ítem (V3 fase 4): item.reference_selection gana; campaign.reference_selection
@@ -1206,7 +1212,7 @@ export async function enqueueBatch(params: {
           if (!loc) return undefined;
           return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
         })(),
-        itemProduct ?? undefined,
+        itemProducts.length ? itemProducts : undefined,
       ),
       itemRefSelection,
     );
@@ -1267,7 +1273,7 @@ export async function enqueueBatch(params: {
     // panel → derivaba). Se toma del contexto base, ANTES de onlyCharacterRefs (que lo
     // quitó del dirCtx del compile). El cast lo cita el compiler (@image1..N); producto
     // y panel se citan en extraCitation.
-    const storyboardProductRefs = useR2V ? (baseDirCtx.product?.imagePaths ?? []).slice(0, 2) : [];
+    const storyboardProductRefs = useR2V ? (baseDirCtx.products ?? []).flatMap((p) => p.imagePaths).slice(0, 2) : [];
     // P16: la música (audioRefPath) no está en el panel; se toma del contexto
     // base ANTES de onlyCharacterRefs (que lo quitó del dirCtx del compile) y se
     // re-ancla solo en beats R2V (reference2video la soporta; image2video no).

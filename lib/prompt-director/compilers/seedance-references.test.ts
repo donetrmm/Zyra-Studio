@@ -15,14 +15,14 @@ const product = {
 
 describe('buildReferences — topes automáticos (sin selección manual)', () => {
   it('producto se recorta a 3 por default', () => {
-    const { references } = buildReferences(ctxWith({ product }));
+    const { references } = buildReferences(ctxWith({ products: [product] }));
     expect(references.filter((r) => r.role === 'product')).toHaveLength(3);
   });
 });
 
 describe('buildReferences — modo manual (ctx.manualRefs)', () => {
   it('el usuario puede mandar más de 3 de producto (el ctx ya viene filtrado)', () => {
-    const { references } = buildReferences(ctxWith({ product, manualRefs: true }));
+    const { references } = buildReferences(ctxWith({ products: [product], manualRefs: true }));
     expect(references.filter((r) => r.role === 'product')).toHaveLength(5);
   });
 
@@ -44,7 +44,7 @@ describe('buildReferences — modo manual (ctx.manualRefs)', () => {
     const { references, warnings } = buildReferences(
       ctxWith({
         manualRefs: true,
-        product: { ...product, imagePaths: Array.from({ length: 12 }, (_, i) => `p/${i}.jpg`) },
+        products: [{ ...product, imagePaths: Array.from({ length: 12 }, (_, i) => `p/${i}.jpg`) }],
       }),
     );
     expect(references.filter((r) => r.kind === 'image')).toHaveLength(9);

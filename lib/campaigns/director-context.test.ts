@@ -92,7 +92,7 @@ describe('directorContextFor — productImageUsages (AM)', () => {
       language: 'es',
     };
     const dc = directorContextFor(item, null, ctx);
-    expect(dc.product?.imageUsages).toEqual({ 'ws/b.png': 'three-quarter view' });
+    expect(dc.products?.[0]?.imageUsages).toEqual({ 'ws/b.png': 'three-quarter view' });
   });
 });
 
@@ -108,8 +108,8 @@ describe('directorContextFor — dimensiones del producto', () => {
       productWidthCm: 100,
     };
     const res = directorContextFor(item, null, ctx);
-    expect(res.product?.heightCm).toBe(150);
-    expect(res.product?.widthCm).toBe(100);
+    expect(res.products?.[0]?.heightCm).toBe(150);
+    expect(res.products?.[0]?.widthCm).toBe(100);
   });
 });
 
@@ -148,16 +148,16 @@ describe('directorContextFor — medium y thicknessMm del producto', () => {
   it('directorContextFor propaga medium y thicknessMm del producto', () => {
     const ctx = { ...ctxWith(), productMedium: 'canvas print', productThicknessMm: 10 };
     const dir = directorContextFor(item, null, ctx);
-    expect(dir.product?.medium).toBe('canvas print');
-    expect(dir.product?.thicknessMm).toBe(10);
+    expect(dir.products?.[0]?.medium).toBe('canvas print');
+    expect(dir.products?.[0]?.thicknessMm).toBe(10);
   });
 });
 
 describe('directorContextFor — peso del producto', () => {
   it('propaga el peso del producto al DirectorContext', () => {
     const dir = directorContextFor(item, null, { ...ctxWith(), productWeightKg: 25 });
-    expect(dir.product?.weightKg).toBe(25);
-    expect(directorContextFor(item, null, ctxWith()).product?.weightKg).toBeUndefined();
+    expect(dir.products?.[0]?.weightKg).toBe(25);
+    expect(directorContextFor(item, null, ctxWith()).products?.[0]?.weightKg).toBeUndefined();
   });
 });
 

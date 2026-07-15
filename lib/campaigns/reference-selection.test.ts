@@ -10,14 +10,16 @@ import {
 import { compilePanel } from './storyboard';
 
 const ctx: DirectorContext = {
-  product: {
-    name: 'Cuadro',
-    visualDetails: 'lienzo',
-    palette: [],
-    imagePaths: ['p/1.jpg', 'p/2.jpg', 'p/3.jpg', 'p/4.jpg'],
-    imageUsages: { 'p/1.jpg': 'frontal' },
-    packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg'],
-  },
+  products: [
+    {
+      name: 'Cuadro',
+      visualDetails: 'lienzo',
+      palette: [],
+      imagePaths: ['p/1.jpg', 'p/2.jpg', 'p/3.jpg', 'p/4.jpg'],
+      imageUsages: { 'p/1.jpg': 'frontal' },
+      packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg'],
+    },
+  ],
   characters: [
     {
       name: 'Ana',
@@ -63,8 +65,8 @@ describe('applyReferenceSelection', () => {
       include: ['p/2.jpg', 'p/4.jpg', 'c/ana-a2.jpg', 'l/sala.jpg'],
     });
     expect(out.manualRefs).toBe(true);
-    expect(out.product?.imagePaths).toEqual(['p/2.jpg', 'p/4.jpg']);
-    expect(out.product?.packagingImagePaths).toEqual([]);
+    expect(out.products?.[0]?.imagePaths).toEqual(['p/2.jpg', 'p/4.jpg']);
+    expect(out.products?.[0]?.packagingImagePaths).toEqual([]);
     expect(out.characters?.[0].angleImagePaths).toEqual(['c/ana-a2.jpg']);
     expect(out.location?.imagePaths).toEqual(['l/sala.jpg']);
     expect(out.location?.scaleMap).toBeUndefined();
@@ -85,7 +87,7 @@ describe('applyReferenceSelection', () => {
 
   it('paths stale (brand kit editado) filtran a no-op sin romper', () => {
     const out = applyReferenceSelection(ctx, { include: ['ya-no-existe.jpg'] });
-    expect(out.product?.imagePaths).toEqual([]);
+    expect(out.products?.[0]?.imagePaths).toEqual([]);
     expect(out.characters?.[0].masterImagePath).toBe('c/ana-master.jpg');
   });
 
@@ -99,14 +101,14 @@ describe('applyReferenceSelection', () => {
     const minimal: DirectorContext = { language: 'es' };
     const out = applyReferenceSelection(minimal, { include: ['a'] });
     expect(out.manualRefs).toBe(true);
-    expect(out.product).toBeUndefined();
+    expect(out.products).toBeUndefined();
   });
 });
 
 describe('buildReferencePool', () => {
   it('agrupa por categoría con labels, masters locked y default del recorte automático', () => {
     const pool = buildReferencePool({
-      product: { name: 'Cuadro', imagePaths: ctx.product!.imagePaths, imageUsages: ctx.product!.imageUsages },
+      product: { name: 'Cuadro', imagePaths: ctx.products![0].imagePaths, imageUsages: ctx.products![0].imageUsages },
       packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg', 'pk/3.jpg'],
       characters: [
         { name: 'Ana', masterImagePath: 'c/ana-master.jpg', angleImagePaths: ['c/ana-a1.jpg', 'c/ana-a2.jpg', 'c/ana-a3.jpg'] },

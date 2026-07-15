@@ -28,7 +28,7 @@ describe('beatsNeedingPanel', () => {
 describe('compilePanel', () => {
   it('compila un prompt FLUX con el scene_prompt y el producto del contexto', () => {
     const beat = { id: 'a', scene_prompt: 'the couple smiles in the living room', aspect_ratio: '9:16', storyboard_image_id: null };
-    const res = compilePanel(beat, { product: { name: 'Canvas', imagePaths: ['ws/prod.png'] } }, 'flux-2');
+    const res = compilePanel(beat, { products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }] }, 'flux-2');
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toContain('the couple smiles');
@@ -93,7 +93,7 @@ describe('humanRealismDirective', () => {
   });
 
   it('no inyecta nada si no hay personajes', () => {
-    expect(humanRealismDirective({ product: { name: 'Canvas', imagePaths: [] } }, 'a hand places the canvas')).toBe('');
+    expect(humanRealismDirective({ products: [{ name: 'Canvas', imagePaths: [] }] }, 'a hand places the canvas')).toBe('');
   });
 
   it('se omite cuando el registro del formato es estilizado', () => {
@@ -122,11 +122,13 @@ describe('humanRealismDirective', () => {
 describe('chainedProductFidelity', () => {
   it('ancla el producto por texto con sus visualDetails (la cadena descarta la imagen)', () => {
     const d = chainedProductFidelity({
-      product: {
-        name: 'Family Portrait Canvas Print',
-        visualDetails: 'a canvas print of two women and one man, deep greens and greys',
-        imagePaths: ['ws/canvas.png'],
-      },
+      products: [
+        {
+          name: 'Family Portrait Canvas Print',
+          visualDetails: 'a canvas print of two women and one man, deep greens and greys',
+          imagePaths: ['ws/canvas.png'],
+        },
+      ],
     });
     expect(d).toContain('Family Portrait Canvas Print');
     expect(d).toContain('two women and one man');
@@ -161,7 +163,7 @@ describe('chainedCharacterFidelity', () => {
 
   it('devuelve vacío si no hay personajes', () => {
     expect(chainedCharacterFidelity({ characters: [] })).toBe('');
-    expect(chainedCharacterFidelity({ product: { name: 'X', imagePaths: [] } })).toBe('');
+    expect(chainedCharacterFidelity({ products: [{ name: 'X', imagePaths: [] }] })).toBe('');
   });
 });
 
@@ -176,11 +178,13 @@ describe('compilePanelEdit', () => {
 
 describe('compileRefinePrompt', () => {
   const ctx = {
-    product: {
-      name: 'Family Portrait Canvas Print',
-      visualDetails: 'a canvas print of two women and one man, deep greens and greys',
-      imagePaths: ['ws/canvas.png'],
-    },
+    products: [
+      {
+        name: 'Family Portrait Canvas Print',
+        visualDetails: 'a canvas print of two women and one man, deep greens and greys',
+        imagePaths: ['ws/canvas.png'],
+      },
+    ],
     characters: [
       { name: 'María', description: 'mujer de pelo castaño rizado, chaqueta roja', masterImagePath: 'ws/maria.png' },
     ],
@@ -252,7 +256,7 @@ describe('compileRefinePrompt', () => {
 
   it('el refinado sandwich no recibe la directiva de encuadre (solo escala y peso)', () => {
     const p = compileRefinePrompt('haz el marco más delgado', {
-      product: { name: 'Canvas', imagePaths: [], heightCm: 150, weightKg: 25 },
+      products: [{ name: 'Canvas', imagePaths: [], heightCm: 150, weightKg: 25 }],
     });
     expect(p).not.toContain('pulling the camera back');
     expect(p).toContain('150 cm');
@@ -282,7 +286,7 @@ describe('compileRefinePrompt', () => {
 describe('sceneStyleDirective', () => {
   it('aplica también sin personajes: el entorno delata el render igual que las caras', () => {
     const d = sceneStyleDirective(
-      { product: { name: 'Canvas', imagePaths: [] } },
+      { products: [{ name: 'Canvas', imagePaths: [] }] },
       'the framed canvas on a wooden dresser, warm lamp light',
     );
     expect(d).toMatch(/real photograph/);
@@ -293,7 +297,7 @@ describe('sceneStyleDirective', () => {
   it('se omite en creativos estilizados (registro o scenePrompt)', () => {
     expect(sceneStyleDirective({}, 'a cartoon version of the room')).toBe('');
     expect(
-      sceneStyleDirective({ format: { register: '3d render, stylized' } as never, product: undefined }, 'x'),
+      sceneStyleDirective({ format: { register: '3d render, stylized' } as never, products: undefined }, 'x'),
     ).toBe('');
   });
 });
@@ -391,7 +395,7 @@ describe('expressionDirective', () => {
   });
 
   it('sin personajes no emite nada', () => {
-    expect(expressionDirective({ product: { name: 'Canvas', imagePaths: [] } }, 'a hand places the canvas')).toBe('');
+    expect(expressionDirective({ products: [{ name: 'Canvas', imagePaths: [] }] }, 'a hand places the canvas')).toBe('');
   });
 
   it('se omite con perfil no realista (el estilo manda su propia expresividad)', () => {

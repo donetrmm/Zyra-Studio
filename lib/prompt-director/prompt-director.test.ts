@@ -13,7 +13,7 @@ describe('compileFlux ancla al personaje', () => {
     const result = compile(
       { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person holds the product in a kitchen' },
       {
-        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
         characters: [
           { name: 'Pedro', description: 'man with a thick mustache wearing a linen shirt', masterImagePath: 'ws/pedro.png' },
         ],
@@ -106,7 +106,7 @@ describe('compileNanoBanana ancla al personaje', () => {
     const result = compile(
       { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'make the lighting warmer' },
       {
-        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
         characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
       },
     );
@@ -125,7 +125,7 @@ describe('los compilers anclan la locación (environment)', () => {
     const result = compile(
       { modelSlug: 'flux-2-pro-preview', scenePrompt: 'a person stands in the place' },
       {
-        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
         location: { name: 'Living', description: 'a bright modern living room', imagePaths: ['ws/living.png'] },
       },
     );
@@ -175,12 +175,14 @@ const elIcono: FormatDirection = fromFormatRow({
 function fullContext(): DirectorContext {
   return {
     format: vozCercana,
-    product: {
-      name: 'Lumen Sparkling Water',
-      visualDetails: 'slim aluminum can, matte teal finish, white wordmark',
-      palette: ['teal', 'white'],
-      imagePaths: ['references/ws1/product-front.png', 'references/ws1/product-side.png'],
-    },
+    products: [
+      {
+        name: 'Lumen Sparkling Water',
+        visualDetails: 'slim aluminum can, matte teal finish, white wordmark',
+        palette: ['teal', 'white'],
+        imagePaths: ['references/ws1/product-front.png', 'references/ws1/product-side.png'],
+      },
+    ],
     characters: [{
       name: 'Maya',
       description: 'creator with curly dark hair, relaxed linen shirt, warm easygoing delivery',
@@ -234,7 +236,7 @@ describe('compile seedance', () => {
     // reales (evita una persona espuria).
     const productOnly = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins on marble and stops label-forward' },
-      { format: elIcono, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+      { format: elIcono, products: [{ name: 'Lumen', imagePaths: ['p1.png'] }] },
     );
     expect(productOnly.ok).toBe(true);
     if (productOnly.ok) expect(productOnly.compiled.prompt).toMatch(/No real, identifiable human faces/);
@@ -250,7 +252,7 @@ describe('compile seedance', () => {
     // Sin Cast pero con habla EN cámara (lip-sync) → tampoco se prohíben rostros.
     const speaking = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter looks to camera and says one honest line' },
-      { format: vozCercana, product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+      { format: vozCercana, products: [{ name: 'Lumen', imagePaths: ['p1.png'] }] },
     );
     expect(speaking.ok).toBe(true);
     if (speaking.ok) expect(speaking.compiled.prompt).not.toMatch(/No real, identifiable human faces/);
@@ -486,7 +488,7 @@ describe('compile seedance', () => {
         durationS: 4,
         aspectRatio: '9:16',
       },
-      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(700) } },
+      { ...ctx, products: [{ ...(ctx.products?.[0] ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(700) }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -512,7 +514,7 @@ describe('compile seedance', () => {
       },
       // ~5.5k de detalle de producto: andamiaje grande pero bajo el techo (ajustado
       // en Fase 2 al sumar SPEAKER_LIVELINESS al andamiaje de clips hablados).
-      { ...ctx, product: { ...(ctx.product ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(370) } },
+      { ...ctx, products: [{ ...(ctx.products?.[0] ?? { name: 'Canvas', imagePaths: [] }), visualDetails: 'ornate detail, '.repeat(370) }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -585,8 +587,8 @@ describe('compile seedance', () => {
     // Total sin recorte: 10 imágenes + 1 video + 1 audio = 12 archivos
     // El tope de 9 imágenes debe recortar las extras (quedan 9 img); total ≤ 12.
     const ctx = fullContext();
-    ctx.product!.imagePaths = ['p1.png', 'p2.png', 'p3.png'];
-    ctx.product!.packagingImagePaths = ['pack1.png', 'pack2.png'];
+    ctx.products![0].imagePaths = ['p1.png', 'p2.png', 'p3.png'];
+    ctx.products![0].packagingImagePaths = ['pack1.png', 'pack2.png'];
     ctx.characters = [{
       name: 'Maya',
       description: 'curly dark hair, relaxed linen shirt',
@@ -656,8 +658,8 @@ describe('compile seedance', () => {
 
   it('extraImagePaths entran como environment al final y el tope de 9 imágenes recorta con warning', () => {
     const ctx = fullContext();
-    ctx.product!.imagePaths = ['p1.png', 'p2.png', 'p3.png'];
-    ctx.product!.packagingImagePaths = ['k1.png', 'k2.png'];
+    ctx.products![0].imagePaths = ['p1.png', 'p2.png', 'p3.png'];
+    ctx.products![0].packagingImagePaths = ['k1.png', 'k2.png'];
     ctx.format = { ...ctx.format!, requiredRefs: ['product', 'character', 'packaging'] };
     ctx.characters = [{ name: 'Maya', description: 'd', masterImagePath: 'm.png', angleImagePaths: ['ma1.png', 'ma2.png'] }];
     ctx.extraImagePaths = ['x1.png', 'x2.png'];
@@ -714,7 +716,7 @@ describe('compile seedance', () => {
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She opens the can' },
       {
         format: { ...vozCercana, requiredRefs: ['product', 'character', 'packaging'] },
-        product: { name: 'Canvas', imagePaths: ['p1.png', 'p2.png', 'p3.png'], packagingImagePaths: ['k1.png', 'k2.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['p1.png', 'p2.png', 'p3.png'], packagingImagePaths: ['k1.png', 'k2.png'] }],
         characters: [{ name: 'Maya', description: 'd', masterImagePath: 'm.png', angleImagePaths: ['ma1.png', 'ma2.png'] }],
         location: { name: 'Calle', description: 'd', imagePaths: [], scaleMap: { path: 'map.png' } },
         extraImagePaths: ['x1.png'],
@@ -736,7 +738,7 @@ describe('compile seedance', () => {
         modelSlug: 'bytedance/seedance-2.0/reference-to-video',
         scenePrompt: 'The presenter is a person with auburn hair. She presents the can',
       },
-      { format: vozCercana, product: fullContext().product },
+      { format: vozCercana, products: fullContext().products },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -746,7 +748,7 @@ describe('compile seedance', () => {
   it('producto sin imágenes: fidelidad por atributos, sin apuntar a imágenes inexistentes (#4)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/text-to-video', scenePrompt: 'The can rests on a marble counter' },
-      { product: { name: 'Lumen', visualDetails: 'slim teal aluminum can', imagePaths: [] } },
+      { products: [{ name: 'Lumen', visualDetails: 'slim teal aluminum can', imagePaths: [] }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -774,7 +776,7 @@ describe('compile seedance', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The presenter holds the can to camera' },
       {
-        product: fullContext().product,
+        products: fullContext().products,
         characters: [{ name: 'Nora', description: 'auburn hair, denim jacket, calm delivery', masterImagePath: '' }],
       },
     );
@@ -809,7 +811,7 @@ describe('compile seedance', () => {
       'Medium close-up, eye-level — Grecia holds up a framed picture, looking at the camera. Close-up — Grecia holds her smartphone showing a chat. Medium shot — the framed picture hangs on a wall. Close-up — Grecia smiles warmly at the camera.';
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: merged, durationS: 15 },
-      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
+      { products: [{ name: 'Lumen', imagePaths: ['p.png'] }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -823,7 +825,7 @@ describe('compile seedance', () => {
     const result = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the couple smiles at the camera' },
       {
-        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
         characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
         location: { name: 'Living', description: 'a bright modern living room with a gray wall', imagePaths: ['ws/living.png'] },
         extraImagePaths: ['ws/extra.png'],
@@ -844,7 +846,7 @@ describe('compile seedance', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product rests on a shelf' },
       {
-        product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
         // Locación SIN imagen: fallback soportado (el schema permite master opcional).
         location: { name: 'Tienda', description: 'a warm boutique interior with wooden shelves', imagePaths: [] },
       },
@@ -861,7 +863,7 @@ describe('compile seedance', () => {
     const action = 'She walks to the table. She picks up the product. She smiles at the camera.';
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: action, durationS: 12 },
-      { product: { name: 'Lumen', imagePaths: ['p.png'] } },
+      { products: [{ name: 'Lumen', imagePaths: ['p.png'] }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -936,21 +938,21 @@ describe('cinematografía por defecto', () => {
     compile({ modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt }, ctx);
 
   it('UGC/handheld → luz natural y foco profundo', () => {
-    const res = run({ format: fmtNoLight('casual, conversacional UGC'), product });
+    const res = run({ format: fmtNoLight('casual, conversacional UGC'), products: [product] });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toMatch(/natural available light/);
   });
 
   it('hero/cinematic → key light controlada y DOF corto', () => {
-    const res = run({ format: fmtNoLight('cinematográfico, épico'), product }, 'The can sits on a table');
+    const res = run({ format: fmtNoLight('cinematográfico, épico'), products: [product] }, 'The can sits on a table');
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toMatch(/controlled key light/);
   });
 
   it('formato estilizado no recibe default de luz', () => {
-    const res = run({ format: elIcono, product }, 'The can floats in a surreal void');
+    const res = run({ format: elIcono, products: [product] }, 'The can floats in a surreal void');
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
@@ -964,21 +966,21 @@ describe('cinematografía por defecto', () => {
   });
 
   it('no aplica cuando hay referencia de look/entorno (el modelo extrae la luz de ahí)', () => {
-    const res = run({ format: fmtNoLight('casual UGC', ''), product, extraImagePaths: ['style-ref.png'] });
+    const res = run({ format: fmtNoLight('casual UGC', ''), products: [product], extraImagePaths: ['style-ref.png'] });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
   });
 
   it('perfil declarado no-realista (animado) no recibe el default de cinematografía fotográfica', () => {
-    const res = run({ format: fmtNoLight('registro normal'), product, style: { slug: 'animado' } });
+    const res = run({ format: fmtNoLight('registro normal'), products: [product], style: { slug: 'animado' } });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).not.toMatch(/Cinematography:/);
   });
 
   it('sin perfil, registro normal → sí recibe el default de cinematografía (regresión)', () => {
-    const res = run({ format: fmtNoLight('registro normal'), product });
+    const res = run({ format: fmtNoLight('registro normal'), products: [product] });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toMatch(/Cinematography:/);
@@ -998,7 +1000,7 @@ describe('dirección de audio por registro', () => {
   it('ASMR/susurro → foley sin música (#2)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can opens slowly' },
-      { format: fmt('ASMR, susurro, macro'), product },
+      { format: fmt('ASMR, susurro, macro'), products: [product] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1008,7 +1010,7 @@ describe('dirección de audio por registro', () => {
   it('beat-driven → cama musical al ritmo (#2)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins' },
-      { format: elIcono, product },
+      { format: elIcono, products: [product] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1018,7 +1020,7 @@ describe('dirección de audio por registro', () => {
   it('registro neutro → diegético sin música (#2)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can on a table' },
-      { format: fmt('documental sobrio'), product },
+      { format: fmt('documental sobrio'), products: [product] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1028,7 +1030,7 @@ describe('dirección de audio por registro', () => {
   it('voz con registro bold → tono punchy además de la cadencia base (#3)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'A presenter says one line to camera' },
-      { format: elIcono, product },
+      { format: elIcono, products: [product] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1175,7 +1177,7 @@ describe('format-director', () => {
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The can spins and stops label-forward' },
       {
         format: elIcono,
-        product: { name: 'Lumen', imagePaths: ['p1.png'] },
+        products: [{ name: 'Lumen', imagePaths: ['p1.png'] }],
       },
     );
     expect(res.ok).toBe(true);
@@ -1214,7 +1216,7 @@ describe('los 9 formatos Zyra compilan con Seedance', () => {
     });
     const ctx = fullContext();
     ctx.format = format;
-    ctx.product!.packagingImagePaths = ['references/ws1/pack.png'];
+    ctx.products![0].packagingImagePaths = ['references/ws1/pack.png'];
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'She lifts the can and smiles', durationS: d },
       ctx,
@@ -1233,7 +1235,7 @@ describe('compile flux', () => {
   it('mapea aspect ratio a width/height y agrega iluminación default', () => {
     const res = compile(
       { modelSlug: 'flux-2-pro', scenePrompt: 'The teal can on a marble counter with citrus slices', aspectRatio: '16:9' },
-      { product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+      { products: [{ name: 'Lumen', imagePaths: ['p1.png'] }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1247,7 +1249,7 @@ describe('compile nano-banana (edición)', () => {
   it('agrega cláusula de preservación y fidelidad de producto', () => {
     const res = compile(
       { modelSlug: 'gemini-3-pro-image-preview', scenePrompt: 'Replace the background with a beach at sunset' },
-      { product: { name: 'Lumen', imagePaths: ['p1.png'] } },
+      { products: [{ name: 'Lumen', imagePaths: ['p1.png'] }] },
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -1316,7 +1318,7 @@ describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
     });
     const ctx: DirectorContext = {
       format,
-      product: { name: 'Canvas', imagePaths: ['ws/prod.png'] },
+      products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }],
       location: { name: 'Living', description: 'a bright living room', imagePaths: ['ws/living.png'] },
       characters: [
         {
@@ -1345,7 +1347,7 @@ describe('onlyCharacterRefs (prompt para image2video con cast)', () => {
   it('sin personaje → sin referencias de imagen ni @image', () => {
     const result = compile(
       { modelSlug: 'bytedance/seedance-2.0/image-to-video', scenePrompt: 'producto sobre la mesa' },
-      onlyCharacterRefs({ product: { name: 'Canvas', imagePaths: ['ws/prod.png'] } }),
+      onlyCharacterRefs({ products: [{ name: 'Canvas', imagePaths: ['ws/prod.png'] }] }),
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -1363,7 +1365,7 @@ describe('P20 — directiva de actuación (Seedance)', () => {
     const r = compile(
       { modelSlug: 'seedance-2', scenePrompt: 'Pedro lifts the product and nods to camera' },
       {
-        product,
+        products: [product],
         characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
       },
     );
@@ -1375,7 +1377,7 @@ describe('P20 — directiva de actuación (Seedance)', () => {
   it('no inyecta actuación en clip de puro producto', () => {
     const r = compile(
       { modelSlug: 'seedance-2', scenePrompt: 'the can rotates slowly on a table' },
-      { product },
+      { products: [product] },
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -1387,7 +1389,7 @@ describe('P20 — directiva de actuación (Seedance)', () => {
     const r = compile(
       { modelSlug: 'seedance-2', scenePrompt: 'Pedro screams in rage at the camera' },
       {
-        product,
+        products: [product],
         characters: [{ name: 'Pedro', description: 'man', masterImagePath: 'ws/pedro.png' }],
       },
     );
@@ -1403,7 +1405,7 @@ describe('registro festivo en español (acting + audio)', () => {
       { modelSlug: 'seedance-2', scenePrompt: 'Pedro hangs the canvas, steps back and claps twice', durationS: 6 },
       {
         format: { slug: 'fiesta', name: 'Fiesta', register: 'alegre/festivo', cameraStyle: 'dinamico', pacing: 'medio', requiredRefs: [], defaultDurationS: 8, defaultAudio: true },
-        product: { name: 'Canvas', imagePaths: ['ws/c.png'] },
+        products: [{ name: 'Canvas', imagePaths: ['ws/c.png'] }],
         characters: [{ name: 'Pedro', description: 'man with mustache', masterImagePath: 'ws/pedro.png' }],
       },
     );
@@ -1420,7 +1422,7 @@ describe('AM: imageUsages en el compiler de Seedance', () => {
   it('cita la imagen de producto con su uso cuando hay imageUsages (AM)', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product on a table' } as CompileRequest,
-      { product: { name: 'Serum', imagePaths: ['ws/a.png', 'ws/b.png'], imageUsages: { 'ws/b.png': 'three-quarter view' } } } as DirectorContext,
+      { products: [{ name: 'Serum', imagePaths: ['ws/a.png', 'ws/b.png'], imageUsages: { 'ws/b.png': 'three-quarter view' } }] } as DirectorContext,
     );
     expect(res.ok).toBe(true);
     if (res.ok) {
@@ -1432,7 +1434,7 @@ describe('AM: imageUsages en el compiler de Seedance', () => {
   it('una sola imagen de producto: sin hint multi-vista', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'the product on a table' } as CompileRequest,
-      { product: { name: 'Serum', imagePaths: ['ws/a.png'] } } as DirectorContext,
+      { products: [{ name: 'Serum', imagePaths: ['ws/a.png'] }] } as DirectorContext,
     );
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.compiled.prompt).not.toMatch(/SAME single product/i);
@@ -1453,7 +1455,7 @@ describe('P20 — directiva de actuación (Veo/Kling vía video-prose)', () => {
   it('no inyecta en clip de puro producto (Veo)', () => {
     const r = compile(
       { modelSlug: 'veo-3', scenePrompt: 'the bottle sits still on a shelf' },
-      { product: { name: 'X', imagePaths: ['ws/x.png'] } },
+      { products: [{ name: 'X', imagePaths: ['ws/x.png'] }] },
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -1547,7 +1549,7 @@ describe('integración personaje-locación y peso (spec 2026-07-02)', () => {
   it('video: peso del producto ancla la interacción', () => {
     const r = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'he moves the piece to the wall', durationS: 5 },
-      { product: { name: 'Canvas', imagePaths: [], weightKg: 25 } },
+      { products: [{ name: 'Canvas', imagePaths: [], weightKg: 25 }] },
     );
     expect(r.ok && r.compiled.prompt).toContain('visible effort');
   });

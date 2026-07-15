@@ -19,10 +19,12 @@ const DIMENSIONS: Record<string, { width: number; height: number }> = {
 
 export function compileFlux(req: CompileRequest, ctx: DirectorContext): CompiledPrompt {
   const sections: string[] = [];
+  // T5: paridad single — primer producto de la lista (multi real llega después).
+  const product = ctx.products?.[0];
 
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
   if (ctx.scene?.fragment) sections.push(`Setting: ${ctx.scene.fragment}.`);
-  if (ctx.product) sections.push(describeProduct(ctx.product));
+  if (product) sections.push(describeProduct(product));
   // Personajes: descripción al prompt + (abajo) la hoja maestra como referencia,
   // para que FLUX mantenga la IDENTIDAD entre imágenes. Sin esto el storyboard
   // "perdía el hilo del personaje": cada panel inventaba una cara distinta del puro
@@ -77,7 +79,7 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   // Referencias: producto (hasta 4) + hoja maestra de cada personaje (hasta 3).
   // El personaje ancla la identidad; va después del producto. Tope 8 (FLUX 2).
   const references: CompiledReference[] = [];
-  const productPaths = ctx.product?.imagePaths.slice(0, 4) ?? [];
+  const productPaths = product?.imagePaths.slice(0, 4) ?? [];
   for (const storagePath of productPaths) {
     references.push({ storagePath, kind: 'image', role: 'product' });
   }
@@ -85,7 +87,7 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   // canto/perfil viaja como píxeles sin función y el grosor/construcción que
   // fija se ignora. El compiler de video ya cita usos por @imageN; aquí no hay
   // numeración, así que se enumeran en bloque.
-  const usageClause = productUsageClause(productPaths, ctx.product?.imageUsages);
+  const usageClause = productUsageClause(productPaths, product?.imageUsages);
   if (usageClause) sections.push(usageClause.trim());
   for (const character of (ctx.characters ?? []).slice(0, 3)) {
     if (character.masterImagePath) {
