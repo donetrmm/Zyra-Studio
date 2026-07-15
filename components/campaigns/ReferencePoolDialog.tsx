@@ -471,9 +471,18 @@ export function ReferencePoolDialog({
                   Al regenerar o refinar, la identidad se sostiene con estas cláusulas — se editan
                   en su fuente, no aquí: cambiarlas por envío haría derivar el siguiente panel.
                 </p>
-                {texts.product && (
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">{texts.product}</p>
+                {texts.products.map((p) => (
+                  <div key={p.name} className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      {/* Encabezado con el nombre solo cuando hay 2+ productos (showcase
+                          multi-producto) — con 1 solo, la ficha se ve igual que antes. */}
+                      {texts.products.length > 1 && (
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+                          {p.name}
+                        </p>
+                      )}
+                      <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">{p.text}</p>
+                    </div>
                     <Button asChild variant="ghost" size="sm" className="shrink-0">
                       <Link href="/app/brand-kits">
                         <PencilLine className="size-3" aria-hidden />
@@ -481,7 +490,7 @@ export function ReferencePoolDialog({
                       </Link>
                     </Button>
                   </div>
-                )}
+                ))}
                 {texts.characters.map((c) => (
                   <div key={c.name} className="flex items-start justify-between gap-2">
                     <p className="min-w-0 break-words text-[12px] leading-snug text-foreground/80">{c.text}</p>

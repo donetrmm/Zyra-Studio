@@ -3312,7 +3312,7 @@ export async function getItemReferencePoolAction(itemId: string): Promise<
   const { data: item } = await supabase
     .from('campaign_items')
     .select(
-      'id, campaign_id, product_id, location_id, character_id, character_ids, reference_ids, reference_selection, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
+      'id, campaign_id, product_ids, location_id, character_id, character_ids, reference_ids, reference_selection, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
     )
     .eq('id', itemId)
     .single();
@@ -3343,7 +3343,7 @@ export async function getItemReferencePoolAction(itemId: string): Promise<
       character_outfit_map: camp.character_outfit_map ?? null,
     },
     {
-      product_id: item.product_id as string | null,
+      product_ids: item.product_ids as string[] | null,
       location_id: item.location_id as string | null,
       character_id: item.character_id as string | null,
       character_ids: item.character_ids as string[] | null,
@@ -3376,7 +3376,7 @@ export async function setItemReferenceSelectionAction(
   const { data: item } = await supabase
     .from('campaign_items')
     .select(
-      'id, campaign_id, status, product_id, location_id, character_id, character_ids, reference_ids, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
+      'id, campaign_id, status, product_ids, location_id, character_id, character_ids, reference_ids, campaigns!inner(workspace_id, brand_kit_id, product_brief, language, include_packaging, music_ref_id, character_outfit_map)',
     )
     .eq('id', itemId)
     .single();
@@ -3413,7 +3413,7 @@ export async function setItemReferenceSelectionAction(
         character_outfit_map: camp.character_outfit_map ?? null,
       },
       {
-        product_id: item.product_id as string | null,
+        product_ids: item.product_ids as string[] | null,
         location_id: item.location_id as string | null,
         character_id: item.character_id as string | null,
         character_ids: item.character_ids as string[] | null,

@@ -8,7 +8,8 @@
 // un post-filtro las desalinea todas.
 import type { DirectorContext } from '@/lib/prompt-director';
 import type { CharacterInventory, ProductInventory } from '@/lib/prompt-director/types';
-import { describeCharacter, describeProduct } from '@/lib/prompt-director/inventory';
+import { describeCharacter, describeProduct, describeProductCompact } from '@/lib/prompt-director/inventory';
+import { perProductImageCap } from './ref-budget';
 
 export type ReferenceSelection = { include: string[] };
 
@@ -108,18 +109,21 @@ export const CATEGORY_APPLIES: Record<ReferencePoolCategory, { video: boolean; p
 // editan en el Brand Kit / Cast / Locaciones, no por envío (bifurcar la verdad
 // hace derivar el siguiente panel).
 export type ReferencePoolTexts = {
-  product: string | null;
+  products: { name: string; text: string }[];
   characters: { name: string; text: string }[];
   locations: { name: string; description: string | null }[];
 };
 
 export function buildReferencePoolTexts(input: {
-  product: ProductInventory | null;
+  products: ProductInventory[];
   characters: CharacterInventory[];
   locations: { name: string; description: string | null }[];
 }): ReferencePoolTexts {
   return {
-    product: input.product ? describeProduct(input.product, { fidelity: false }) : null,
+    products: input.products.map((p) => ({
+      name: p.name,
+      text: input.products.length > 1 ? describeProductCompact(p) : describeProduct(p, { fidelity: false }),
+    })),
     characters: input.characters.map((c) => ({
       name: c.name,
       text: describeCharacter(c, { fidelity: false }).text,
@@ -143,20 +147,26 @@ export type ReferencePoolEntry = {
 };
 
 export type ReferencePoolInput = {
-  product: { name?: string; imagePaths: string[]; imageUsages?: Record<string, string> };
-  packagingImagePaths: string[];
+  products: {
+    name?: string;
+    imagePaths: string[];
+    imageUsages?: Record<string, string>;
+    packagingImagePaths: string[];
+  }[];
   characters: { name: string; masterImagePath: string; angleImagePaths?: string[] }[];
   locations: { name: string; imagePaths: string[]; scaleMap?: { path: string } }[];
   extraImagePaths: string[];
 };
 
-// Topes del recorte automático (mirror de buildReferences en modo auto).
-const AUTO_PRODUCT_CAP = 3;
+// Topes del recorte automático (mirror de buildReferences en modo auto). El de
+// producto ahora depende de cuántos productos trae el clip (Task 3, ref-budget.ts):
+// perProductImageCap. AUTO_PRODUCT_CAP queda borrado — lo sustituye ese import.
 const AUTO_PACKAGING_CAP = 2;
 const AUTO_ANGLES_BEST_CASE = 2;
 
 // Aplana el pool de candidatos en entradas categorizadas para el dialog.
-// Deduplica por path (dos locaciones pueden compartir imagen): gana la primera.
+// Deduplica por path (dos productos/locaciones pueden compartir imagen): gana
+// la primera — por eso el orden en input.products importa para el empate.
 export function buildReferencePool(input: ReferencePoolInput): ReferencePoolEntry[] {
   const entries: ReferencePoolEntry[] = [];
   const seen = new Set<string>();
@@ -166,20 +176,33 @@ export function buildReferencePool(input: ReferencePoolInput): ReferencePoolEntr
     entries.push(e);
   };
 
-  const productName = input.product.name?.trim() || 'Producto';
-  input.product.imagePaths.forEach((path, i) => {
-    const usage = input.product.imageUsages?.[path];
-    push({
-      path,
-      category: 'product',
-      label: usage ? `${productName} — ${usage}` : productName,
-      autoIncluded: i < AUTO_PRODUCT_CAP,
-      ...(usage ? { usage } : {}),
+  // Multi-producto (spec 2026-07-15): el tope por imagen baja con más productos
+  // (menos vistas de cada uno = menos confusión de conteo en Seedance) y el
+  // empaque se omite del recorte automático salvo con un solo producto — mismo
+  // criterio que estimateItemImageRefs, así el badge y este pool no divergen.
+  const multi = input.products.length > 1;
+  const productCap = perProductImageCap(input.products.length);
+  for (const product of input.products) {
+    const productName = product.name?.trim() || 'Producto';
+    product.imagePaths.forEach((path, i) => {
+      const usage = product.imageUsages?.[path];
+      push({
+        path,
+        category: 'product',
+        label: usage ? `${productName} — ${usage}` : productName,
+        autoIncluded: i < productCap,
+        ...(usage ? { usage } : {}),
+      });
     });
-  });
-  input.packagingImagePaths.forEach((path, i) => {
-    push({ path, category: 'packaging', label: 'Empaque', autoIncluded: i < AUTO_PACKAGING_CAP });
-  });
+    product.packagingImagePaths.forEach((path, i) => {
+      push({
+        path,
+        category: 'packaging',
+        label: multi ? `Empaque — ${productName}` : 'Empaque',
+        autoIncluded: !multi && i < AUTO_PACKAGING_CAP,
+      });
+    });
+  }
   for (const c of input.characters) {
     push({
       path: c.masterImagePath,

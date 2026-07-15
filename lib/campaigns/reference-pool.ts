@@ -4,6 +4,7 @@ import 'server-only';
 // orquestador, y los aplana con buildReferencePool (puro). Lo consumen las
 // server actions del selector (get/set).
 import { createClient } from '@/lib/supabase/server';
+import type { ProductInventory } from '@/lib/prompt-director/types';
 import {
   loadCampaignContext,
   resolveLocations,
@@ -70,17 +71,23 @@ export async function loadReferencePool(
     .filter((c): c is NonNullable<typeof c> => !!c);
 
   return assemblePool({
-    productName: ctx.productName,
-    visualDetails: ctx.visualDetails,
-    palette: ctx.palette,
-    productImagePaths: ctx.productImagePaths,
-    productImageUsages: ctx.productImageUsages,
-    packagingImagePaths: ctx.packagingImagePaths,
-    productMedium: ctx.productMedium,
-    productThicknessMm: ctx.productThicknessMm,
-    productHeightCm: ctx.productHeightCm,
-    productWidthCm: ctx.productWidthCm,
-    productWeightKg: ctx.productWeightKg,
+    // Array de 1 — paridad: la campaña sigue exponiendo el único producto legacy
+    // de loadCampaignContext (multi-producto es por-clip, no por-campaña).
+    products: [
+      {
+        name: ctx.productName,
+        visualDetails: ctx.visualDetails,
+        palette: ctx.palette,
+        imagePaths: ctx.productImagePaths,
+        imageUsages: ctx.productImageUsages,
+        packagingImagePaths: ctx.packagingImagePaths,
+        medium: ctx.productMedium,
+        thicknessMm: ctx.productThicknessMm,
+        heightCm: ctx.productHeightCm,
+        widthCm: ctx.productWidthCm,
+        weightKg: ctx.productWeightKg,
+      },
+    ],
     characters: usedCharacters.map((c) => ({
       name: c.name,
       description: c.description,
@@ -98,29 +105,33 @@ export async function loadReferencePool(
 // loadItemReferencePool (clip) no diverjan en cómo aplanan el pool. Los
 // resolvers (resolvePaths/resolveLocations/resolveItemProduct) siguen viviendo
 // en orchestrator.ts; esto solo evita duplicar el ensamblaje final.
-function assemblePool(input: {
-  productName: string;
+type PoolProductInput = {
+  name: string;
   visualDetails?: string;
   palette?: string[];
-  productImagePaths: string[];
-  productImageUsages?: Record<string, string>;
+  imagePaths: string[];
+  imageUsages?: Record<string, string>;
   packagingImagePaths: string[];
-  productMedium?: string;
-  productThicknessMm?: number;
-  productHeightCm?: number;
-  productWidthCm?: number;
-  productWeightKg?: number;
+  medium?: string;
+  thicknessMm?: number;
+  heightCm?: number;
+  widthCm?: number;
+  weightKg?: number;
+};
+
+function assemblePool(input: {
+  products: PoolProductInput[];
   characters: { name: string; description: string; masterImagePath: string; angleImagePaths: string[] }[];
   locations: Awaited<ReturnType<typeof resolveLocations>>;
   extraImagePaths: string[];
 }): { entries: ReferencePoolEntry[]; texts: ReferencePoolTexts } {
   const entries = buildReferencePool({
-    product: {
-      name: input.productName,
-      imagePaths: input.productImagePaths,
-      imageUsages: input.productImageUsages,
-    },
-    packagingImagePaths: input.packagingImagePaths,
+    products: input.products.map((p) => ({
+      name: p.name,
+      imagePaths: p.imagePaths,
+      imageUsages: p.imageUsages,
+      packagingImagePaths: p.packagingImagePaths,
+    })),
     characters: input.characters.map((c) => ({
       name: c.name,
       masterImagePath: c.masterImagePath,
@@ -135,19 +146,17 @@ function assemblePool(input: {
   });
 
   const texts = buildReferencePoolTexts({
-    product: input.productName
-      ? {
-          name: input.productName,
-          visualDetails: input.visualDetails,
-          palette: input.palette,
-          imagePaths: input.productImagePaths,
-          medium: input.productMedium,
-          thicknessMm: input.productThicknessMm,
-          heightCm: input.productHeightCm,
-          widthCm: input.productWidthCm,
-          weightKg: input.productWeightKg,
-        }
-      : null,
+    products: input.products.map((p) => ({
+      name: p.name,
+      visualDetails: p.visualDetails,
+      palette: p.palette,
+      imagePaths: p.imagePaths,
+      medium: p.medium,
+      thicknessMm: p.thicknessMm,
+      heightCm: p.heightCm,
+      widthCm: p.widthCm,
+      weightKg: p.weightKg,
+    })),
     characters: input.characters.map((c) => ({
       name: c.name,
       description: c.description,
@@ -159,12 +168,15 @@ function assemblePool(input: {
   return { entries, texts };
 }
 
-// Carga el pool de candidatos SCOPEADO AL ÍTEM (V3 fase 4): producto/cast/
-// locación/extras de ESTE clip, no un agregado de toda la campaña. Espeja
-// loadReferencePool pero cada categoría lee solo lo que trae el ítem:
-// - Producto: item.product_id vía resolveItemProduct; si no hay asignación (o
-//   el id ya no resuelve — producto borrado/de otro workspace) cae al producto
-//   de campaña (mismo fallback que directorContextFor en la generación real).
+// Carga el pool de candidatos SCOPEADO AL ÍTEM (V3 fase 4, multi-producto
+// 2026-07-15): producto(s)/cast/locación/extras de ESTE clip, no un agregado de
+// toda la campaña. Espeja loadReferencePool pero cada categoría lee solo lo que
+// trae el ítem:
+// - Producto: item.product_ids (orden preservado) vía resolveItemProduct, uno
+//   por uno; los ids que no resuelven (borrados/de otro workspace) se descartan,
+//   igual que el cast. Si el resultado queda VACÍO (sin asignación o ningún id
+//   resolvió) cae al producto de campaña — array de 1, mismo fallback que
+//   directorContextFor cuando el clip no trae productOverride.
 // - Cast: solo el cast del ítem (item.character_ids + el character_id legacy que
 //   itemCharacterIds honra, igual que loadReferencePool; máx 3, cap compartido).
 // - Locación: solo item.location_id (una, no todas las de la campaña).
@@ -174,7 +186,7 @@ export async function loadItemReferencePool(
   workspaceId: string,
   campaign: ReferencePoolCampaignRow,
   item: {
-    product_id: string | null;
+    product_ids: string[] | null;
     location_id: string | null;
     character_id: string | null;
     character_ids: string[] | null;
@@ -195,53 +207,49 @@ export async function loadItemReferencePool(
   const extraRefIds = [...new Set(item.reference_ids ?? [])];
   const extraPaths = await resolvePaths(supabase, workspaceId, extraRefIds);
 
-  const itemProduct = item.product_id
-    ? await resolveItemProduct(supabase, workspaceId, item.product_id, campaign.include_packaging !== false)
-    : null;
+  const itemProductIds = (item.product_ids ?? []).filter(Boolean);
+  const itemProducts: ProductInventory[] = [];
+  for (const pid of itemProductIds) {
+    const resolved = await resolveItemProduct(supabase, workspaceId, pid, campaign.include_packaging !== false);
+    if (resolved) itemProducts.push(resolved);
+  }
 
-  // Fallback al producto de campaña: mismos campos que ctx expone (ya resueltos
-  // por loadCampaignContext arriba), idéntico al bloque `product` de
-  // directorContextFor cuando el clip no trae productOverride.
-  const product = itemProduct
-    ? {
-        name: itemProduct.name,
-        visualDetails: itemProduct.visualDetails,
-        palette: itemProduct.palette,
-        imagePaths: itemProduct.imagePaths,
-        imageUsages: itemProduct.imageUsages,
-        packagingImagePaths: itemProduct.packagingImagePaths ?? [],
-        medium: itemProduct.medium,
-        thicknessMm: itemProduct.thicknessMm,
-        heightCm: itemProduct.heightCm,
-        widthCm: itemProduct.widthCm,
-        weightKg: itemProduct.weightKg,
-      }
-    : {
-        name: ctx.productName,
-        visualDetails: ctx.visualDetails,
-        palette: ctx.palette,
-        imagePaths: ctx.productImagePaths,
-        imageUsages: ctx.productImageUsages,
-        packagingImagePaths: ctx.packagingImagePaths,
-        medium: ctx.productMedium,
-        thicknessMm: ctx.productThicknessMm,
-        heightCm: ctx.productHeightCm,
-        widthCm: ctx.productWidthCm,
-        weightKg: ctx.productWeightKg,
-      };
+  // Fallback al producto de campaña cuando ningún id resolvió: mismos campos
+  // que ctx expone (ya resueltos por loadCampaignContext arriba), idéntico al
+  // bloque `product` de directorContextFor cuando el clip no trae productOverride.
+  // Array de 1 — paridad con el comportamiento single de hoy.
+  const products: PoolProductInput[] = itemProducts.length
+    ? itemProducts.map((p) => ({
+        name: p.name,
+        visualDetails: p.visualDetails,
+        palette: p.palette,
+        imagePaths: p.imagePaths,
+        imageUsages: p.imageUsages,
+        packagingImagePaths: p.packagingImagePaths ?? [],
+        medium: p.medium,
+        thicknessMm: p.thicknessMm,
+        heightCm: p.heightCm,
+        widthCm: p.widthCm,
+        weightKg: p.weightKg,
+      }))
+    : [
+        {
+          name: ctx.productName,
+          visualDetails: ctx.visualDetails,
+          palette: ctx.palette,
+          imagePaths: ctx.productImagePaths,
+          imageUsages: ctx.productImageUsages,
+          packagingImagePaths: ctx.packagingImagePaths,
+          medium: ctx.productMedium,
+          thicknessMm: ctx.productThicknessMm,
+          heightCm: ctx.productHeightCm,
+          widthCm: ctx.productWidthCm,
+          weightKg: ctx.productWeightKg,
+        },
+      ];
 
   return assemblePool({
-    productName: product.name,
-    visualDetails: product.visualDetails,
-    palette: product.palette,
-    productImagePaths: product.imagePaths,
-    productImageUsages: product.imageUsages,
-    packagingImagePaths: product.packagingImagePaths,
-    productMedium: product.medium,
-    productThicknessMm: product.thicknessMm,
-    productHeightCm: product.heightCm,
-    productWidthCm: product.widthCm,
-    productWeightKg: product.weightKg,
+    products,
     characters: usedCharacters.map((c) => ({
       name: c.name,
       description: c.description,
