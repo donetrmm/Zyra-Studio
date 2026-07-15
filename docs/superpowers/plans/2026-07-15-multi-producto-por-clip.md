@@ -1141,8 +1141,9 @@ git commit -m "feat(estudio): paneles de storyboard leen product_ids; limpieza d
 
 - [ ] **Step 5: Cierre de rama** — usar superpowers:finishing-a-development-branch. Recordatorios de deploy (orden estricto):
   1. Aplicar migración 070 vía MCP (dev y prod) ANTES del push/merge.
-  2. Smoke del usuario (API real): Anuncio #15 — asignar todos los productos a los clips 11 y 12 desde el multi-select, verificar badge si el pool estimado pasa de 9, generar y revisar el conteo de productos en el video.
-  3. Si Seedance duplica/fusiona productos pese al anti-conteo: el fallback es guion (montaje entre clips), no más código — documentado en el spec.
+  2. Tras el deploy del código, RE-EJECUTAR el backfill de la 070 (es idempotente): cierra la ventana en la que el código viejo siguió escribiendo solo product_id (esos clips se verían asignados en la UI por el compat pero el gating del servidor los bloquearía).
+  3. Smoke del usuario (API real): Anuncio #15 — asignar todos los productos a los clips 11 y 12 desde el multi-select, verificar badge si el pool estimado pasa de 9, generar y revisar el conteo de productos en el video.
+  4. Si Seedance duplica/fusiona productos pese al anti-conteo: el fallback es guion (montaje entre clips), no más código — documentado en el spec.
 
 ---
 
