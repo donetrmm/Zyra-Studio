@@ -77,8 +77,9 @@ type CampaignItemRow = {
   scene_index: number | null;
   location_id: string | null;
   status: string;
-  // V3 fase 1: producto de ESTE clip. null = usa el producto de campaña (fallback).
-  product_id: string | null;
+  // Multi-producto (spec 2026-07-15): productos asignados a ESTE clip, en orden.
+  // null/vacío = usa el producto de campaña (fallback).
+  product_ids: string[] | null;
   // V3 fase 4: selección manual de referencias de ESTE clip. null/vacío = cae a
   // la de campaña (fallback/compat: backfill de la migración 060).
   reference_selection: unknown;
@@ -109,7 +110,7 @@ async function loadItemAndCampaign(
   // Literal estático para que el tipo generado por Supabase sea correcto.
   const { data: rawItem, error: itemErr } = await supabase
     .from('campaign_items')
-    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status, product_id, reference_selection')
+    .select('id, campaign_id, scene_prompt, aspect_ratio, character_id, character_ids, storyboard_image_id, storyboard_generation_id, format_id, template_id, duration_s, scene, audio, reference_ids, sequence_id, scene_index, location_id, status, product_ids, reference_selection')
     .eq('id', itemId)
     .single();
   if (itemErr || !rawItem) return null;
@@ -281,27 +282,27 @@ export async function generatePanelAction(
     character_outfit_hint: null,
     location_id: item.location_id,
     storyboard_image_id: null,
-    // T12: ItemRow ya no lleva el singular product_id (era un campo muerto; nada
-    // en directorContextFor/orchestrator lo leía). Este flujo resuelve el producto
-    // vía item.product_id (CampaignItemRow local, abajo) y lo pasa como
-    // productsOverride explícito; product_ids del clip NO se lee en este flujo
-    // todavía — este panel (Nano/FLUX, distinto del panel del Estudio creativo)
-    // sigue mono-producto, gap señalado en el reporte de T12 para decisión.
-    product_ids: null,
+    product_ids: item.product_ids,
     reference_selection: item.reference_selection,
   };
 
-  // V3 fase 1: producto de ESTE clip (fallback a ctx si no hay product_id o no resuelve).
-  const itemProduct = item.product_id
-    ? await resolveItemProduct(supabase, workspace.id, item.product_id, true)
-    : null;
+  // Multi-producto (spec 2026-07-15): productos de ESTE clip, en el orden de
+  // product_ids; los ids que no resuelven (borrados/otro workspace) se descartan,
+  // mismo criterio que enqueueBatch. Vacío → productsOverride undefined y
+  // directorContextFor cae al producto de campaña (ctx), como antes.
+  const itemProductIds = (item.product_ids ?? []).filter(Boolean);
+  const itemProducts: import('@/lib/prompt-director/types').ProductInventory[] = [];
+  for (const pid of itemProductIds) {
+    const resolved = await resolveItemProduct(supabase, workspace.id, pid, true);
+    if (resolved) itemProducts.push(resolved);
+  }
 
   // La selección manual de referencias (054, por ítem desde V3 fase 4) también
   // filtra las refs del panel (producto/locación; los masters del cast nunca se
   // filtran). item.reference_selection gana; campaign.reference_selection es
   // fallback/compat.
   const dirCtx = applyReferenceSelection(
-    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProduct ? [itemProduct] : undefined),
+    directorContextFor(itemRow, null, ctx, undefined, undefined, dirLocation, itemProducts.length ? itemProducts : undefined),
     normalizeReferenceSelection(itemRow.reference_selection ?? campaign.reference_selection ?? null),
   );
 

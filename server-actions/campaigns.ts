@@ -30,6 +30,7 @@ import {
   itemCharacterIds,
   loadCampaignContext,
   resolveCharacterMasterPaths,
+  resolveItemProduct,
   resolveLocations,
 } from '@/lib/campaigns/orchestrator';
 import { selectBatchItems } from '@/lib/campaigns/batch-selection';
@@ -2948,6 +2949,18 @@ export async function previewItemPromptAction(itemId: string): Promise<
     .map((id) => ctx.characters.get(id))
     .filter((c): c is NonNullable<ReturnType<typeof ctx.characters.get>> => !!c);
 
+  // Multi-producto (spec 2026-07-15): el preview compila con los productos de
+  // ESTE clip (item.product_ids, orden preservado; ids que no resuelven se
+  // descartan), igual que enqueueBatch — sin esto el preview mostraría el
+  // producto genérico de campaña aunque el clip tenga asignación propia.
+  // Vacío → fallback de campaña (ctx), comportamiento previo.
+  const previewProductIds = ((item.product_ids as string[] | null) ?? []).filter(Boolean);
+  const previewProducts: import('@/lib/prompt-director/types').ProductInventory[] = [];
+  for (const pid of previewProductIds) {
+    const resolved = await resolveItemProduct(supabase, workspace.id, pid, camp.include_packaging !== false);
+    if (resolved) previewProducts.push(resolved);
+  }
+
   const result = compile(
     {
       modelSlug: item.model_slug as string,
@@ -2959,15 +2972,21 @@ export async function previewItemPromptAction(itemId: string): Promise<
     },
     {
       format,
-      products: [
-        {
-          name: ctx.productName,
-          visualDetails: ctx.visualDetails,
-          palette: ctx.palette,
-          imagePaths: ctx.productImagePaths,
-          packagingImagePaths: format?.requiredRefs.includes('packaging') ? ctx.packagingImagePaths : undefined,
-        },
-      ],
+      // Mismo gating de empaque por formato que directorContextFor.
+      products: previewProducts.length
+        ? previewProducts.map((p) => ({
+            ...p,
+            packagingImagePaths: format?.requiredRefs.includes('packaging') ? p.packagingImagePaths : undefined,
+          }))
+        : [
+            {
+              name: ctx.productName,
+              visualDetails: ctx.visualDetails,
+              palette: ctx.palette,
+              imagePaths: ctx.productImagePaths,
+              packagingImagePaths: format?.requiredRefs.includes('packaging') ? ctx.packagingImagePaths : undefined,
+            },
+          ],
       characters: characters.length ? characters : undefined,
       scene: item.scene ? { fragment: item.scene as string } : undefined,
       extraImagePaths: extraImagePaths.length ? extraImagePaths : undefined,
