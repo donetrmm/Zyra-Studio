@@ -471,8 +471,8 @@ export function ReferencePoolDialog({
                   Al regenerar o refinar, la identidad se sostiene con estas cláusulas — se editan
                   en su fuente, no aquí: cambiarlas por envío haría derivar el siguiente panel.
                 </p>
-                {texts.products.map((p) => (
-                  <div key={p.name} className="flex items-start justify-between gap-2">
+                {texts.products.map((p, i) => (
+                  <div key={`${p.name}-${i}`} className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       {/* Encabezado con el nombre solo cuando hay 2+ productos (showcase
                           multi-producto) — con 1 solo, la ficha se ve igual que antes. */}
