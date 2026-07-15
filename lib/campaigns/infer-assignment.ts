@@ -27,6 +27,8 @@ export type InferResult = {
   confidence: 'high' | 'low' | 'none';
 };
 
+export type InferProductsResult = { productIds: string[]; confidence: 'high' | 'none' };
+
 // Separador de palabras: cualquier corrida de caracteres que no sean letra o
 // número (Unicode-aware; normalizeText ya quitó diacríticos, pero el texto
 // puede seguir teniendo ñ, guiones, puntuación, etc.).
@@ -150,4 +152,41 @@ function candidateMatches(
   }
 
   return false;
+}
+
+// Frase colectiva ("todos los productos", "toda la colección"): asigna el pool
+// completo. El texto ya viene por normalizeText (minúsculas, sin diacríticos).
+const COLLECTIVE_RE =
+  /\btod(?:o|a|os|as)\s+(?:el\s+|la\s+|los\s+|las\s+|nuestros\s+|nuestras\s+|sus\s+)?(?:productos|cuadros|piezas|lienzos|coleccion|linea|catalogo|obras)\b|\b(?:coleccion|linea)\s+completa\b|\bcatalogo\s+completo\b/;
+
+// Numeral + sustantivo genérico de producto ("los tres cuadros"): si el número
+// coincide con el tamaño del pool, es el pool completo.
+const NUMERAL_RE = /\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|\d+)\s+(?:productos|cuadros|piezas|lienzos|obras)\b/;
+const NUMBER_WORDS: Record<string, number> = {
+  dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
+};
+
+/**
+ * Inferencia MULTI (spec 2026-07-15): un clip puede llevar varios productos.
+ * Nombrar k productos asigna los k (el "ambiguo" del singular desaparece);
+ * las frases colectivas y los numerales que calzan con el pool asignan todo.
+ */
+export function inferProductsForClip(clipText: string, pool: ProductCandidate[]): InferProductsResult {
+  if (pool.length === 0) return { productIds: [], confidence: 'none' };
+  if (pool.length === 1) return { productIds: [pool[0].id], confidence: 'high' };
+
+  const normalizedClip = normalizeText(clipText);
+  if (COLLECTIVE_RE.test(normalizedClip)) {
+    return { productIds: pool.map((p) => p.id), confidence: 'high' };
+  }
+  const numeral = NUMERAL_RE.exec(normalizedClip);
+  if (numeral) {
+    const n = NUMBER_WORDS[numeral[1]] ?? parseInt(numeral[1], 10);
+    if (n === pool.length) return { productIds: pool.map((p) => p.id), confidence: 'high' };
+  }
+
+  const clipTokens = new Set(tokenize(normalizedClip));
+  const matches = pool.filter((candidate) => candidateMatches(candidate, normalizedClip, clipTokens));
+  if (matches.length === 0) return { productIds: [], confidence: 'none' };
+  return { productIds: matches.map((m) => m.id), confidence: 'high' };
 }
