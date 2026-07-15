@@ -35,10 +35,12 @@ export type StudioItem = {
   // (labels de character_outfits del/de los personaje(s)). null = usa el
   // outfit de campaña (character_outfit_map) o el cuerpo completo base.
   characterOutfitHint: string | null;
-  // V3 multi-producto (Fase 3): producto del pool de la campaña asignado a este
-  // clip. null = sin asignar (el orchestrator cae a product_brief; el tablero
-  // pide asignación cuando la campaña tiene marca+pool).
-  productId: string | null;
+  // Multi-producto (spec 2026-07-15): subconjunto del pool asignado al clip.
+  // [] = sin asignar. Compat: filas pre-070 solo traen product_id.
+  productIds: string[];
+  // Nº de referencias extra (reference_ids) del clip — insumo del estimado de
+  // presupuesto del badge; el contenido no se proyecta.
+  extraRefCount: number;
   // V3 multi-producto (Fase 4): true si el clip tiene una selección MANUAL de
   // referencias propia (reference_selection jsonb no nulo). false = usa el
   // recorte automático del pool scopeado al clip. Solo indica presencia —
@@ -85,7 +87,13 @@ export function toStudioItem(
     locationId: (row.location_id as string | null) ?? null,
     characterStateHint: (row.character_state_hint as string | null) ?? null,
     characterOutfitHint: (row.character_outfit_hint as string | null) ?? null,
-    productId: (row.product_id as string | null) ?? null,
+    productIds:
+      ((row.product_ids as string[] | null) ?? []).length > 0
+        ? (row.product_ids as string[])
+        : row.product_id
+          ? [row.product_id as string]
+          : [],
+    extraRefCount: ((row.reference_ids as string[] | null) ?? []).length,
     hasManualRefs: (row.reference_selection as unknown) != null,
   };
 }

@@ -54,7 +54,7 @@ export default async function CampaignDetailRoute({
         // scene_index las pone en su número, created_at estabiliza los sueltos.
         supabase
           .from('campaign_items')
-          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint, character_outfit_hint, product_id, reference_selection')
+          .select('id, format_id, template_id, duration_s, aspect_ratio, scene, scene_prompt, scene_summary, caption, character_id, character_ids, scheduled_date, status, warnings, generation_id, is_winner, sequence_id, scene_index, sequence_label, location_id, character_state_hint, character_outfit_hint, product_id, product_ids, reference_ids, reference_selection')
           .eq('campaign_id', id)
           .order('scheduled_date')
           .order('sequence_id')
@@ -87,7 +87,7 @@ export default async function CampaignDetailRoute({
         // (campaign_products.product_id → products.id, belongs-to).
         supabase
           .from('campaign_products')
-          .select('products(id, name, product_image_ids)')
+          .select('products(id, name, product_image_ids, packaging_image_ids)')
           .eq('campaign_id', id),
       ]);
 
@@ -138,11 +138,21 @@ export default async function CampaignDetailRoute({
     // El embed es un belongs-to (campaign_products.product_id → products.id);
     // sin Database genérico en el cliente, TS lo infiere (mal) como array — se
     // corrige con el cast por unknown, mismo patrón que generatePlanAction.
-    type ProductPoolEmbed = { id: string; name: string; product_image_ids: string[] | null };
+    type ProductPoolEmbed = {
+      id: string;
+      name: string;
+      product_image_ids: string[] | null;
+      packaging_image_ids: string[] | null;
+    };
     const productPool: StudioProductPoolEntry[] = (poolRows ?? [])
       .map((r) => (r as unknown as { products: ProductPoolEmbed | null }).products)
       .filter((p): p is ProductPoolEmbed => !!p)
-      .map((p) => ({ id: p.id, name: p.name, imageCount: (p.product_image_ids ?? []).length }));
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        imageCount: (p.product_image_ids ?? []).length,
+        packagingImageCount: (p.packaging_image_ids ?? []).length,
+      }));
 
     // R12: pricing para estimar costos en cliente (finales de video, pack). [] si falla
     // -> los controles caen a su etiqueta sin costo (no rompe la generación).
