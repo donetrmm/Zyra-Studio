@@ -79,7 +79,8 @@ export async function loadPanelAsset(
     const { data: productRows } = await supabase
       .from('products')
       .select('id, product_image_ids, packaging_image_ids')
-      .in('id', productIds);
+      .in('id', productIds)
+      .eq('workspace_id', workspaceId);
     for (const pid of productIds) {
       const product = (productRows ?? []).find((r) => r.id === pid);
       if (!product) continue;
