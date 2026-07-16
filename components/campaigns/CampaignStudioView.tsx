@@ -52,6 +52,7 @@ import {
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
+import { MASTER_PROMPT_MAX } from '@/lib/schemas/ingest';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
 import { estimateItemImageRefs } from '@/lib/campaigns/ref-budget';
@@ -618,7 +619,7 @@ export function CampaignStudioView({
                 onChange={(e) => setReprocessIdea(e.target.value)}
                 disabled={reprocessing}
                 rows={6}
-                maxLength={6000}
+                maxLength={MASTER_PROMPT_MAX}
                 placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
                 className="max-h-56 min-h-24 overflow-y-auto text-xs"
               />
