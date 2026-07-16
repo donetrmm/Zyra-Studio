@@ -33,10 +33,25 @@ describe('matchIdeas', () => {
     expect(res.matches).toHaveLength(1);
     expect(res.matches[0].formatId).toBe('f1');
     expect(res.matches[0].customFormat).toBeNull();
-    // Regresión: el cap de maxOutputTokens (32768) protege contra el JSON
-    // truncado que caía en mix/sin_match cuando el guion se acercaba al límite.
-    expect(gatewayTextMock.mock.calls[0][0].maxOutputTokens).toBe(32768);
+    // Regresión: el cap de 32768 para el JSON protege contra el truncado que
+    // caía en mix/sin_match cuando el guion se acercaba al límite. Los thinking
+    // tokens se cuentan DENTRO de maxOutputTokens, así que el budget del
+    // thinking va sumado y ese margen de 32768 queda intacto.
+    expect(gatewayTextMock.mock.calls[0][0].maxOutputTokens).toBe(32768 + 8192);
+    expect(gatewayTextMock.mock.calls[0][0].thinkingBudget).toBe(8192);
     expect(gatewayTextMock.mock.calls[0][0].temperature).toBe(0.2);
+  });
+
+  // Bug Anuncio #15 V2/V3 (2026-07-16): un guion rotulado clip por clip salía
+  // como N creativos sueltos en vez de UNA secuencia, porque el modelo leía cada
+  // "### Clip N" como una idea independiente. Medido sobre el guion real, 5
+  // corridas por variante: la regla SOLA 0/5, el thinking SOLO 0/5, ambos 5/5.
+  // Por eso los dos se afirman juntos: quitar cualquiera reabre el bug.
+  it('el system fija la frontera del anuncio: un guion de clips es UN match con scenes', () => {
+    const s = buildMatcherSystemPrompt({}).replace(/\s+/g, ' ');
+    expect(s).toContain('QUÉ ES UNA IDEA');
+    expect(s).toContain('UN SOLO anuncio');
+    expect(s).toContain('NUNCA un match por clip');
   });
 
   it('propone formato custom cuando no encaja', async () => {
