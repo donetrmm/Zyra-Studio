@@ -32,8 +32,8 @@ export function compileNanoBanana(req: CompileRequest, ctx: DirectorContext): Co
   } else if (products.length > 1) {
     // Multi: ficha compacta por producto + anti-conteo (mismo criterio que Seedance,
     // spec multi-producto 2026-07-15).
-    for (const p of products) sections.push(describeProductCompact(p));
-    sections.push(multiProductCountClause(products.map((p) => p.name)));
+    for (const [pi, p] of products.entries()) sections.push(describeProductCompact(p, pi, products.length));
+    sections.push(multiProductCountClause(products.length));
   }
   // Personaje: la hoja maestra se ancla como referencia para que la identidad no
   // derive (el storyboard la genera/edita con Nano Banana por su fidelidad de ref).

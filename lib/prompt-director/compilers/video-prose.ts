@@ -21,8 +21,8 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
     // Multi: ficha compacta por producto + anti-conteo (mismo criterio que Seedance,
     // spec multi-producto 2026-07-15). Sin esto, N fichas completas de
     // describeProduct saturarían la prosa.
-    for (const product of products) sections.push(describeProductCompact(product));
-    sections.push(multiProductCountClause(products.map((p) => p.name)));
+    for (const [pi, product] of products.entries()) sections.push(describeProductCompact(product, pi, products.length));
+    sections.push(multiProductCountClause(products.length));
   }
   if (ctx.format) {
     const d = directionFor(ctx.format);

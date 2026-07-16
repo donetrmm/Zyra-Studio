@@ -311,9 +311,14 @@ export function stagingPlannerBlock(product?: PlannerProductFacts): string {
 // completas de describeProduct saturarían el prompt. Solo hechos declarados +
 // un ancla de fidelidad corta; el arbitraje largo y el staging proporcional
 // son de clips single-producto.
-export function describeProductCompact(product: ProductInventory): string {
+// Los productos se identifican por ORDINAL ("Product 1 of 4"), NUNCA por su
+// nombre: Seedance renderiza como texto en pantalla las palabras que lee, y
+// los nombres propios enumerados salían escritos sobre los cuadros (bug
+// observado en Anuncio #15 clips 11-12). El single-path nunca incluyó el
+// nombre (describeProduct con medium lo omite) — este es su espejo.
+export function describeProductCompact(product: ProductInventory, index: number, total: number): string {
   const parts: string[] = [
-    product.medium ? `Product: ${product.name}, a ${product.medium}` : `Product: ${product.name}`,
+    product.medium ? `Product ${index + 1} of ${total}: a ${product.medium}` : `Product ${index + 1} of ${total}`,
   ];
   if (product.visualDetails) {
     parts.push(product.medium ? `displaying this printed image: ${product.visualDetails}` : product.visualDetails);
@@ -327,10 +332,12 @@ export function describeProductCompact(product: ProductInventory): string {
 
 // Mitigación anti-conteo (la razón por la que multi-producto se excluyó en el
 // spec V3 y se revierte en el de 2026-07-15): Seedance tiende a duplicar o
-// fusionar productos en tomas con varios. Conteo exacto + enumeración.
-export function multiProductCountClause(names: string[]): string {
+// fusionar productos en tomas con varios. Conteo exacto SIN nombres (mismo
+// motivo anti-texto que describeProductCompact); las fichas ordinales aportan
+// la distinción.
+export function multiProductCountClause(count: number): string {
   return (
-    `The scene contains exactly ${names.length} distinct products: ${names.join(', ')} — ` +
+    `The scene contains exactly ${count} distinct products — ` +
     `render each product exactly once, at its true relative size; ` +
     `do not duplicate, merge or invent additional products.`
   );

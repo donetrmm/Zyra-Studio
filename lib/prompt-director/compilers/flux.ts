@@ -29,8 +29,8 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
   } else if (products.length > 1) {
     // Multi: ficha compacta por producto + anti-conteo (mismo criterio que
     // Seedance, spec multi-producto 2026-07-15).
-    for (const p of products) sections.push(describeProductCompact(p));
-    sections.push(multiProductCountClause(products.map((p) => p.name)));
+    for (const [pi, p] of products.entries()) sections.push(describeProductCompact(p, pi, products.length));
+    sections.push(multiProductCountClause(products.length));
   }
   // Personajes: descripción al prompt + (abajo) la hoja maestra como referencia,
   // para que FLUX mantenga la IDENTIDAD entre imágenes. Sin esto el storyboard

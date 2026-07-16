@@ -1607,7 +1607,7 @@ describe('compileSeedance multi-producto', () => {
     { name: 'Retrato de Pareja', imagePaths: ['ws/retrato-1.png'], visualDetails: 'couple portrait' },
   ];
 
-  it('citas nombradas por producto y cap de 2 imágenes con 2 productos', () => {
+  it('citas por ordinal (nunca el nombre: el modelo lo escribe en pantalla) y cap de 2 imágenes con 2 productos', () => {
     const res = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
       { products: twoProducts },
@@ -1617,24 +1617,32 @@ describe('compileSeedance multi-producto', () => {
     const refs = res.compiled.references.filter((r) => r.role === 'product').map((r) => r.storagePath);
     // 2+1, no 3+1: el cap por producto con 2 productos es 2 imágenes.
     expect(refs).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/retrato-1.png']);
-    expect(res.compiled.prompt).toContain('is the product "Canvas Familiar"');
-    expect(res.compiled.prompt).toContain('is the product "Retrato de Pareja"');
+    expect(res.compiled.prompt).toContain('is product 1 of 2');
+    expect(res.compiled.prompt).toContain('is product 2 of 2');
+    // Anti-texto (bug Anuncio #15 clips 11-12): los nombres propios enumerados
+    // salían RENDERIZADOS como letras en el video. El prompt no debe llevarlos.
+    expect(res.compiled.prompt).not.toContain('Canvas Familiar');
+    expect(res.compiled.prompt).not.toContain('Retrato de Pareja');
   });
 
-  it('cláusula anti-conteo presente con 2+ y ausente con 1', () => {
+  it('cláusula anti-conteo presente UNA sola vez con 2+ y ausente con 1', () => {
     const two = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'Both products sit on the table' },
       { products: twoProducts },
     );
     expect(two.ok).toBe(true);
-    if (two.ok) expect(two.compiled.prompt).toContain('exactly 2 distinct products');
+    if (two.ok) {
+      expect(two.compiled.prompt).toContain('exactly 2 distinct products');
+      // Antes se emitía en refs Y en descripción: doble carnada de texto.
+      expect(two.compiled.prompt.split('distinct products').length - 1).toBe(1);
+    }
 
     const one = compile(
       { modelSlug: 'bytedance/seedance-2.0/reference-to-video', scenePrompt: 'The product sits on the table' },
       { products: [twoProducts[0]] },
     );
     expect(one.ok).toBe(true);
-    if (one.ok) expect(one.compiled.prompt).not.toContain('distinct products:');
+    if (one.ok) expect(one.compiled.prompt).not.toContain('distinct products');
   });
 
   it('la línea SAME single product se emite POR producto con 2+ vistas, nunca global', () => {
@@ -1644,10 +1652,10 @@ describe('compileSeedance multi-producto', () => {
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.compiled.prompt).toContain('the SAME single product ("Canvas Familiar")');
-    // Retrato de Pareja solo tiene 1 vista referenciada (cap=2 pero solo trae 1
+    expect(res.compiled.prompt).toContain('the SAME single product (product 1 of 2)');
+    // El producto 2 solo tiene 1 vista referenciada (cap=2 pero solo trae 1
     // imagen): no debe emitir su propia línea SAME, y mucho menos una global.
-    expect(res.compiled.prompt).not.toContain('the SAME single product ("Retrato de Pareja")');
+    expect(res.compiled.prompt).not.toContain('the SAME single product (product 2 of 2)');
   });
 
   it('multi: descripciones compactas, sin ficha completa ni peso; empaque omitido', () => {
@@ -1699,8 +1707,11 @@ describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)'
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.compiled.prompt).toContain('exactly 2 distinct products');
-    expect(res.compiled.prompt).toContain('Product: Canvas Familiar');
-    expect(res.compiled.prompt).toContain('Product: Retrato de Pareja');
+    expect(res.compiled.prompt).toContain('Product 1 of 2');
+    expect(res.compiled.prompt).toContain('Product 2 of 2');
+    // Anti-texto: sin nombres propios en el prompt multi.
+    expect(res.compiled.prompt).not.toContain('Canvas Familiar');
+    expect(res.compiled.prompt).not.toContain('Retrato de Pareja');
   });
 
   it('video-prose (Kling) multi: la referencia sigue siendo solo 1 imagen del primer producto (sin cambio, Veo/Kling solo aceptan una)', () => {
@@ -1720,7 +1731,7 @@ describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)'
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.compiled.prompt).not.toContain('distinct products:');
+    expect(res.compiled.prompt).not.toContain('distinct products');
     expect(res.compiled.prompt).toContain('Product: Canvas Familiar, family portrait');
   });
 
@@ -1734,7 +1745,8 @@ describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)'
     const productRefs = res.compiled.references.filter((r) => r.role === 'product');
     expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/retrato-1.png']);
     expect(res.compiled.prompt).toContain('exactly 2 distinct products');
-    expect(res.compiled.prompt).toContain('Product: Canvas Familiar');
+    expect(res.compiled.prompt).toContain('Product 1 of 2');
+    expect(res.compiled.prompt).not.toContain('Canvas Familiar');
   });
 
   it('flux multi: productUsageClause recibe el merge de usages de todos los productos', () => {
@@ -1762,7 +1774,7 @@ describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)'
     if (!res.ok) return;
     const productRefs = res.compiled.references.filter((r) => r.role === 'product');
     expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png']);
-    expect(res.compiled.prompt).not.toContain('distinct products:');
+    expect(res.compiled.prompt).not.toContain('distinct products');
   });
 
   it('nano-banana multi: 1 imagen por producto y anti-conteo en el prompt', () => {
@@ -1787,6 +1799,6 @@ describe('compilers secundarios multi-producto (video-prose, nano-banana, flux)'
     if (!res.ok) return;
     const productRefs = res.compiled.references.filter((r) => r.role === 'product');
     expect(productRefs.map((r) => r.storagePath)).toEqual(['ws/canvas-1.png', 'ws/canvas-2.png', 'ws/canvas-3.png']);
-    expect(res.compiled.prompt).not.toContain('distinct products:');
+    expect(res.compiled.prompt).not.toContain('distinct products');
   });
 });

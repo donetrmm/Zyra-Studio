@@ -300,13 +300,15 @@ export function buildReferences(ctx: DirectorContext): {
   // silenciaba el warning de recorte).
   const products = ctx.products ?? [];
   const productCap = manual ? Infinity : perProductImageCap(products.length);
-  for (const product of products) {
+  for (const [pi, product] of products.entries()) {
     const productImages = product.imagePaths.slice(0, productCap);
     const usages = product.imageUsages ?? {};
     const nums: number[] = [];
-    // En multi la cita nombra al producto: sin el nombre, N líneas "is the
-    // product" idénticas son indistinguibles y el modelo fusiona referencias.
-    const label = products.length > 1 ? `the product "${product.name}"` : 'the product';
+    // En multi la cita distingue al producto por ORDINAL, nunca por nombre:
+    // el modelo renderiza como texto en pantalla los nombres propios que lee
+    // (bug observado en showcases multi-producto). El ordinal ata la cita a su
+    // ficha compacta ("Product N of M") sin darle palabras que escribir.
+    const label = products.length > 1 ? `product ${pi + 1} of ${products.length}` : 'the product';
     for (const path of productImages) {
       const usage = usages[path];
       const n = pushImage(
@@ -322,14 +324,14 @@ export function buildReferences(ctx: DirectorContext): {
     if (nums.length >= 2) {
       lines.push(
         products.length > 1
-          ? `@image${nums.join(' and @image')} show the SAME single product ("${product.name}") from different views; reconcile them into one consistent object — do not treat them as different products.`
+          ? `@image${nums.join(' and @image')} show the SAME single product (product ${pi + 1} of ${products.length}) from different views; reconcile them into one consistent object — do not treat them as different products.`
           : 'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
       );
     }
   }
-  if (products.length > 1) {
-    lines.push(multiProductCountClause(products.map((p) => p.name)));
-  }
+  // La cláusula anti-conteo se emite UNA sola vez, en el bloque de descripción
+  // de compileSeedance (antes salía también aquí: duplicaba la carnada de texto
+  // y en I2V de storyboard viajaba sin referencias de producto que atar).
 
   // Empaque: solo clips single-producto en auto (en multi satura el conteo);
   // la selección manual del usuario sí viaja (manual = el usuario es el presupuesto).
@@ -591,10 +593,13 @@ export function compileSeedance(
     const weight = describeProductWeight(product);
     if (weight) sections.push(weight.trim());
   } else if (ctxProducts.length > 1) {
-    // Multi: ficha compacta por producto + anti-conteo. El staging proporcional
-    // y el peso son single-producto (saturarían N veces el prompt).
-    for (const product of ctxProducts) sections.push(describeProductCompact(product));
-    sections.push(multiProductCountClause(ctxProducts.map((p) => p.name)));
+    // Multi: ficha compacta por producto (ordinal, sin nombres) + anti-conteo,
+    // emitido SOLO aquí (única vez en el prompt). El staging proporcional y el
+    // peso son single-producto (saturarían N veces el prompt).
+    for (const [pi, product] of ctxProducts.entries()) {
+      sections.push(describeProductCompact(product, pi, ctxProducts.length));
+    }
+    sections.push(multiProductCountClause(ctxProducts.length));
   }
   for (const character of ctx.characters ?? []) {
     // Sin descripción (describeFromMaster es best-effort y el usuario pudo no

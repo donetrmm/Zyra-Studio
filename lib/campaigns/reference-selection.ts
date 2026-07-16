@@ -120,9 +120,9 @@ export function buildReferencePoolTexts(input: {
   locations: { name: string; description: string | null }[];
 }): ReferencePoolTexts {
   return {
-    products: input.products.map((p) => ({
+    products: input.products.map((p, i) => ({
       name: p.name,
-      text: input.products.length > 1 ? describeProductCompact(p) : describeProduct(p, { fidelity: false }),
+      text: input.products.length > 1 ? describeProductCompact(p, i, input.products.length) : describeProduct(p, { fidelity: false }),
     })),
     characters: input.characters.map((c) => ({
       name: c.name,
