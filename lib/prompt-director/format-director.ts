@@ -38,13 +38,13 @@ export function resolveRequiredRefs(
 ): { missing: string[] } {
   const missing: string[] = [];
   for (const ref of format.requiredRefs) {
-    if (ref === 'product' && !(context.product?.imagePaths.length)) {
+    if (ref === 'product' && !context.products?.some((p) => p.imagePaths.length)) {
       missing.push('product: el formato necesita imágenes del producto en el Brand Kit');
     }
     // character ya no bloquea: sin Cast el planner inyecta un personaje
     // inventado en el scene_prompt (spec 2026-06-12); el validador avisa
     // con el warning de identidad.
-    if (ref === 'packaging' && !(context.product?.packagingImagePaths?.length)) {
+    if (ref === 'packaging' && !context.products?.some((p) => p.packagingImagePaths?.length)) {
       missing.push('packaging: el formato necesita imágenes del empaque en el Brand Kit');
     }
   }

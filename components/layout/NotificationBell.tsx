@@ -169,6 +169,12 @@ function notificationLabel(n: Notification): string {
       if (delta >= 0) return `Recibiste ${fmt(delta)} créditos`;
       return `Se debitaron ${fmt(Math.abs(delta))} créditos`;
     }
+    case "low_balance": {
+      const balance = numFromPayload(n.payload, "balance");
+      return balance !== null
+        ? `Saldo bajo: te quedan ${fmt(balance)} créditos`
+        : "Te quedan pocos créditos";
+    }
     default:
       return n.type;
   }

@@ -84,7 +84,9 @@ export type CharacterInventory = {
 
 export type DirectorContext = {
   format?: FormatDirection;
-  product?: ProductInventory;
+  // Productos del clip, en el orden de `campaign_items.product_ids`. 1 elemento =
+  // comportamiento single clásico; 2+ = clip showcase multi-producto.
+  products?: ProductInventory[];
   // Personajes del creativo, máx 3. Orden = orden de referencias (el primero
   // es el principal). Presupuesto de ángulos: 1→2, 2→1, 3→0 (tope 9 imágenes).
   characters?: CharacterInventory[];
@@ -149,6 +151,10 @@ export type CompileRequest = {
   // El beat es la apertura del creativo (scene_index 0 o clip único). Habilita
   // la guía hookProductHero. Default undefined/false.
   isOpeningBeat?: boolean;
+  // Tono/entrega por clip (es, override del usuario) o null/undefined → default
+  // por registro/emoción. El compiler lo convierte a un cue de entrega en inglés
+  // pegado a la cita del diálogo. NO afecta la velocidad (ritmo = Fase 2).
+  voiceTone?: string | null;
 };
 
 export type CompiledPrompt = {

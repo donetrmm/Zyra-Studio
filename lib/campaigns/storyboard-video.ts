@@ -3,11 +3,13 @@
 import { AUDIO_BEAT_SYNC_CITATION, VOICE_TIMBRE_CITATION } from '../prompt-director/compilers/seedance';
 
 // Manijas de edición: clips independientes (sin encadenar) necesitan puntos de
-// corte limpios para montarse en post. Se pide abrir en el fotograma inicial
-// sostenido un instante y cerrar en un fotograma estable y casi quieto → entradas
-// y salidas montables sin saltos. Empieza con espacio (lista para concatenar).
+// corte limpios para montarse en post. Fase 2 audio (2026-07-13): YA NO se pide
+// "frame quieto sostenido" al abrir/cerrar — en clips cortos hablados ese congelado
+// dejaba al talento "parado/tieso". Ahora se pide entrar en movimiento de una vez y
+// cerrar en un frame estable pero VIVO (no congelado), conservando cortes limpios.
+// Empieza con espacio (lista para concatenar).
 export const STORYBOARD_EDIT_HANDLES =
-  ' Editing handles: open exactly on the still opening frame held for a brief beat, then ease into the motion; end by settling onto a steady, clean, almost-still frame. Keep clean in and out points so the clip cuts cleanly against others, with no abrupt jump at the very first or very last frame.';
+  ' Editing handles: open on the composition of the first frame and move into natural motion right away; end on a steady, controlled frame — clean but still naturally alive, not frozen. Keep clean in and out points so the clip cuts cleanly against others, with no abrupt jump at the very first or very last frame.';
 
 // Continuidad de escena en el cross-cut. El formato puede pedir "cross-cutting"
 // (cortar entre ángulos DENTRO del clip), y eso está bien — pero cada generación es

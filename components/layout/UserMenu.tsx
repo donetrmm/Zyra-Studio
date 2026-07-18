@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, LogOut, Settings, Shield, Sparkles } from "lucide-react";
+import { BookOpen, LogOut, Settings, Shield, Sparkles, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +57,11 @@ export function UserMenu({ email, fullName, avatarUrl, isAdmin }: Props) {
         <DropdownMenuItem asChild>
           <a href="/app/billing">
             <Settings className="size-4" /> Cuenta y billing
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href="/app/team">
+            <Users className="size-4" /> Equipo
           </a>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

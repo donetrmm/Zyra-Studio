@@ -85,6 +85,8 @@ describe('buildContinuationPrompt', () => {
     });
     expect(out).toContain('Synchronized on-camera speech');
     expect(out).not.toContain('do NOT lip-sync any face');
+    // Fase 2 audio: el hablante encadenado también recibe el dinamismo (paridad).
+    expect(out).toContain('physically alive and dynamic');
   });
 
   it('sin audio no añade dirección de voz (#3)', () => {
@@ -96,12 +98,32 @@ describe('buildContinuationPrompt', () => {
   it('clip de puro producto (sin voz) no añade idioma (#3)', () => {
     const out = buildContinuationPrompt('The can rotates on marble', 1, 0, { generateAudio: true });
     expect(out).not.toContain('must be in');
+    // Sin habla → sin dinamismo del hablante (es solo para clips hablados).
+    expect(out).not.toContain('physically alive and dynamic');
   });
 
   it('ancla el producto contra animación de la foto impresa, conciso (#B)', () => {
     const out = buildContinuationPrompt('Scene.', 1, 0);
     expect(out).toMatch(/design, colors and proportions consistent/);
     expect(out).toMatch(/still print, not animated/);
+  });
+});
+
+// Multi-producto por clip (2026-07-15): con 2+ productos distintos, cada ref se
+// cita como "one of N" en vez de "the product" (singular), más una cláusula
+// anti-conteo para que el modelo no invente/fusione productos.
+describe('buildContinuationPrompt — multi-producto (distinctProducts)', () => {
+  it('multi-producto: cita cada ref como uno de N productos distintos y añade el anti-conteo', () => {
+    const out = buildContinuationPrompt('la familia contempla la pared', 3, 1, { distinctProducts: 3 });
+    expect(out).toContain('@image1 is one of the 3 distinct products');
+    expect(out).toContain('@image3 is one of the 3 distinct products');
+    expect(out).toContain('exactly 3 distinct products; render each exactly once');
+  });
+
+  it('single (default): la cita clásica "is the product", sin anti-conteo (paridad)', () => {
+    const out = buildContinuationPrompt('escena', 2, 0, {});
+    expect(out).toContain('@image1 is the product —');
+    expect(out).not.toContain('distinct products');
   });
 });
 

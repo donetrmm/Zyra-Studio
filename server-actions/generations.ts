@@ -10,6 +10,7 @@ import {
   downloadOutputBuffer,
   downloadReferenceBuffer,
   uploadOutput,
+  uploadThoughtSignature,
   uploadThumbnail,
   OUTPUTS_BUCKET,
   THUMBNAILS_BUCKET,
@@ -35,7 +36,7 @@ import {
 } from '@/lib/schemas/video';
 import { SubmitSeedanceSchema, type SubmitSeedanceInput } from '@/lib/schemas/campaigns';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
-import { generate as generateNanoBanana } from '@/lib/providers/nano-banana';
+import { generate as generateNanoBanana, nanoVariantToResolution } from '@/lib/providers/nano-banana';
 import { generate as generateFlux } from '@/lib/providers/flux';
 import { ProviderError, type ImageReference } from '@/lib/providers/types';
 import { enqueueJob } from '@/lib/jobs/queue';
@@ -54,19 +55,6 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: ActionError; messag
 
 function megapixelsToVariant(mp: number): number {
   return mp;
-}
-
-function nanoVariantToResolution(variant: string): '512' | '1K' | '2K' | '4K' {
-  switch (variant) {
-    case '1k':
-      return '1K';
-    case '2k':
-      return '2K';
-    case '4k':
-      return '4K';
-    default:
-      return '2K';
-  }
 }
 
 function paramsForEstimator(input: SubmitGenerationInput) {
@@ -173,6 +161,7 @@ export async function submitGenerationAction(
       : {
           megapixels: data.megapixels,
           photoreal: data.photoreal,
+          ...(data.seed !== undefined ? { seed: data.seed } : {}),
         }),
   };
 
@@ -256,6 +245,7 @@ export async function submitGenerationAction(
         const { buffer, mimeType } = await downloadOutputBuffer(parent.output_url);
         const payload = (parent.provider_payload ?? {}) as {
           thought_signature?: string;
+          thought_signature_path?: string;
         };
         // El thought_signature solo es válido dentro del MISMO modelo Gemini.
         // Si el usuario cambió de Pro a Flash (o viceversa) en medio del hilo,
@@ -263,16 +253,37 @@ export async function submitGenerationAction(
         // En ese caso, omitimos la sig — nano-banana.ts cae a su fallback
         // single-turn que adjunta la imagen previa como ref normal.
         const modelMatches = parent.model_id === data.model;
+        // La firma vive en Storage (thought_signature_path); el valor inline
+        // solo existe en filas anteriores a este cambio.
+        let parentSignature: string | undefined;
+        if (modelMatches) {
+          if (payload.thought_signature_path) {
+            try {
+              const sig = await downloadOutputBuffer(payload.thought_signature_path);
+              parentSignature = sig.buffer.toString('utf8');
+            } catch {
+              // Sin firma → nano-banana.ts cae al fallback single-turn.
+              parentSignature = undefined;
+            }
+          } else {
+            parentSignature = payload.thought_signature;
+          }
+        }
         previousTurn = {
           prompt: parent.prompt ?? '',
           imageBuffer: buffer,
           mimeType,
-          thoughtSignature: modelMatches ? payload.thought_signature : undefined,
+          thoughtSignature: parentSignature,
         };
       }
     }
 
-    let result: { buffer: Buffer; mimeType: string; thoughtSignature?: string };
+    let result: {
+      buffer: Buffer;
+      mimeType: string;
+      thoughtSignature?: string;
+      meta?: Record<string, unknown>;
+    };
     if (data.provider === 'nano-banana') {
       result = await generateNanoBanana({
         model: data.model,
@@ -294,6 +305,7 @@ export async function submitGenerationAction(
         height,
         references,
         photoreal: data.photoreal,
+        seed: data.seed,
       });
     }
 
@@ -310,8 +322,19 @@ export async function submitGenerationAction(
 
     const processingMs = Date.now() - startedAt;
     const providerPayload: Record<string, unknown> = {};
+    // Seed real usado por FLUX (cuando la API lo devuelve): permite reproducir
+    // una imagen que salió de un seed aleatorio.
+    if (typeof result.meta?.seed === 'number') {
+      providerPayload.seed = result.meta.seed;
+    }
     if (result.thoughtSignature) {
-      providerPayload.thought_signature = result.thoughtSignature;
+      // A Storage, nunca inline: la firma pesa 6-9MB y rompe
+      // complete_generation (statement timeout) y Realtime (>1MB).
+      providerPayload.thought_signature_path = await uploadThoughtSignature(
+        workspace.id,
+        generationId,
+        result.thoughtSignature,
+      );
     }
 
     // Atómico: confirma el cargo + marca status='done' + escribe URLs en una
@@ -329,6 +352,14 @@ export async function submitGenerationAction(
       providerPayload:
         Object.keys(providerPayload).length > 0 ? providerPayload : null,
     });
+
+    // Auto-review de calidad (specs/v2/19) también para el path síncrono de
+    // imagen. Best-effort: la generación ya está completa y cobrada.
+    try {
+      await enqueueJob({ generationId, action: 'quality_review' });
+    } catch (err) {
+      console.error('[generations] no se pudo encolar el quality review', { generationId, err });
+    }
 
     revalidatePath('/app/library');
     revalidatePath('/app/create/image');
@@ -765,7 +796,7 @@ export async function deleteGenerationAction(
 
   const { data: gen } = await supabase
     .from('generations')
-    .select('id, status, output_url, thumbnail_url')
+    .select('id, status, output_url, thumbnail_url, provider_payload')
     .eq('id', generationId)
     .eq('user_id', user.id)
     .single();
@@ -781,11 +812,19 @@ export async function deleteGenerationAction(
     .eq('user_id', user.id);
   if (error) return { ok: false, error: 'internal_error', message: error.message };
 
-  // Limpieza best-effort del storage (no bloquea si falla).
+  // Limpieza best-effort del storage (no bloquea si falla). Además del output
+  // y el thumb, el flujo estricto de storyboard deja safe-base y la firma de
+  // Gemini bajo el mismo prefijo — sus paths viven en provider_payload.
   try {
     const admin = createAdminClient();
+    const payload = (gen.provider_payload ?? {}) as {
+      safe_base_path?: string;
+      thought_signature_path?: string;
+    };
+    const outputPaths = [gen.output_url, payload.safe_base_path, payload.thought_signature_path]
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
     const removals: Promise<unknown>[] = [];
-    if (gen.output_url) removals.push(admin.storage.from(OUTPUTS_BUCKET).remove([gen.output_url as string]));
+    if (outputPaths.length > 0) removals.push(admin.storage.from(OUTPUTS_BUCKET).remove(outputPaths));
     if (gen.thumbnail_url) removals.push(admin.storage.from(THUMBNAILS_BUCKET).remove([gen.thumbnail_url as string]));
     await Promise.allSettled(removals);
   } catch {

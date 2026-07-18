@@ -10,16 +10,18 @@ import { advanceSequenceChain, storeChainAudio, storeChainFrame } from '@/lib/ca
 import { extractVideoAudio } from '@/lib/jobs/video-frame';
 import { downloadOutputBuffer } from '@/lib/supabase/storage';
 import { promoteStoryboardPanel, storyboardCampaignItemId } from '@/lib/jobs/storyboard-finalize';
+import { reviewImageQuality } from '@/lib/quality/review';
 import type { GenerationRow } from '@/lib/jobs/handlers/types';
 import '@/lib/jobs/handlers/register'; // side-effect: registra handlers
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// 300s: una llamada de imagen (gpt-image-2) bloquea hasta ~280s; ver spec estudio.
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
   generationId: z.string().uuid(),
-  action: z.enum(['submit', 'poll', 'advance_chain', 'promote_storyboard']),
+  action: z.enum(['submit', 'poll', 'advance_chain', 'promote_storyboard', 'quality_review']),
   // Solo para 'advance_chain': PATH interno (references) del fotograma del clip
   // previo a heredar. El finalize lo sube con la URL fresca.
   lastFramePath: z.string().optional(),
@@ -68,7 +70,7 @@ export async function POST(req: Request) {
   const { data: gen, error: loadErr } = await admin
     .from('generations')
     .select(
-      'id, user_id, workspace_id, type, provider, model_id, prompt, params, reference_ids, status, provider_task_id, provider_payload, poll_attempts, timeout_at, cancel_requested, credits_estimated',
+      'id, user_id, workspace_id, type, provider, model_id, prompt, params, reference_ids, parent_generation_id, status, provider_task_id, provider_payload, poll_attempts, timeout_at, cancel_requested, credits_estimated',
     )
     .eq('id', generationId)
     .single();
@@ -170,6 +172,50 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, ack: 'promoted' });
   }
 
+  // 3.7. Auto-review de calidad (specs/v2/19): job dedicado post-done, igual
+  // que advance_chain/promote — se intercepta ANTES del guard terminal porque
+  // la gen ya está 'done'. Best-effort: un review fallido se loguea y ack'ea
+  // (nunca 500 — no vale un ciclo de retries de QStash por un badge).
+  if (action === 'quality_review') {
+    try {
+      if (generation.type === 'image' && generation.status === 'done') {
+        const { data: row } = await admin
+          .from('generations')
+          .select('thumbnail_url, prompt, quality_score')
+          .eq('id', generation.id)
+          .single();
+        const thumbPath = (row as { thumbnail_url?: string | null } | null)?.thumbnail_url;
+        const alreadyReviewed =
+          (row as { quality_score?: number | null } | null)?.quality_score != null;
+        if (thumbPath && !alreadyReviewed) {
+          // El thumbnail (512px) basta para detectar defectos y pesa ~30KB;
+          // el output completo puede ser un PNG 4K de varios MB.
+          const { data: blob, error: dlErr } = await admin.storage
+            .from('thumbnails')
+            .download(thumbPath);
+          if (dlErr || !blob) throw new Error(dlErr?.message ?? 'thumbnail no disponible');
+          const review = await reviewImageQuality({
+            imageBuffer: Buffer.from(await blob.arrayBuffer()),
+            mimeType: 'image/jpeg',
+            prompt: ((row as { prompt?: string | null } | null)?.prompt ?? '').toString(),
+          });
+          await admin
+            .from('generations')
+            .update({
+              quality_score: review.score,
+              quality_flags: review.flags,
+              quality_summary: review.summary,
+            })
+            .eq('id', generation.id)
+            .eq('status', 'done');
+        }
+      }
+    } catch (err) {
+      console.error('[worker] quality review falló', { generationId, err });
+    }
+    return NextResponse.json({ ok: true, ack: 'quality_reviewed' });
+  }
+
   // 4. Guard: status terminal → ack
   if (TERMINAL_STATUSES.has(generation.status)) {
     return NextResponse.json({ ok: true, ack: 'terminal' });
@@ -207,6 +253,30 @@ export async function POST(req: Request) {
       console.error('[worker] fail_generation falló', { generationId, err });
     }
     return NextResponse.json({ ok: true, ack: reason });
+  }
+
+  // 5.5. Claim atómico para 'submit': QStash entrega at-least-once y el submit
+  // llama al proveedor (tarea externa que cuesta dinero) — dos entregas
+  // concurrentes del mismo mensaje crearían dos tareas. La transición
+  // queued→processing con count decide un único ganador; el perdedor ack'ea
+  // sin tocar al proveedor. Si esta invocación muere tras el claim y antes de
+  // encolar el poll, timeout_at + el rescate del cleanup dejan la fila en
+  // failed con refund (mismo tradeoff ya aceptado en image-turn).
+  if (action === 'submit') {
+    const { count: claimCount, error: claimErr } = await admin
+      .from('generations')
+      .update({ status: 'processing' }, { count: 'exact' })
+      .eq('id', generation.id)
+      .eq('status', 'queued');
+    if (claimErr) {
+      // 500 → QStash reintenta; el claim sigue siendo la barrera.
+      console.error('[worker] claim de submit falló', { generationId, error: claimErr.message });
+      return NextResponse.json({ ok: false, error: 'claim_failed' }, { status: 500 });
+    }
+    if (!claimCount) {
+      return NextResponse.json({ ok: true, ack: 'submit_duplicate' });
+    }
+    generation.status = 'processing';
   }
 
   // 6. Dispatch al handler del provider
@@ -288,6 +358,15 @@ export async function POST(req: Request) {
       console.error('[worker] no se pudo anotar el motivo del fallo en el item', { generationId, err });
     }
     return NextResponse.json({ ok: true, ack: 'failed' });
+  }
+
+  if (result.kind === 'skip') {
+    // Claim atómico perdido dentro del handler one-shot (image-turn.ts): otra
+    // invocación de QStash (reintento) ya tomó este job y lo está procesando
+    // o ya terminó. No-op — nada que confirmar, refundear ni re-encolar. El
+    // manejo pleno de retries/dedupe queda para una task posterior; aquí solo
+    // se evita el error de exhaustividad del switch al agregar 'skip' a JobResult.
+    return NextResponse.json({ ok: true, ack: 'skip' });
   }
 
   // result.kind === 'finalize' — handler entregó el buffer

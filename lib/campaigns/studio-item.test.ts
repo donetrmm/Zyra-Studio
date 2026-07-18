@@ -26,6 +26,30 @@ describe('toStudioItem — characterStateHint (P05)', () => {
   });
 });
 
+describe('toStudioItem — hasManualRefs (V3 Fase 4)', () => {
+  it('true cuando reference_selection trae una selección guardada', () => {
+    const { fn, fd, cn } = maps();
+    const item = toStudioItem(
+      { id: 'i1', format_id: 'f1', scene_prompt: 'x', status: 'planned', reference_selection: { include: ['a.png'] } },
+      fn, fd, cn,
+    );
+    expect(item.hasManualRefs).toBe(true);
+  });
+  it('false cuando la columna falta o es null (recorte automático)', () => {
+    const { fn, fd, cn } = maps();
+    const item = toStudioItem(
+      { id: 'i2', format_id: 'f1', scene_prompt: 'x', status: 'planned', reference_selection: null },
+      fn, fd, cn,
+    );
+    expect(item.hasManualRefs).toBe(false);
+    const item2 = toStudioItem(
+      { id: 'i3', format_id: 'f1', scene_prompt: 'x', status: 'planned' },
+      fn, fd, cn,
+    );
+    expect(item2.hasManualRefs).toBe(false);
+  });
+});
+
 describe('toStudioItem — characterOutfitHint (specs/v2/16)', () => {
   it('mapea character_outfit_hint de la fila', () => {
     const { fn, fd, cn } = maps();

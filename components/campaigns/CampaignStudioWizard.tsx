@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Loader2, Sparkles, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +31,6 @@ import {
 import { ReferenceBudget } from '@/components/shared/ReferenceBudget';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
-import { CreationWizard } from '@/components/creation/CreationWizard';
-import { createBrandKitAction, setBrandKitImagesAction } from '@/server-actions/brand-kits';
 import {
   createCampaignStudioAction,
   generatePlanAction,
@@ -79,6 +77,15 @@ type BrandKitOption = {
   packagingImages: number;
 };
 
+// Productos de la marca elegida (V3 multi-producto): el multi-select bajo "Tu
+// producto" decide cuáles viajan al pool de la campaña (server-actions/campaigns
+// aún los ignora hasta que la Task 6 los consuma; se envían igual).
+export type ProductOption = {
+  id: string;
+  name: string;
+  imageCount: number;
+};
+
 // Motivos legibles del fallback del plan dirigido (codes de ProviderError
 // más 'sin_match' del saneo de la action).
 // Etiquetas en lenguaje simple (el usuario no es del medio): los valores
@@ -108,6 +115,7 @@ export function CampaignStudioWizard({
   brandKits: initialBrandKits,
   characters,
   outfits,
+  productsByKit,
 }: {
   brandKits: BrandKitOption[];
   characters: Array<{
@@ -120,11 +128,13 @@ export function CampaignStudioWizard({
   // Vestuario (specs/v2/16): opciones por personaje para el selector "Vestuario
   // de {name}" bajo la grid del Cast.
   outfits: Array<{ id: string; label: string; characterId: string }>;
+  // Productos por marca (V3 multi-producto): alimenta el multi-select "Productos
+  // de esta campaña" cuando mode==='kit'.
+  productsByKit: Record<string, ProductOption[]>;
 }) {
   const router = useRouter();
-  // Estado local: el producto creado con IA inline se guarda como Brand Kit y se
-  // añade aquí para que aparezca en el selector sin recargar.
-  const [brandKits, setBrandKits] = useState(initialBrandKits);
+  // Sin creación de Brand Kit inline (Task 6): la lista es la que llega por props.
+  const brandKits = initialBrandKits;
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<string>('mixed');
   const [language, setLanguage] = useState<'es' | 'en'>('es');
@@ -141,7 +151,6 @@ export function CampaignStudioWizard({
   const [audioSourceTouched, setAudioSourceTouched] = useState(false);
   const [productUrl, setProductUrl] = useState('');
   const [productImages, setProductImages] = useState<RefImage[]>([]);
-  const [aiOpen, setAiOpen] = useState(false);
   const [mode, setMode] = useState<'upload' | 'kit'>('upload');
   const [brandKitId, setBrandKitId] = useState(initialBrandKits[0]?.id ?? '');
   const [ideas, setIdeas] = useState('');
@@ -158,6 +167,12 @@ export function CampaignStudioWizard({
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState<'idle' | 'brief' | 'plan'>('idle');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
+  // Productos de la marca elegida (V3 multi-producto): default = todos los de
+  // la marca al seleccionarla; el usuario puede des-marcar los que no aplican
+  // a esta campaña.
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
+    () => (productsByKit[brandKitId] ?? []).map((p) => p.id),
+  );
   // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Sin entry
   // para un personaje = usa su cuerpo completo base.
   const [outfitMap, setOutfitMap] = useState<Record<string, string>>({});
@@ -168,6 +183,16 @@ export function CampaignStudioWizard({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const ideasRef = useRef<HTMLTextAreaElement>(null);
 
+  // Al elegir o cambiar de marca, todos sus productos entran por default; el
+  // usuario puede desmarcar los que no apliquen a esta campaña. Se ajusta
+  // durante el render (patrón React de "estado derivado de un cambio de prop")
+  // en vez de un useEffect con setState, que dispara renders en cascada.
+  const [prevBrandKitId, setPrevBrandKitId] = useState(brandKitId);
+  if (brandKitId !== prevBrandKitId) {
+    setPrevBrandKitId(brandKitId);
+    setSelectedProductIds((productsByKit[brandKitId] ?? []).map((p) => p.id));
+  }
+
   // El orden de selección importa: [0] es el personaje principal.
   function toggleCharacter(id: string) {
     setSelectedCharacterIds((prev) =>
@@ -176,6 +201,11 @@ export function CampaignStudioWizard({
   }
   function makePrincipal(id: string) {
     setSelectedCharacterIds((prev) => (prev.includes(id) ? [id, ...prev.filter((x) => x !== id)] : prev));
+  }
+  function toggleProduct(id: string) {
+    setSelectedProductIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   async function handleIngest() {
@@ -292,6 +322,10 @@ export function CampaignStudioWizard({
       ...(productUrl.trim() ? { productUrl: productUrl.trim() } : {}),
       ...(selectedCharacterIds.length ? { characterIds: selectedCharacterIds } : {}),
       ...(Object.keys(outfitMap).length ? { characterOutfitMap: outfitMap } : {}),
+      // V3 multi-producto (Task 6 la consumirá): pool de productos elegidos de
+      // la marca. Solo en modo 'kit' — en 'upload' no hay marca y enviar el pool
+      // de otra marca enlazaría productos ajenos a la campaña.
+      ...(mode === 'kit' ? { productIds: selectedProductIds } : {}),
       includePackaging,
       aspectRatio,
       visualStyle,
@@ -406,14 +440,12 @@ export function CampaignStudioWizard({
                   ¿Ya tienes un Brand Kit? Úsalo en su lugar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setAiOpen(true)}
-                className="mt-2 inline-flex items-center gap-1 text-2xs text-primary underline-offset-2 hover:underline"
+              <Link
+                href="/app/brand/kits"
+                className="mt-2 block text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
-                ¿No tienes una foto del producto? Créala con IA
-                <ArrowRight className="size-3" aria-hidden />
-              </button>
+                ¿No tienes el producto? Créalo en tu biblioteca de productos
+              </Link>
             </div>
           ) : (
             <div className="mt-1.5 rounded-xl border border-border bg-card/50 p-4">
@@ -463,6 +495,51 @@ export function CampaignStudioWizard({
             </div>
           )}
         </section>
+
+        {mode === 'kit' && brandKitId && (
+          <section>
+            <Label className="text-xs font-medium text-foreground/80">Productos de esta campaña</Label>
+            {(productsByKit[brandKitId]?.length ?? 0) > 0 ? (
+              <>
+                <p className="mt-0.5 text-2xs text-muted-foreground">
+                  Por default entran todos los productos de la marca; desmarca los que no
+                  apliquen a esta campaña.
+                </p>
+                <div className="mt-1.5 space-y-1.5">
+                  {productsByKit[brandKitId].map((p) => {
+                    const selected = selectedProductIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => toggleProduct(p.id)}
+                        aria-pressed={selected}
+                        className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-2sm transition-colors ${
+                          selected
+                            ? 'border-primary/60 bg-primary/5 text-foreground'
+                            : 'border-border bg-card/50 text-muted-foreground hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <span className="truncate">{p.name}</span>
+                        <span className="ml-2 shrink-0 text-2xs text-muted-foreground/70">
+                          {p.imageCount} img{p.imageCount !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Esta marca todavía no tiene productos propios.{' '}
+                <Link href="/app/brand/kits" className="text-primary underline-offset-2 hover:underline">
+                  Crea productos en Brand Kits
+                </Link>
+                , o continúa: el análisis usará las imágenes generales del kit.
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-1.5">
           <Label htmlFor="campaign-name" className="text-xs font-medium text-foreground/80">
@@ -934,37 +1011,6 @@ export function CampaignStudioWizard({
           )}
         </Button>
       </div>
-
-      {aiOpen && (
-        <CreationWizard
-          kind="product"
-          productFlow="create"
-          onSave={async (result) => {
-            if (result.kind !== 'product-create') return;
-            // Guarda el producto generado como Brand Kit reutilizable y lo
-            // selecciona para esta campaña (cubre ambos: usarlo aquí y reusarlo).
-            const created = await createBrandKitAction({
-              name: result.name,
-              colors: result.colors,
-              toneDescription: result.tone,
-            });
-            if (!created.ok) { toast.error(created.message || 'No se pudo crear el Brand Kit'); return; }
-            const img = await setBrandKitImagesAction(created.data.id, {
-              productImageIds: [result.productRefId],
-              packagingImageIds: result.packagingRefId ? [result.packagingRefId] : [],
-            });
-            if (!img.ok) { toast.error(img.message || 'Kit creado, pero no se guardaron las imágenes'); return; }
-            setBrandKits((ks) => [
-              { id: created.data.id, name: result.name, productImages: 1, packagingImages: result.packagingRefId ? 1 : 0 },
-              ...ks,
-            ]);
-            setBrandKitId(created.data.id);
-            setMode('kit');
-            toast.success('Brand Kit creado y seleccionado');
-          }}
-          onClose={() => setAiOpen(false)}
-        />
-      )}
 
       <Dialog open={askIdeasOpen} onOpenChange={setAskIdeasOpen}>
         <DialogContent className="sm:max-w-md">

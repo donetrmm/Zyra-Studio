@@ -165,8 +165,9 @@ export function physicsClause(ctx: DirectorContext): string {
 // tomas. Resuelve el caso "el panel ancla mostraba el producto envuelto o de lejos y
 // el close-up lo inventa". Devuelve '' si no hay producto; empieza con espacio.
 export function chainedProductFidelity(ctx: DirectorContext): string {
-  if (!ctx.product) return '';
-  const facts = describeProduct(ctx.product, { fidelity: false });
+  const product = ctx.products?.[0];
+  if (!product) return '';
+  const facts = describeProduct(product, { fidelity: false });
   return ` ${facts} Reproduce the product's printed image and design exactly as described, and keep it identical in every shot; do not invent, restyle or change what is printed on it.`;
 }
 
@@ -248,7 +249,7 @@ export function compileRefinePrompt(
   // producto); el staging/encuadre no entra a esta rama. La rama ENCADENADA en
   // server-actions/storyboard.ts sí lo mantiene: ahí re-encuadrar es el propósito,
   // y el carve-out de close-up/detail shot protege los beats que no deben moverse.
-  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.product, { staging: false })}${describeProductWeight(ctx.product)}${physicsClause(ctx)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${NO_TEXT_CLAUSE}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
+  return `${lead} Apply this edit faithfully, even when it changes the product's or a character's appearance (size, thickness, frame, finish, printed content, wardrobe): the requested edit ALWAYS takes precedence over the consistency clauses below, which apply only to whatever the edit does not touch. Keep the rest of the scene consistent with the previous shot (same location, lighting and color palette); adjust composition and framing only as needed for the change to look natural.${chainedProductFidelity(ctx)}${chainedCharacterFidelity(ctx)}${describeProductScale(ctx.products?.[0], { staging: false })}${describeProductWeight(ctx.products?.[0])}${physicsClause(ctx)}${creativeGuidelineClauses(ctx.guidelines, { isOpeningBeat: opts?.isOpeningBeat })}${NO_TEXT_CLAUSE}${opts?.extraClauses ?? ''} FINAL INSTRUCTION — this is the edit to apply, and it overrides any clause above that conflicts with it: ${lead}`;
 }
 
 // Compila la edición Nano Banana de un panel: la instrucción es el scenePrompt.

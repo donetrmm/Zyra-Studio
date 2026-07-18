@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, MapPin, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Copy, Loader2, MapPin, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   createLocationAction,
@@ -15,11 +15,16 @@ import { getReferencePathsAction } from '@/server-actions/creation';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { generateScaleMap, generateScaleMapFromMaster, isGenError, refineLocationMaster } from '@/components/creation/generate';
-import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
+import { generateScaleMap, generateScaleMapFromMaster, isGenError } from '@/components/creation/generate';
 import { buildLocationPrompt } from '@/lib/prompt-director/asset-prompts';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { Button } from '@/components/ui/button';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { AssetPageHeader } from '@/components/assets/AssetPageHeader';
+import { AssetCard } from '@/components/assets/AssetCard';
+import { AssetGrid } from '@/components/assets/AssetGrid';
+import { AssetSearch } from '@/components/assets/AssetSearch';
 
 export type Location = {
   id: string;
@@ -44,26 +49,61 @@ export function LocationsPage({
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<Location | 'new' | null>(null);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return locations;
+    return locations.filter(
+      (l) => l.name.toLowerCase().includes(q) || (l.description ?? '').toLowerCase().includes(q),
+    );
+  }, [locations, query]);
+
+  async function handleDelete(l: Location) {
+    const ok = await confirm({
+      title: `Eliminar "${l.name}"?`,
+      description: 'Los items de campaña que la usan quedarán sin locación.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await deleteLocationAction(l.id);
+    if (res.ok) {
+      toast.success('Locación eliminada');
+      router.refresh();
+    } else toast.error(res.message || 'Error');
+  }
+
+  // Duplica compartiendo las mismas referencias (punteros a media_references).
+  async function handleDuplicate(l: Location) {
+    const res = await createLocationAction({
+      name: `${l.name} (copia)`,
+      description: l.description ?? undefined,
+      masterImageId: l.master_image_id ?? undefined,
+      referenceImageIds: l.reference_image_ids,
+      scaleMapImageId: l.scale_map_image_id ?? undefined,
+      scaleMapNotes: l.scale_map_notes ?? undefined,
+    });
+    if (res.ok) {
+      toast.success('Locación duplicada');
+      router.refresh();
+    } else toast.error(res.message || 'No se pudo duplicar');
+  }
+
+  const showSearch = locations.length > 5;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">Locaciones</h1>
-          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
-            Escenarios reutilizables para tus campañas. La imagen maestra describe el lugar visualmente y
-            se inyecta como referencia de ambiente en cada secuencia donde aparece la locación.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setEditing('new')}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          <Plus className="size-4" aria-hidden />
-          Nueva locación
-        </button>
-      </div>
+    <div>
+      <AssetPageHeader
+        title="Locaciones"
+        description="Escenarios reutilizables para tus campañas. La imagen maestra describe el lugar visualmente y se inyecta como referencia de ambiente en cada secuencia donde aparece la locación."
+        actions={
+          <Button type="button" onClick={() => setEditing('new')}>
+            <Plus className="size-4" aria-hidden />
+            Nueva locación
+          </Button>
+        }
+      />
 
       {editing && (
         <LocationEditor
@@ -76,74 +116,58 @@ export function LocationsPage({
       )}
 
       {locations.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground/60">
-          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-            <MapPin className="size-7" aria-hidden />
-          </div>
-          <p className="text-[14px] text-foreground/70">Sin locaciones</p>
-          <p className="max-w-sm text-[12.5px]">
-            Las locaciones definen el &ldquo;dónde&rdquo; de cada secuencia. Añade una imagen de referencia
-            del lugar para que el modelo lo recree con consistencia.
-          </p>
-        </div>
+        <PageEmptyState
+          icon={MapPin}
+          title="Sin locaciones"
+          sub="Las locaciones definen el “dónde” de cada secuencia. Añade una imagen de referencia del lugar para que el modelo lo recree con consistencia."
+        />
       ) : (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {locations.map((l) => (
-            <div
-              key={l.id}
-              className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20"
-            >
-              <div className="flex items-center gap-3 p-4">
-                {l.master_image_id && previews[l.master_image_id] ? (
-                  <ZoomableImage src={previews[l.master_image_id]} alt={l.name} className="size-14 shrink-0 rounded-lg border border-border" />
-                ) : (
-                  <div className="grid size-14 shrink-0 place-items-center rounded-lg border border-border bg-muted/30">
-                    <MapPin className="size-5 text-muted-foreground/40" aria-hidden />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="truncate text-[14px] font-medium text-foreground">{l.name}</h3>
-                  {l.description && (
-                    <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground/70">
-                      {l.description}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 border-t border-border/30 p-3">
-                <button
-                  type="button"
-                  onClick={() => setEditing(l)}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground"
-                >
-                  <Pencil className="size-3" aria-hidden /> Editar
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const ok = await confirm({
-                      title: `Eliminar "${l.name}"?`,
-                      description: 'Los items de campaña que la usan quedarán sin locación.',
-                      confirmLabel: 'Eliminar',
-                      destructive: true,
-                    });
-                    if (!ok) return;
-                    const res = await deleteLocationAction(l.id);
-                    if (res.ok) {
-                      toast.success('Locación eliminada');
-                      router.refresh();
-                    } else {
-                      toast.error(res.message || 'Error');
+        <>
+          {showSearch && (
+            <AssetSearch className="mt-6" value={query} onChange={setQuery} placeholder="Buscar locación…" />
+          )}
+          {filtered.length === 0 ? (
+            <PageEmptyState icon={MapPin} title="Sin resultados" sub="Ninguna locación coincide con tu búsqueda." />
+          ) : (
+            <AssetGrid className={showSearch ? 'mt-4' : 'mt-6'}>
+              {filtered.map((l) => {
+                const refCount = l.reference_image_ids.length;
+                return (
+                  <AssetCard
+                    key={l.id}
+                    media={{
+                      url: l.master_image_id ? previews[l.master_image_id] ?? null : null,
+                      alt: l.name,
+                      aspect: 'landscape',
+                      fallbackIcon: MapPin,
+                    }}
+                    title={l.name}
+                    description={l.description}
+                    readiness={
+                      l.master_image_id
+                        ? { status: 'ready', label: 'Listo' }
+                        : { status: 'incomplete', label: 'Sin imagen' }
                     }
-                  }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                >
-                  <Trash2 className="size-3" aria-hidden />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+                    meta={
+                      refCount > 0 || l.scale_map_image_id ? (
+                        <span className="inline-flex items-center gap-2 text-2xs text-muted-foreground/70">
+                          {refCount > 0 && <span>{refCount} ref{refCount > 1 ? 's' : ''}</span>}
+                          {l.scale_map_image_id && <span>Mapa de escala</span>}
+                        </span>
+                      ) : null
+                    }
+                    primary={{ kind: 'link', href: `/app/studio/location/${l.id}`, label: 'Estudio', icon: Sparkles }}
+                    secondary={{ kind: 'button', onClick: () => setEditing(l), label: 'Editar', icon: Pencil }}
+                    menu={[
+                      { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicate(l) },
+                      { label: 'Eliminar', icon: Trash2, onClick: () => handleDelete(l), destructive: true },
+                    ]}
+                  />
+                );
+              })}
+            </AssetGrid>
+          )}
+        </>
       )}
     </div>
   );
@@ -346,23 +370,6 @@ function LocationEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
-
-        {/* Refinado iterativo de la maestra (feedback 2026-07-04): cambia luz,
-            hora o elementos sin regenerar el lugar de cero. Guarda con el
-            Guardar del editor (el cambio de maestra invalida el light_profile). */}
-        {masterImages.length > 0 && (
-          <MasterImageRefiner
-            image={masterImages[0]}
-            refine={refineLocationMaster}
-            onResult={(r) => setMasterImages([r])}
-            placeholder="ej. quita los coches de la calle"
-            quickActions={[
-              { label: 'De noche', instruction: 'Turn the scene to night time: dark sky, ambient and practical lights on, believable night lighting.' },
-              { label: 'Luz más cálida', instruction: 'Make the lighting warmer and softer, golden-hour feel, still believable for the place.' },
-              { label: 'Despejar', instruction: 'Remove any people, clutter and distracting loose objects, leaving the space clean and ready for a scene.' },
-            ]}
-          />
-        )}
 
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">

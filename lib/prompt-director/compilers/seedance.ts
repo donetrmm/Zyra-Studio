@@ -3,12 +3,14 @@
 // orden exacto en que el handler las firma y envía. Guía completa en
 // docs/modelos/06-seedance-2.md.
 
-import { describeCharacter, describeProduct, describeProductWeight } from '../inventory';
+import { describeCharacter, describeProduct, describeProductCompact, describeProductWeight, multiProductCountClause } from '../inventory';
 import { normalizeSpokenInDialogue } from '../es-mx-normalize';
 import { directionFor } from '../format-director';
 import { applyRespellings } from '../pronunciation';
 import { actingDirectionFor, declaresHighEmotion, facesIntended, ENERGETIC_REGISTER_RE } from '../acting';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
+import { perProductImageCap } from '@/lib/campaigns/ref-budget';
+import { deliveryCueFor, injectDeliveryCue } from '@/lib/campaigns/voice-tone';
 import { getStyleProfile, type StyleProfile } from '../style-profiles';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type {
@@ -48,8 +50,11 @@ export const AUDIO_BEAT_SYNC_CITATION =
 // Seedance usa el audio citado como molde de voz. Comparte el slot @audio1 con la
 // música — cuando hay voz, la música se omite (la voz gana). Sin espacio inicial:
 // el compiler la usa como línea propia; el storyboard antepone el espacio al concatenar.
+// Fase 2 audio (2026-07-13): copia SOLO timbre/grano/acento de la muestra, NO su
+// prosodia — el modelo heredaba la entonación plana de la muestra clonada aunque el
+// prompt pidiera expresividad. Ahora la entonación/emoción siguen la dirección.
 export const VOICE_TIMBRE_CITATION =
-  '@audio1 is the voice reference for the speaking character — match its exact vocal timbre, pitch and accent for all spoken dialogue in this clip. Use it only as a voice model, not as background music.';
+  '@audio1 is the voice reference for the speaking character — copy only its vocal timbre, grain and accent for all spoken dialogue in this clip; do NOT copy the reference clip\'s own intonation or pacing. Let the pitch movement, rhythm, emphasis and emotion follow the expressive delivery direction in this prompt, so the voice stays lively and expressive, never flat or monotone. Use it only as a voice model, not as background music.';
 
 // El prompt va en inglés (rinde mejor), pero sin esta directiva el modelo
 // genera los diálogos en inglés. Exportada: la reusan las variantes.
@@ -58,11 +63,8 @@ export const VOICE_TIMBRE_CITATION =
 // robótica. OJO: acento mexicano sustituye al "neutral LatAm" original —
 // decisión tomada de ese ejemplo que funcionó.
 export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
-  // es-MX explícito y anti-castellano (2026-07-02): "Spanish" a secas tira al
-  // acento de España en el modelo. Los marcadores prohibidos van nombrados: el
-  // seseo (c/z como s suave, nunca la "th" castellana) es EL delator del acento.
-  es: 'All spoken dialogue and any voice-over must be in Mexican Latin American Spanish (es-MX) with a natural Mexican accent — never a Castilian accent from Spain: pronounce c and z as a soft s (Latin American seseo), never as the Castilian "th" sound, and use Mexican intonation, rhythm and vocabulary. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
-  en: 'All spoken dialogue and any voice-over must be in English. Use authentic human cadence: warm conversational tone, subtle pauses and breathing, slight imperfections and natural emotional variation. Avoid robotic speech, announcer voice, monotone delivery and exaggerated acting — speak as if talking naturally to a friend. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  es: 'All spoken dialogue and any voice-over must be in Mexican Latin American Spanish (es-MX) with a natural Mexican accent — never a Castilian accent from Spain: pronounce c and z as a soft s (Latin American seseo), never as the Castilian "th" sound, and use Mexican intonation, rhythm and vocabulary. Perform the line with expressive, dynamic vocal delivery: vary pitch and intonation, emphasize the key words, and let real emotion ride through the voice, with a warm conversational tone, subtle pauses and breathing and natural emotional variation — speak as if talking to a friend, never flat, monotone, robotic or announcer-like. Keep this expressiveness in the VOICE; any on-camera restraint applies only to the face and gestures, not to the vocal delivery. Speak the whole line as one continuous, connected thought at a lively, natural conversational pace: do not insert dramatic pauses, dead gaps or hesitations between phrases, and do not slow down or drag the delivery — keep the words flowing smoothly and continuously from start to finish, pausing only where a real person naturally would, at a comma or a full stop. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
+  en: 'All spoken dialogue and any voice-over must be in English. Perform the line with expressive, dynamic vocal delivery: vary pitch and intonation, emphasize the key words, and let real emotion ride through the voice, with a warm conversational tone, subtle pauses and breathing and natural emotional variation — speak as if talking to a friend, never flat, monotone, robotic or announcer-like. Keep this expressiveness in the VOICE; any on-camera restraint applies only to the face and gestures, not to the vocal delivery. Speak the whole line as one continuous, connected thought at a lively, natural conversational pace: do not insert dramatic pauses, dead gaps or hesitations between phrases, and do not slow down or drag the delivery — keep the words flowing smoothly and continuously from start to finish, pausing only where a real person naturally would, at a comma or a full stop. Even while natural, articulate every word completely and correctly: give each syllable of longer or less common words its full value, without slurring, dropping endings or rushing through consonant clusters.',
 };
 
 // Lip sync y habla EN cámara (no narración): solo cuando hay un hablante en
@@ -70,6 +72,16 @@ export const DIALOGUE_LANGUAGE: Record<'es' | 'en', string> = {
 // continuación de secuencia para no perder el lip-sync a mitad del anuncio.
 export const SPEECH_DIRECTION =
   'The on-camera speaker talks directly to the camera: generate synchronized speech with accurate lip sync — natural mouth movements matching every spoken word, facial expressions and jaw timing following the dialogue, with realistic blinking, breathing and subtle head movements. Synchronized on-camera speech, not voice-over narration.';
+
+// Dinamismo del hablante (Fase 2 audio, 2026-07-13): al acortar clips hablados el
+// talento salía "parado/tieso" — los frames quietos del storyboard + la animación
+// mínima desde un panel estático + el restraint lo congelaban en una foto que habla.
+// Esta directiva mantiene el CUERPO vivo (gestos, peso, torso) sin tocar la
+// contención de la CARA: explícitamente no-teatral, así convive con
+// ACTING_RESTRAINT_DIRECTION sin reactivar el "exagerado" (feedback 2026-07-04).
+// Exportada: los clips de continuación la re-anclan (paridad con SPEECH_DIRECTION).
+export const SPEAKER_LIVELINESS =
+  'Keep the speaker physically alive and dynamic for the whole shot — never a stiff, frozen or posed talking photo. Natural, continuous motion carries the clip: easy hand and arm gestures that follow the speech, small weight shifts, relaxed shoulder and torso movement, gentle head tilts, expressive eyes and eyebrows, natural blinking and breathing. This is the effortless, candid energy of a real person mid-conversation — believable and grounded, never mugging, theatrical or exaggerated.';
 
 // Narración en OFF (voiceover): voz hablada SIN hablante en cámara, sin lip-sync. Para
 // tomas de producto/insertos con VO. Sin esto, hasSpokenDialogue (que matchea el
@@ -161,8 +173,14 @@ function toTimeline(action: string, duration: number): string {
 // diálogo guardado no cambia (misma política que la normalización es-MX). Se parte
 // en fronteras de oración y, si la frase única es larga, en sus pausas internas
 // (coma/punto y coma) — nunca en frontera arbitraria de palabra.
-export const DIALOGUE_PAUSE_BEAT = ' The speaker pauses briefly, then continues. ';
-const DIALOGUE_SPLIT_MIN_WORDS = 11;
+// Fase 2 audio (2026-07-13): el beat ya NO ordena "pauses briefly" (sonaba a
+// silencio dramático → "pausa mucho") sino una respiración breve sin corte; y el
+// umbral sube 11→14 para no trocear líneas medias, que la cláusula de fluidez
+// (DIALOGUE_LANGUAGE) ya sostiene. El troceo se conserva SOLO para líneas largas
+// (≥14) que Seedance realmente mastica — es la red anti-atropellado.
+export const DIALOGUE_PAUSE_BEAT =
+  ' The speaker takes only a quick, natural breath and continues the same line smoothly, without a long or dramatic pause. ';
+const DIALOGUE_SPLIT_MIN_WORDS = 14;
 // Techo de palabras por segmento hablado (guía 5-10): al partir una frase única
 // por sus pausas internas, los tramos se fusionan greedy sin rebasarlo.
 const DIALOGUE_SEGMENT_MAX_WORDS = 10;
@@ -275,31 +293,54 @@ export function buildReferences(ctx: DirectorContext): {
   // por el usuario, así que los topes POR CATEGORÍA se levantan — el usuario es
   // el presupuesto. El tope global de 9 (pushImage) sigue siendo la red.
   const manual = ctx.manualRefs === true;
-  // Producto: máx 3 ángulos como referencia (frontal, perfil, detalle) para
-  // dejar slots libres; el Brand Kit puede traer más.
-  // En manual no se pre-recorta: pushImage aplica el tope de 9 y CUENTA los
-  // drops (el pre-slice silenciaba el warning de recorte).
-  const productImages = ctx.product?.imagePaths.slice(0, manual ? Infinity : 3) ?? [];
-  const productUsages = ctx.product?.imageUsages ?? {};
-  for (const path of productImages) {
-    const usage = productUsages[path];
-    pushImage(
-      path,
-      'product',
-      (n) =>
-        `@image${n} is the product${usage ? `, shown here as ${usage}` : ''} — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
-    );
+  // Producto: presupuesto de imágenes POR PRODUCTO según cuántos van en el clip
+  // (1→3, 2→2, 3+→1: menos vistas por producto = menos confusión de conteo,
+  // mitigación central del spec multi-producto 2026-07-15). En manual no se
+  // pre-recorta: pushImage aplica el tope de 9 y CUENTA los drops (el pre-slice
+  // silenciaba el warning de recorte).
+  const products = ctx.products ?? [];
+  const productCap = manual ? Infinity : perProductImageCap(products.length);
+  for (const [pi, product] of products.entries()) {
+    const productImages = product.imagePaths.slice(0, productCap);
+    const usages = product.imageUsages ?? {};
+    const nums: number[] = [];
+    // En multi la cita distingue al producto por ORDINAL, nunca por nombre:
+    // el modelo renderiza como texto en pantalla los nombres propios que lee
+    // (bug observado en showcases multi-producto). El ordinal ata la cita a su
+    // ficha compacta ("Product N of M") sin darle palabras que escribir.
+    const label = products.length > 1 ? `product ${pi + 1} of ${products.length}` : 'the product';
+    for (const path of productImages) {
+      const usage = usages[path];
+      const n = pushImage(
+        path,
+        'product',
+        (n) =>
+          `@image${n} is ${label}${usage ? `, shown here as ${usage}` : ''} — keep its design, colors, logo and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+      );
+      if (n) nums.push(n);
+    }
+    // AM: con 2+ vistas DEL MISMO producto, decláralo scoped a ese producto —
+    // nunca global entre productos distintos (los fusionaría).
+    if (nums.length >= 2) {
+      lines.push(
+        products.length > 1
+          ? `@image${nums.join(' and @image')} show the SAME single product (product ${pi + 1} of ${products.length}) from different views; reconcile them into one consistent object — do not treat them as different products.`
+          : 'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
+      );
+    }
   }
-  // AM: con 2+ vistas, dile al modelo que son el MISMO objeto (evita que trate
-  // el 3/4 generado como un producto distinto).
-  if (productImages.length >= 2) {
-    lines.push(
-      'The product reference images show the SAME single product from different views; reconcile them into one consistent object — do not treat them as different products.',
-    );
-  }
+  // La cláusula anti-conteo se emite UNA sola vez, en el bloque de descripción
+  // de compileSeedance (antes salía también aquí: duplicaba la carnada de texto
+  // y en I2V de storyboard viajaba sin referencias de producto que atar).
 
-  // Empaque (solo si el formato lo exige está en el contexto).
-  const packagingImages = ctx.product?.packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [];
+  // Empaque: solo clips single-producto en auto (en multi satura el conteo);
+  // la selección manual del usuario sí viaja (manual = el usuario es el presupuesto).
+  const packagingImages =
+    products.length === 1
+      ? (products[0].packagingImagePaths?.slice(0, manual ? Infinity : 2) ?? [])
+      : manual
+        ? products.flatMap((p) => p.packagingImagePaths ?? [])
+        : [];
   for (const path of packagingImages) {
     pushImage(path, 'packaging', (n) => `@image${n} is the product packaging, shown exactly as in the reference.`);
   }
@@ -468,17 +509,11 @@ function audioDirection(register: string): string {
   return 'Audio: natural diegetic sound that matches the scene, no music — keep it real, with subtle room tone.';
 }
 
-// Matiz de entrega de la voz por registro (#3 audio): se añade a la directiva de
-// idioma/cadencia base (DIALOGUE_LANGUAGE) cuando hay voz en escena. null para
-// registros UGC/casual, ya cubiertos por la cadencia base.
-function voiceToneForRegister(register: string): string | null {
-  const r = register.toLowerCase();
-  if (/asmr|susurro|whisper|macro/.test(r)) return 'Deliver the voice intimately and softly, close to the mic, almost a whisper.';
-  if (/calle|street|vox|interview|entrevista|espont/.test(r)) return 'Deliver the voice spontaneously and candidly, with light street energy, as if caught in the moment.';
-  if (/bold|icono|kinet|en[eé]rg|beat/.test(r)) return 'Deliver the voice with confident, punchy energy.';
-  if (/cinemat|[eé]pic|gran ?pantalla|brand ?film|emotiv/.test(r)) return 'Deliver the voice calm, sincere and emotionally grounded.';
-  return null;
-}
+// Clips con voz (diálogo o voz en off): sin música para que la voz no compita.
+// "no music" literal es más fiable que "no background music". Los clips SIN voz
+// conservan su música por registro (audioDirection).
+const VOICE_FORWARD_AUDIO =
+  'Audio: no music — the spoken voice carries the scene; keep only subtle diegetic room tone under the dialogue, with the voice clear and forward in the mix.';
 
 export function compileSeedance(
   req: CompileRequest,
@@ -528,6 +563,8 @@ export function compileSeedance(
   // de la acción.
   if (speaker) {
     sections.push(SPEECH_DIRECTION);
+    // Mantiene al hablante físicamente vivo (contra el "parado/tieso" de clips cortos).
+    sections.push(SPEAKER_LIVELINESS);
     // 2+ personajes del Cast en cámara → fija un solo hablante (PD-15).
     if ((ctx.characters?.length ?? 0) >= 2) sections.push(MULTI_SPEAKER_DIRECTION);
   } else if (generateAudio && voiced && voiceover) {
@@ -549,10 +586,20 @@ export function compileSeedance(
   // Fidelidad de producto y personajes (reglas duras del inventario). La
   // cláusula de fidelidad se omite cuando la línea @Image ya la declara (hay
   // imagen de referencia): se deja solo los hechos, sin duplicar verbatim.
-  if (ctx.product) {
-    sections.push(describeProduct(ctx.product, { fidelity: !ctx.product.imagePaths.length }));
-    const weight = describeProductWeight(ctx.product);
+  const ctxProducts = ctx.products ?? [];
+  if (ctxProducts.length === 1) {
+    const product = ctxProducts[0];
+    sections.push(describeProduct(product, { fidelity: !product.imagePaths.length }));
+    const weight = describeProductWeight(product);
     if (weight) sections.push(weight.trim());
+  } else if (ctxProducts.length > 1) {
+    // Multi: ficha compacta por producto (ordinal, sin nombres) + anti-conteo,
+    // emitido SOLO aquí (única vez en el prompt). El staging proporcional y el
+    // peso son single-producto (saturarían N veces el prompt).
+    for (const [pi, product] of ctxProducts.entries()) {
+      sections.push(describeProductCompact(product, pi, ctxProducts.length));
+    }
+    sections.push(multiProductCountClause(ctxProducts.length));
   }
   for (const character of ctx.characters ?? []) {
     // Sin descripción (describeFromMaster es best-effort y el usuario pudo no
@@ -602,7 +649,10 @@ export function compileSeedance(
   // los pasos tocan SOLO el diálogo entrecomillado, nunca el andamiaje del prompt
   // (9:16, 480p, 3-7s:, @imageN). Solo en el prompt enviado; el diálogo guardado
   // no cambia.
-  const action = splitLongDialogues(applyRespellings(normalizeSpokenInDialogue(rawAction)));
+  const action0 = splitLongDialogues(applyRespellings(normalizeSpokenInDialogue(rawAction)));
+  const action = voiced
+    ? injectDeliveryCue(action0, deliveryCueFor(req.voiceTone, ctx.format?.register ?? '', req.scenePrompt))
+    : action0;
   sections.push(action);
 
   // F — Encuadre, registro y ritmo del formato.
@@ -641,15 +691,13 @@ export function compileSeedance(
   // Audio dirigido por registro (#2): música/foley deciden aquí, no "si el
   // registro lo pide". El sonido específico de la acción viene del matcher (#1).
   if (generateAudio && !ctx.audioRefPath) {
-    sections.push(audioDirection(ctx.format?.register ?? ''));
+    sections.push(voiced ? VOICE_FORWARD_AUDIO : audioDirection(ctx.format?.register ?? ''));
   }
   // Idioma/acento de la voz SOLO cuando hay habla o narración en la escena.
-  // Si no la hay, se le cierra la puerta a una voz en off no pedida. Con voz, el
-  // tono de entrega se matiza por registro (#3) sobre la cadencia base.
+  // Si no la hay, se le cierra la puerta a una voz en off no pedida. El tono de
+  // entrega ya va pegado a la cita del diálogo (cue adyacente, ver action arriba).
   if (voiced) {
     sections.push(DIALOGUE_LANGUAGE[ctx.language ?? 'es']);
-    const tone = voiceToneForRegister(ctx.format?.register ?? '');
-    if (tone) sections.push(tone);
   } else if (generateAudio) {
     sections.push('No spoken dialogue or voice-over; ambient sound only.');
   }

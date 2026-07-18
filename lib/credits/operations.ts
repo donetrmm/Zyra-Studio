@@ -70,6 +70,11 @@ export async function failGeneration(
   if (error) throw new Error(`fail_generation: ${error.message}`);
 }
 
+// Umbral de aviso de saldo bajo: ~2 imágenes o 1 clip corto de video. El aviso
+// es proactivo (al reservar), no un bloqueo — el bloqueo duro sigue siendo el
+// insufficient_credits del submit.
+const LOW_BALANCE_THRESHOLD = 100;
+
 export async function reserveCredits(
   userId: string,
   amount: number,
@@ -82,7 +87,45 @@ export async function reserveCredits(
     p_generation_id: generationId,
   });
   if (error) throw new Error(`reserve_credits: ${error.message}`);
-  return data === true;
+  const reserved = data === true;
+  if (reserved) {
+    // Best-effort: el aviso nunca bloquea ni revierte una reserva válida.
+    try {
+      await maybeNotifyLowBalance(userId);
+    } catch (err) {
+      console.error('[credits] aviso de saldo bajo falló', { userId, err });
+    }
+  }
+  return reserved;
+}
+
+// Inserta una notificación 'low_balance' si el saldo disponible cayó bajo el
+// umbral y no hay ya una sin leer (dedupe: un solo aviso hasta que el usuario
+// lo lea o recargue).
+async function maybeNotifyLowBalance(userId: string): Promise<void> {
+  const admin = createAdminClient();
+  // reserve_credits ya descontó el monto: balance ES el disponible.
+  const { data: row } = await admin
+    .from('credit_balances')
+    .select('balance')
+    .eq('user_id', userId)
+    .single();
+  const balance = (row as { balance?: number } | null)?.balance;
+  if (typeof balance !== 'number' || balance >= LOW_BALANCE_THRESHOLD) return;
+
+  const { count } = await admin
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('type', 'low_balance')
+    .is('read_at', null);
+  if (count && count > 0) return;
+
+  await admin.from('notifications').insert({
+    user_id: userId,
+    type: 'low_balance',
+    payload: { balance, threshold: LOW_BALANCE_THRESHOLD },
+  });
 }
 
 export async function confirmCredits(

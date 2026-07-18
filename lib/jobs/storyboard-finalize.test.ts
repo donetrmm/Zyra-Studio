@@ -5,7 +5,7 @@ import type { GenerationRow } from './handlers/types';
 function gen(params: Record<string, unknown>): GenerationRow {
   return {
     id: 'g', user_id: 'u', workspace_id: 'ws', type: 'image', provider: 'nano-banana',
-    model_id: 'm', prompt: null, params, reference_ids: [], status: 'done',
+    model_id: 'm', prompt: null, params, reference_ids: [], parent_generation_id: null, status: 'done',
     provider_task_id: null, provider_payload: null, poll_attempts: 0, timeout_at: null,
     cancel_requested: false, credits_estimated: 0,
   };

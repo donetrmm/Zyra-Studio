@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   CalendarDays,
+  ChevronDown,
   Clapperboard,
   Download,
   Eye,
   FileBarChart,
+  Images,
   Info,
   Layers,
   Loader2,
@@ -24,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { cancelGenerationAction } from '@/server-actions/generations';
 import {
@@ -41,6 +44,7 @@ import {
   redoSamplesAction,
   requestFinalAction,
   setCampaignStatusAction,
+  setItemProductsAction,
   toggleWinnerAction,
   updateCampaignItemAction,
   updateCampaignStudioAction,
@@ -48,8 +52,10 @@ import {
 } from '@/server-actions/campaigns';
 import { groupPlanItems } from '@/lib/campaigns/plan-grouping';
 import { MATCHER_ERROR_HINTS } from '@/lib/campaigns/matcher-hints';
+import { MASTER_PROMPT_MAX } from '@/lib/schemas/ingest';
 import { regenModesFor } from '@/lib/campaigns/sequence-chain';
 import { seedanceCostPerItem } from '@/lib/campaigns/estimate';
+import { estimateItemImageRefs } from '@/lib/campaigns/ref-budget';
 import { clipDownloadName } from '@/lib/campaigns/clip-download-name';
 import { downloadGenerationImage as downloadFile } from '@/lib/media-references/download-client';
 import type { PricingRow } from '@/lib/credits/types';
@@ -63,6 +69,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirm } from '@/components/ui/confirm-dialog';
@@ -93,6 +105,17 @@ export type StudioCharacterOption = {
 };
 export type StudioLocationOption = { id: string; name: string };
 
+// V3 multi-producto (Fase 3): entrada del pool de productos de la campaña,
+// para el selector por clip en PlanTable.
+export type StudioProductPoolEntry = {
+  id: string;
+  name: string;
+  imageCount: number;
+  // Nº de imágenes de empaque del producto — insumo del estimado de badge
+  // (solo aplica en clips de un único producto; ver estimateItemImageRefs).
+  packagingImageCount: number;
+};
+
 export type StudioCampaign = {
   id: string;
   name: string;
@@ -110,6 +133,10 @@ export type StudioCampaign = {
   productWeightKg?: number;
   guidelines?: { showFullProduct?: boolean; hookProductHero?: boolean; safeCrop?: '4:5' | null; safeAreaExtend?: boolean };
   aspectRatio?: string | null;
+  // V3 multi-producto (Fase 3): marca de la campaña (gating de Task 5) y el
+  // pool de productos disponibles para asignar por clip.
+  brandKitId: string | null;
+  productPool: StudioProductPoolEntry[];
 };
 
 // Mirror de server-actions/campaigns.ts (requestFinalAction): el final se renderiza con
@@ -435,16 +462,21 @@ export function CampaignStudioView({
         </div>
       </div>
 
-      <div className="mt-3">
-        <ProductSizeEditor
-          campaignId={campaign.id}
-          initialHeightCm={campaign.productHeightCm}
-          initialWidthCm={campaign.productWidthCm}
-          initialMedium={campaign.productMedium}
-          initialThicknessMm={campaign.productThicknessMm}
-          initialWeightKg={campaign.productWeightKg}
-        />
-      </div>
+      {/* Producto físico: solo como fallback de escala cuando la campaña NO tiene
+          productos en el pool. Con productos (V3), la escala física vive en cada
+          producto (biblioteca) y se asigna por clip, así que esta tarjeta se oculta. */}
+      {campaign.productPool.length === 0 && (
+        <div className="mt-3">
+          <ProductSizeEditor
+            campaignId={campaign.id}
+            initialHeightCm={campaign.productHeightCm}
+            initialWidthCm={campaign.productWidthCm}
+            initialMedium={campaign.productMedium}
+            initialThicknessMm={campaign.productThicknessMm}
+            initialWeightKg={campaign.productWeightKg}
+          />
+        </div>
+      )}
       <div className="mt-3">
         <CreativeGuidelinesEditor campaignId={campaign.id} aspectRatio={campaign.aspectRatio} initial={campaign.guidelines} />
       </div>
@@ -473,6 +505,8 @@ export function CampaignStudioView({
             campaignId={campaign.id}
             items={items}
             locationOptions={locationOptions}
+            productPool={campaign.productPool}
+            brandKitId={campaign.brandKitId}
             onEdit={setEditing}
             onPreview={handlePreviewPrompt}
             onDeleted={(id) => setItems((p) => p.filter((i) => i.id !== id))}
@@ -484,6 +518,12 @@ export function CampaignStudioView({
                 p.map((i) => (i.sequenceId === sequenceId ? { ...i, locationId } : i)),
               )
             }
+            onProductChanged={(itemId, productIds) =>
+              setItems((p) => p.map((i) => (i.id === itemId ? { ...i, productIds } : i)))
+            }
+            onRefsChanged={(itemId, isManual) =>
+              setItems((p) => p.map((i) => (i.id === itemId ? { ...i, hasManualRefs: isManual } : i)))
+            }
           />
         </>
       ) : tab === 'produccion' ? (
@@ -492,6 +532,8 @@ export function CampaignStudioView({
           groups={byFormat}
           characterOptions={characterOptions}
           pricing={pricing}
+          brandKitId={campaign.brandKitId}
+          productPool={campaign.productPool}
           onWinner={(id, isWinner) =>
             setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isWinner } : i)))
           }
@@ -577,7 +619,7 @@ export function CampaignStudioView({
                 onChange={(e) => setReprocessIdea(e.target.value)}
                 disabled={reprocessing}
                 rows={6}
-                maxLength={6000}
+                maxLength={MASTER_PROMPT_MAX}
                 placeholder="Describe qué quieres ver: el producto, la acción concreta en pantalla, el tono. Una idea por línea si son varios anuncios."
                 className="max-h-56 min-h-24 overflow-y-auto text-xs"
               />
@@ -771,20 +813,32 @@ function PlanTable({
   campaignId,
   items,
   locationOptions,
+  productPool,
+  brandKitId,
   onEdit,
   onPreview,
   onDeleted,
   onSequenceMerged,
   onSequenceLocationChanged,
+  onProductChanged,
+  onRefsChanged,
 }: {
   campaignId: string;
   items: StudioItem[];
   locationOptions: StudioLocationOption[];
+  // V3 multi-producto (Fase 3): pool de la campaña y marca, para el selector
+  // de producto por fila y su resalte cuando falta asignar.
+  productPool: StudioProductPoolEntry[];
+  brandKitId: string | null;
   onEdit: (item: StudioItem) => void;
   onPreview: (id: string) => void;
   onDeleted: (id: string) => void;
   onSequenceMerged: (sequenceId: string, merged: StudioItem) => void;
   onSequenceLocationChanged: (sequenceId: string, locationId: string | null) => void;
+  onProductChanged: (itemId: string, productIds: string[]) => void;
+  // V3 multi-producto (Fase 4): refleja en el estado local si el clip quedó con
+  // selección manual de referencias tras guardar/restablecer en el diálogo.
+  onRefsChanged: (itemId: string, isManual: boolean) => void;
 }) {
   const editable = (s: string) => ['planned', 'skipped', 'failed'].includes(s);
   const [generatingItem, setGeneratingItem] = useState<string | null>(null);
@@ -828,6 +882,23 @@ function PlanTable({
   }
 
   const [assigningLocation, setAssigningLocation] = useState<string | null>(null);
+  const [assigningProduct, setAssigningProduct] = useState<string | null>(null);
+
+  // V3 multi-producto (Fase 3): fija/limpia el producto de un clip. Actualiza el
+  // estado local vía onProductChanged (no router.refresh — items vive en un
+  // useState del padre sembrado una vez con initialItems, así que un refresh de
+  // servidor no lo re-sincroniza; mismo motivo por el que assignSequenceLocationAction
+  // usa un callback en vez de refrescar).
+  async function handleAssignProducts(itemId: string, productIds: string[]) {
+    setAssigningProduct(itemId);
+    const res = await setItemProductsAction({ itemId, productIds });
+    setAssigningProduct(null);
+    if (!res.ok) {
+      toast.error(res.message ?? 'No se pudo asignar el producto');
+      return;
+    }
+    onProductChanged(itemId, productIds);
+  }
 
   async function handleAssignLocation(sequenceId: string, locationId: string | null) {
     setAssigningLocation(sequenceId);
@@ -840,9 +911,117 @@ function PlanTable({
     onSequenceLocationChanged(sequenceId, locationId);
   }
 
-  function renderPlanRow(item: StudioItem) {
+  // V3 multi-producto (Fase 3): selector de producto por clip, compartido entre
+  // renderPlanRow (clips sueltos) y las filas de escena de una secuencia. Solo
+  // se muestra si la campaña tiene pool; sin pool no hay nada que asignar.
+  function renderProductSelector(item: StudioItem) {
+    if (productPool.length === 0) return null;
+    const unassigned = item.productIds.length === 0 && !!brandKitId;
+    const label =
+      item.productIds.length === 0
+        ? 'Sin asignar'
+        : item.productIds.length === 1
+          ? (productPool.find((p) => p.id === item.productIds[0])?.name ?? '1 producto')
+          : `${item.productIds.length} productos`;
     return (
-      <tr key={item.id} className="border-b border-border/50 last:border-0">
+      <div className="mt-1 whitespace-normal">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={assigningProduct === item.id}
+              aria-label="Productos del clip"
+              className={cn(
+                'h-6 w-full max-w-[10rem] justify-between px-2 text-2xs font-normal',
+                unassigned && 'border-amber-500/50 text-amber-500',
+              )}
+            >
+              <span className="truncate">{label}</span>
+              <ChevronDown className="size-3 shrink-0 opacity-50" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {productPool.map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p.id}
+                checked={item.productIds.includes(p.id)}
+                disabled={assigningProduct === item.id}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(checked) => {
+                  const next = checked
+                    ? [...item.productIds, p.id]
+                    : item.productIds.filter((id) => id !== p.id);
+                  void handleAssignProducts(item.id, next);
+                }}
+              >
+                {p.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {unassigned && <p className="mt-0.5 text-2xs text-amber-500">Sin asignar</p>}
+      </div>
+    );
+  }
+
+  // V3 multi-producto (Fase 4): botón de referencias por clip, compartido entre
+  // renderPlanRow y las filas de escena. A diferencia del selector de producto,
+  // no se gatea por productPool: hay referencias de sobra sin pool (cast,
+  // locación, brand kit).
+  function renderClipRefs(item: StudioItem) {
+    const poolById = new Map(productPool.map((p) => [p.id, p]));
+    const refEstimate = estimateItemImageRefs({
+      productImageCounts: item.productIds.map((id) => poolById.get(id)?.imageCount ?? 0),
+      packagingImageCount:
+        item.productIds.length === 1 ? (poolById.get(item.productIds[0])?.packagingImageCount ?? 0) : 0,
+      castCount: item.characterNames.length,
+      locationImageCount: item.locationId ? 1 : 0,
+      hasScaleMap: false,
+      extraCount: item.extraRefCount,
+    });
+    return (
+      <div className="mt-1 inline-flex items-center gap-1.5">
+        <ReferencePoolDialog
+          campaignId={campaignId}
+          itemId={item.id}
+          context="video"
+          trigger={
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-2xs">
+              <Images className="size-3" aria-hidden />
+              Referencias
+            </Button>
+          }
+          onSaved={(isManual) => onRefsChanged(item.id, isManual)}
+        />
+        {item.hasManualRefs && (
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-2xs uppercase tracking-wide text-primary">
+            manual
+          </span>
+        )}
+        {refEstimate > 9 && (
+          <span
+            className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-2xs text-amber-500"
+            title="El pool estimado supera las 9 imágenes que acepta el modelo: abre Referencias para priorizar"
+          >
+            {refEstimate}/9
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function renderPlanRow(item: StudioItem) {
+    const unassigned = productPool.length > 0 && item.productIds.length === 0 && !!brandKitId;
+    return (
+      <tr
+        key={item.id}
+        className={cn(
+          'border-b border-border/50 last:border-0',
+          unassigned && 'bg-amber-500/[0.05]',
+        )}
+      >
         <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="size-3 text-muted-foreground/40" aria-hidden />
@@ -866,6 +1045,8 @@ function PlanTable({
               · {item.characterNames.join(' + ')}
             </span>
           )}
+          {renderProductSelector(item)}
+          {renderClipRefs(item)}
         </td>
         <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
           {item.scene && (
@@ -896,8 +1077,8 @@ function PlanTable({
                 <button
                   type="button"
                   onClick={() => handleGenerateItem(item)}
-                  disabled={generatingItem === item.id}
-                  title="Generar esta escena"
+                  disabled={generatingItem === item.id || unassigned}
+                  title={unassigned ? 'Asigna un producto a este clip antes de generar' : 'Generar esta escena'}
                   className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                 >
                   {generatingItem === item.id ? (
@@ -1057,8 +1238,16 @@ function PlanTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {group.scenes.map((scene, i) => (
-                    <tr key={scene.id} className="border-b border-border/50 last:border-0">
+                  {group.scenes.map((scene, i) => {
+                    const sceneUnassigned = productPool.length > 0 && scene.productIds.length === 0 && !!brandKitId;
+                    return (
+                    <tr
+                      key={scene.id}
+                      className={cn(
+                        'border-b border-border/50 last:border-0',
+                        sceneUnassigned && 'bg-amber-500/[0.05]',
+                      )}
+                    >
                       <td className="whitespace-nowrap px-3 py-2.5 text-2xs text-muted-foreground">{i + 1}</td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5">
@@ -1083,6 +1272,8 @@ function PlanTable({
                             · {scene.characterNames.join(' + ')}
                           </span>
                         )}
+                        {renderProductSelector(scene)}
+                        {renderClipRefs(scene)}
                       </td>
                       <td className="hidden max-w-md px-3 py-2.5 md:table-cell">
                         {scene.scene && (
@@ -1110,8 +1301,12 @@ function PlanTable({
                               <button
                                 type="button"
                                 onClick={() => handleGenerateItem(scene)}
-                                disabled={generatingItem === scene.id}
-                                title="Generar esta escena (continúa desde la anterior)"
+                                disabled={generatingItem === scene.id || sceneUnassigned}
+                                title={
+                                  sceneUnassigned
+                                    ? 'Asigna un producto a este clip antes de generar'
+                                    : 'Generar esta escena (continúa desde la anterior)'
+                                }
                                 className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                               >
                                 {generatingItem === scene.id ? (
@@ -1157,7 +1352,8 @@ function PlanTable({
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1172,6 +1368,8 @@ function ProductionView({
   groups,
   characterOptions,
   pricing,
+  brandKitId,
+  productPool,
   onWinner,
   onSamplesReset,
 }: {
@@ -1179,6 +1377,10 @@ function ProductionView({
   groups: Array<{ formatId: string; formatName: string; items: StudioItem[] }>;
   characterOptions: StudioCharacterOption[];
   pricing: PricingRow[];
+  // V3 multi-producto (Fase 3, Task 5): gating de "Muestra"/"Lote completo" —
+  // mismo cálculo que el resalte de PlanTable, aplicado a nivel de grupo.
+  brandKitId: string | null;
+  productPool: StudioProductPoolEntry[];
   onWinner: (itemId: string, isWinner: boolean) => void;
   onSamplesReset: (formatId: string) => void;
 }) {
@@ -1373,6 +1575,18 @@ function ProductionView({
           (i) => i.sequenceId == null && ['planned', 'failed'].includes(i.status),
         ).length;
         const pureSequence = sequences.length > 0 && loosePending === 0;
+        // V3 multi-producto (Fase 3, Task 5): mismo cálculo que el resalte "Sin
+        // asignar" de PlanTable, a nivel de grupo — si algún clip del formato no
+        // tiene producto (campaña con marca+pool), no se puede encolar el lote.
+        // Solo cuentan los items PENDIENTES (mismo recorte que approveBatchAction
+        // en el servidor: planned/failed) — un item ya generado o legacy con
+        // product_id null no es editable y no debe bloquear el lote para siempre.
+        const groupUnassigned =
+          !!brandKitId &&
+          productPool.length > 0 &&
+          group.items
+            .filter((i) => ['planned', 'failed'].includes(i.status))
+            .some((i) => i.productIds.length === 0);
         return (
           <div key={group.formatId || group.formatName} className="rounded-xl border border-border bg-card/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1407,11 +1621,13 @@ function ProductionView({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={pending === 0 || busy !== null || pureSequence}
+                  disabled={pending === 0 || busy !== null || pureSequence || groupUnassigned}
                   title={
-                    pureSequence
-                      ? 'Una secuencia se genera completa y en orden: usa «Lote completo».'
-                      : undefined
+                    groupUnassigned
+                      ? 'Asigna un producto a cada clip antes de generar'
+                      : pureSequence
+                        ? 'Una secuencia se genera completa y en orden: usa «Lote completo».'
+                        : undefined
                   }
                   onClick={() => handleBatch(group.formatId, 'sample')}
                 >
@@ -1425,7 +1641,8 @@ function ProductionView({
                 <Button
                   type="button"
                   size="sm"
-                  disabled={pending === 0 || busy !== null}
+                  disabled={pending === 0 || busy !== null || groupUnassigned}
+                  title={groupUnassigned ? 'Asigna un producto a cada clip antes de generar' : undefined}
                   onClick={() => handleBatch(group.formatId, 'full')}
                 >
                   {busy === `${group.formatId}:full` ? (
@@ -1437,6 +1654,13 @@ function ProductionView({
                 </Button>
               </div>
             </div>
+
+            {groupUnassigned && (
+              <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-2xs leading-snug text-amber-300/90">
+                <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>Hay clips sin producto asignado — asígnalos en el Plan antes de generar.</span>
+              </p>
+            )}
 
             {sequences.length > 0 && pending > 0 && (
               <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-2.5 py-2 text-2xs leading-snug text-amber-300/90">

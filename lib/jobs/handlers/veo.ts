@@ -3,6 +3,7 @@ import { downloadVideo, pollOperation, submitOperation, type VeoModel } from '@/
 import { ProviderError } from '@/lib/providers/types';
 import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 
 const MAX_POLLS = 24;
 
@@ -75,18 +76,7 @@ export const veoHandler: JobHandler = {
       return { kind: 'finalize', outputBuffer: buffer, mimeType };
     } catch (err) {
       if (err instanceof ProviderError) {
-        return {
-          kind: 'fail',
-          message: err.message,
-          code:
-            err.code === 'safety'
-              ? 'safety'
-              : err.code === 'rate_limit'
-                ? 'rate_limit'
-                : err.code === 'timeout'
-                  ? 'timeout'
-                  : 'unknown',
-        };
+        return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
       }
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }

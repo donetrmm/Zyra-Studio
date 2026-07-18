@@ -5,8 +5,8 @@
 // vi.mock('@/lib/providers/gateway') de módulo en ese mismo archivo choca con
 // el hoisting de vitest (el import estático de './ingest' se hoistea junto
 // con el mock, antes de que gatewayTextMock exista → ReferenceError). Aislar
-// el mock aquí, con import dinámico como en lib/refine/gemini.test.ts y
-// lib/creation/clarify.test.ts, evita el problema sin tocar los tests puros.
+// el mock aquí, con import dinámico como en lib/refine/gemini.test.ts,
+// evita el problema sin tocar los tests puros.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const gatewayTextMock = vi.fn();

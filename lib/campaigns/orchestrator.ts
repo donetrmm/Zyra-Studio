@@ -9,6 +9,7 @@ import {
   DIALOGUE_LANGUAGE,
   NEGATIVE_CLAUSE,
   NO_REAL_FACES_CLAUSE,
+  SPEAKER_LIVELINESS,
   SPEECH_DIRECTION,
   VOICEOVER_DIRECTION,
   hasSpokenDialogue,
@@ -27,6 +28,7 @@ import { beatNamesCast, buildCastR2VRefs, STORYBOARD_EDIT_HANDLES } from '@/lib/
 import { applyReferenceSelection, normalizeReferenceSelection } from './reference-selection';
 import { CreativeGuidelinesSchema, type CreativeGuidelines } from './guidelines';
 import { getStyleProfile, type VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { productInventoryFromRow, type ProductRow } from './products';
 
 // Orquestador de lotes (specs/v2/03 tarea 5). Un lote = los items de un
 // formato. Cada item se vuelve una generación V1 normal (cola QStash) con
@@ -48,6 +50,9 @@ export type ItemRow = {
   character_ids: string[] | null;
   reference_ids: string[] | null;
   scene_prompt: string;
+  // Tono/entrega de voz de ESTE clip (audio expresivo fase 1, migración 064).
+  // null = default por registro (sin override).
+  voice_tone: string | null;
   status: string;
   // Secuencia: las escenas de un mismo anuncio comparten sequence_id y se
   // ordenan por scene_index. null en creativos sueltos.
@@ -63,6 +68,16 @@ export type ItemRow = {
   // Vestuario (specs/v2/16): override de outfit para ESTE clip, por label. null =
   // usa el outfit de campaña (character_outfit_map) o el cuerpo completo base.
   character_outfit_hint: string | null;
+  // Multi-producto (spec 2026-07-15): productos ASIGNADOS a ESTE clip, en orden.
+  // null/vacío = usa el producto de campaña (product_brief) como fallback. El
+  // singular product_id (pre-070) ya no viaja en ItemRow — nada del pipeline lo
+  // leía (directorContextFor solo mira productsOverride/product_ids); su compat
+  // vive en toStudioItem, antes de que el dato llegue acá (T12).
+  product_ids: string[] | null;
+  // V3 fase 4: selección manual de referencias de ESTE clip (jsonb crudo, mismo
+  // shape que campaigns.reference_selection). null/vacío = cae a la de campaña
+  // (fallback/compat: el backfill de la migración 060 copió campaña → ítem).
+  reference_selection: unknown;
 };
 
 // Personajes efectivos del item: array nuevo con fallback al principal legacy.
@@ -184,6 +199,43 @@ export async function resolvePaths(
     }
   }
   return map;
+}
+
+// Resuelve UN producto por su id (uno de campaign_items.product_ids) a
+// ProductInventory, con sus imágenes y usages resueltos. Devuelve null si no
+// existe o no es del workspace (el caller cae al producto de campaña). Espeja
+// el bloque de producto de loadCampaignContext.
+export async function resolveItemProduct(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  workspaceId: string,
+  productId: string,
+  includePackaging: boolean,
+): Promise<import('@/lib/prompt-director/types').ProductInventory | null> {
+  const { data: row } = await supabase
+    .from('products')
+    .select(
+      'id, workspace_id, brand_id, name, slug, medium, height_cm, width_cm, thickness_mm, weight_kg, visual_details, palette, product_image_ids, packaging_image_ids',
+    )
+    .eq('id', productId)
+    .single();
+  if (!row || (row as { workspace_id: string }).workspace_id !== workspaceId) return null;
+  const productIds = ((row as ProductRow).product_image_ids ?? []) as string[];
+  const packagingIds = includePackaging ? (((row as ProductRow).packaging_image_ids ?? []) as string[]) : [];
+  const paths = await resolvePaths(supabase, workspaceId, [...productIds, ...packagingIds]);
+  const imagePaths = productIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+  const packagingImagePaths = packagingIds.map((id) => paths.get(id)).filter((p): p is string => !!p);
+  const usages = await resolveUsages(supabase, workspaceId, productIds);
+  const imageUsages: Record<string, string> = {};
+  for (const id of productIds) {
+    const path = paths.get(id);
+    const usage = usages.get(id);
+    if (path && usage) imageUsages[path] = usage;
+  }
+  return productInventoryFromRow(row as ProductRow, {
+    imagePaths,
+    packagingImagePaths,
+    ...(Object.keys(imageUsages).length ? { imageUsages } : {}),
+  });
 }
 
 // AM: resuelve usage_description por media_reference id (validando workspace).
@@ -470,6 +522,7 @@ export function directorContextFor(
   templateVideoPath?: string,
   extraImagePaths?: string[],
   location?: { name?: string; description?: string; imagePaths: string[]; scaleMap?: { path: string; notes?: string } },
+  productsOverride?: import('@/lib/prompt-director/types').ProductInventory[],
 ): DirectorContext {
   const stateHint = (item.character_state_hint as string | null) ?? null;
   // Vestuario (specs/v2/16): override de outfit de ESTE clip, por label.
@@ -501,21 +554,30 @@ export function directorContextFor(
     });
   return {
     format: format ? fromFormatRow(format) : undefined,
-    product: {
-      name: ctx.productName,
-      visualDetails: ctx.visualDetails,
-      palette: ctx.palette,
-      imagePaths: ctx.productImagePaths,
-      imageUsages: ctx.productImageUsages,
-      heightCm: ctx.productHeightCm,
-      widthCm: ctx.productWidthCm,
-      medium: ctx.productMedium,
-      thicknessMm: ctx.productThicknessMm,
-      weightKg: ctx.productWeightKg,
-      packagingImagePaths: format?.required_refs.includes('packaging')
-        ? ctx.packagingImagePaths
-        : undefined,
-    },
+    products: productsOverride?.length
+      ? productsOverride.map((p) => ({
+          ...p,
+          packagingImagePaths: format?.required_refs.includes('packaging')
+            ? p.packagingImagePaths
+            : undefined,
+        }))
+      : [
+          {
+            name: ctx.productName,
+            visualDetails: ctx.visualDetails,
+            palette: ctx.palette,
+            imagePaths: ctx.productImagePaths,
+            imageUsages: ctx.productImageUsages,
+            heightCm: ctx.productHeightCm,
+            widthCm: ctx.productWidthCm,
+            medium: ctx.productMedium,
+            thicknessMm: ctx.productThicknessMm,
+            weightKg: ctx.productWeightKg,
+            packagingImagePaths: format?.required_refs.includes('packaging')
+              ? ctx.packagingImagePaths
+              : undefined,
+          },
+        ],
     characters: characters.length ? characters : undefined,
     extraImagePaths: extraImagePaths?.length ? extraImagePaths : undefined,
     location: (location?.imagePaths.length || location?.description?.trim() || location?.scaleMap) ? location : undefined,
@@ -604,6 +666,10 @@ type ChainParams = {
   // directiva de actuación correcta (contenida vs enérgica) en cada clip de la
   // cadena, igual que el compiler. undefined (cadenas viejas) → contenida.
   register?: string;
+  // Nº de productos DISTINTOS del clip (multi-producto 2026-07-15): las
+  // continuaciones citan las refs de producto como "one of N". undefined
+  // (cadenas viejas) → 1.
+  productCount?: number;
 };
 
 // Construye el prompt de continuación de un clip encadenado. Las referencias se
@@ -626,14 +692,26 @@ export function buildContinuationPrompt(
     // Registro del formato: decide actuación contenida vs enérgica (paridad con
     // el compiler). undefined → contenida.
     register?: string;
+    // Multi-producto (2026-07-15): nº de productos DISTINTOS del clip. >1 cambia
+    // la cita de "the product" (singular) a "one of N distinct products" y añade
+    // la cláusula anti-conteo. undefined/1 → paridad con el comportamiento previo.
+    distinctProducts?: number;
   },
 ): string {
   const refs: string[] = [];
   let idx = 0;
+  const distinct = opts?.distinctProducts ?? 1;
   for (let i = 0; i < productCount; i++) {
     idx++;
     refs.push(
-      `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+      distinct > 1
+        ? `@image${idx} is one of the ${distinct} distinct products — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`
+        : `@image${idx} is the product — keep its design, colors and proportions consistent; any printed photo or text on it stays a still print, not animated.`,
+    );
+  }
+  if (distinct > 1) {
+    refs.push(
+      `The scene contains exactly ${distinct} distinct products; render each exactly once — do not duplicate, merge or invent additional products.`,
     );
   }
   for (let i = 0; i < characterCount; i++) {
@@ -683,8 +761,11 @@ export function buildContinuationPrompt(
   // Habla EN cámara → lip-sync; narración en off → VOICEOVER_DIRECTION (sin lip-sync).
   // El idioma/acento (es-MX) se re-ancla en CADA clip mientras haya voz (habla o VO):
   // sin esto los clips 2..N derivaban a inglés/acento neutro a mitad de la toma.
-  if (speaker) directives.push(SPEECH_DIRECTION);
-  else if (generateAudio && sceneHasVoice(scenePrompt) && voiceover) directives.push(VOICEOVER_DIRECTION);
+  if (speaker) {
+    directives.push(SPEECH_DIRECTION);
+    // Hablante vivo (paridad con el compiler): contra el "parado/tieso" en cadena.
+    directives.push(SPEAKER_LIVELINESS);
+  } else if (generateAudio && sceneHasVoice(scenePrompt) && voiceover) directives.push(VOICEOVER_DIRECTION);
   if (generateAudio && sceneHasVoice(scenePrompt)) directives.push(DIALOGUE_LANGUAGE[opts?.language ?? 'es']);
   // Cláusula negativa (siempre) y guard anti-rostros (solo tomas sin cara
   // intencional), al final como en el compiler.
@@ -797,7 +878,7 @@ export async function advanceSequenceChain(
 
   const { data: itemRows } = await admin
     .from('campaign_items')
-    .select('id, scene_prompt, scene, duration_s, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint, character_outfit_hint')
+    .select('id, scene_prompt, scene, duration_s, voice_tone, aspect_ratio, audio, scene_index, generation_id, character_id, character_ids, character_state_hint, character_outfit_hint')
     .eq('campaign_id', chain.campaignId)
     .eq('sequence_id', chain.sequenceId);
   if (!itemRows?.length) return;
@@ -820,6 +901,9 @@ export async function advanceSequenceChain(
   // Clip de continuación: R2V con [producto..., personaje..., fotograma previo].
   // El producto se cita @image1.. y el fotograma como la última imagen. Mismo
   // modelo R2V que el clip 1 (no i2v): así el producto se re-ancla en cada clip.
+  // Límite (multi-producto 2026-07-15): con 4+ productos distintos las
+  // continuaciones re-anclan solo los 3 primeros (1 imagen c/u por el cap de
+  // ref-budget). Documentado, no se cambia en esta tarea.
   const productPaths = (chain.productImagePaths ?? []).slice(0, 3);
   let characterPaths = (chain.characterImagePaths ?? []).slice(0, 3);
   if (characterPaths.length === 0) {
@@ -863,6 +947,9 @@ export async function advanceSequenceChain(
       // Register de la siembra: actuación contenida/enérgica por clip. Cadenas
       // viejas sin el campo → contenida (default de actingDirectionFor).
       ...(chain.register !== undefined ? { register: chain.register } : {}),
+      // Multi-producto: nº de productos distintos re-anclado desde la siembra.
+      // Cadenas viejas o de un solo producto → sin distinctProducts (paridad).
+      ...(chain.productCount ? { distinctProducts: chain.productCount } : {}),
     },
   );
 
@@ -898,6 +985,7 @@ export async function advanceSequenceChain(
           ...(chainAudio.kind === 'prev_clip' ? { prevAudioPath: chainAudio.paths[0] } : {}),
           ...(chain.videoLook ? { videoLook: chain.videoLook } : {}),
           ...(chain.register !== undefined ? { register: chain.register } : {}),
+          ...(chain.productCount ? { productCount: chain.productCount } : {}),
         } satisfies ChainParams,
       },
       status: 'queued',
@@ -1001,10 +1089,11 @@ export async function enqueueBatch(params: {
 
   const characterIds = [...new Set(selected.flatMap((i) => itemCharacterIds(i)))];
   const ctx = await loadCampaignContext(workspaceId, campaign, characterIds);
-  // Selección manual de referencias de la campaña (054): se aplica UPSTREAM al
-  // DirectorContext de cada item (nunca post-filtro: las citas @imageN del
-  // compiler están amarradas al orden). null = recorte automático.
-  const refSelection = normalizeReferenceSelection(campaign.reference_selection ?? null);
+  // Selección manual de referencias (054, por ítem desde V3 fase 4): se aplica
+  // UPSTREAM al DirectorContext de cada item (nunca post-filtro: las citas
+  // @imageN del compiler están amarradas al orden). Se resuelve POR ÍTEM dentro
+  // del loop (item.reference_selection gana; campaign.reference_selection es
+  // fallback/compat). null en ambos = recorte automático.
   const pricing = await loadPricing();
   const supabase = await createClient();
   const templateVideos = await loadTemplateVideoPaths(supabase, selected);
@@ -1094,6 +1183,10 @@ export async function enqueueBatch(params: {
 
   const result: BatchResult = { enqueued: 0, skipped: [], creditsReserved: 0 };
 
+  // Multi-producto por clip (campaign_items.product_ids), cacheado por id de
+  // producto individual para no re-resolver el mismo producto entre items del lote.
+  const itemProductCache = new Map<string, import('@/lib/prompt-director/types').ProductInventory | null>();
+
   for (let idx = 0; idx < selected.length; idx++) {
     const item = selected[idx];
     const role = chainRole(item);
@@ -1116,6 +1209,21 @@ export async function enqueueBatch(params: {
     const panelPath = item.storyboard_image_id ? storyboardPanels.get(item.storyboard_image_id) : undefined;
     const storyboardMode = !!panelPath;
 
+    // Multi-producto (spec 2026-07-15): resuelve CADA producto asignado al clip;
+    // los ids que no resuelven (borrados/otro workspace) se descartan como el cast.
+    const itemProductIds = (item.product_ids ?? []).filter(Boolean);
+    const itemProducts: import('@/lib/prompt-director/types').ProductInventory[] = [];
+    for (const pid of itemProductIds) {
+      if (!itemProductCache.has(pid)) {
+        itemProductCache.set(pid, await resolveItemProduct(supabase, workspaceId, pid, campaign.include_packaging !== false));
+      }
+      const resolved = itemProductCache.get(pid);
+      if (resolved) itemProducts.push(resolved);
+    }
+
+    // Por ítem (V3 fase 4): item.reference_selection gana; campaign.reference_selection
+    // es fallback (compat con campañas existentes, ya backfilleadas por la migración 060).
+    const itemRefSelection = normalizeReferenceSelection(item.reference_selection ?? campaign.reference_selection ?? null);
     const baseDirCtx = applyReferenceSelection(
       directorContextFor(
         item,
@@ -1128,8 +1236,9 @@ export async function enqueueBatch(params: {
           if (!loc) return undefined;
           return { name: loc.name, description: loc.description ?? undefined, imagePaths: loc.imagePaths, scaleMap: loc.scaleMap };
         })(),
+        itemProducts.length ? itemProducts : undefined,
       ),
-      refSelection,
+      itemRefSelection,
     );
     const dirCtx = storyboardMode ? onlyCharacterRefs(baseDirCtx) : baseDirCtx;
 
@@ -1138,6 +1247,7 @@ export async function enqueueBatch(params: {
         modelSlug: item.model_slug,
         scenePrompt: item.scene_prompt,
         durationS: item.duration_s ?? undefined,
+        voiceTone: item.voice_tone ?? undefined,
         aspectRatio: item.aspect_ratio ?? undefined,
         generateAudio: item.audio,
         isOpeningBeat: (item.scene_index ?? 0) === 0,
@@ -1187,7 +1297,7 @@ export async function enqueueBatch(params: {
     // panel → derivaba). Se toma del contexto base, ANTES de onlyCharacterRefs (que lo
     // quitó del dirCtx del compile). El cast lo cita el compiler (@image1..N); producto
     // y panel se citan en extraCitation.
-    const storyboardProductRefs = useR2V ? (baseDirCtx.product?.imagePaths ?? []).slice(0, 2) : [];
+    const storyboardProductRefs = useR2V ? (baseDirCtx.products ?? []).flatMap((p) => p.imagePaths).slice(0, 2) : [];
     // P16: la música (audioRefPath) no está en el panel; se toma del contexto
     // base ANTES de onlyCharacterRefs (que lo quitó del dirCtx del compile) y se
     // re-ancla solo en beats R2V (reference2video la soporta; image2video no).
@@ -1297,6 +1407,9 @@ export async function enqueueBatch(params: {
                       // Register crudo: elige actuación contenida vs enérgica en
                       // cada clip de continuación (paridad con el compiler).
                       register: baseDirCtx.format?.register ?? '',
+                      // Multi-producto: nº de productos DISTINTOS asignados al
+                      // clip (Task 5). >1 → las continuaciones citan "one of N".
+                      ...(itemProducts.length > 1 ? { productCount: itemProducts.length } : {}),
                     } satisfies ChainParams,
                   }
                 : {}),

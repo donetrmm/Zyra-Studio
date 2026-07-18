@@ -10,6 +10,8 @@ export type StoryboardBeat = {
   storyboardGenerationId: string | null;
   panelUrl: string | null;
   durationS: number;
+  // Tono/entrega de voz override del usuario (español, chip o texto libre). null = default por registro/emoción.
+  voiceTone: string | null;
   // Locacion anclada a la escena (por creativo). null = sin locacion.
   locationId: string | null;
   // Motivo persistido del último fallo de generación del panel (worker lo anota,

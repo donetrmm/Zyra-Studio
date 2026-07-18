@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useMemo, useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Mic2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import { Copy, Loader2, Mic2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { createCharacterAction, deleteCharacterAction, describeCharacterAction, updateCharacterAction } from '@/server-actions/cast';
 import { createCharacterStateAction, listCharacterStatesAction, deleteCharacterStateAction, updateCharacterStateImageAction } from '@/server-actions/character-states';
@@ -13,19 +13,22 @@ import { addGenerationAsReferenceAction } from '@/server-actions/media-reference
 import {
   generateCharacterState,
   refineCharacterState,
-  refineCharacterMaster,
   generateFullBody,
   generateOutfit,
   isGenError,
 } from '@/components/creation/generate';
-import { MasterImageRefiner } from '@/components/shared/MasterImageRefiner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { ReferenceImagesUploader, type RefImage } from '@/components/shared/ReferenceImagesUploader';
 import { ZoomableImage } from '@/components/shared/ZoomableImage';
-import { CreationWizard } from '@/components/creation/CreationWizard';
 import { buildCharacterMasterPrompt } from '@/lib/prompt-director/asset-prompts';
 import { VisualStyleSelector } from '@/components/shared/VisualStyleSelector';
 import type { VisualStyle } from '@/lib/prompt-director/style-profiles';
+import { Button } from '@/components/ui/button';
+import { PageEmptyState } from '@/components/ui/page-empty-state';
+import { AssetPageHeader } from '@/components/assets/AssetPageHeader';
+import { AssetCard } from '@/components/assets/AssetCard';
+import { AssetGrid } from '@/components/assets/AssetGrid';
+import { AssetSearch } from '@/components/assets/AssetSearch';
 
 export type CastCharacter = {
   id: string;
@@ -60,36 +63,64 @@ export function CastPage({
   const router = useRouter();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<CastCharacter | 'new' | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return characters;
+    return characters.filter(
+      (c) => c.name.toLowerCase().includes(q) || (c.description ?? '').toLowerCase().includes(q),
+    );
+  }, [characters, query]);
+
+  async function handleDelete(c: CastCharacter) {
+    const ok = await confirm({
+      title: `Eliminar a "${c.name}"?`,
+      description: 'Los items de campaña que lo usan quedarán sin personaje.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await deleteCharacterAction(c.id);
+    if (res.ok) {
+      toast.success('Personaje eliminado');
+      router.refresh();
+    } else toast.error(res.message || 'Error');
+  }
+
+  // Duplica compartiendo las mismas referencias (punteros a media_references):
+  // reusa createCharacterAction con los campos del origen. Estados/vestuarios
+  // (filas aparte) no se copian — es un duplicado de identidad base.
+  async function handleDuplicate(c: CastCharacter) {
+    if (!c.master_image_id) return;
+    const res = await createCharacterAction({
+      name: `${c.name} (copia)`,
+      description: c.description ?? undefined,
+      masterImageId: c.master_image_id,
+      angleImageIds: c.angle_image_ids,
+      voiceCloneId: c.voice_clone_id,
+      fullBodyImageId: c.full_body_image_id,
+    });
+    if (res.ok) {
+      toast.success('Personaje duplicado');
+      router.refresh();
+    } else toast.error(res.message || 'No se pudo duplicar');
+  }
+
+  const showSearch = characters.length > 5;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[18px] font-semibold text-foreground">Cast</h1>
-          <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
-            Personajes consistentes para tus campañas. La hoja maestra (foto frontal, expresión neutra) se
-            inyecta en cada generación donde aparece el personaje — misma cara en todos los videos.
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAiOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2 text-[13px] font-medium text-foreground hover:bg-primary/15"
-          >
-            <Sparkles className="size-4" aria-hidden /> Crear con IA
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing('new')}
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
+    <div>
+      <AssetPageHeader
+        title="Cast"
+        description="Personajes consistentes para tus campañas. La hoja maestra (foto frontal, expresión neutra) se inyecta en cada generación donde aparece el personaje — misma cara en todos los videos."
+        actions={
+          <Button type="button" onClick={() => setEditing('new')}>
             <Plus className="size-4" aria-hidden />
             Nuevo personaje
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
       {editing && (
         <CharacterEditor
@@ -102,75 +133,55 @@ export function CastPage({
         />
       )}
 
-      {aiOpen && (
-        <CreationWizard
-          kind="character"
-          onSave={async (result) => {
-            if (result.kind !== 'character') return;
-            const res = await createCharacterAction({
-              name: 'Nuevo personaje',
-              masterImageId: result.refId,
-              angleImageIds: result.angleRefIds.slice(0, 2),
-            });
-            if (!res.ok) { toast.error(res.message || 'No se pudo crear'); return; }
-            router.refresh();
-          }}
-          onClose={() => setAiOpen(false)}
-        />
-      )}
-
       {characters.length === 0 && !editing ? (
-        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <div className="grid size-16 place-items-center rounded-2xl border border-border bg-muted/30">
-            <Users className="size-7" aria-hidden />
-          </div>
-          <p className="text-[14px] text-foreground/70">Sin personajes en el Cast</p>
-          <p className="max-w-sm text-[12.5px]">
-            Los formatos con presentador (Voz Cercana, A Pie de Calle) necesitan al menos un personaje. Usa
-            una imagen generada o estilizada — los rostros de personas reales están bloqueados por el modelo.
-          </p>
-        </div>
+        <PageEmptyState
+          icon={Users}
+          title="Sin personajes en el Cast"
+          sub="Los formatos con presentador (Voz Cercana, A Pie de Calle) necesitan al menos un personaje. Usa una imagen generada o estilizada — los rostros de personas reales están bloqueados por el modelo."
+        />
       ) : (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {characters.map((c) => (
-            <div key={c.id} className="overflow-hidden rounded-xl border border-border bg-card/50 transition-colors hover:border-muted-foreground/20">
-              <div className="flex items-center gap-3 p-4">
-                {c.master_image_id && previews[c.master_image_id] ? (
-                  <ZoomableImage src={previews[c.master_image_id]} alt={c.name} className="size-14 shrink-0 rounded-full border border-border" />
-                ) : (
-                  <div className="grid size-14 shrink-0 place-items-center rounded-full border border-border bg-muted/30">
-                    <Users className="size-5 text-muted-foreground/40" aria-hidden />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <h3 className="truncate text-[14px] font-medium text-foreground">{c.name}</h3>
-                  {c.description && (
-                    <p className="mt-0.5 line-clamp-2 text-[11.5px] text-muted-foreground/70">{c.description}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 border-t border-border/30 p-3">
-                <button type="button" onClick={() => setEditing(c)} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
-                  <Pencil className="size-3" aria-hidden /> Editar
-                </button>
-                <button
-                  type="button"
-                  aria-label="Eliminar personaje"
-                  onClick={async () => {
-                    const ok = await confirm({ title: `Eliminar a "${c.name}"?`, description: 'Los items de campaña que lo usan quedarán sin personaje.', confirmLabel: 'Eliminar', destructive: true });
-                    if (!ok) return;
-                    const res = await deleteCharacterAction(c.id);
-                    if (res.ok) { toast.success('Personaje eliminado'); router.refresh(); }
-                    else toast.error(res.message || 'Error');
+        <>
+          {showSearch && (
+            <AssetSearch className="mt-6" value={query} onChange={setQuery} placeholder="Buscar personaje…" />
+          )}
+          {filtered.length === 0 ? (
+            <PageEmptyState icon={Users} title="Sin resultados" sub="Ningún personaje coincide con tu búsqueda." />
+          ) : (
+            <AssetGrid className={showSearch ? 'mt-4' : 'mt-6'}>
+              {filtered.map((c) => (
+                <AssetCard
+                  key={c.id}
+                  media={{
+                    url: c.master_image_id ? previews[c.master_image_id] ?? null : null,
+                    alt: c.name,
+                    aspect: 'portrait',
+                    fallbackIcon: Users,
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                >
-                  <Trash2 className="size-3" aria-hidden />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+                  title={c.name}
+                  description={c.description}
+                  readiness={
+                    c.master_image_id
+                      ? { status: 'ready', label: 'Listo' }
+                      : { status: 'incomplete', label: 'Falta hoja maestra' }
+                  }
+                  meta={
+                    c.voice_clone_id ? (
+                      <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground/70">
+                        <Mic2 className="size-3" aria-hidden /> Voz
+                      </span>
+                    ) : null
+                  }
+                  primary={{ kind: 'link', href: `/app/studio/character/${c.id}`, label: 'Estudio', icon: Sparkles }}
+                  secondary={{ kind: 'button', onClick: () => setEditing(c), label: 'Editar', icon: Pencil }}
+                  menu={[
+                    { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicate(c), disabled: !c.master_image_id },
+                    { label: 'Eliminar', icon: Trash2, onClick: () => handleDelete(c), destructive: true },
+                  ]}
+                />
+              ))}
+            </AssetGrid>
+          )}
+        </>
       )}
     </div>
   );
@@ -595,19 +606,6 @@ function CharacterEditor({
           onChange={(imgs) => setMasterImages(imgs.slice(-1))}
           max={1}
         />
-
-        {/* Refinado iterativo de la maestra (feedback 2026-07-04): antes solo se
-            podía editar durante la creación en el wizard; post-guardado obligaba
-            a Photoshop o a regenerar de cero. Preserva la identidad; el cambio
-            pedido (peinado, ropa, expresión) manda. */}
-        {masterImages.length > 0 && (
-          <MasterImageRefiner
-            image={masterImages[0]}
-            refine={refineCharacterMaster}
-            onResult={(r) => setMasterImages([r])}
-            placeholder="ej. pelo más corto, chaqueta de mezclilla"
-          />
-        )}
 
         <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3">
           <p className="text-[12px] leading-relaxed text-muted-foreground">

@@ -1,6 +1,7 @@
 import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { signedReferenceUrl } from '@/lib/supabase/storage';
+import { buildWizardKitOptions } from '@/lib/campaigns/wizard-kits';
 import { CampaignStudioWizard } from '@/components/campaigns/CampaignStudioWizard';
 
 export const dynamic = 'force-dynamic';
@@ -9,37 +10,56 @@ export default async function NewCampaignPage() {
   const { workspace } = await requireWorkspace();
   const supabase = await createClient();
 
-  const [{ data: kits }, { data: characterRows }, { data: outfitRows }] = await Promise.all([
-    supabase
-      .from('brand_kits')
-      .select('id, name, product_image_ids, packaging_image_ids, reference_image_ids')
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('characters')
-      .select('id, name, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
-      .eq('workspace_id', workspace.id)
-      .order('created_at', { ascending: false }),
-    // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
-    // por personaje seleccionado.
-    supabase
-      .from('character_outfits')
-      .select('id, label, character_id')
-      .eq('workspace_id', workspace.id),
-  ]);
+  const [{ data: kits }, { data: characterRows }, { data: outfitRows }, { data: productRows }] =
+    await Promise.all([
+      supabase
+        .from('brand_kits')
+        .select('id, name, product_image_ids, packaging_image_ids, reference_image_ids')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('characters')
+        .select('id, name, master_image_id, angle_image_ids, reference_image_ids, voice_clone_id')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+      // Vestuario (specs/v2/16): opciones para el selector "Vestuario de {name}"
+      // por personaje seleccionado.
+      supabase
+        .from('character_outfits')
+        .select('id, label, character_id')
+        .eq('workspace_id', workspace.id),
+      // Productos (V3 multi-producto): opciones del multi-select "Productos de esta
+      // campaña" agrupadas por marca (brand_id).
+      supabase
+        .from('products')
+        .select('id, name, brand_id, product_image_ids')
+        .eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }),
+    ]);
 
-  const brandKits = (kits ?? [])
-    .map((k) => {
-      const productImages = ((k.product_image_ids as string[]) ?? []).length
-        || ((k.reference_image_ids as string[]) ?? []).length;
-      return {
-        id: k.id as string,
-        name: k.name as string,
-        productImages,
-        packagingImages: ((k.packaging_image_ids as string[]) ?? []).length,
-      };
-    })
-    .filter((k) => k.productImages > 0);
+  const productsByKit: Record<string, Array<{ id: string; name: string; imageCount: number }>> = {};
+  for (const p of productRows ?? []) {
+    const brandId = p.brand_id as string | null;
+    if (!brandId) continue;
+    (productsByKit[brandId] ??= []).push({
+      id: p.id as string,
+      name: p.name as string,
+      imageCount: ((p.product_image_ids as string[]) ?? []).length,
+    });
+  }
+
+  // Contador y filtro V3-aware (las imágenes pueden vivir en `products`, no
+  // solo en el kit legacy) — lógica y regresión en lib/campaigns/wizard-kits.
+  const brandKits = buildWizardKitOptions(
+    (kits ?? []).map((k) => ({
+      id: k.id as string,
+      name: k.name as string,
+      product_image_ids: (k.product_image_ids as string[] | null) ?? null,
+      packaging_image_ids: (k.packaging_image_ids as string[] | null) ?? null,
+      reference_image_ids: (k.reference_image_ids as string[] | null) ?? null,
+    })),
+    productsByKit,
+  );
 
   // Personajes utilizables: con hoja maestra (o primera referencia, compat V1).
   const usable = (characterRows ?? [])
@@ -102,5 +122,12 @@ export default async function NewCampaignPage() {
     characterId: o.character_id as string,
   }));
 
-  return <CampaignStudioWizard brandKits={brandKits} characters={characters} outfits={outfits} />;
+  return (
+    <CampaignStudioWizard
+      brandKits={brandKits}
+      characters={characters}
+      outfits={outfits}
+      productsByKit={productsByKit}
+    />
+  );
 }

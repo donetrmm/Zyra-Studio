@@ -64,31 +64,45 @@ describe('estimateSpeechSeconds', () => {
 
 // Calibración con mediciones REALES del usuario (2026-07-07, es-MX natural):
 // "Hola, cómo estás" (3 palabras) = 2.37s; una frase de 36 palabras = 14s.
-// La regresión da ~2.8 palabras/seg de ritmo MARGINAL + ~1.3s fijos de arranque.
-// El modelo separa ambos: tasa sostenida (WPS, con descuento a entrega actuada)
-// + aire fijo por clip (HEADROOM_S). Una tasa única (el 1.4 anterior) metía el
-// arranque dentro de la tasa e inflaba las líneas largas.
+// La regresión da ~2.84 palabras/seg de ritmo MARGINAL + ~1.3s fijos de arranque.
+// Fase 2 audio (2026-07-13): WPS sube a la tasa MEDIDA (2.8) — el 2.0 anterior
+// aplicaba un descuento extra que sobreestimaba la duración y arrastraba la voz.
+// Ahora la estimación sigue la medición real (36 palabras ≈ 12.9s, no 18).
 describe('calibración del ritmo de habla (mediciones del usuario)', () => {
   it('3 palabras (2.37s reales) caben holgadas en el clip mínimo de 4s', () => {
     const needed = estimateSpeechSeconds('Hola cómo estás', 'es');
     expect(fitVerdict(needed, 4).level).toBe('roomy');
     expect(fitVerdict(needed, 4).suggestedDurationS).toBe(DUR_MIN);
   });
-  it('36 palabras (14s reales de habla) no caben ni en el clip máximo', () => {
+  it('36 palabras (~12.9s de habla) ahora SÍ caben en el clip máximo de 15s', () => {
     const treintaYSeis = Array.from({ length: 36 }, (_, i) => `palabra${i}`).join(' ');
     const needed = estimateSpeechSeconds(treintaYSeis, 'es');
+    expect(needed).toBeCloseTo(36 / 2.8, 1);
+    expect(fitVerdict(needed, 15).level).not.toBe('tight');
+  });
+  it('48 palabras no caben ni en el clip máximo (guard anti-atropellado)', () => {
+    const cuarentaYOcho = Array.from({ length: 48 }, (_, i) => `palabra${i}`).join(' ');
+    const needed = estimateSpeechSeconds(cuarentaYOcho, 'es');
     expect(fitVerdict(needed, 15).level).toBe('tight');
     expect(fitVerdict(needed, 8).suggestedDurationS).toBe(DUR_MAX);
   });
-  it('12 palabras es-MX piden ~8s de clip (6s de habla + aire fijo)', () => {
+  it('12 palabras es-MX piden ~6s de clip (4.3s de habla + aire fijo)', () => {
     const doce = Array.from({ length: 12 }, (_, i) => `palabra${i}`).join(' ');
     const needed = estimateSpeechSeconds(doce, 'es');
-    expect(fitVerdict(needed, 4).suggestedDurationS).toBe(8);
+    expect(fitVerdict(needed, 4).suggestedDurationS).toBe(6);
     expect(fitVerdict(needed, 8).level).not.toBe('tight');
   });
-  it('8 palabras es-MX quedan apretadas en un clip de 4s', () => {
+  it('8 palabras es-MX ahora caben (ok) en un clip de 4s tras recalibrar', () => {
     const needed = estimateSpeechSeconds('Esto cambió por completo todas mis mañanas hoy', 'es');
-    expect(fitVerdict(needed, 4).level).toBe('tight');
+    expect(fitVerdict(needed, 4).level).toBe('ok');
+  });
+  it('14 palabras (~5s de habla) apuntan a 6s, no 7 — 8s arrastra (roomy)', () => {
+    const catorce = Array.from({ length: 14 }, (_, i) => `palabra${i}`).join(' ');
+    const needed = estimateSpeechSeconds(catorce, 'es');
+    // Target = la duración más ajustada que sigue siendo buena (habla + aire mínimo).
+    expect(fitVerdict(needed, 8).suggestedDurationS).toBe(6);
+    expect(fitVerdict(needed, 8).level).toBe('roomy'); // 8s: demasiada holgura → arrastra
+    expect(fitVerdict(needed, 6).level).toBe('ok'); // 6s: el punto bueno
   });
 });
 
@@ -100,10 +114,10 @@ describe('fitVerdict', () => {
     expect(fitVerdict(4.5, 5).level).toBe('tight'); // 0.5 < MIN_AIR_S(1)
   });
   it('ok cuando hay aire mínimo pero no la holgura completa', () => {
-    expect(fitVerdict(3.5, 5).level).toBe('ok'); // 1 <= 1.5 < HEADROOM_S(2)
+    expect(fitVerdict(3.8, 5).level).toBe('ok'); // 1 <= 1.2 < HEADROOM_S(1.3)
   });
   it('roomy cuando el margen alcanza el headroom', () => {
-    expect(fitVerdict(3, 5).level).toBe('roomy'); // 2 >= HEADROOM_S(2)
+    expect(fitVerdict(3, 5).level).toBe('roomy'); // 2 >= HEADROOM_S(1.3)
   });
   it('sugiere duración con clamp al rango Seedance', () => {
     expect(fitVerdict(20, 5).suggestedDurationS).toBe(DUR_MAX); // ceil(22) clamp 15

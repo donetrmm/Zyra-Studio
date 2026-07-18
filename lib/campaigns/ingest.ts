@@ -2,6 +2,7 @@ import 'server-only';
 import { IngestRawSchema, MASTER_PROMPT_MAX, type IngestBriefOverrides, type IngestResult } from '@/lib/schemas/ingest';
 import type { ProductBrief } from './brief';
 import { gatewayText } from '@/lib/providers/gateway';
+import { normalizeText } from './text-normalize';
 
 const MODEL = 'gemini-2.5-flash';
 const VISUAL_DETAILS_MAX = 800;
@@ -40,11 +41,7 @@ function extractJson(raw: string): string {
 }
 
 function norm(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
+  return normalizeText(s);
 }
 
 // La descripción del usuario MANDA (va primero); se concatena la detectada sin

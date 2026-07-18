@@ -10,7 +10,9 @@ import {
 } from '@/lib/providers/seedance';
 import { ProviderError } from '@/lib/providers/types';
 import { signedReferenceUrlAdmin, signedVoiceSampleUrlAdmin } from '@/lib/supabase/storage';
+import { ensureSeedanceVoiceSamplePath } from '@/lib/jobs/voice-sample';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 
 // Un clip de hasta 15 s con referencias puede tardar varios minutos.
 // 40 polls con delays 15→30 s ≈ 17 min de techo; timeout_at corta antes si aplica.
@@ -68,11 +70,33 @@ export const seedanceHandler: JobHandler = {
         if (params.endReferenceStoragePath) {
           endImageUrl = await signedReferenceUrlAdmin(params.endReferenceStoragePath);
         }
+        // Muestras de voz (@audio1): Seedance acepta audios de referencia de
+        // ≤15s combinados, pero las muestras se suben largas (clonado de
+        // ElevenLabs). Se sustituye cada path por su variante recortada
+        // (derivada+cacheada en voice-samples); si la derivación falla se
+        // degrada al original — con muestras ya cortas es lo correcto, con
+        // largas el proveedor rechazará igual que antes pero no peor.
+        let audioPaths = params.referenceAudioPaths;
+        if (audioPaths?.length && params.referenceAudioBucket === 'voice-samples') {
+          audioPaths = await Promise.all(
+            audioPaths.map(async (p) => {
+              try {
+                return await ensureSeedanceVoiceSamplePath(p);
+              } catch (err) {
+                console.warn('[seedance] variante de muestra de voz falló; se usa el original', {
+                  path: p,
+                  err: (err as Error)?.message?.slice(0, 200),
+                });
+                return p;
+              }
+            }),
+          );
+        }
         const [imageUrls, videoUrls, audioUrls] = await Promise.all([
           signAll(params.referenceImagePaths),
           signAll(params.referenceVideoPaths),
           signAll(
-            params.referenceAudioPaths,
+            audioPaths,
             params.referenceAudioBucket === 'voice-samples'
               ? signedVoiceSampleUrlAdmin
               : signedReferenceUrlAdmin,
@@ -132,18 +156,7 @@ export const seedanceHandler: JobHandler = {
       };
     } catch (err) {
       if (err instanceof ProviderError) {
-        return {
-          kind: 'fail',
-          message: err.message,
-          code:
-            err.code === 'safety'
-              ? 'safety'
-              : err.code === 'rate_limit'
-                ? 'rate_limit'
-                : err.code === 'timeout'
-                  ? 'timeout'
-                  : 'unknown',
-        };
+        return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
       }
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }

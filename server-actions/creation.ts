@@ -6,29 +6,12 @@ import { requireWorkspace } from '@/lib/auth/dal';
 import { createClient } from '@/lib/supabase/server';
 import { downloadReferenceBuffer } from '@/lib/supabase/storage';
 import { averageHash, hammingDistance, NEARLY_IDENTICAL_MAX_DISTANCE } from '@/lib/images/similarity';
-import { clarifyCharacter } from '@/lib/creation/clarify';
-import { analyzeKitImage, type KitFields } from '@/lib/creation/analyze-kit';
-import { stripAgeWords } from '@/lib/prompt-director/inventory';
-import { ClarifyInputSchema, type ClarifyResult } from '@/lib/schemas/creation';
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string; message?: string };
 
-export async function clarifyCreationAction(input: unknown): Promise<Result<ClarifyResult>> {
-  const parsed = ClarifyInputSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: 'validation_error', message: parsed.error.message };
-  await requireWorkspace();
-  try {
-    return { ok: true, data: await clarifyCharacter(parsed.data) };
-  } catch {
-    // Falla blanda: generar best-effort con el texto crudo (saneado age-blind).
-    const { text } = stripAgeWords(parsed.data.text);
-    return { ok: true, data: { questions: [], enrichedPrompt: text.trim() || parsed.data.text } };
-  }
-}
-
 // Resuelve el storagePath de imágenes ya guardadas (validando ownership) para
-// que el wizard pueda EDITARLAS con Nano Banana (necesita {id, storagePath}).
-// Lo usa el flujo "Mejorar con IA" del Brand Kit, que lee las imágenes del kit.
+// editarlas con Nano Banana (necesita {id, storagePath}). Lo usan los editores
+// de cast y locación (estados/outfits/cuerpo completo, mapa de escala).
 export async function getReferencePathsAction(ids: unknown): Promise<Result<Record<string, string>>> {
   const parsed = z.array(z.string().uuid()).max(8).safeParse(ids);
   if (!parsed.success) return { ok: false, error: 'validation_error' };
@@ -44,30 +27,6 @@ export async function getReferencePathsAction(ids: unknown): Promise<Result<Reco
     if (r.workspace_id === workspace.id && r.storage_url) out[r.id as string] = r.storage_url as string;
   }
   return { ok: true, data: out };
-}
-
-// Analiza la imagen del producto (generada o subida) para prellenar los campos
-// del Brand Kit al crearlo con IA: nombre, paleta (con hex) y tono. Best-effort
-// desde el wizard; falla dura aquí (el usuario está en el paso de revisión).
-export async function analyzeKitFromImageAction(mediaReferenceId: unknown): Promise<Result<KitFields>> {
-  const parsed = z.string().uuid().safeParse(mediaReferenceId);
-  if (!parsed.success) return { ok: false, error: 'validation_error' };
-  const { workspace } = await requireWorkspace();
-  const supabase = await createClient();
-  const { data: ref } = await supabase
-    .from('media_references')
-    .select('storage_url, workspace_id, type')
-    .eq('id', parsed.data)
-    .single();
-  if (!ref || ref.workspace_id !== workspace.id || ref.type !== 'image' || !ref.storage_url) {
-    return { ok: false, error: 'forbidden', message: 'Imagen no pertenece al workspace' };
-  }
-  try {
-    const { buffer, mimeType } = await downloadReferenceBuffer(ref.storage_url as string);
-    return { ok: true, data: await analyzeKitImage({ imageBuffer: buffer, mimeType }) };
-  } catch (e) {
-    return { ok: false, error: 'provider_error', message: (e as Error).message };
-  }
 }
 
 // Compara dos referencias por hash perceptual para detectar que el proveedor

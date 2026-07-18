@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { revalidatePath } from 'next/cache';
 import { uploadOutput, uploadThumbnail } from '@/lib/supabase/storage';
 import { completeGeneration } from '@/lib/credits/operations';
+import { enqueueJob } from './queue';
 import { extractVideoFrame } from './video-frame';
 import type { GenerationRow } from './handlers/types';
 
@@ -75,6 +76,17 @@ export async function finalizeGeneration(params: {
     fileSizeBytes: outputBuffer.byteLength,
     providerPayload: metadata ?? null,
   });
+
+  // Auto-review de calidad (specs/v2/19): job propio con presupuesto fresco —
+  // nunca inline tras 'done' (mismo patrón que promote/advance). Best-effort:
+  // sin review la generación queda igual de completa.
+  if (gen.type === 'image' && thumbPath) {
+    try {
+      await enqueueJob({ generationId: gen.id, action: 'quality_review' });
+    } catch (err) {
+      console.error('[finalize] no se pudo encolar el quality review', { generationId: gen.id, err });
+    }
+  }
 
   revalidatePath('/app/library');
   revalidatePath('/app/create/video');

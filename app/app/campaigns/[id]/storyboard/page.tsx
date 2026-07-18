@@ -38,7 +38,7 @@ export default async function StoryboardPage({
 
   const { data: itemRows } = await supabase
     .from('campaign_items')
-    .select('id, scene_index, scene_prompt, storyboard_image_id, storyboard_generation_id, location_id, duration_s, sequence_id, sequence_label, format_id, created_at, warnings')
+    .select('id, scene_index, scene_prompt, storyboard_image_id, storyboard_generation_id, location_id, duration_s, voice_tone, sequence_id, sequence_label, format_id, created_at, warnings')
     .eq('campaign_id', id)
     .order('scene_index');
 
@@ -161,6 +161,7 @@ export default async function StoryboardPage({
     storyboardGenerationId: (r.storyboard_generation_id as string | null) ?? null,
     panelUrl: r.storyboard_image_id ? (refMap.get(r.storyboard_image_id as string) ?? null) : null,
     durationS: (r.duration_s as number | null) ?? 8,
+    voiceTone: (r.voice_tone as string | null) ?? null,
     locationId: (r.location_id as string | null) ?? null,
     warnings: (r.warnings as string[] | null) ?? [],
     versions: versionsByBeat[r.id as string] ?? [],

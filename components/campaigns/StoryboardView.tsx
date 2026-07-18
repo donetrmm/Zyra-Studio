@@ -7,10 +7,11 @@ import { ArrowLeft, Download, ImageIcon, Loader2, MapPin, RefreshCw, Sparkles, U
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { generatePanelAction, refinePanelAction, restorePanelVersionAction, setStoryboardLocationAction, setBeatAudioAction, uploadPanelAction } from '@/server-actions/storyboard';
+import { generatePanelAction, restorePanelVersionAction, setStoryboardLocationAction, setBeatAudioAction, uploadPanelAction } from '@/server-actions/storyboard';
 import type { StoryboardBeat } from '@/lib/campaigns/storyboard-types';
 import type { StoryboardCreative } from '@/lib/campaigns/storyboard-creatives';
 import { extractDialogue, estimateSpeechSeconds, fitVerdict, countWords } from '@/lib/campaigns/speech-fit';
+import { VOICE_TONE_LABELS } from '@/lib/campaigns/voice-tone';
 import { useStoryboardPanelRealtime, panelUpdateFromRow, slimPanelRow, type SlimPanelRow } from './use-storyboard-panel-realtime';
 import {
   reconcilePanelStates,
@@ -249,10 +250,6 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   );
   useStoryboardPanelRealtime(campaignId, onPanelUpdate);
 
-  // Input de refinado por beat
-  const [instructions, setInstructions] = useState<Record<string, string>>({});
-  const [refining, setRefining] = useState<string | null>(null);
-
   // Espejo de estado para leer lo ultimo dentro del interval sin recrearlo.
   const inFlightSourceRef = useRef<{ panelStates: Record<string, PanelState>; refiningBeats: Record<string, boolean> }>({
     panelStates: {},
@@ -297,10 +294,6 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   useEffect(() => {
     inFlightSourceRef.current = { panelStates, refiningBeats };
   });
-  // Error de refinado por beat: persiste como nota bajo el panel (sin borrar la
-  // panelUrl previa) hasta el próximo intento; el toast solo es efímero.
-  const [refineErrors, setRefineErrors] = useState<Record<string, string>>({});
-
   // EXPERIMENTAL por beat: anclar la imagen del producto en el turno de chat al
   // regenerar (paneles encadenados). Transitorio (no se persiste): controla la prueba
   // del re-anclaje de producto sin tocar el env flag global.
@@ -310,9 +303,6 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   // para refinados que recomponen la cámara o abren zonas del set que el panel
   // previo no muestra. Solo visible en beats con locación asignada.
   const [locationRef, setLocationRef] = useState<Record<string, boolean>>({});
-  // Edición fuerte del refinado: single-turn (sin historial de chat). Para cambios
-  // que el refinado conversacional no respeta (construcción del producto, geometría).
-  const [strongEdit, setStrongEdit] = useState<Record<string, boolean>>({});
 
   // Historial de versiones: selección pendiente por beat + beat restaurando.
   const [versionPick, setVersionPick] = useState<Record<string, string>>({});
@@ -374,9 +364,9 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
   const [generatingAll, setGeneratingAll] = useState(false);
 
   // Estado del editor de audio por beat
-  const [audioDraft, setAudioDraft] = useState<Record<string, { dialogue: string; durationS: number }>>(() => {
-    const init: Record<string, { dialogue: string; durationS: number }> = {};
-    for (const b of beats) init[b.id] = { dialogue: extractDialogue(b.scenePrompt), durationS: b.durationS };
+  const [audioDraft, setAudioDraft] = useState<Record<string, { dialogue: string; durationS: number; voiceTone: string }>>(() => {
+    const init: Record<string, { dialogue: string; durationS: number; voiceTone: string }> = {};
+    for (const b of beats) init[b.id] = { dialogue: extractDialogue(b.scenePrompt), durationS: b.durationS, voiceTone: b.voiceTone ?? '' };
     return init;
   });
   const [savingAudio, setSavingAudio] = useState<string | null>(null);
@@ -385,7 +375,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     const draft = audioDraft[beatId];
     if (!draft) return;
     setSavingAudio(beatId);
-    const res = await setBeatAudioAction(beatId, draft.dialogue, draft.durationS);
+    const res = await setBeatAudioAction(beatId, draft.dialogue, draft.durationS, draft.voiceTone.trim() || null);
     setSavingAudio(null);
     if (res.ok) {
       toast.success('Audio guardado · regenera el video para aplicarlo');
@@ -443,51 +433,6 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
     }
     awaitingGenRef.current[beatId] = [res.data.generationId];
     // ok: el panel queda 'generating'; Realtime lo pasa a idle (done) o error (failed).
-  }
-
-  async function handleRefine(beatId: string, variants = 1) {
-    const instruction = (instructions[beatId] ?? '').trim();
-    if (!instruction) {
-      toast.error('Escribe una instrucción antes de refinar');
-      return;
-    }
-    setRefining(beatId);
-    // Overlay "Refinando..." sobre la imagen actual desde el click; persiste durante toda
-    // la generacion (Realtime lo cierra en done/failed). Se mantiene la panelUrl visible
-    // (no la ponemos en null como antes, que dejaba "Sin panel" ~80s sin feedback).
-    setRefiningBeats((prev) => ({ ...prev, [beatId]: true }));
-    resetCompletedGens(beatId);
-    awaitingGenRef.current[beatId] = ['pending'];
-    setRefineErrors((prev) => {
-      if (!(beatId in prev)) return prev;
-      const next = { ...prev };
-      delete next[beatId];
-      return next;
-    });
-    const res = await refinePanelAction(beatId, instruction, {
-      productRefInChat: productRef[beatId] ?? false,
-      characterRefInChat: characterRef[beatId] ?? false,
-      locationRefInChat: locationRef[beatId] ?? false,
-      strongEdit: strongEdit[beatId] ?? false,
-      variants,
-    });
-    setRefining(null);
-    if (res.ok) {
-      awaitingGenRef.current[beatId] = res.data.generationIds;
-      if (variants > 1 && res.data.generationIds.length > 0) {
-        toast.success(`${res.data.generationIds.length} variantes en camino — compáralas en Versiones`);
-      }
-      setInstructions((prev) => ({ ...prev, [beatId]: '' }));
-      // El overlay queda activo; el evento terminal por Realtime (done/failed) lo limpia.
-    } else {
-      delete awaitingGenRef.current[beatId];
-      setRefiningBeats((prev) => clearBeat(prev, beatId));
-      const msg = friendlyError(res.error, res.message);
-      // Persistir el fallo como nota bajo el panel (no borramos la panelUrl previa):
-      // refinar (Nano Banana) puede tardar y el toast se desvanece sin dejar rastro.
-      setRefineErrors((prev) => ({ ...prev, [beatId]: msg }));
-      toast.error(msg);
-    }
   }
 
   return (
@@ -589,14 +534,12 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
           {visibleBeats.map((beat) => {
             const state = panelStates[beat.id] ?? { status: 'idle', panelUrl: beat.panelUrl };
             const isGenerating = state.status === 'generating';
-            const isRefining = refining === beat.id;
             const refiningNow = !!refiningBeats[beat.id];
             // Durante un refinado mantenemos visible la ultima imagen conocida (beat.panelUrl)
             // aunque Realtime pase el estado a 'generating': el overlay indica el trabajo.
             const panelUrl = state.status === 'idle' ? state.panelUrl : refiningNow ? beat.panelUrl : null;
             const hasError = state.status === 'error';
-            const instruction = instructions[beat.id] ?? '';
-            const busy = isGenerating || isRefining || refiningNow || generatingAll;
+            const busy = isGenerating || refiningNow || generatingAll;
             // Regenerar un panel que ya existe pasa por el turno previo (chained, 1.5x);
             // sin panel todavia es una generacion nueva (fresh).
             const regenCost = panelUrl ? panelCostChained : panelCostFresh;
@@ -605,7 +548,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
               <div key={beat.id} className="flex flex-col gap-2">
                 {/* Panel image */}
                 <div className="relative aspect-[9/16] overflow-hidden rounded-xl border border-border bg-muted/20">
-                  {(isGenerating || isRefining) && !refiningNow ? (
+                  {isGenerating && !refiningNow ? (
                     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                       <Loader2 className="size-6 animate-spin" aria-hidden />
                       <span className="text-[11px]">generando…</span>
@@ -648,7 +591,7 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                 </p>
 
                 {/* Motivo persistido del último fallo (el worker lo anota; regenerar lo limpia). */}
-                {beat.warnings.length > 0 && !isGenerating && !isRefining && (
+                {beat.warnings.length > 0 && !isGenerating && (
                   <p className="text-[11px] leading-snug text-amber-400/80">{beat.warnings[0]}</p>
                 )}
 
@@ -790,79 +733,11 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                   </div>
                 )}
 
-                {/* Edición fuerte: el refinado obedece el cambio en modo directo (sin
-                    historial de chat), aunque recomponga un poco la escena. Para
-                    ediciones que el refinado normal ignora (construcción, geometría). */}
-                <div className="flex items-center gap-2 px-0.5">
-                  <Switch
-                    id={`strong-${beat.id}`}
-                    size="sm"
-                    checked={strongEdit[beat.id] ?? false}
-                    disabled={busy}
-                    onCheckedChange={(checked) =>
-                      setStrongEdit((prev) => ({ ...prev, [beat.id]: checked }))
-                    }
-                  />
-                  <label htmlFor={`strong-${beat.id}`} className="text-[11px] text-muted-foreground">
-                    Edición fuerte al refinar: obedece el cambio aunque recomponga la escena
-                  </label>
-                </div>
-
-                {/* Refinar. flex-wrap: los dos botones no se encogen; en columnas
-                    angostas caen a una segunda linea en vez de desbordar la card. */}
-                <div className="flex flex-wrap gap-1.5">
-                  <input
-                    type="text"
-                    value={instruction}
-                    aria-label={`Instrucción de refinado para el panel ${beat.sceneIndex + 1}`}
-                    onChange={(e) =>
-                      setInstructions((prev) => ({ ...prev, [beat.id]: e.target.value }))
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        void handleRefine(beat.id);
-                      }
-                    }}
-                    placeholder="Instrucción…"
-                    disabled={busy || !panelUrl}
-                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-40"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={busy || !panelUrl || !instruction.trim()}
-                    onClick={() => void handleRefine(beat.id)}
-                  >
-                    {isRefining ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                    ) : panelCostChained != null ? (
-                      `Refinar · −${panelCostChained} cr`
-                    ) : (
-                      'Refinar'
-                    )}
-                  </Button>
-                  {/* Lote de variantes: 3 intentos paralelos de la misma edición
-                      (mismo padre, sin degradación encadenada); se comparan y se
-                      elige en Versiones. Contra la variancia del modelo. */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={busy || !panelUrl || !instruction.trim()}
-                    title={`3 variantes de la misma edición${panelCostChained != null ? ` · −${panelCostChained * 3} cr` : ''}`}
-                    onClick={() => void handleRefine(beat.id, 3)}
-                  >
-                    ×3
-                  </Button>
-                </div>
-                {refineErrors[beat.id] && (
-                  <p role="alert" className="px-0.5 text-[11px] text-destructive">
-                    No se pudo refinar: {refineErrors[beat.id]}
-                  </p>
-                )}
+                {/* Editar el panel: el refinado inline se retiró — la edición vive
+                    en el estudio creativo (chat con historial, multi-proveedor). */}
+                <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+                  <Link href={`/app/studio/panel/${beat.id}`}>Abrir en estudio</Link>
+                </Button>
 
                 {/* Historial de versiones: cada generación terminada del beat es
                     restaurable (link swap, sin regenerar ni cobrar). Existe porque
@@ -912,21 +787,33 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
 
                 {/* Audio: diálogo + duración + medidor de holgura */}
                 {(() => {
-                  const draft = audioDraft[beat.id] ?? { dialogue: extractDialogue(beat.scenePrompt), durationS: beat.durationS };
+                  const draft = audioDraft[beat.id] ?? {
+                    dialogue: extractDialogue(beat.scenePrompt),
+                    durationS: beat.durationS,
+                    voiceTone: beat.voiceTone ?? '',
+                  };
                   const words = countWords(draft.dialogue);
                   const needed = estimateSpeechSeconds(draft.dialogue, language);
                   const { level, suggestedDurationS } = fitVerdict(needed, draft.durationS);
+                  // Fase 2 audio (2026-07-13): 'roomy' YA NO es "natural/bueno" — un
+                  // clip mucho más largo que su línea hace que Seedance arrastre la voz
+                  // y meta pausas ("plano y lento"). El punto bueno es 'ok' (suficiente
+                  // aire sin exceso); 'roomy' con sugerencia menor = aviso de recortar.
+                  const tooLong = level === 'roomy' && suggestedDurationS < draft.durationS;
                   const meter =
                     words === 0
                       ? { text: 'Sin diálogo', cls: 'text-muted-foreground' }
-                      : level === 'roomy'
-                        ? { text: 'Holgado (natural)', cls: 'text-emerald-500' }
-                        : level === 'ok'
-                          ? { text: 'Justo', cls: 'text-amber-500' }
-                          : {
-                              text: `Muy ajustado: ~${needed.toFixed(1)}s para ${words} palabras · sube a ${suggestedDurationS}s o acorta`,
-                              cls: 'text-red-500',
-                            };
+                      : level === 'tight'
+                        ? {
+                            text: `Muy ajustado: ~${needed.toFixed(1)}s para ${words} palabras · sube a ${suggestedDurationS}s o acorta`,
+                            cls: 'text-red-500',
+                          }
+                        : tooLong
+                          ? {
+                              text: `Largo para la voz: puede arrastrarse · baja a ~${suggestedDurationS}s`,
+                              cls: 'text-amber-500',
+                            }
+                          : { text: 'Natural', cls: 'text-emerald-500' };
                   return (
                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card/40 p-2">
                       <textarea
@@ -958,6 +845,33 @@ export function StoryboardView({ campaignId, campaignName, beats, creatives, loc
                         <span className="text-[11px]">s</span>
                       </div>
                       <p className={`text-[11px] ${meter.cls}`}>{meter.text}</p>
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="text"
+                          value={draft.voiceTone}
+                          aria-label={`Tono de la escena ${beat.sceneIndex + 1}`}
+                          onChange={(e) =>
+                            setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, voiceTone: e.target.value } }))
+                          }
+                          placeholder="Tono / entrega (opcional) — ej. cálido, entusiasta"
+                          maxLength={80}
+                          className="min-w-0 rounded-md border border-border bg-background px-2 py-1 text-[12px] text-foreground outline-none placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+                        />
+                        <div className="flex flex-wrap gap-1">
+                          {VOICE_TONE_LABELS.map((label) => (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() =>
+                                setAudioDraft((prev) => ({ ...prev, [beat.id]: { ...draft, voiceTone: label } }))
+                              }
+                              className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"

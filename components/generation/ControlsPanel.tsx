@@ -94,6 +94,8 @@ export type ControlsPanelProps = {
   setPhotoreal: (v: boolean) => void;
   megapixels: 1 | 2 | 4;
   setMegapixels: (v: 1 | 2 | 4) => void;
+  fluxSeed: string;
+  setFluxSeed: (v: string) => void;
   intent: ImageIntent | null;
   setIntent: (v: ImageIntent | null) => void;
   references: ReferenceClient[];
@@ -284,6 +286,8 @@ export function ControlsPanel(props: ControlsPanelProps) {
                 setMegapixels={props.setMegapixels}
                 photoreal={props.photoreal}
                 setPhotoreal={props.setPhotoreal}
+                seed={props.fluxSeed}
+                setSeed={props.setFluxSeed}
               />
             )}
           </div>
@@ -772,11 +776,15 @@ function FluxParams({
   setMegapixels,
   photoreal,
   setPhotoreal,
+  seed,
+  setSeed,
 }: {
   megapixels: 1 | 2 | 4;
   setMegapixels: (v: 1 | 2 | 4) => void;
   photoreal: boolean;
   setPhotoreal: (v: boolean) => void;
+  seed: string;
+  setSeed: (v: string) => void;
 }) {
   return (
     <div className="grid gap-2.5">
@@ -799,6 +807,23 @@ function FluxParams({
         on={photoreal}
         onChange={setPhotoreal}
       />
+      <div>
+        <SectionHeading>Seed · opcional</SectionHeading>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={4294967295}
+          step={1}
+          value={seed}
+          onChange={(e) => setSeed(e.target.value.replace(/[^\d]/g, ''))}
+          placeholder="Fija la composición para iterar"
+          className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-[12.5px] text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring/50"
+        />
+        <p className="mt-1 px-0.5 text-[11px] text-muted-foreground/60">
+          Mismo seed + mismo prompt = misma imagen. Vacío = aleatorio.
+        </p>
+      </div>
     </div>
   );
 }

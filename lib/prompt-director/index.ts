@@ -64,7 +64,7 @@ export function onlyCharacterRefs(ctx: DirectorContext): DirectorContext {
   return {
     ...ctx,
     format: ctx.format ? { ...ctx.format, requiredRefs: [] } : undefined,
-    product: ctx.product ? { ...ctx.product, imagePaths: [], packagingImagePaths: [] } : undefined,
+    products: ctx.products?.map((p) => ({ ...p, imagePaths: [], packagingImagePaths: [] })),
     location: ctx.location ? { ...ctx.location, imagePaths: [] } : undefined,
     extraImagePaths: [],
     templateVideoPath: undefined,

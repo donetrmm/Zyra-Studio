@@ -204,6 +204,14 @@
   animation: zyra-fade-in 0.3s ease both;
 }
 
+/* Quality floor: quien pide menos movimiento no ve estas entradas/loops. */
+@media (prefers-reduced-motion: reduce) {
+  .zyra-fade-up,
+  .zyra-fade-in {
+    animation: none;
+  }
+}
+
 /* Scrollbar minimalista que coincide con el tema dark. */
 @layer utilities {
   .scroll-thin {

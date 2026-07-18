@@ -54,6 +54,9 @@ export const FluxInputSchema = z.object({
   megapixels: z.union([z.literal(1), z.literal(2), z.literal(4)]).default(1),
   references: z.array(ReferenceItem).max(8).default([]),
   photoreal: z.boolean().default(false),
+  // Reproducibilidad: mismo seed + mismo prompt/refs = misma imagen. Rango de
+  // la API de BFL (uint32).
+  seed: z.number().int().min(0).max(4294967295).optional(),
   campaignId: z.string().uuid().optional(),
 });
 

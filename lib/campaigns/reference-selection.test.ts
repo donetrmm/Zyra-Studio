@@ -10,14 +10,16 @@ import {
 import { compilePanel } from './storyboard';
 
 const ctx: DirectorContext = {
-  product: {
-    name: 'Cuadro',
-    visualDetails: 'lienzo',
-    palette: [],
-    imagePaths: ['p/1.jpg', 'p/2.jpg', 'p/3.jpg', 'p/4.jpg'],
-    imageUsages: { 'p/1.jpg': 'frontal' },
-    packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg'],
-  },
+  products: [
+    {
+      name: 'Cuadro',
+      visualDetails: 'lienzo',
+      palette: [],
+      imagePaths: ['p/1.jpg', 'p/2.jpg', 'p/3.jpg', 'p/4.jpg'],
+      imageUsages: { 'p/1.jpg': 'frontal' },
+      packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg'],
+    },
+  ],
   characters: [
     {
       name: 'Ana',
@@ -63,8 +65,8 @@ describe('applyReferenceSelection', () => {
       include: ['p/2.jpg', 'p/4.jpg', 'c/ana-a2.jpg', 'l/sala.jpg'],
     });
     expect(out.manualRefs).toBe(true);
-    expect(out.product?.imagePaths).toEqual(['p/2.jpg', 'p/4.jpg']);
-    expect(out.product?.packagingImagePaths).toEqual([]);
+    expect(out.products?.[0]?.imagePaths).toEqual(['p/2.jpg', 'p/4.jpg']);
+    expect(out.products?.[0]?.packagingImagePaths).toEqual([]);
     expect(out.characters?.[0].angleImagePaths).toEqual(['c/ana-a2.jpg']);
     expect(out.location?.imagePaths).toEqual(['l/sala.jpg']);
     expect(out.location?.scaleMap).toBeUndefined();
@@ -85,7 +87,7 @@ describe('applyReferenceSelection', () => {
 
   it('paths stale (brand kit editado) filtran a no-op sin romper', () => {
     const out = applyReferenceSelection(ctx, { include: ['ya-no-existe.jpg'] });
-    expect(out.product?.imagePaths).toEqual([]);
+    expect(out.products?.[0]?.imagePaths).toEqual([]);
     expect(out.characters?.[0].masterImagePath).toBe('c/ana-master.jpg');
   });
 
@@ -99,15 +101,21 @@ describe('applyReferenceSelection', () => {
     const minimal: DirectorContext = { language: 'es' };
     const out = applyReferenceSelection(minimal, { include: ['a'] });
     expect(out.manualRefs).toBe(true);
-    expect(out.product).toBeUndefined();
+    expect(out.products).toBeUndefined();
   });
 });
 
 describe('buildReferencePool', () => {
   it('agrupa por categoría con labels, masters locked y default del recorte automático', () => {
     const pool = buildReferencePool({
-      product: { name: 'Cuadro', imagePaths: ctx.product!.imagePaths, imageUsages: ctx.product!.imageUsages },
-      packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg', 'pk/3.jpg'],
+      products: [
+        {
+          name: 'Cuadro',
+          imagePaths: ctx.products![0].imagePaths,
+          imageUsages: ctx.products![0].imageUsages,
+          packagingImagePaths: ['pk/1.jpg', 'pk/2.jpg', 'pk/3.jpg'],
+        },
+      ],
       characters: [
         { name: 'Ana', masterImagePath: 'c/ana-master.jpg', angleImagePaths: ['c/ana-a1.jpg', 'c/ana-a2.jpg', 'c/ana-a3.jpg'] },
       ],
@@ -149,8 +157,7 @@ describe('buildReferencePool', () => {
 
   it('sin nombre de producto usa label genérico y deduplica paths repetidos', () => {
     const pool = buildReferencePool({
-      product: { imagePaths: ['p/1.jpg', 'p/1.jpg'] },
-      packagingImagePaths: [],
+      products: [{ imagePaths: ['p/1.jpg', 'p/1.jpg'], packagingImagePaths: [] }],
       characters: [],
       locations: [
         { name: 'Sala', imagePaths: ['l/sala.jpg'] },
@@ -161,6 +168,31 @@ describe('buildReferencePool', () => {
     expect(pool.filter((e) => e.path === 'p/1.jpg')).toHaveLength(1);
     expect(pool.filter((e) => e.path === 'l/sala.jpg')).toHaveLength(1);
     expect(pool.find((e) => e.path === 'p/1.jpg')?.label).toBe('Producto');
+  });
+
+  it('buildReferencePool etiqueta producto y empaque por nombre con 2+ productos', () => {
+    const entries = buildReferencePool({
+      products: [
+        { name: 'Canvas Familiar', imagePaths: ['c1.png'], packagingImagePaths: ['cp1.png'] },
+        { name: 'Retrato de Pareja', imagePaths: ['r1.png'], packagingImagePaths: [] },
+      ],
+      characters: [], locations: [], extraImagePaths: [],
+    });
+    expect(entries.find((e) => e.path === 'c1.png')?.label).toBe('Canvas Familiar');
+    expect(entries.find((e) => e.path === 'r1.png')?.label).toBe('Retrato de Pareja');
+    expect(entries.find((e) => e.path === 'cp1.png')?.label).toBe('Empaque — Canvas Familiar');
+  });
+
+  it('buildReferencePool multi marca autoIncluded según el cap por producto', () => {
+    const entries = buildReferencePool({
+      products: [
+        { name: 'A', imagePaths: ['a1.png', 'a2.png', 'a3.png'], packagingImagePaths: [] },
+        { name: 'B', imagePaths: ['b1.png'], packagingImagePaths: [] },
+      ],
+      characters: [], locations: [], extraImagePaths: [],
+    });
+    expect(entries.find((e) => e.path === 'a2.png')?.autoIncluded).toBe(true); // cap 2 con 2 productos
+    expect(entries.find((e) => e.path === 'a3.png')?.autoIncluded).toBe(false);
   });
 });
 
@@ -180,12 +212,12 @@ describe('CATEGORY_APPLIES — dónde viaja cada categoría (contrato del dialog
 describe('buildReferencePoolTexts — las descripciones que anclan por texto', () => {
   it('producto con visualDetails, personajes con nombre y locaciones con descripción', () => {
     const texts = buildReferencePoolTexts({
-      product: { name: 'Cuadro', visualDetails: 'lienzo con atardecer', imagePaths: ['p/1.jpg'] },
+      products: [{ name: 'Cuadro', visualDetails: 'lienzo con atardecer', imagePaths: ['p/1.jpg'] }],
       characters: [{ name: 'Ana', description: 'mujer de pelo negro, sonriente', masterImagePath: 'c/m.jpg' }],
       locations: [{ name: 'Sala', description: 'sala moderna con sofá gris' }],
     });
-    expect(texts.product).toBeTruthy();
-    expect(texts.product).toContain('atardecer');
+    expect(texts.products).toHaveLength(1);
+    expect(texts.products[0].text).toContain('atardecer');
     expect(texts.characters).toHaveLength(1);
     expect(texts.characters[0].name).toBe('Ana');
     expect(texts.characters[0].text).toContain('Ana');
@@ -193,9 +225,21 @@ describe('buildReferencePoolTexts — las descripciones que anclan por texto', (
   });
 
   it('sin producto ni cast devuelve vacíos sin tronar', () => {
-    const texts = buildReferencePoolTexts({ product: null, characters: [], locations: [] });
-    expect(texts.product).toBeNull();
+    const texts = buildReferencePoolTexts({ products: [], characters: [], locations: [] });
+    expect(texts.products).toEqual([]);
     expect(texts.characters).toEqual([]);
     expect(texts.locations).toEqual([]);
+  });
+
+  it('buildReferencePoolTexts devuelve una ficha por producto', () => {
+    const texts = buildReferencePoolTexts({
+      products: [
+        { name: 'Canvas Familiar', imagePaths: [] },
+        { name: 'Retrato de Pareja', imagePaths: [] },
+      ],
+      characters: [], locations: [],
+    });
+    expect(texts.products).toHaveLength(2);
+    expect(texts.products[0].name).toBe('Canvas Familiar');
   });
 });

@@ -4,7 +4,7 @@
 // demás en texto. Útiles sobre todo cuando hay personas reales (la restricción
 // anti-deepfake de Seedance no aplica aquí).
 
-import { describeProduct } from '../inventory';
+import { describeProduct, describeProductCompact, multiProductCountClause } from '../inventory';
 import { directionFor } from '../format-director';
 import { DIALOGUE_LANGUAGE, sceneHasVoice } from './seedance';
 import { actingDirectionFor, declaresHighEmotion, facesIntended } from '../acting';
@@ -14,7 +14,16 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
   const sections: string[] = [];
   if (ctx.scene?.fragment) sections.push(`${ctx.scene.fragment}.`);
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
-  if (ctx.product) sections.push(describeProduct(ctx.product));
+  const products = ctx.products ?? [];
+  if (products.length === 1) {
+    sections.push(describeProduct(products[0]));
+  } else if (products.length > 1) {
+    // Multi: ficha compacta por producto + anti-conteo (mismo criterio que Seedance,
+    // spec multi-producto 2026-07-15). Sin esto, N fichas completas de
+    // describeProduct saturarían la prosa.
+    for (const [pi, product] of products.entries()) sections.push(describeProductCompact(product, pi, products.length));
+    sections.push(multiProductCountClause(products.length));
+  }
   if (ctx.format) {
     const d = directionFor(ctx.format);
     const direction = [d.framing, d.pacing].filter(Boolean).join(' ');
@@ -56,6 +65,6 @@ export function buildVideoProse(req: CompileRequest, ctx: DirectorContext, maxCh
 }
 
 export function firstProductReference(ctx: DirectorContext): CompiledReference[] {
-  const path = ctx.product?.imagePaths[0];
+  const path = ctx.products?.[0]?.imagePaths[0];
   return path ? [{ storagePath: path, kind: 'image', role: 'product' }] : [];
 }

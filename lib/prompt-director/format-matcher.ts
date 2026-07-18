@@ -17,6 +17,9 @@ import { stagingPlannerBlock, type PlannerProductFacts } from './inventory';
 export { CustomFormatSchema, type CustomFormat };
 
 const MODEL = 'gemini-2.5-flash';
+// Presupuesto de razonamiento del matcher. Ver el bloque de thinkingBudget en
+// requestMatch: sin esto el modelo no respeta la frontera del anuncio.
+const MATCHER_THINKING_BUDGET = 8192;
 
 export type MatcherFormat = {
   id: string;
@@ -261,6 +264,12 @@ const SUMMARY_LANGUAGE: Record<'es' | 'en', string> = {
 
 const SYSTEM = `Eres director creativo de una plataforma de anuncios con IA.
 Recibes ideas de campaña en lenguaje natural y un catálogo de formatos.
+QUÉ ES UNA IDEA: un ANUNCIO completo, nunca un clip ni una escena suelta. Un
+guion rotulado clip por clip ("### Clip 1 · ~6 s", "Clip 2", "Escena 3",
+"Toma 4") es UN SOLO anuncio por más clips que traiga: devuelve UN match con una
+entrada de scenes por cada clip, en orden, y NUNCA un match por clip. Devuelve
+varios matches SOLO cuando el texto describe anuncios DISTINTOS e independientes
+(ideas separadas por línea, "quiero 3 unboxings y un ASMR").
 Por cada idea distinta devuelve un match:
 - Si encaja en un formato del catálogo: formatId con su slug EXACTO (la cadena
   corta tras "slug=", no el id largo) y customFormat null.
@@ -584,11 +593,23 @@ async function requestMatch(input: {
     system,
     contents: [{ role: 'user', parts }],
     temperature: 0.2,
+    // Decidir la FRONTERA del anuncio (¿un guion de 7 clips es un anuncio de 7
+    // escenas o 7 anuncios?) es un juicio sobre todo el texto, y sin thinking el
+    // modelo se queda en el patrón superficial: rotular los clips ("### Clip 1")
+    // le bastaba para devolver un match por clip → 7 creativos sueltos, sin
+    // secuencia (bug Anuncio #15 V2/V3, 2026-07-16). Medido sobre ese guion real,
+    // 5 corridas por variante: sin thinking 0/5 aunque el system lleve la regla
+    // explícita; con thinking 5/5. La regla y el thinking son necesarios JUNTOS
+    // (thinking sin la regla: 0/5).
+    thinkingBudget: MATCHER_THINKING_BUDGET,
     // Timelines con diálogo por idea abultan el JSON. Con guiones cerca del
     // cap (MASTER_PROMPT_MAX) un anuncio de 7+ escenas auto-contenidas más
     // el eco de ideaText superaba 8192 y el JSON llegaba truncado SIEMPRE
     // (el retry no ayuda: el tamaño requerido no baja) → plan al mix.
-    maxOutputTokens: 32768,
+    // Los thinking tokens se cuentan DENTRO de maxOutputTokens (ver
+    // prompt-enhancer.ts), así que el budget del thinking va SUMADO: sin esto el
+    // JSON perdería ese margen y volvería el truncado.
+    maxOutputTokens: 32768 + MATCHER_THINKING_BUDGET,
     json: true,
   });
 

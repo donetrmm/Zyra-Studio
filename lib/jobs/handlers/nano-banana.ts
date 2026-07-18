@@ -1,5 +1,6 @@
 import 'server-only';
 import type { GenerationRow, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 import type { StoryboardJobPayload, StoryboardPrevTurnRef } from '@/lib/campaigns/storyboard-job';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generate as generateNanoBanana, NANO_VARIANT, nanoVariantToResolution } from '@/lib/providers/nano-banana';
@@ -7,6 +8,7 @@ import { ProviderError, type ImageReference, type NanoBananaParams, type NanoBan
 import { extendPanelTo916Attempt } from '@/lib/campaigns/storyboard-expand';
 import { centralSafeCrop } from '@/lib/images/safe-area';
 import { downloadOutputBuffer, downloadReferenceBuffer, uploadSafeBase, uploadThoughtSignature } from '@/lib/supabase/storage';
+import { runImageTurn } from './image-turn';
 
 // inferExtension no vive en un módulo importable (es una función privada
 // duplicada en varios archivos); se define local aquí para no acoplar el worker
@@ -27,12 +29,7 @@ function payloadOf(gen: GenerationRow): StoryboardJobPayload {
 
 function toFail(err: unknown): JobResult {
   if (err instanceof ProviderError) {
-    const code =
-      err.code === 'safety' ? 'safety'
-        : err.code === 'rate_limit' ? 'rate_limit'
-          : err.code === 'timeout' ? 'timeout'
-            : 'unknown';
-    return { kind: 'fail', message: err.message, code };
+    return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
   }
   return { kind: 'fail', message: (err as Error)?.message ?? 'unknown', code: 'unknown' };
 }
@@ -114,6 +111,14 @@ async function runNano(gen: GenerationRow, p: StoryboardJobPayload) {
 
 export const nanoBananaHandler: JobHandler = {
   async handle(gen: GenerationRow, action): Promise<JobResult> {
+    // Turno del estudio (Fase 1 del estudio creativo): sin params.storyboard,
+    // no es un panel de storyboard sino una generación one-shot del chat del
+    // estudio. Enrutar a runImageTurn y conservar intacto todo lo de abajo
+    // para el flujo de storyboard.
+    const studioParams = gen.params as { storyboard?: unknown };
+    if (!studioParams.storyboard) {
+      return runImageTurn(gen);
+    }
     try {
       const p = payloadOf(gen);
       if (action === 'submit') {

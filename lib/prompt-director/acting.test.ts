@@ -53,7 +53,7 @@ describe('facesIntended', () => {
     expect(facesIntended({}, true)).toBe(true);
   });
   it('false en clip de puro producto', () => {
-    expect(facesIntended({ product: { name: 'Canvas', imagePaths: ['ws/p.png'] } }, false)).toBe(false);
+    expect(facesIntended({ products: [{ name: 'Canvas', imagePaths: ['ws/p.png'] }] }, false)).toBe(false);
   });
 });
 

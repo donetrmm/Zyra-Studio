@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeProduct, describeProductScale, describeProductWeight, productUsageClause, stagingPlannerBlock, ADULT_REF_CM } from './inventory';
+import { describeProduct, describeProductScale, describeProductWeight, productUsageClause, stagingPlannerBlock, ADULT_REF_CM, describeProductCompact, multiProductCountClause } from './inventory';
 
 describe('describeProduct — objeto vs impreso', () => {
   const base = { name: 'X', palette: ['red'], imagePaths: [] as string[], visualDetails: 'a family party photo' };
@@ -214,5 +214,35 @@ describe('productUsageClause — explica qué muestra cada imagen de producto ad
     expect(clause).not.toContain('no incluida');
     expect(clause).toContain('construction');
     expect(clause.startsWith(' ')).toBe(true); // concatenable
+  });
+});
+
+describe('describeProductCompact', () => {
+  it('identifica por ordinal e incluye medium, detalle, paleta y dimensiones — NUNCA el nombre', () => {
+    const out = describeProductCompact({
+      name: 'Canvas Familiar', medium: 'canvas print', visualDetails: 'a family portrait',
+      palette: ['navy', 'gold'], heightCm: 100, widthCm: 70, imagePaths: ['p.png'],
+    }, 0, 4);
+    expect(out).toContain('Product 1 of 4');
+    expect(out).not.toContain('Canvas Familiar');
+    expect(out).toContain('canvas print');
+    expect(out).toContain('a family portrait');
+    expect(out).toContain('navy, gold');
+    expect(out).toContain('100 cm tall and 70 cm wide');
+    expect(out).toContain('exactly as in its reference images');
+  });
+  it('omite campos ausentes sin dejar comas colgando', () => {
+    const out = describeProductCompact({ name: 'Mural', imagePaths: [] }, 1, 2);
+    expect(out).toBe('Product 2 of 2. It must appear exactly as in its reference images — never restyle, stretch or recolor it.');
+  });
+});
+
+describe('multiProductCountClause', () => {
+  it('conteo exacto sin nombres (anti-texto) y prohíbe duplicar/fusionar/inventar', () => {
+    const out = multiProductCountClause(3);
+    expect(out).toContain('exactly 3 distinct products');
+    expect(out).not.toContain(':');
+    expect(out).toContain('render each product exactly once');
+    expect(out).toContain('do not duplicate, merge or invent additional products');
   });
 });

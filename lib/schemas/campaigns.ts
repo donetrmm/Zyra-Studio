@@ -128,6 +128,10 @@ export const CreateCampaignStudioSchema = z
     // Vestuario por campaña (specs/v2/16): { characterId: outfitId }. Solo
     // personajes del pool; ownership del outfit se valida en la action.
     characterOutfitMap: z.record(z.string().uuid(), z.string().uuid()).optional(),
+    // V3 multi-producto (Fase 2): pool de productos pre-seleccionados de la
+    // marca. Si viene con elementos, la action enlaza estos products en vez
+    // de auto-materializar uno nuevo desde el brief; ownership se valida ahí.
+    productIds: z.array(z.string().uuid()).max(50).optional(),
   })
   .refine((d) => Boolean(d.brandKitId) || (d.productImageIds?.length ?? 0) > 0, {
     message: 'Sube al menos una imagen de producto o elige un Brand Kit',
@@ -241,11 +245,29 @@ export const MergeSequenceSchema = z.object({
   campaignId: z.string().uuid(),
 });
 
+// Multi-producto por clip (spec 2026-07-15): fija el SUBCONJUNTO de productos
+// del pool asignado a un clip. [] = sin asignar (el tablero lo pide antes de
+// generar cuando la campaña tiene marca+pool). Cap 12 = sanity (tope total de
+// archivos de referencia de Seedance).
+export const SetItemProductsSchema = z.object({
+  itemId: z.string().uuid(),
+  productIds: z.array(z.string().uuid()).max(12),
+});
+
 // Selección manual de referencias de video (054). include = storage paths del
 // pool de la campaña; null = volver al recorte automático. El server intersecta
 // con el pool real antes de persistir (paths forjados no se guardan).
 export const SetReferenceSelectionSchema = z.object({
   campaignId: z.string().uuid(),
+  include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
+});
+
+// Selección manual de referencias de video POR CLIP (V3 fase 4). Espeja
+// SetReferenceSelectionSchema pero a nivel campaign_items.reference_selection;
+// include = storage paths del pool DEL ÍTEM (no de toda la campaña). El server
+// intersecta con ese pool antes de persistir (paths forjados no se guardan).
+export const SetItemReferenceSelectionSchema = z.object({
+  itemId: z.string().uuid(),
   include: z.array(z.string().trim().min(1).max(500)).min(1).max(60).nullable(),
 });
 
@@ -318,3 +340,5 @@ export type CreateCampaignStudioInput = z.infer<typeof CreateCampaignStudioSchem
 export type CampaignItemInput = z.infer<typeof CampaignItemSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
 export type CreateFormatInput = z.infer<typeof CreateFormatSchema>;
+export type SetItemProductsInput = z.infer<typeof SetItemProductsSchema>;
+export type SetItemReferenceSelectionInput = z.infer<typeof SetItemReferenceSelectionSchema>;

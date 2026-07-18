@@ -35,4 +35,20 @@ describe('centralSafeCrop', () => {
     expect(meta.width).toBe(360);
     expect(meta.height).toBe(450);
   });
+
+  // Panel del estudio (GPT Image = 2:3, 1024x1536): mas alto que 4:5 pero NO 9:16.
+  // Calcular la banda desde el 9:16 ideal (271) se pasaba de la altura real (1551 >
+  // 1536) => sharp 'extract_area: bad extract area'. Debe recortar el 4:5 central
+  // (1024x1280) centrado en la altura REAL, sin lanzar.
+  it('de un 2:3 (1024x1536) recorta el 4:5 central sin lanzar', async () => {
+    const panel = await sharp({
+      create: { width: 1024, height: 1536, channels: 3, background: { r: 40, g: 60, b: 80 } },
+    })
+      .jpeg()
+      .toBuffer();
+    const cropped = await centralSafeCrop(panel);
+    const meta = await sharp(cropped).metadata();
+    expect(meta.width).toBe(1024);
+    expect(meta.height).toBe(1280);
+  });
 });

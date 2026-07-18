@@ -41,6 +41,17 @@ export type ModelKey =
 export type VideoAspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9';
 export type SeedanceResolutionUi = '480p' | '720p' | '1080p';
 
+// El usuario piensa en destino ("Reel"), no en proporción ("9:16"). Solo
+// etiquetas de UI; los valores enviados no cambian.
+const RATIO_PLATFORM_LABEL: Partial<Record<VideoAspectRatio, string>> = {
+  '9:16': 'Reels · TikTok · Shorts',
+  '16:9': 'YouTube · Web',
+  '1:1': 'Feed IG · FB',
+  '4:3': 'Clásico',
+  '3:4': 'Retrato',
+  '21:9': 'Cinemático',
+};
+
 export type ReferenceImage = {
   storagePath: string;
   previewUrl: string;
@@ -415,7 +426,21 @@ export function VideoControlsPanel(props: VideoControlsProps) {
                       : 'border-border text-muted-foreground hover:border-muted-foreground/40',
                 )}
               >
-                {r}
+                <span className="block">{r}</span>
+                {RATIO_PLATFORM_LABEL[r] && (
+                  <span
+                    className={cn(
+                      'block text-[10px] leading-tight',
+                      klingHasImage
+                        ? 'text-muted-foreground/20'
+                        : props.aspectRatio === r
+                          ? 'text-muted-foreground'
+                          : 'text-muted-foreground/50',
+                    )}
+                  >
+                    {RATIO_PLATFORM_LABEL[r]}
+                  </span>
+                )}
               </button>
             ))}
           </div>

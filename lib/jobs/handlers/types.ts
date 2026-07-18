@@ -23,7 +23,10 @@ export type JobResult =
       kind: 'fail';
       message: string;
       code: 'safety' | 'rate_limit' | 'timeout' | 'unknown';
-    };
+    }
+  // Claim atómico perdido (otra invocación de QStash ya tomó el job one-shot):
+  // no-op, no confirma ni refundea ni re-encola.
+  | { kind: 'skip' };
 
 // Vista mínima de la fila generations que el handler necesita. Lo carga el
 // worker con service_role antes de invocar al handler. Mantén esto sincronizado
@@ -33,11 +36,12 @@ export type GenerationRow = {
   user_id: string;
   workspace_id: string;
   type: 'video' | 'image' | 'audio';
-  provider: 'veo' | 'kling' | 'elevenlabs' | 'nano-banana' | 'flux' | 'seedance';
+  provider: 'veo' | 'kling' | 'elevenlabs' | 'nano-banana' | 'flux' | 'seedance' | 'gpt-image';
   model_id: string;
   prompt: string | null;
   params: Record<string, unknown>;
   reference_ids: string[];
+  parent_generation_id: string | null;
   status: 'queued' | 'processing' | 'done' | 'failed' | 'canceled';
   provider_task_id: string | null;
   provider_payload: Record<string, unknown> | null;

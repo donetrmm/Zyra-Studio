@@ -2,7 +2,7 @@
 // Estructura: sujeto + entorno + iluminación (palanca de calidad #1) + estilo
 // + paleta. Sin keyword soup (el antislop limpia al final en index.ts).
 
-import { describeCharacter, describeProduct, productUsageClause } from '../inventory';
+import { describeCharacter, describeProduct, describeProductCompact, multiProductCountClause, productUsageClause } from '../inventory';
 import { creativeGuidelineClauses } from '@/lib/campaigns/guidelines';
 import { SCENE_INTEGRATION_CLAUSE } from '../spatial';
 import type { CompiledPrompt, CompiledReference, CompileRequest, DirectorContext } from '../types';
@@ -19,10 +19,19 @@ const DIMENSIONS: Record<string, { width: number; height: number }> = {
 
 export function compileFlux(req: CompileRequest, ctx: DirectorContext): CompiledPrompt {
   const sections: string[] = [];
+  const products = ctx.products ?? [];
+  const product = products[0];
 
   sections.push(req.scenePrompt.trim().replace(/\.?$/, '.'));
   if (ctx.scene?.fragment) sections.push(`Setting: ${ctx.scene.fragment}.`);
-  if (ctx.product) sections.push(describeProduct(ctx.product));
+  if (products.length === 1) {
+    sections.push(describeProduct(product));
+  } else if (products.length > 1) {
+    // Multi: ficha compacta por producto + anti-conteo (mismo criterio que
+    // Seedance, spec multi-producto 2026-07-15).
+    for (const [pi, p] of products.entries()) sections.push(describeProductCompact(p, pi, products.length));
+    sections.push(multiProductCountClause(products.length));
+  }
   // Personajes: descripción al prompt + (abajo) la hoja maestra como referencia,
   // para que FLUX mantenga la IDENTIDAD entre imágenes. Sin esto el storyboard
   // "perdía el hilo del personaje": cada panel inventaba una cara distinta del puro
@@ -74,18 +83,30 @@ export function compileFlux(req: CompileRequest, ctx: DirectorContext): Compiled
 
   const dims = DIMENSIONS[req.aspectRatio ?? '1:1'] ?? DIMENSIONS['1:1'];
 
-  // Referencias: producto (hasta 4) + hoja maestra de cada personaje (hasta 3).
-  // El personaje ancla la identidad; va después del producto. Tope 8 (FLUX 2).
+  // Referencias: producto (hasta 4, o 1 por producto en multi) + hoja maestra de
+  // cada personaje (hasta 3). El personaje ancla la identidad; va después del
+  // producto. Tope 8 (FLUX 2).
   const references: CompiledReference[] = [];
-  const productPaths = ctx.product?.imagePaths.slice(0, 4) ?? [];
+  // Multi: 1 imagen por producto (mitigación anti-conteo, spec 2026-07-15) — con
+  // varios productos, varias vistas del mismo producto multiplica la confusión.
+  const productPaths =
+    products.length > 1
+      ? products.map((p) => p.imagePaths[0]).filter((p): p is string => !!p)
+      : (product?.imagePaths.slice(0, 4) ?? []);
   for (const storagePath of productPaths) {
     references.push({ storagePath, kind: 'image', role: 'product' });
   }
   // Uso por imagen (usage_description del brand kit): sin esto, una vista de
   // canto/perfil viaja como píxeles sin función y el grosor/construcción que
   // fija se ignora. El compiler de video ya cita usos por @imageN; aquí no hay
-  // numeración, así que se enumeran en bloque.
-  const usageClause = productUsageClause(productPaths, ctx.product?.imageUsages);
+  // numeración, así que se enumeran en bloque. En multi se mergean los usages
+  // declarados de TODOS los productos (los paths ya son disjuntos, uno por producto).
+  const usageClause = productUsageClause(
+    productPaths,
+    products.length > 1
+      ? Object.assign({}, ...products.map((p) => p.imageUsages ?? {}))
+      : product?.imageUsages,
+  );
   if (usageClause) sections.push(usageClause.trim());
   for (const character of (ctx.characters ?? []).slice(0, 3)) {
     if (character.masterImagePath) {

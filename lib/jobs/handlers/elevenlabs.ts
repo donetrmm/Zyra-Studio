@@ -2,6 +2,7 @@ import 'server-only';
 import { tts, type ElevenLabsModel, type VoiceSettings } from '@/lib/providers/elevenlabs';
 import { ProviderError } from '@/lib/providers/types';
 import type { GenerationRow, JobAction, JobHandler, JobResult } from './types';
+import { mapProviderCode } from './fail';
 
 // Params que el server action serializa dentro de generations.params para TTS.
 type TtsParams = {
@@ -54,18 +55,7 @@ export const elevenLabsHandler: JobHandler = {
       return { kind: 'finalize', outputBuffer: buffer, mimeType: 'audio/mpeg' };
     } catch (err) {
       if (err instanceof ProviderError) {
-        return {
-          kind: 'fail',
-          message: err.message,
-          code:
-            err.code === 'safety'
-              ? 'safety'
-              : err.code === 'rate_limit'
-                ? 'rate_limit'
-                : err.code === 'timeout'
-                  ? 'timeout'
-                  : 'unknown',
-        };
+        return { kind: 'fail', message: err.message, code: mapProviderCode(err) };
       }
       return { kind: 'fail', message: (err as Error).message, code: 'unknown' };
     }
